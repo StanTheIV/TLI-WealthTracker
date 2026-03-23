@@ -1,6 +1,8 @@
 {
   "name": "tli-tracker",
   "version": "0.1.0",
+  "description": "Real-time farming session tracker for Torchlight: Infinite",
+  "author": "StanTheIV",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -44,11 +46,29 @@
   "build": {
     "appId": "com.tlitracker.app",
     "productName": "TLI Tracker",
+    "icon": "public/web/icon-512.png",
     "directories": {
       "output": "release"
     },
+    "extraResources": [
+      { "from": "public/full_table.json", "to": "full_table.json" }
+    ],
     "win": {
-      "target": "nsis"
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "${productName} Setup ${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName} Portable.${ext}"
     }
   }
 }

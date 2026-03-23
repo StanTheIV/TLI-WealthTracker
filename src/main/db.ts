@@ -131,6 +131,10 @@ function migrateItems(): void {
   }
 }
 
+export function itemsCount(): number {
+  return (db.prepare('SELECT COUNT(*) as count FROM items').get() as {count: number}).count;
+}
+
 export function itemsGetAll(): DbItem[] {
   const rows = db.prepare('SELECT id, name, type, price, price_date FROM items').all() as {id: string; name: string; type: string; price: number; price_date: number}[];
   return rows.map(r => ({id: r.id, name: r.name, type: r.type, price: r.price, priceDate: r.price_date}));

@@ -1,8 +1,9 @@
 import {app, BrowserWindow, ipcMain, dialog} from 'electron';
 import {join} from 'path';
-import {existsSync} from 'fs';
-import {initDb, settingsGetAll} from './db';
+import {existsSync, readFileSync} from 'fs';
+import {initDb, itemsCount, itemsImportBatch, settingsGetAll} from './db';
 import {initLogger, log} from './logger';
+import type {DbItem} from './db';
 import {registerDbHandlers} from './ipc/db';
 import {registerOverlayHandlers} from './ipc/overlay';
 import {registerEngineHandlers, stopEngineForShutdown} from './ipc/engine';
@@ -115,6 +116,38 @@ ipcMain.handle('fs:check-log-file', (_e, folder: string) => {
 });
 
 // ---------------------------------------------------------------------------
+// Seed
+// ---------------------------------------------------------------------------
+
+function seedItemsIfEmpty(): void {
+  if (itemsCount() > 0) return;
+
+  const seedPath = app.isPackaged
+    ? join(process.resourcesPath, 'full_table.json')
+    : join(app.getAppPath(), 'public', 'full_table.json');
+
+  if (!existsSync(seedPath)) {
+    log.warn('database', 'Seed file not found, skipping auto-import');
+    return;
+  }
+
+  try {
+    const raw = JSON.parse(readFileSync(seedPath, 'utf-8')) as Record<string, {name: string; type: string; price: number; last_update: number}>;
+    const items: DbItem[] = Object.entries(raw).map(([id, v]) => ({
+      id,
+      name: v.name,
+      type: v.type ?? '',
+      price: v.price ?? 0,
+      priceDate: v.last_update ?? 0,
+    }));
+    const count = itemsImportBatch(items);
+    log.info('database', `Auto-seeded ${count} items from full_table.json`);
+  } catch (err) {
+    log.error('database', `Failed to seed items: ${err}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
 
@@ -122,6 +155,7 @@ app.whenReady().then(() => {
   log.info('app', 'App starting');
 
   initDb();
+  seedItemsIfEmpty();
   initLogger(settingsGetAll);
 
   registerDbHandlers();
