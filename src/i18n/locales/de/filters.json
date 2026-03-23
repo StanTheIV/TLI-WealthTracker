@@ -1,0 +1,68 @@
+{
+  "title":        "Filter",
+  "newFilter":    "Neuer Filter",
+  "defaultName":  "Neuer Filter",
+  "noFilters":    "Noch keine Filter. Erstelle einen, um loszulegen.",
+  "noRules":      "Noch keine Regeln. Füge eine Regel hinzu, um zu filtern.",
+  "enable":       "Aktivieren",
+  "disable":      "Deaktivieren",
+  "rename":       "Umbenennen",
+  "delete":       "Löschen",
+  "duplicate":    "Duplizieren",
+  "active":       "Aktiv",
+
+  "rules": {
+    "heading":     "Regeln",
+    "add":         "Regel hinzufügen",
+    "dragHint":    "Zum Neuordnen ziehen",
+    "firstWins":   "Regeln werden von oben nach unten ausgewertet — erste Übereinstimmung gewinnt. Standard: anzeigen."
+  },
+
+  "addRule": {
+    "title":       "Regel hinzufügen",
+    "action":      "Aktion",
+    "matchBy":     "Übereinstimmung nach",
+    "scopes":      "Gilt für Bereiche",
+    "allScopes":   "Alle Bereiche",
+    "confirm":     "Regel hinzufügen",
+    "cancel":      "Abbrechen"
+  },
+
+  "action": {
+    "show":        "Anzeigen",
+    "hide":        "Ausblenden",
+    "showDesc":    "Dieses Item / diesen Typ immer tracken",
+    "hideDesc":    "Dieses Item / diesen Typ nie tracken"
+  },
+
+  "matchBy": {
+    "byType":      "Item-Typ",
+    "byItem":      "Bestimmtes Item",
+    "byTypeDesc":  "Alle Items eines bestimmten Typs",
+    "byItemDesc":  "Ein bestimmtes Item nach Name auswählen"
+  },
+
+  "scopes": {
+    "session":    "Sitzung",
+    "map":        "Karte",
+    "vorex":      "Vorex",
+    "dream":      "Traum",
+    "overrealm":  "Überreich",
+    "wealth":     "Vermögen"
+  },
+
+  "ruleDesc": {
+    "showType":   "{{type}} anzeigen",
+    "hideType":   "{{type}} ausblenden",
+    "showItem":   "{{name}} anzeigen",
+    "hideItem":   "{{name}} ausblenden"
+  },
+
+  "itemSearch": {
+    "placeholder": "Items nach Name oder ID suchen…",
+    "noResults":   "Keine Items gefunden"
+  },
+
+  "renamePrompt":    "Neuen Namen für diesen Filter eingeben:",
+  "confirmDelete":   "Filter \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
+}

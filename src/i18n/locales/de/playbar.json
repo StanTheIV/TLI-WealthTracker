@@ -1,0 +1,14 @@
+{
+  "status": {
+    "idle": "Kein Tracking",
+    "running": "Tracking läuft…",
+    "paused": "Pausiert",
+    "initializing": "Inventar wird initialisiert…"
+  },
+  "buttons": {
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Fortsetzen",
+    "stop": "Stopp"
+  }
+}

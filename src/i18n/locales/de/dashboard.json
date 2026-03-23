@@ -1,0 +1,20 @@
+{
+  "title": "Dashboard",
+  "subtitle": "Vermögensübersicht",
+  "chart": {
+    "title": "Vermögen über Zeit",
+    "empty": "Noch keine Vermögensdaten — starte das Tracking und sortiere dein Inventar, um den ersten Datenpunkt zu erfassen"
+  },
+  "breakdown": {
+    "title": "Gegenstandsübersicht",
+    "lastUpdated": "Zuletzt aktualisiert",
+    "filterAll": "Alle",
+    "name": "Gegenstand",
+    "type": "Typ",
+    "qty": "Menge",
+    "price": "Preis",
+    "total": "Gesamt",
+    "grandTotal": "Gesamtsumme",
+    "empty": "Keine Aufschlüsselungsdaten verfügbar"
+  }
+}

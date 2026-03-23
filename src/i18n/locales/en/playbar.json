@@ -1,0 +1,14 @@
+{
+  "status": {
+    "idle": "Not tracking",
+    "running": "Tracking...",
+    "paused": "Paused",
+    "initializing": "Initializing bag…"
+  },
+  "buttons": {
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop"
+  }
+}

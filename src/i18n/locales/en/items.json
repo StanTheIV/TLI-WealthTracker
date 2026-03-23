@@ -1,0 +1,36 @@
+{
+  "title": "Items",
+  "filters": {
+    "all":      "All",
+    "unknown":  "Unknown",
+    "noPrice":  "No price"
+  },
+  "columns": {
+    "id":     "ID",
+    "name":   "Name",
+    "type":   "Type",
+    "price":     "Price",
+    "priceDate": "Price Date"
+  },
+  "types": {
+    "ember":   "Ember",
+    "fuel":    "Fuel",
+    "compass": "Compass",
+    "dream":   "Dream",
+    "cube":    "Cube",
+    "card":        "Fluorescent",
+    "skill":       "Skill",
+    "equipment":   "Equipment",
+    "mapMaterial": "Map Material",
+    "other":       "Other"
+  },
+  "empty": "No items found",
+  "lookup": {
+    "button":       "Lookup",
+    "counter":      "{{used}}/{{max}} lookups today",
+    "limitReached": "Daily limit reached ({{used}}/{{max}})",
+    "noApiKey":     "Set Google API key in Settings",
+    "notFound":     "Name not found",
+    "error":        "Lookup failed"
+  }
+}

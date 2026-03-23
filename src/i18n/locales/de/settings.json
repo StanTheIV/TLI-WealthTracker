@@ -1,0 +1,81 @@
+{
+  "title": "Einstellungen",
+  "tabs": {
+    "general": "Allgemein",
+    "logging": "Protokollierung"
+  },
+  "logging": {
+    "enabled": "Aktiv",
+    "disabled": "Inaktiv",
+    "features": "Funktionen",
+    "types": "Log-Level",
+    "console": {
+      "heading": "Konsolenausgabe",
+      "description": "Log-Meldungen in der Entwicklerkonsole ausgeben"
+    },
+    "file": {
+      "heading": "Dateiausgabe",
+      "description": "Log-Meldungen in eine Datei schreiben",
+      "pathLabel": "Log-Dateipfad"
+    },
+    "featureNames": {
+      "engine": "Engine",
+      "worker": "Worker",
+      "database": "Datenbank",
+      "ipc": "IPC",
+      "overlay": "Overlay",
+      "session": "Sitzung",
+      "price": "Preise",
+      "wealth": "Vermögen",
+      "app": "App",
+      "filter": "Filter"
+    },
+    "typeNames": {
+      "info": "Info",
+      "warn": "Warnung",
+      "error": "Fehler",
+      "debug": "Debug"
+    }
+  },
+  "language": {
+    "heading": "Sprache",
+    "label": "Anzeigesprache"
+  },
+  "tracker": {
+    "heading": "Tracker",
+    "rateTimeframe": {
+      "label": "FE-Ratenanzeige",
+      "hour": "Pro Stunde",
+      "minute": "Pro Minute"
+    }
+  },
+  "overlay": {
+    "heading": "Overlay-Fenster",
+    "opacity": "Hintergrundtransparenz",
+    "opacityHint": "Steuert, wie transparent der Overlay-Hintergrund erscheint"
+  },
+  "logPath": {
+    "heading": "Spiel-Log-Pfad",
+    "label": "Torchlight Infinite Ordner",
+    "hint": "Wähle den Stamminstallationsordner. Der Tracker sucht nach TorchLight\\Saved\\Logs\\UE_game.log darin.",
+    "browse": "Durchsuchen…",
+    "notSet": "Nicht konfiguriert"
+  },
+  "itemImport": {
+    "heading": "Item-Daten",
+    "label": "Item-Preise aus einer full_table.json importieren. Bereits vorhandene Items bleiben unverändert.",
+    "importButton": "full_table.json importieren",
+    "exportButton": "full_table.json exportieren",
+    "success": "{{count}} neue Items importiert.",
+    "noneNew": "Keine neuen Items – alle waren bereits vorhanden.",
+    "error": "Ungültiges Dateiformat."
+  },
+  "apiKeys": {
+    "heading": "API-Schlüssel",
+    "serperApiKey": {
+      "label": "Serper API-Schlüssel",
+      "hint": "Für die Item-Namenssuche über serper.dev (max. 10/Tag, 2500 kostenlos/Monat). Kostenlosen Schlüssel unter serper.dev erstellen.",
+      "placeholder": "Serper API-Schlüssel eingeben…"
+    }
+  }
+}

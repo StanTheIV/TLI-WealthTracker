@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+html {
+  height: 100%;
+}
+
+/* Dark theme (default) — deep navy base, cobalt blue accent, amber gold highlight */
+@theme {
+  --color-bg:               #0d1117;
+  --color-surface:          #151c28;
+  --color-surface-elevated: #1e2a3d;
+  --color-accent:           #2e6fd4;
+  --color-accent-muted:     #1a4a9a;
+  --color-gold:             #f0a020;
+  --color-gold-muted:       #8a5a10;
+  --color-text-primary:     #e8edf5;
+  --color-text-secondary:   #8090aa;
+  --color-text-disabled:    #3a4560;
+  --color-border:           #1e2d45;
+  --color-danger:           #d94f4f;
+  --color-success:          #3dbf7a;
+}
+
+/* Tracker row animations */
+@keyframes tracker-row-enter {
+  from { opacity: 0; max-height: 0; transform: translateY(-4px); overflow: hidden; }
+  to   { opacity: 1; max-height: 3rem; transform: translateY(0); overflow: hidden; }
+}
+@keyframes tracker-row-exit {
+  from { opacity: 1; max-height: 3rem; transform: translateY(0); overflow: hidden; }
+  to   { opacity: 0; max-height: 0; transform: translateY(-4px); overflow: hidden; }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-disabled);
+}
+
+/* Light theme overrides */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg:               #f0f2f7;
+    --color-surface:          #ffffff;
+    --color-surface-elevated: #e4e8f2;
+    --color-accent:           #1d55b0;
+    --color-accent-muted:     #4a7dd4;
+    --color-gold:             #c07810;
+    --color-gold-muted:       #d4a050;
+    --color-text-primary:     #0d1117;
+    --color-text-secondary:   #4a5870;
+    --color-text-disabled:    #a0aabf;
+    --color-border:           #c8d0e0;
+    --color-danger:           #b83030;
+    --color-success:          #2a9a5e;
+  }
+}

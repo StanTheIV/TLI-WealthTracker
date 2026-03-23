@@ -1,0 +1,17 @@
+{
+  "total": "Gesamt",
+  "map": "Karte",
+  "seasonal": {
+    "dream": "Traum",
+    "vorex": "Vorex",
+    "overrealm": "Überreich"
+  },
+  "table": {
+    "name": "Name",
+    "price": "Preis",
+    "amount": "Menge",
+    "total": "Gesamt"
+  },
+  "noDrops": "Noch keine Drops",
+  "initializing": "Sortiere dein Inventar im Spiel zur Initialisierung"
+}

@@ -1,0 +1,9 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "items":     "Items",
+    "sessions":  "Sessions",
+    "filters":   "Filters",
+    "settings":  "Settings"
+  }
+}

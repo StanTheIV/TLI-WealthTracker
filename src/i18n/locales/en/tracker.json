@@ -1,0 +1,17 @@
+{
+  "total": "Total",
+  "map": "Map",
+  "seasonal": {
+    "dream": "Dream",
+    "vorex": "Vorex",
+    "overrealm": "Overrealm"
+  },
+  "table": {
+    "name": "Name",
+    "price": "Price",
+    "amount": "Amount",
+    "total": "Total"
+  },
+  "noDrops": "No drops yet",
+  "initializing": "Sort your bag in-game to initialize"
+}

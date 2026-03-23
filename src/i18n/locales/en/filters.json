@@ -1,0 +1,68 @@
+{
+  "title":        "Filters",
+  "newFilter":    "New Filter",
+  "defaultName":  "New Filter",
+  "noFilters":    "No filters yet. Create one to get started.",
+  "noRules":      "No rules yet. Add a rule to start filtering.",
+  "enable":       "Enable",
+  "disable":      "Disable",
+  "rename":       "Rename",
+  "delete":       "Delete",
+  "duplicate":    "Duplicate",
+  "active":       "Active",
+
+  "rules": {
+    "heading":     "Rules",
+    "add":         "Add Rule",
+    "dragHint":    "Drag to reorder",
+    "firstWins":   "Rules are evaluated top to bottom — first match wins. Default: show."
+  },
+
+  "addRule": {
+    "title":       "Add Rule",
+    "action":      "Action",
+    "matchBy":     "Match By",
+    "scopes":      "Apply to Scopes",
+    "allScopes":   "All Scopes",
+    "confirm":     "Add Rule",
+    "cancel":      "Cancel"
+  },
+
+  "action": {
+    "show":        "Show",
+    "hide":        "Hide",
+    "showDesc":    "Always track this item / type",
+    "hideDesc":    "Never track this item / type"
+  },
+
+  "matchBy": {
+    "byType":      "Item Type",
+    "byItem":      "Specific Item",
+    "byTypeDesc":  "Match all items of a given type",
+    "byItemDesc":  "Match one specific item by name"
+  },
+
+  "scopes": {
+    "session":    "Session",
+    "map":        "Map",
+    "vorex":      "Vorex",
+    "dream":      "Dream",
+    "overrealm":  "Overrealm",
+    "wealth":     "Wealth"
+  },
+
+  "ruleDesc": {
+    "showType":   "Show {{type}}",
+    "hideType":   "Hide {{type}}",
+    "showItem":   "Show {{name}}",
+    "hideItem":   "Hide {{name}}"
+  },
+
+  "itemSearch": {
+    "placeholder": "Search items by name or ID…",
+    "noResults":   "No items found"
+  },
+
+  "renamePrompt":    "Enter a new name for this filter:",
+  "confirmDelete":   "Delete filter \"{{name}}\"? This cannot be undone."
+}

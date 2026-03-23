@@ -1,0 +1,20 @@
+{
+  "title": "Dashboard",
+  "subtitle": "Wealth overview",
+  "chart": {
+    "title": "Wealth Over Time",
+    "empty": "No wealth data yet — start tracking and sort your bag to record the first datapoint"
+  },
+  "breakdown": {
+    "title": "Item Breakdown",
+    "lastUpdated": "Last updated",
+    "filterAll": "All",
+    "name": "Item",
+    "type": "Type",
+    "qty": "Qty",
+    "price": "Price",
+    "total": "Total",
+    "grandTotal": "Grand Total",
+    "empty": "No breakdown data available"
+  }
+}

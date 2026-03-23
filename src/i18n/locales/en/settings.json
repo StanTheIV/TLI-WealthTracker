@@ -1,0 +1,81 @@
+{
+  "title": "Settings",
+  "tabs": {
+    "general": "General",
+    "logging": "Logging"
+  },
+  "logging": {
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "features": "Features",
+    "types": "Log Levels",
+    "console": {
+      "heading": "Console Output",
+      "description": "Log messages printed to the developer console"
+    },
+    "file": {
+      "heading": "File Output",
+      "description": "Log messages written to a file on disk",
+      "pathLabel": "Log file path"
+    },
+    "featureNames": {
+      "engine": "Engine",
+      "worker": "Worker",
+      "database": "Database",
+      "ipc": "IPC",
+      "overlay": "Overlay",
+      "session": "Session",
+      "price": "Price",
+      "wealth": "Wealth",
+      "app": "App",
+      "filter": "Filter"
+    },
+    "typeNames": {
+      "info": "Info",
+      "warn": "Warning",
+      "error": "Error",
+      "debug": "Debug"
+    }
+  },
+  "language": {
+    "heading": "Language",
+    "label": "Display language"
+  },
+  "tracker": {
+    "heading": "Tracker",
+    "rateTimeframe": {
+      "label": "FE rate display",
+      "hour": "Per Hour",
+      "minute": "Per Minute"
+    }
+  },
+  "overlay": {
+    "heading": "Overlay Window",
+    "opacity": "Background Opacity",
+    "opacityHint": "Controls how transparent the overlay background appears"
+  },
+  "logPath": {
+    "heading": "Game Log Path",
+    "label": "Torchlight Infinite Folder",
+    "hint": "Select the root installation folder. The tracker will look for TorchLight\\Saved\\Logs\\UE_game.log inside it.",
+    "browse": "Browse…",
+    "notSet": "Not configured"
+  },
+  "itemImport": {
+    "heading": "Item Data",
+    "label": "Import item prices from a full_table.json file. Existing items are kept as-is.",
+    "importButton": "Import full_table.json",
+    "exportButton": "Export full_table.json",
+    "success": "Imported {{count}} new items.",
+    "noneNew": "No new items — all were already present.",
+    "error": "Invalid file format."
+  },
+  "apiKeys": {
+    "heading": "API Keys",
+    "serperApiKey": {
+      "label": "Serper API Key",
+      "hint": "Used for item name lookup via serper.dev (max 10/day, 2500 free/month). Get a free key at serper.dev.",
+      "placeholder": "Enter your Serper API key…"
+    }
+  }
+}

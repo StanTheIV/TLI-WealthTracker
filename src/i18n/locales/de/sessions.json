@@ -1,0 +1,28 @@
+{
+  "title": "Sitzungen",
+  "empty": "Noch keine gespeicherten Sitzungen. Starte das Tracking, um die erste Sitzung zu erstellen.",
+  "columns": {
+    "name":     "Name",
+    "date":     "Datum",
+    "duration": "Dauer",
+    "maps":     "Karten",
+    "income":   "Einnahmen"
+  },
+  "details": {
+    "heading":      "Sitzungsdetails",
+    "selectPrompt": "Wähle eine Sitzung aus, um Details anzuzeigen",
+    "saved":        "Gespeichert",
+    "totalTime":    "Gesamtdauer",
+    "mapTime":      "Kartenzeit",
+    "mapsRun":      "Gespielte Karten",
+    "uniqueItems":  "Einzigartige Items",
+    "income":       "Einnahmen"
+  },
+  "actions": {
+    "continue":      "Sitzung fortsetzen",
+    "rename":        "Umbenennen",
+    "delete":        "Löschen",
+    "renamePrompt":  "Neuen Sitzungsnamen eingeben",
+    "confirmDelete": "Sitzung \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
+  }
+}

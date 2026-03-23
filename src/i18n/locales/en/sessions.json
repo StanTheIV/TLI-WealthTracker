@@ -1,0 +1,28 @@
+{
+  "title": "Sessions",
+  "empty": "No saved sessions yet. Start tracking to create your first session.",
+  "columns": {
+    "name":     "Name",
+    "date":     "Date",
+    "duration": "Duration",
+    "maps":     "Maps",
+    "income":   "Income"
+  },
+  "details": {
+    "heading":      "Session Details",
+    "selectPrompt": "Select a session to view details",
+    "saved":        "Saved",
+    "totalTime":    "Total time",
+    "mapTime":      "Map time",
+    "mapsRun":      "Maps run",
+    "uniqueItems":  "Unique items",
+    "income":       "Income"
+  },
+  "actions": {
+    "continue":      "Continue Session",
+    "rename":        "Rename",
+    "delete":        "Delete",
+    "renamePrompt":  "Enter new session name",
+    "confirmDelete": "Delete session \"{{name}}\"? This cannot be undone."
+  }
+}

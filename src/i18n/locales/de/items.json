@@ -1,0 +1,35 @@
+{
+  "title": "Items",
+  "filters": {
+    "all":      "Alle",
+    "unknown":  "Unbekannt",
+    "noPrice":  "Kein Preis"
+  },
+  "columns": {
+    "id":     "ID",
+    "name":   "Name",
+    "type":   "Typ",
+    "price":     "Preis",
+    "priceDate": "Preisdatum"
+  },
+  "types": {
+    "ember":   "Ember",
+    "fuel":    "Treibstoff",
+    "compass": "Kompass",
+    "dream":   "Traum",
+    "cube":    "Würfel",
+    "card":        "Fluoreszierend",
+    "equipment":   "Ausrüstung",
+    "mapMaterial": "Kartenmaterial",
+    "other":       "Sonstiges"
+  },
+  "empty": "Keine Items gefunden",
+  "lookup": {
+    "button":       "Suchen",
+    "counter":      "{{used}}/{{max}} Suchen heute",
+    "limitReached": "Tageslimit erreicht ({{used}}/{{max}})",
+    "noApiKey":     "Google API-Schlüssel in Einstellungen setzen",
+    "notFound":     "Name nicht gefunden",
+    "error":        "Suche fehlgeschlagen"
+  }
+}
