@@ -147,6 +147,6 @@ export async function downloadUpdate(
 
 export function launchInstallerAndQuit(installerPath: string): void {
   log.info('update', `Launching installer: ${installerPath}`);
-  spawn(installerPath, [], {detached: true, stdio: 'ignore'}).unref();
+  spawn(installerPath, [], {detached: true, stdio: 'ignore', shell: true}).unref();
   app.quit();
 }
