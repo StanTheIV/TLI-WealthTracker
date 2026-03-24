@@ -1,8 +1,9 @@
 import {useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {useSettingsStore} from '@/state/settingsStore';
+import {useSettingsStore, type ThemeMode} from '@/state/settingsStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
 import type {DbItem} from '@/types/electron';
+import SegmentedControl from '@/components/ui/SegmentedControl';
 
 export default function GeneralTab() {
   const {t} = useTranslation('settings');
@@ -16,6 +17,8 @@ export default function GeneralTab() {
   const setSerperApiKey   = useSettingsStore(s => s.setSerperApiKey);
   const rateTimeframe     = useSettingsStore(s => s.rateTimeframe);
   const setRateTimeframe  = useSettingsStore(s => s.setRateTimeframe);
+  const themeMode         = useSettingsStore(s => s.themeMode);
+  const setThemeMode      = useSettingsStore(s => s.setThemeMode);
 
   const fileInputRef                    = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -74,21 +77,25 @@ export default function GeneralTab() {
         </h2>
         <div className="bg-surface rounded-lg p-4 border border-border">
           <p className="text-sm text-text-primary mb-3">{t('language.label')}</p>
-          <div className="flex gap-2 flex-wrap">
-            {Object.entries(SUPPORTED_LANGUAGES).map(([code, label]) => (
-              <button
-                key={code}
-                onClick={() => setLanguage(code)}
-                className={`px-4 py-2 rounded-lg border text-sm transition-colors ${
-                  language === code
-                    ? 'bg-accent/15 border-accent text-accent'
-                    : 'bg-surface-elevated border-border text-text-primary hover:bg-accent/10 hover:border-accent'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            segments={Object.entries(SUPPORTED_LANGUAGES).map(([code, label]) => ({value: code, label}))}
+            value={language}
+            onChange={setLanguage}
+          />
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-4">
+          {t('theme.heading')}
+        </h2>
+        <div className="bg-surface rounded-lg p-4 border border-border">
+          <p className="text-sm text-text-primary mb-3">{t('theme.label')}</p>
+          <SegmentedControl
+            segments={(['system', 'dark', 'light'] as const).map(mode => ({value: mode, label: t(`theme.${mode}`)}))}
+            value={themeMode}
+            onChange={(v) => setThemeMode(v as ThemeMode)}
+          />
         </div>
       </section>
 
@@ -119,21 +126,11 @@ export default function GeneralTab() {
         </h2>
         <div className="bg-surface rounded-lg p-4 border border-border">
           <p className="text-sm text-text-primary mb-3">{t('tracker.rateTimeframe.label')}</p>
-          <div className="flex gap-2">
-            {(['hour', 'minute'] as const).map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setRateTimeframe(tf)}
-                className={`px-4 py-2 rounded-lg border text-sm transition-colors ${
-                  rateTimeframe === tf
-                    ? 'bg-accent/15 border-accent text-accent'
-                    : 'bg-surface-elevated border-border text-text-primary hover:bg-accent/10 hover:border-accent'
-                }`}
-              >
-                {t(`tracker.rateTimeframe.${tf}`)}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            segments={(['hour', 'minute'] as const).map(tf => ({value: tf, label: t(`tracker.rateTimeframe.${tf}`)}))}
+            value={rateTimeframe}
+            onChange={setRateTimeframe}
+          />
         </div>
       </section>
 
