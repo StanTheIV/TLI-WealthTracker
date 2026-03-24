@@ -32,7 +32,7 @@ function FilterList({filters, selectedId, onSelect, onCreate}: FilterListProps) 
     e.stopPropagation();
     setEditingId(filter.id);
     setEditingName(filter.name);
-    setTimeout(() => inputRef.current?.select(), 0);
+    setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select(); }, 0);
   };
 
   const commitEdit = () => {
@@ -107,7 +107,6 @@ function FilterList({filters, selectedId, onSelect, onCreate}: FilterListProps) 
                   }}
                   onClick={e => e.stopPropagation()}
                   className="flex-1 bg-bg border border-accent/50 rounded px-1.5 py-0.5 text-sm text-text-primary outline-none min-w-0"
-                  autoFocus
                 />
               ) : (
                 <span className="flex-1 text-sm font-medium truncate">{filter.name}</span>
