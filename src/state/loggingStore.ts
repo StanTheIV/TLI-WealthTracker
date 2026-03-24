@@ -6,7 +6,7 @@ import {create} from 'zustand';
 
 export type LogFeature =
   | 'engine' | 'worker' | 'database' | 'ipc' | 'overlay'
-  | 'session' | 'price' | 'wealth' | 'app' | 'filter';
+  | 'session' | 'price' | 'wealth' | 'app' | 'filter' | 'update';
 
 export type LogType = 'info' | 'warn' | 'error' | 'debug';
 
@@ -22,7 +22,7 @@ export interface LogTargetConfig {
 
 const ALL_FEATURES: LogFeature[] = [
   'engine', 'worker', 'database', 'ipc', 'overlay',
-  'session', 'price', 'wealth', 'app', 'filter',
+  'session', 'price', 'wealth', 'app', 'filter', 'update',
 ];
 
 const DEFAULT_TYPES: LogType[] = ['info', 'warn', 'error'];

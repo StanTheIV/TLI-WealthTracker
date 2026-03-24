@@ -39,6 +39,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getLogPath:   () => ipcRenderer.invoke('logging:get-log-path'),
   },
 
+  updater: {
+    check:            () => ipcRenderer.invoke('updater:check'),
+    download:         () => ipcRenderer.invoke('updater:download'),
+    install:          (path: string) => ipcRenderer.send('updater:install', path),
+    getChangelog:     () => ipcRenderer.invoke('updater:get-changelog'),
+    dismissChangelog: () => ipcRenderer.invoke('updater:dismiss-changelog'),
+    onProgress: (cb: (pct: number) => void) => {
+      const wrapped = (_e: Electron.IpcRendererEvent, pct: number) => cb(pct);
+      ipcRenderer.on('updater:progress', wrapped);
+      return () => ipcRenderer.removeListener('updater:progress', wrapped);
+    },
+  },
+
   db: {
     settings: {
       getAll: ()                            => ipcRenderer.invoke('db:settings:get-all'),

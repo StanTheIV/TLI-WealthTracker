@@ -1,0 +1,14 @@
+{
+  "banner": {
+    "available": "Update {{version}} verfügbar",
+    "download": "Herunterladen",
+    "downloading": "Wird heruntergeladen… {{pct}}%",
+    "ready": "Bereit zur Installation",
+    "install": "Neu starten & Aktualisieren",
+    "later": "Später"
+  },
+  "changelog": {
+    "title": "Neuigkeiten in {{version}}",
+    "dismiss": "Verstanden"
+  }
+}

@@ -29,7 +29,8 @@ export type LogFeature =
   | 'price'
   | 'wealth'
   | 'app'
-  | 'filter';
+  | 'filter'
+  | 'update';
 
 export type LogType = 'info' | 'warn' | 'error' | 'debug';
 
@@ -50,7 +51,7 @@ export interface LogConfig {
 
 const ALL_FEATURES: LogFeature[] = [
   'engine', 'worker', 'database', 'ipc', 'overlay',
-  'session', 'price', 'wealth', 'app', 'filter',
+  'session', 'price', 'wealth', 'app', 'filter', 'update',
 ];
 
 const DEFAULT_TYPES: LogType[] = ['info', 'warn', 'error'];
