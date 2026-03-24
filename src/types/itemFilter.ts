@@ -1,7 +1,7 @@
 import type {ItemType} from './itemType';
 
-export type FilterScope = 'session' | 'map' | 'vorex' | 'dream' | 'overrealm' | 'wealth';
-export const FILTER_SCOPES: FilterScope[] = ['session', 'map', 'vorex', 'dream', 'overrealm', 'wealth'];
+export type FilterScope = 'session' | 'map' | 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'wealth';
+export const FILTER_SCOPES: FilterScope[] = ['session', 'map', 'vorex', 'dream', 'overrealm', 'carjack', 'wealth'];
 
 export type RuleAction = 'show' | 'hide';
 

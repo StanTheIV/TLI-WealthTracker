@@ -19,6 +19,7 @@ import {ZoneProcessor}    from '@/worker/processors/zone';
 import {LevelTypeProcessor} from '@/worker/processors/level-type';
 import {S13Processor}     from '@/worker/processors/s13';
 import {S12Processor}     from '@/worker/processors/s12';
+import {S11Processor}     from '@/worker/processors/s11';
 import {CurrencyProcessor} from '@/worker/processors/currency';
 import {Engine}           from '@/main/engine/engine';
 import {BagInitHandler}   from '@/main/engine/handlers/bag-init';
@@ -26,6 +27,7 @@ import {ZoneHandler}      from '@/main/engine/handlers/zone';
 import {DreamHandler}     from '@/main/engine/handlers/dream-handler';
 import {VorexHandler}     from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
+import {CarjackHandler}  from '@/main/engine/handlers/carjack-handler';
 import {ItemHandler}      from '@/main/engine/handlers/item';
 import type {EngineEvent} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
@@ -57,6 +59,9 @@ const log = {
   portalExit:     `${ts} Create Map Portal cfgId 52`,
   portalOther:    `${ts} Create Map Portal cfgId 50`,
 
+  s11Start: `${ts}GameLog: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Play_Mus_Gameplay_S11_Robbery_Full.Play_Mus_Gameplay_S11_Robbery_Full id 3808`,
+  s11End:   `${ts}GameLog: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Stop_Mus_Gameplay_S11_Robbery_Full.Stop_Mus_Gameplay_S11_Robbery_Full id 10149`,
+
   currency: (id: number, amount: number) =>
     `${ts} ResourceMgr@:ChangeCurrency(${id}, ${amount})`,
 };
@@ -76,6 +81,7 @@ function createDispatcher(): Dispatcher {
   d.register(new LevelTypeProcessor());
   d.register(new S13Processor());
   d.register(new S12Processor());
+  d.register(new S11Processor());
   d.register(new CurrencyProcessor());
   return d;
 }
@@ -87,6 +93,7 @@ function createEngine(events: EngineEvent[]): Engine {
     .register(new DreamHandler())
     .register(new VorexHandler())
     .register(new OverrealmHandler())
+    .register(new CarjackHandler())
     .register(new ItemHandler());
 }
 
@@ -451,6 +458,148 @@ describe('Overrealm integration', () => {
     // Timer cancelled — advancing time should not finish the tracker
     vi.advanceTimersByTime(6_000);
     expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Carjack (S11) — music play/stop triggers with loot collection timer
+// ---------------------------------------------------------------------------
+
+describe('Carjack integration', () => {
+  it('s11_start starts carjack tracker', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s11Start);
+
+    expect(ctx(e).seasonal?.seasonalType).toBe('carjack');
+    expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'carjack')).toBe(true);
+  });
+
+  it('duplicate s11_start does not restart the tracker', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s11Start);
+    feed(d, e, log.s11Start); // duplicate — should be ignored
+
+    const started = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'carjack');
+    expect(started).toHaveLength(1);
+  });
+
+  it('s11_end starts loot timer, tracker stays alive', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s11Start);
+    feed(d, e, log.s11End);
+
+    expect(ctx(e).seasonal?.seasonalType).toBe('carjack'); // still alive during loot window
+    expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
+  });
+
+  it('loot timer expires and finishes carjack tracker', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s11Start);
+    feed(d, e, log.s11End);
+
+    expect(ctx(e).seasonal?.seasonalType).toBe('carjack');
+
+    vi.advanceTimersByTime(5_100);
+
+    expect(ctx(e).seasonal).toBeNull();
+    expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'carjack')).toBe(true);
+  });
+
+  it('bag_update during loot window refreshes timer when below 80% threshold', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s11Start);
+    feed(d, e, log.s11End);
+
+    // Advance to 4.5s (remaining=0.5s < 80% threshold=4s → refresh resets to 4s)
+    vi.advanceTimersByTime(4_500);
+    expect(ctx(e).seasonal?.seasonalType).toBe('carjack');
+
+    feed(d, e, log.bagUpdate(1, 400, 2)); // triggers refresh
+
+    // 3.9s later — still within the refreshed 4s window
+    vi.advanceTimersByTime(3_900);
+    expect(ctx(e).seasonal?.seasonalType).toBe('carjack');
+
+    // Let it expire
+    vi.advanceTimersByTime(200);
+    expect(ctx(e).seasonal).toBeNull();
+  });
+
+  it('entering town during loot window cancels timer and finishes tracker immediately', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s11Start);
+    feed(d, e, log.s11End);
+
+    expect(ctx(e).seasonal?.seasonalType).toBe('carjack');
+
+    feed(d, e, log.zoneTransition(MAP, TOWN));
+
+    expect(ctx(e).seasonal).toBeNull();
+    expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'carjack')).toBe(true);
+
+    // Timer should be gone — no double-finish after original timeout
+    events.length = 0;
+    vi.advanceTimersByTime(5_100);
+    expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
+  });
+
+  it('drops during carjack reach session, map and carjack trackers', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s11Start);
+
+    feed(d, e, log.bagUpdate(1, 400, 6));
+
+    expect(ctx(e).session?.snapshot().drops[400]).toBe(6);
+    expect(ctx(e).map?.snapshot().drops[400]).toBe(6);
+    expect(ctx(e).seasonal?.snapshot().drops[400]).toBe(6);
+  });
+
+  it('drops during loot window are attributed to carjack tracker', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s11Start);
+    feed(d, e, log.s11End);
+
+    feed(d, e, log.bagUpdate(1, 400, 3));
+    expect(ctx(e).seasonal?.snapshot().drops[400]).toBe(3);
   });
 });
 

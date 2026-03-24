@@ -4,7 +4,13 @@ export interface TrackerSnapshot {
   kind:          'session' | 'map' | 'seasonal';
   drops:         Record<number, number>;
   elapsed:       number;
-  seasonalType?: 'vorex' | 'dream' | 'overrealm';
+  seasonalType?: 'vorex' | 'dream' | 'overrealm' | 'carjack';
+}
+
+export interface UpdateInfo {
+  version:     string;
+  changelog:   string;
+  downloadUrl: string;
 }
 
 export interface DbItem {
@@ -69,6 +75,15 @@ interface ElectronAPI {
   logging: {
     reloadConfig: () => Promise<void>;
     getLogPath:   () => Promise<string>;
+  };
+
+  updater: {
+    check:            () => Promise<UpdateInfo | null>;
+    download:         () => Promise<{success: boolean; path?: string; error?: string}>;
+    install:          (path: string) => void;
+    getChangelog:     () => Promise<{version: string; changelog: string} | null>;
+    dismissChangelog: () => Promise<void>;
+    onProgress:       (cb: (pct: number) => void) => () => void;
   };
 
   engine: {

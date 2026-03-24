@@ -13,6 +13,7 @@ import {LevelTypeProcessor} from './processors/level-type';
 import {PriceProcessor} from './processors/price';
 import {S13Processor} from './processors/s13';
 import {S12Processor} from './processors/s12';
+import {S11Processor} from './processors/s11';
 import {CurrencyProcessor} from './processors/currency';
 import type {RawEvent} from './processors/types';
 
@@ -27,6 +28,7 @@ dispatcher.register(new LevelTypeProcessor());
 dispatcher.register(new PriceProcessor());
 dispatcher.register(new S13Processor());
 dispatcher.register(new S12Processor());
+dispatcher.register(new S11Processor());
 dispatcher.register(new CurrencyProcessor());
 
 const watcher = new Watcher(

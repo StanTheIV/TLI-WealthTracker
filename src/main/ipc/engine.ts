@@ -12,6 +12,7 @@ import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {DreamHandler} from '@/main/engine/handlers/dream-handler';
 import {VorexHandler} from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
+import {CarjackHandler} from '@/main/engine/handlers/carjack-handler';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {ErrorHandler} from '@/main/engine/handlers/error';
 import type {RawEvent} from '@/worker/processors/types';
@@ -239,6 +240,7 @@ function createEngine(): Engine {
     .register(new DreamHandler())
     .register(new VorexHandler())
     .register(new OverrealmHandler())
+    .register(new CarjackHandler())
     .register(new ItemHandler())
     .register(new ErrorHandler());
 }
