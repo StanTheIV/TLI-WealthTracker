@@ -37,16 +37,31 @@ jobs:
         run: |
           PREV_TAG=$(git tag --sort=-v:refname | head -2 | tail -1)
           if [ "$PREV_TAG" = "${{ github.ref_name }}" ]; then
-            COMMITS=$(git log --oneline --pretty=format:"- %s" HEAD)
+            ALL_COMMITS=$(git log --pretty=format:"%s" HEAD)
           else
-            COMMITS=$(git log --oneline --pretty=format:"- %s" "$PREV_TAG".."${{ github.ref_name }}")
+            ALL_COMMITS=$(git log --pretty=format:"%s" "$PREV_TAG".."${{ github.ref_name }}")
           fi
+
+          # Strip conventional commit prefix and optional scope, keep the description
+          strip_prefix() {
+            sed -E 's/^[a-z]+(\([^)]+\))?[!]?: //'
+          }
+
+          FEATURES=$(echo "$ALL_COMMITS" | grep -E '^feat(\(.+\))?[!:]?' | strip_prefix || true)
+          FIXES=$(echo "$ALL_COMMITS" | grep -E '^(fix|bugfix)(\(.+\))?[!:]?' | strip_prefix || true)
+
           {
             echo "body<<EOF"
-            echo "## What's Changed"
-            echo ""
-            echo "$COMMITS"
-            echo ""
+            if [ -n "$FEATURES" ]; then
+              echo "### New Features"
+              echo "$FEATURES" | sed 's/^/- /'
+              echo ""
+            fi
+            if [ -n "$FIXES" ]; then
+              echo "### Bug Fixes"
+              echo "$FIXES" | sed 's/^/- /'
+              echo ""
+            fi
             echo "**Full Changelog**: $PREV_TAG...${{ github.ref_name }}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"

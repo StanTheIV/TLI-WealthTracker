@@ -1,4 +1,4 @@
-import {app, BrowserWindow, ipcMain, dialog} from 'electron';
+import {app, BrowserWindow, ipcMain, dialog, Menu} from 'electron';
 import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
 import {initDb, itemsCount, itemsImportBatch, settingsGetAll} from './db';
@@ -153,6 +153,7 @@ function seedItemsIfEmpty(): void {
 // ---------------------------------------------------------------------------
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   log.info('app', 'App starting');
 
   initDb();
