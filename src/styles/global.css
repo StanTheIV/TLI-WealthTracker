@@ -47,21 +47,19 @@ html {
   background: var(--color-text-disabled);
 }
 
-/* Light theme overrides */
-@media (prefers-color-scheme: light) {
-  :root {
-    --color-bg:               #f0f2f7;
-    --color-surface:          #ffffff;
-    --color-surface-elevated: #e4e8f2;
-    --color-accent:           #1d55b0;
-    --color-accent-muted:     #4a7dd4;
-    --color-gold:             #c07810;
-    --color-gold-muted:       #d4a050;
-    --color-text-primary:     #0d1117;
-    --color-text-secondary:   #4a5870;
-    --color-text-disabled:    #a0aabf;
-    --color-border:           #c8d0e0;
-    --color-danger:           #b83030;
-    --color-success:          #2a9a5e;
-  }
+/* Light theme overrides — JS sets .light on <html> based on user preference or system */
+:root.light {
+  --color-bg:               #f0f2f7;
+  --color-surface:          #ffffff;
+  --color-surface-elevated: #e4e8f2;
+  --color-accent:           #1d55b0;
+  --color-accent-muted:     #4a7dd4;
+  --color-gold:             #c07810;
+  --color-gold-muted:       #d4a050;
+  --color-text-primary:     #0d1117;
+  --color-text-secondary:   #4a5870;
+  --color-text-disabled:    #a0aabf;
+  --color-border:           #c8d0e0;
+  --color-danger:           #b83030;
+  --color-success:          #2a9a5e;
 }

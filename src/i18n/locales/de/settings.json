@@ -41,6 +41,13 @@
     "heading": "Sprache",
     "label": "Anzeigesprache"
   },
+  "theme": {
+    "heading": "Design",
+    "label": "Erscheinungsbild",
+    "system": "System",
+    "dark": "Dunkel",
+    "light": "Hell"
+  },
   "tracker": {
     "heading": "Tracker",
     "rateTimeframe": {

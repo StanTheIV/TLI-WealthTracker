@@ -41,6 +41,13 @@
     "heading": "Language",
     "label": "Display language"
   },
+  "theme": {
+    "heading": "Theme",
+    "label": "Appearance",
+    "system": "System",
+    "dark": "Dark",
+    "light": "Light"
+  },
   "tracker": {
     "heading": "Tracker",
     "rateTimeframe": {

@@ -2,6 +2,7 @@ import {create} from 'zustand';
 import i18n from '@/i18n';
 
 export type RateTimeframe = 'hour' | 'minute';
+export type ThemeMode = 'system' | 'dark' | 'light';
 
 interface SettingsState {
   torchlightPath: string;
@@ -10,6 +11,7 @@ interface SettingsState {
   logFileValid:   boolean;
   serperApiKey:   string;
   rateTimeframe:  RateTimeframe;
+  themeMode:      ThemeMode;
   isLoaded:       boolean;
 }
 
@@ -21,6 +23,7 @@ interface SettingsActions {
   validateLogFile:    () => Promise<boolean>;
   setSerperApiKey:    (v: string) => void;
   setRateTimeframe:   (v: RateTimeframe) => void;
+  setThemeMode:       (v: ThemeMode) => void;
 }
 
 const DEFAULTS: SettingsState = {
@@ -30,6 +33,7 @@ const DEFAULTS: SettingsState = {
   logFileValid:   false,
   serperApiKey:   '',
   rateTimeframe:  'hour',
+  themeMode:      'system',
   isLoaded:       false,
 };
 
@@ -59,6 +63,7 @@ export const useSettingsStore = create<Store>((set, get) => ({
       logFileValid,
       serperApiKey: raw.serper_api_key ?? '',
       rateTimeframe: (raw.rateTimeframe === 'minute' ? 'minute' : 'hour') as RateTimeframe,
+      themeMode: (['system', 'dark', 'light'].includes(raw.themeMode ?? '') ? raw.themeMode : 'system') as ThemeMode,
       isLoaded: true,
     });
   },
@@ -88,6 +93,11 @@ export const useSettingsStore = create<Store>((set, get) => ({
   setRateTimeframe: (v) => {
     persist('rateTimeframe', v);
     set({rateTimeframe: v});
+  },
+
+  setThemeMode: (v) => {
+    persist('themeMode', v);
+    set({themeMode: v});
   },
 
   validateLogFile: async () => {
