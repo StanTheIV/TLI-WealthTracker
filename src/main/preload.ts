@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setClickThrough:(enabled: boolean)       => ipcRenderer.send('overlay:set-clickthrough', enabled),
     setPosition:    (x: number, y: number)   => ipcRenderer.send('overlay:set-position', x, y),
     setSize:        (w: number, h: number)   => ipcRenderer.send('overlay:set-size', w, h),
+    notifyReady:    ()                       => ipcRenderer.send('overlay:sized'),
     moveBy:         (dx: number, dy: number) => ipcRenderer.send('overlay:move-by', dx, dy),
     getPosition:    ()                       => ipcRenderer.invoke('overlay:get-position'),
     setOpacity:     (v: number)              => ipcRenderer.send('overlay:set-opacity', v),

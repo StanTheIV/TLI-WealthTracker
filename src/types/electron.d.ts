@@ -102,6 +102,7 @@ interface ElectronAPI {
     setClickThrough:(enabled: boolean) => void;
     setPosition:    (x: number, y: number) => void;
     setSize:        (w: number, h: number) => void;
+    notifyReady:    () => void;
     moveBy:         (dx: number, dy: number) => void;
     getPosition:    () => Promise<{x: number; y: number}>;
     setOpacity:       (v: number) => void;

@@ -7,10 +7,25 @@ export function registerOverlayHandlers(
   setTrackerWindow: (w: BrowserWindow | null) => void,
   createTrackerWindow: () => void,
 ): void {
+  let pendingShow = false;
+  let sizedOnce   = false;
+
   ipcMain.on('overlay:show', () => {
-    if (!getTrackerWindow()) createTrackerWindow();
-    getTrackerWindow()?.show();
+    if (!getTrackerWindow()) { createTrackerWindow(); }
+    if (sizedOnce) {
+      getTrackerWindow()?.show();
+    } else {
+      pendingShow = true;
+    }
     log.debug('overlay', 'Overlay shown');
+  });
+
+  ipcMain.on('overlay:sized', () => {
+    sizedOnce = true;
+    if (pendingShow) {
+      pendingShow = false;
+      getTrackerWindow()?.show();
+    }
   });
 
   ipcMain.on('overlay:hide', () => {

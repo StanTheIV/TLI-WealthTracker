@@ -70,8 +70,8 @@ function createTrackerWindow() {
   const y = parseInt(settings['tracker_window_y'] ?? '', 10);
 
   trackerWindow = new BrowserWindow({
-    width:     320,
-    height:    120,
+    width:     360,
+    height:    200,
     minWidth:  TRACKER_MIN_WIDTH,
     minHeight: TRACKER_MIN_HEIGHT,
     x: isNaN(x) ? TRACKER_DEFAULT_X : x,

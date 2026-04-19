@@ -59,10 +59,19 @@ export default function OverlayWindow() {
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const height      = Math.ceil(entry.borderBoxSize[0].blockSize);
-      const totalHeight = Math.max(height + 10, 60);
+
+    let notified = false;
+    const applySize = (height: number) => {
+      const totalHeight = Math.max(height, 60);
       window.electronAPI.overlay.setSize(360, totalHeight);
+      if (!notified) {
+        notified = true;
+        window.electronAPI.overlay.notifyReady();
+      }
+    };
+
+    const observer = new ResizeObserver(([entry]) => {
+      applySize(Math.ceil(entry.borderBoxSize[0].blockSize));
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -72,6 +81,7 @@ export default function OverlayWindow() {
     <div
       style={{backgroundColor: `rgba(13,17,23,${opacity})`}}
       className="rounded-xl border border-white/8 relative overflow-hidden shadow-2xl"
+      ref={contentRef}
     >
       {/* Drag handle strip */}
       <div
@@ -92,10 +102,7 @@ export default function OverlayWindow() {
       {/* Thin separator under handle */}
       <div className="h-px bg-white/5 mx-2" />
 
-      {/* Content */}
-      <div ref={contentRef}>
-        <TrackerPanel />
-      </div>
+      <TrackerPanel />
     </div>
   );
 }
