@@ -2,12 +2,14 @@ import {useMemo} from 'react';
 import type {RateTimeframe} from '@/state/settingsStore';
 
 interface TrackerRowProps {
-  label:       string;
-  valueFE:     number | null; // null = show "—"
-  elapsedMs:   number | null; // null = show "--:--"
+  label:         string;
+  valueFE:       number | null;
+  elapsedMs:     number | null;
   rateTimeframe: RateTimeframe;
-  accentColor?: string;       // Tailwind text color class, default 'text-text-primary'
-  dim?:         boolean;      // true = row is inactive/placeholder
+  accentClass:   string; // Tailwind bg color class for the left accent bar, e.g. 'bg-accent'
+  dim?:          boolean;
+  badge?:        string; // small pill text, e.g. "#42"
+  paused?:       boolean;
 }
 
 function formatElapsed(ms: number): string {
@@ -22,48 +24,86 @@ function feColor(value: number | null): string {
 }
 
 function formatFE(value: number | null): string {
-  if (value === null) return '— FE';
-  const abs = Math.abs(value);
+  if (value === null) return '—';
+  const abs  = Math.abs(value);
   const sign = value < 0 ? '-' : '';
-  return `${sign}${abs.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE`;
+  return `${sign}${abs.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 }
 
 function formatRate(valueFE: number | null, elapsedMs: number | null, timeframe: RateTimeframe): string {
-  const suffix = timeframe === 'hour' ? 'h' : 'm';
-  if (valueFE === null || elapsedMs === null || elapsedMs < 1000) return `— FE/${suffix}`;
+  const suffix = timeframe === 'hour' ? '/h' : '/m';
+  if (valueFE === null || elapsedMs === null || elapsedMs < 1000) return `— FE${suffix}`;
   const divisor = timeframe === 'hour' ? 3_600_000 : 60_000;
-  const rate = valueFE / (elapsedMs / divisor);
-  const abs = Math.abs(rate);
-  const sign = rate < 0 ? '-' : '';
-  return `${sign}${abs.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE/${suffix}`;
+  const rate    = valueFE / (elapsedMs / divisor);
+  const abs     = Math.abs(rate);
+  const sign    = rate < 0 ? '-' : '';
+  return `${sign}${abs.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE${suffix}`;
 }
 
-export default function TrackerRow({label, valueFE, elapsedMs, rateTimeframe, accentColor = 'text-text-primary', dim = false}: TrackerRowProps) {
-  // Truncate to whole seconds so the rate string only recalculates once per second
+export default function TrackerRow({
+  label, valueFE, elapsedMs, rateTimeframe, accentClass, dim = false, badge, paused = false,
+}: TrackerRowProps) {
   const elapsedSec = elapsedMs !== null ? Math.floor(elapsedMs / 1000) * 1000 : null;
-  const rateStr = useMemo(() => formatRate(valueFE, elapsedSec, rateTimeframe), [valueFE, elapsedSec, rateTimeframe]);
+  const rateStr = useMemo(
+    () => formatRate(valueFE, elapsedSec, rateTimeframe),
+    [valueFE, elapsedSec, rateTimeframe],
+  );
+
+  const feVal   = formatFE(valueFE);
+  const valColor = feColor(valueFE);
 
   return (
-    <div className={`flex items-center h-8 gap-3 px-1 transition-opacity ${dim ? 'opacity-40' : ''}`}>
-      {/* Label */}
-      <span className={`text-sm font-semibold w-14 shrink-0 ${accentColor}`}>
-        {label}
-      </span>
+    <div
+      className={`
+        relative flex items-stretch rounded-md overflow-hidden
+        bg-surface-elevated
+        transition-opacity duration-200
+        ${dim ? 'opacity-35' : 'opacity-100'}
+      `}
+    >
+      {/* Left accent bar */}
+      <div className={`w-1 shrink-0 ${accentClass} ${dim ? 'opacity-50' : ''}`} />
 
-      {/* FE value */}
-      <span className={`font-mono text-sm tabular-nums flex-1 ${feColor(valueFE)}`}>
-        {formatFE(valueFE)}
-      </span>
+      {/* Card body */}
+      <div className="flex flex-col flex-1 min-w-0 px-3 py-2 gap-1">
 
-      {/* FE rate */}
-      <span className={`font-mono text-xs tabular-nums shrink-0 ${feColor(valueFE)}`}>
-        {rateStr}
-      </span>
+        {/* Header row: label + badge + elapsed */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[13px] font-semibold uppercase tracking-wider text-text-secondary leading-none">
+            {label}
+          </span>
 
-      {/* Elapsed */}
-      <span className={`font-mono text-sm tabular-nums shrink-0 ${elapsedMs === null ? 'text-text-disabled' : 'text-text-secondary'}`}>
-        {elapsedMs === null ? '--:--:--' : formatElapsed(elapsedMs)}
-      </span>
+          {badge && !paused && (
+            <span className="text-[12px] font-mono tabular-nums px-1 py-px rounded bg-white/8 text-text-disabled leading-none">
+              {badge}
+            </span>
+          )}
+
+          {paused && (
+            <span className="text-[12px] font-semibold uppercase tracking-wider px-1 py-px rounded bg-gold-muted/60 text-gold leading-none">
+              paused
+            </span>
+          )}
+
+          <span className={`ml-auto font-mono text-[13px] tabular-nums leading-none ${elapsedMs === null ? 'text-text-disabled' : 'text-text-secondary'}`}>
+            {elapsedMs === null ? '--:--:--' : formatElapsed(elapsedMs)}
+          </span>
+        </div>
+
+        {/* Value row: big FE + rate right-aligned */}
+        <div className="flex items-baseline gap-2">
+          <span className={`font-mono text-lg font-bold tabular-nums leading-none ${valColor}`}>
+            {feVal}
+          </span>
+          <span className={`font-mono text-[13px] tabular-nums leading-none ${dim ? 'text-text-disabled' : 'text-text-secondary'}`}>
+            FE
+          </span>
+          <span className={`ml-auto font-mono text-[13px] tabular-nums leading-none ${paused ? 'text-text-disabled' : valColor}`}>
+            {paused ? '—' : rateStr}
+          </span>
+        </div>
+
+      </div>
     </div>
   );
 }

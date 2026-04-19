@@ -1,6 +1,7 @@
 import {useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useSettingsStore, type ThemeMode} from '@/state/settingsStore';
+import {useWealthStore} from '@/state/wealthStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
 import type {DbItem} from '@/types/electron';
 import SegmentedControl from '@/components/ui/SegmentedControl';
@@ -20,8 +21,9 @@ export default function GeneralTab() {
   const themeMode         = useSettingsStore(s => s.themeMode);
   const setThemeMode      = useSettingsStore(s => s.setThemeMode);
 
-  const fileInputRef                    = useRef<HTMLInputElement>(null);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const fileInputRef                      = useRef<HTMLInputElement>(null);
+  const [importStatus, setImportStatus]   = useState<string | null>(null);
+  const [wealthResetState, setWealthResetState] = useState<'idle' | 'confirm' | 'done'>('idle');
 
   const browse = async () => {
     const folder = await window.electronAPI.pickFolder();
@@ -183,6 +185,49 @@ export default function GeneralTab() {
           </div>
           {importStatus && (
             <p className="text-xs mt-2 text-text-secondary">{importStatus}</p>
+          )}
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-4">
+          {t('wealthReset.heading')}
+        </h2>
+        <div className="bg-surface rounded-lg p-4 border border-border">
+          <p className="text-sm text-text-primary mb-3">{t('wealthReset.label')}</p>
+          {wealthResetState === 'idle' && (
+            <button
+              onClick={() => setWealthResetState('confirm')}
+              className="px-4 py-2 rounded-lg bg-surface-elevated border border-danger/40 text-sm text-danger hover:bg-danger/10 hover:border-danger transition-colors"
+            >
+              {t('wealthReset.button')}
+            </button>
+          )}
+          {wealthResetState === 'confirm' && (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-danger">{t('wealthReset.confirm')}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    await window.electronAPI.db.wealth.clear();
+                    await useWealthStore.getState().refresh();
+                    setWealthResetState('done');
+                  }}
+                  className="px-4 py-2 rounded-lg bg-danger/15 border border-danger text-sm text-danger hover:bg-danger/25 transition-colors font-medium"
+                >
+                  {t('wealthReset.button')}
+                </button>
+                <button
+                  onClick={() => setWealthResetState('idle')}
+                  className="px-4 py-2 rounded-lg bg-surface-elevated border border-border text-sm text-text-primary hover:bg-accent/10 hover:border-accent transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {wealthResetState === 'done' && (
+            <p className="text-sm text-success">{t('wealthReset.done')}</p>
           )}
         </div>
       </section>

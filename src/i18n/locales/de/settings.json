@@ -77,6 +77,13 @@
     "noneNew": "Keine neuen Items – alle waren bereits vorhanden.",
     "error": "Ungültiges Dateiformat."
   },
+  "wealthReset": {
+    "heading": "Wohlstandsdiagramm",
+    "label": "Gesamten Verlauf des Wohlstandsdiagramms löschen. Dies kann nicht rückgängig gemacht werden.",
+    "button": "Verlauf zurücksetzen",
+    "confirm": "Bist du sicher? Alle Wohlstandsdaten werden dauerhaft gelöscht.",
+    "done": "Verlauf wurde gelöscht."
+  },
   "apiKeys": {
     "heading": "API-Schlüssel",
     "serperApiKey": {

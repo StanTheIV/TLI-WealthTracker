@@ -141,6 +141,7 @@ interface ElectronAPI {
       insert:    (point: DbWealthDatapoint) => Promise<void>;
       getRange:  (from: number, to: number) => Promise<DbWealthDatapoint[]>;
       getLatest: (limit: number) => Promise<DbWealthDatapoint[]>;
+      clear:     () => Promise<void>;
     };
     filters: {
       getAll:     () => Promise<DbItemFilter[]>;

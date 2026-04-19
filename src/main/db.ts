@@ -312,6 +312,10 @@ export function wealthGetLatest(limit: number): DbWealthDatapoint[] {
   return rows.map(rowToDatapoint).reverse();
 }
 
+export function wealthClear(): void {
+  db.prepare('DELETE FROM wealth_datapoints').run();
+}
+
 // ---------------------------------------------------------------------------
 // Item filters
 // ---------------------------------------------------------------------------

@@ -85,6 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       insert:    (point: unknown)            => ipcRenderer.invoke('db:wealth:insert', point),
       getRange:  (from: number, to: number)  => ipcRenderer.invoke('db:wealth:get-range', from, to),
       getLatest: (limit: number)             => ipcRenderer.invoke('db:wealth:get-latest', limit),
+      clear:     ()                          => ipcRenderer.invoke('db:wealth:clear'),
     },
     filters: {
       getAll:     ()                                  => ipcRenderer.invoke('db:filters:get-all'),

@@ -3,38 +3,28 @@ import {useEngineStore} from '@/state/engineStore';
 import TrackerPanel from '@/components/Dashboard/TrackerPanel';
 
 export default function OverlayWindow() {
-  const handleRef  = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const dragState  = useRef<{startX: number; startY: number} | null>(null);
-  const [opacity, setOpacity] = useState(0.9);
+  const [opacity, setOpacity]       = useState(0.9);
+  const [handleHovered, setHandleHovered] = useState(false);
 
   const sessionStatus = useEngineStore(s => s.sessionStatus);
   const enginePhase   = useEngineStore(s => s.phase);
 
-  // Click-through when actively tracking, unless opacity is high enough to interact
   const isActivelyTracking = sessionStatus === 'running' && enginePhase === 'tracking';
-  const clickThrough = isActivelyTracking && opacity <= 0.5;
+  const clickThrough       = isActivelyTracking && opacity <= 0.5;
 
   useEffect(() => {
     window.electronAPI.overlay.setClickThrough(clickThrough);
   }, [clickThrough]);
 
-  // Load persisted opacity on mount
   useEffect(() => {
     window.electronAPI.db.settings.getAll().then((raw: Record<string, string>) => {
       if (raw.overlayOpacity) setOpacity(Number(raw.overlayOpacity));
     });
   }, []);
 
-  // Drag via the top handle strip
   useEffect(() => {
-    function isOverElement(el: HTMLElement | null, e: MouseEvent): boolean {
-      if (!el) return false;
-      const r = el.getBoundingClientRect();
-      return e.clientX >= r.left && e.clientX <= r.right &&
-             e.clientY >= r.top  && e.clientY <= r.bottom;
-    }
-
     const onMove = (e: MouseEvent) => {
       if (dragState.current) {
         const dx = e.screenX - dragState.current.startX;
@@ -43,25 +33,14 @@ export default function OverlayWindow() {
         window.electronAPI.overlay.moveBy(dx, dy);
       }
     };
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (isOverElement(handleRef.current, e)) {
-        dragState.current = {startX: e.screenX, startY: e.screenY};
-      }
-    };
-
-    const onMouseUp = () => {
-      dragState.current = null;
-    };
+    const onMouseUp = () => { dragState.current = null; };
 
     const removeOpacity = window.electronAPI.overlay.onOpacity(setOpacity);
     document.addEventListener('mousemove', onMove);
-    document.addEventListener('mousedown', onMouseDown);
     document.addEventListener('mouseup', onMouseUp);
     return () => {
       removeOpacity();
       document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('mouseup', onMouseUp);
     };
   }, []);
@@ -70,14 +49,11 @@ export default function OverlayWindow() {
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
-
     const observer = new ResizeObserver(([entry]) => {
-      const height = Math.ceil(entry.borderBoxSize[0].blockSize);
-      // Add 2px for border + 6px for drag strip
-      const totalHeight = Math.max(height + 8, 60);
-      window.electronAPI.overlay.setSize(320, totalHeight);
+      const height      = Math.ceil(entry.borderBoxSize[0].blockSize);
+      const totalHeight = Math.max(height + 10, 60);
+      window.electronAPI.overlay.setSize(360, totalHeight);
     });
-
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -85,16 +61,29 @@ export default function OverlayWindow() {
   return (
     <div
       style={{backgroundColor: `rgba(13,17,23,${opacity})`}}
-      className="rounded-lg border border-border relative overflow-hidden"
+      className="rounded-xl border border-white/8 relative overflow-hidden shadow-2xl"
     >
-      {/* Drag strip — full-width, 6px tall, invisible by default */}
+      {/* Drag handle strip */}
       <div
-        ref={handleRef}
-        className="absolute top-0 left-0 right-0 h-1.5 cursor-move hover:bg-white/10 transition-colors z-10"
-      />
+        className="flex items-center justify-center h-6 cursor-move transition-colors hover:bg-white/6"
+        onMouseDown={e => { dragState.current = {startX: e.screenX, startY: e.screenY}; }}
+        onMouseEnter={() => setHandleHovered(true)}
+        onMouseLeave={() => setHandleHovered(false)}
+      >
+        <div className={`flex gap-1 transition-opacity duration-200 ${handleHovered ? 'opacity-60' : 'opacity-20'}`}>
+          <span className="w-1 h-1 rounded-full bg-text-secondary" />
+          <span className="w-1 h-1 rounded-full bg-text-secondary" />
+          <span className="w-1 h-1 rounded-full bg-text-secondary" />
+          <span className="w-1 h-1 rounded-full bg-text-secondary" />
+          <span className="w-1 h-1 rounded-full bg-text-secondary" />
+        </div>
+      </div>
+
+      {/* Thin separator under handle */}
+      <div className="h-px bg-white/5 mx-2" />
 
       {/* Content */}
-      <div ref={contentRef} className="pt-2 pb-1">
+      <div ref={contentRef}>
         <TrackerPanel />
       </div>
     </div>

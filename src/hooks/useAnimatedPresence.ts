@@ -5,8 +5,8 @@ interface AnimatedPresence {
   animClass:    string;
 }
 
-const ENTER_CLASS = 'animate-[tracker-row-enter_250ms_ease-out_forwards]';
-const EXIT_CLASS  = 'animate-[tracker-row-exit_250ms_ease-in_forwards] overflow-hidden';
+const ENTER_CLASS = 'animate-[tracker-card-enter_300ms_ease-out_forwards] overflow-hidden';
+const EXIT_CLASS  = 'animate-[tracker-card-exit_220ms_ease-in_forwards] overflow-hidden';
 
 /**
  * Controls deferred unmount for animated enter/exit of tracker rows.
@@ -14,7 +14,7 @@ const EXIT_CLASS  = 'animate-[tracker-row-exit_250ms_ease-in_forwards] overflow-
  * - isPresent → true:  renders immediately, plays entry animation
  * - isPresent → false: plays exit animation, unmounts after durationMs
  */
-export function useAnimatedPresence(isPresent: boolean, durationMs = 250): AnimatedPresence {
+export function useAnimatedPresence(isPresent: boolean, durationMs = 300): AnimatedPresence {
   const [shouldRender, setShouldRender] = useState(isPresent);
   const [animClass, setAnimClass]       = useState<string>(isPresent ? ENTER_CLASS : '');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

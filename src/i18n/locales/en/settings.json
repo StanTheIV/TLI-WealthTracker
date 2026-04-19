@@ -77,6 +77,13 @@
     "noneNew": "No new items — all were already present.",
     "error": "Invalid file format."
   },
+  "wealthReset": {
+    "heading": "Wealth Chart",
+    "label": "Clear all wealth chart history. This cannot be undone.",
+    "button": "Reset Wealth History",
+    "confirm": "Are you sure? This will permanently delete all wealth chart data.",
+    "done": "Wealth history cleared."
+  },
   "apiKeys": {
     "heading": "API Keys",
     "serperApiKey": {
