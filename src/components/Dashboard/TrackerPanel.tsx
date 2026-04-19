@@ -127,13 +127,13 @@ export default function TrackerPanel() {
       {/* Drop table toggle */}
       <button
         onClick={() => setTableOpen(o => !o)}
-        className="flex items-center justify-center w-full py-1 gap-1 text-text-disabled hover:text-text-secondary transition-colors"
+        className="flex items-center justify-center w-full py-0.5 gap-1 text-text-disabled hover:text-text-secondary transition-colors"
         title={tableOpen ? 'Hide drops' : 'Show drops'}
       >
         <ChevronDown
-          className={`w-4 h-4 transition-transform duration-200 ${tableOpen ? 'rotate-180' : ''}`}
+          className={`w-3.5 h-3.5 transition-transform duration-200 ${tableOpen ? 'rotate-180' : ''}`}
         />
-        <span className="text-xs font-semibold uppercase tracking-wider">
+        <span className="text-[10px] font-semibold uppercase tracking-wider">
           {tableOpen ? t('hideDrops', 'Hide drops') : t('showDrops', 'Show drops')}
         </span>
       </button>
