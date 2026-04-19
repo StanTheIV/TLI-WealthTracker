@@ -5,9 +5,9 @@ export type BagEvent =
   | {type: 'bag_update'; pageId: number; slotId: number; itemId: number; quantity: number}
   | {type: 'bag_remove'; pageId: number; slotId: number};
 
-const RE_INIT   = /\[.*?\]GameLog: Display: \[Game\] BagMgr@:InitBagData PageId = (\d+) SlotId = (\d+) ConfigBaseId = (\d+) Num = (\d+)/;
-const RE_UPDATE = /\[.*?\]GameLog: Display: \[Game\] BagMgr@:Modfy BagItem PageId = (\d+) SlotId = (\d+) ConfigBaseId = (\d+) Num = (\d+)/;
-const RE_REMOVE = /\[.*?\]GameLog: Display: \[Game\] BagMgr@:RemoveBagItem PageId = (\d+) SlotId = (\d+)/;
+const RE_INIT   = /\[.*?\]TLLua: Display: \[Game\] BagMgr@:InitBagData PageId = (\d+) SlotId = (\d+) ConfigBaseId = (\d+) Num = (\d+)/;
+const RE_UPDATE = /\[.*?\]TLLua: Display: \[Game\] BagMgr@:Modfy BagItem PageId = (\d+) SlotId = (\d+) ConfigBaseId = (\d+) Num = (\d+)/;
+const RE_REMOVE = /\[.*?\]TLLua: Display: \[Game\] BagMgr@:RemoveBagItem PageId = (\d+) SlotId = (\d+)/;
 
 export class BagProcessor implements Processor {
   readonly name = 'bag';
