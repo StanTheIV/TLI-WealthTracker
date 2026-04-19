@@ -41,6 +41,8 @@ function persist(key: string, value: string) {
   window.electronAPI.db.settings.set(key, value).catch(
     (err: unknown) => console.error('[settings] persist failed:', err)
   );
+  // Broadcast to overlay window so it stays in sync without a full reload
+  window.electronAPI.overlay.broadcastSetting(key, value);
 }
 
 type Store = SettingsState & SettingsActions;

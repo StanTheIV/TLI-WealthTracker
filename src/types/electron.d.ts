@@ -104,8 +104,10 @@ interface ElectronAPI {
     setSize:        (w: number, h: number) => void;
     moveBy:         (dx: number, dy: number) => void;
     getPosition:    () => Promise<{x: number; y: number}>;
-    setOpacity:     (v: number) => void;
-    onOpacity:      (cb: (v: number) => void) => () => void;
+    setOpacity:       (v: number) => void;
+    onOpacity:        (cb: (v: number) => void) => () => void;
+    broadcastSetting: (key: string, value: string) => void;
+    onSettingChange:  (cb: (key: string, value: string) => void) => () => void;
   };
 
   db: {

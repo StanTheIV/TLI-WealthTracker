@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {useEngineStore} from '@/state/engineStore';
+import {useSettingsStore, type RateTimeframe} from '@/state/settingsStore';
 import TrackerPanel from '@/components/Dashboard/TrackerPanel';
 
 export default function OverlayWindow() {
@@ -21,6 +22,15 @@ export default function OverlayWindow() {
   useEffect(() => {
     window.electronAPI.db.settings.getAll().then((raw: Record<string, string>) => {
       if (raw.overlayOpacity) setOpacity(Number(raw.overlayOpacity));
+    });
+  }, []);
+
+  // Keep settings in sync when the main window changes them
+  useEffect(() => {
+    return window.electronAPI.overlay.onSettingChange((key, value) => {
+      if (key === 'rateTimeframe' && (value === 'hour' || value === 'minute')) {
+        useSettingsStore.setState({rateTimeframe: value as RateTimeframe});
+      }
     });
   }, []);
 

@@ -32,6 +32,10 @@ export function registerOverlayHandlers(
     log.debug('overlay', `Overlay opacity: ${v}`);
   });
 
+  ipcMain.on('settings:broadcast', (_e, key: string, value: string) => {
+    getTrackerWindow()?.webContents.send('settings:change', key, value);
+  });
+
   ipcMain.on('overlay:move-by', (_e, dx: number, dy: number) => {
     const win = getTrackerWindow();
     if (!win) return;

@@ -18,6 +18,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('overlay:opacity', wrapped);
       return () => ipcRenderer.removeListener('overlay:opacity', wrapped);
     },
+    broadcastSetting: (key: string, value: string) => ipcRenderer.send('settings:broadcast', key, value),
+    onSettingChange: (cb: (key: string, value: string) => void) => {
+      const wrapped = (_e: Electron.IpcRendererEvent, key: string, value: string) => cb(key, value);
+      ipcRenderer.on('settings:change', wrapped);
+      return () => ipcRenderer.removeListener('settings:change', wrapped);
+    },
   },
 
   engine: {
