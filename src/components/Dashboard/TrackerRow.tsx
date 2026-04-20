@@ -56,10 +56,10 @@ export default function TrackerRow({
     <div
       className={`
         relative flex items-stretch rounded-md overflow-hidden
-        bg-surface-elevated
         transition-opacity duration-200
         ${dim ? 'opacity-35' : 'opacity-100'}
       `}
+      style={{backgroundColor: `rgba(17,17,40,var(--card-opacity,1))`}}
     >
       {/* Left accent bar */}
       <div className={`w-1 shrink-0 ${accentClass} ${dim ? 'opacity-50' : ''}`} />

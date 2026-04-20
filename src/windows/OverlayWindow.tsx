@@ -79,7 +79,10 @@ export default function OverlayWindow() {
 
   return (
     <div
-      style={{backgroundColor: `rgba(13,17,23,${opacity})`}}
+      style={{
+        backgroundColor: `rgba(13,17,23,${opacity})`,
+        '--card-opacity': String(0.5 + opacity * 0.5),
+      } as React.CSSProperties}
       className="rounded-xl border border-white/8 relative overflow-hidden shadow-2xl"
       ref={contentRef}
     >
