@@ -25,5 +25,6 @@ const RAW_TYPE_MAP: Record<string, ItemType> = Object.entries(ITEM_TYPE_CONFIG).
 
 export function mapRawType(raw: string | undefined): ItemType {
   if (!raw) return 'other';
+  if (raw in ITEM_TYPE_CONFIG) return raw as ItemType;
   return RAW_TYPE_MAP[raw] ?? 'other';
 }
