@@ -13,10 +13,11 @@ export type EngineEvent =
   | {type: 'init_started'}
   | {type: 'init_complete'; itemCount: number}
   | {type: 'drop';             itemId: number; change: number; timestamp: number}
+  | {type: 'new_item';         itemId: number; timestamp: number}
   | {type: 'zone_change';      from: string; to: string; entering: 'map' | 'town' | 'unknown'; timestamp: number}
   | {type: 'map_started';      mapCount: number; timestamp: number}
   | {type: 'map_ended';        elapsed: number; timestamp: number}
-  | {type: 'tracker_started';  tracker: TrackerSnapshot; timestamp: number}
+  | {type: 'tracker_started';  tracker: TrackerSnapshot; timestamp: number; sessionMeta?: {mapTime: number; mapCount: number}}
   | {type: 'tracker_update';   tracker: TrackerSnapshot; timestamp: number}
   | {type: 'tracker_finished'; tracker: TrackerSnapshot; timestamp: number; sessionMeta?: {mapTime: number; mapCount: number}}
   | {type: 'session_status';   status: 'running' | 'paused'; elapsed: number; timestamp: number}

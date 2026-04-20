@@ -1,7 +1,7 @@
 import {ipcMain, BrowserWindow, utilityProcess} from 'electron';
 import type {UtilityProcess} from 'electron';
 import {log} from '@/main/logger';
-import {itemsGetAll, itemsSetPrice, wealthInsert, sessionsInsert, sessionsUpdate, sessionsGetOne, filtersGetAll, settingsGetAll} from '@/main/db';
+import {itemsGetAll, itemsSetPrice, itemsInsertIfMissing, wealthInsert, sessionsInsert, sessionsUpdate, sessionsGetOne, filtersGetAll, settingsGetAll} from '@/main/db';
 import type {DbSession} from '@/main/db';
 import {ItemFilterEngine} from '@/main/engine/item-filter';
 import type {FilterRule} from '@/types/itemFilter';
@@ -213,6 +213,14 @@ function resolveLogPath(): string | null {
 
 function createEngine(): Engine {
   const emit = (event: EngineEvent) => {
+    // Persist a placeholder row for newly discovered items so the renderer's
+    // items store (and all subsequent sessions) pick them up immediately.
+    if (event.type === 'new_item') {
+      const id = String(event.itemId);
+      const inserted = itemsInsertIfMissing(id);
+      if (inserted) log.info('database', `New item discovered: id=${id}`);
+    }
+
     // Auto-save session on stop, then notify renderer so it can refresh
     if (event.type === 'tracker_finished' && event.tracker.kind === 'session' && activeSession) {
       const savedId = autoSaveSession(event, activeSession);
@@ -279,8 +287,13 @@ function startEngine(logPath: string, loadSessionId?: string): void {
     log.info('session', `Session created: id=${activeSession.sessionId}`);
   }
 
-  // Build item-type map and load the active filter (if any)
+  engine.start();
+
+  // Everything below must run AFTER start() — ctx.reset() wipes context state,
+  // including the filter and the known-item set.
   const allItems = itemsGetAll();
+  engine.setKnownItems(allItems.map(i => i.id));
+
   const itemTypeMap = new Map(allItems.map(i => [i.id, mapRawType(i.type)]));
   const activeFilter = filtersGetAll().find(f => f.enabled);
   if (activeFilter) {
@@ -289,7 +302,6 @@ function startEngine(logPath: string, loadSessionId?: string): void {
     log.info('filter', `Filter set: "${activeFilter.name}" (${rules.length} rules)`);
   }
 
-  engine.start();
   log.info('engine', 'Engine started');
 }
 
@@ -325,6 +337,9 @@ export function registerEngineHandlers(
   ipcMain.on('engine:stop',   ()  => stopEngine());
   ipcMain.on('engine:pause',  ()  => { engine?.pause();  log.info('engine', 'Engine paused'); });
   ipcMain.on('engine:resume', ()  => { engine?.resume(); log.info('engine', 'Engine resumed'); });
+  ipcMain.on('engine:update-item-type', (_e, id: string, rawType: string) => {
+    engine?.setItemType(id, mapRawType(rawType));
+  });
   ipcMain.on('engine:update-filter-rules', (_e, payload: FilterRule[] | null) => {
     if (!engine) return;
     if (payload === null) {

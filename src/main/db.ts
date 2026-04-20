@@ -134,6 +134,13 @@ function migrateItems(): void {
   } catch {
     // Column already exists — ignore
   }
+
+  // Normalize legacy empty-string types to 'other' so the UI never renders
+  // a blank "types." i18n key. Safe to run repeatedly.
+  const result = db.prepare("UPDATE items SET type = 'other' WHERE type = ''").run() as {changes: number};
+  if (result.changes > 0) {
+    log.info('database', `Migrated ${result.changes} items with empty type to 'other'`);
+  }
 }
 
 export function itemsCount(): number {
@@ -155,6 +162,14 @@ export function itemsUpsert(item: DbItem): void {
       price      = excluded.price,
       price_date = excluded.price_date
   `).run(item);
+}
+
+/** Insert a placeholder row only if the id does not already exist. Never overwrites. */
+export function itemsInsertIfMissing(id: string): boolean {
+  const result = db.prepare(
+    `INSERT OR IGNORE INTO items (id, name, type, price, price_date) VALUES (?, '', 'other', 0, 0)`
+  ).run(id) as {changes: number};
+  return result.changes > 0;
 }
 
 export function itemsImportBatch(items: DbItem[]): number {

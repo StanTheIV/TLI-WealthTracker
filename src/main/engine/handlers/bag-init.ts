@@ -39,6 +39,17 @@ export class BagInitHandler implements EventHandler {
       ctx.phase = 'tracking';
       ctx.session = new Tracker('session');
 
+      // Register any items present at boot that aren't yet in the DB so they
+      // get persisted with placeholder rows (name/price filled in later).
+      const now = Date.now();
+      for (const itemId of ctx.bag.getInventory().keys()) {
+        const idStr = String(itemId);
+        if (!ctx.knownItems.has(idStr)) {
+          ctx.knownItems.add(idStr);
+          emit({type: 'new_item', itemId, timestamp: now});
+        }
+      }
+
       // Merge loaded session data for continuation runs
       if (ctx.loadedSession) {
         const loaded = ctx.loadedSession;
@@ -59,7 +70,12 @@ export class BagInitHandler implements EventHandler {
       log.info('engine', `Phase: initializing -> tracking (${ctx.bag.itemCount} items)`);
       emit({type: 'init_complete', itemCount: ctx.bag.itemCount});
       if (ctx.session) {
-        emit({type: 'tracker_started', tracker: ctx.session.snapshot(), timestamp: Date.now()});
+        emit({
+          type:        'tracker_started',
+          tracker:     ctx.session.snapshot(),
+          timestamp:   Date.now(),
+          sessionMeta: {mapTime: ctx.accumulatedMapTime, mapCount: ctx.mapCount},
+        });
       }
     }, DEBOUNCE_MS);
   }

@@ -50,6 +50,9 @@ export class EngineContext {
   /** Active filter engine — null means no filtering (all items pass). */
   filter: ItemFilterEngine | null = null;
 
+  /** IDs of items already known in the DB — used to detect first-time drops. */
+  knownItems: Set<string> = new Set();
+
   // Previous level type value — needed to detect Dream entry/exit transitions
   levelType: number = 3;
 
@@ -101,6 +104,7 @@ export class EngineContext {
     this.map               = null;
     this.seasonal          = null;
     this.filter            = null;
+    this.knownItems        = new Set();
     this.levelType         = 3;
     this.vorexAbandoning   = false;
     this.inOverrealm       = false;

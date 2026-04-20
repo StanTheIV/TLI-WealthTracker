@@ -42,6 +42,7 @@ export const useItemsStore = create<ItemsState & ItemsActions>((set, get) => ({
 
   setType: (id, type) => {
     window.electronAPI.db.items.setType(id, type);
+    window.electronAPI.engine.updateItemType(id, type);
     const existing = get().items[id];
     if (existing) set({items: {...get().items, [id]: {...existing, type}}});
   },
@@ -70,7 +71,10 @@ export const useItemsStore = create<ItemsState & ItemsActions>((set, get) => ({
         set({items: {...get().items, [id]: {...existing, ...updates}}});
     }
     if (result.name)                              window.electronAPI.db.items.setName(id, result.name);
-    if (result.type && result.type !== 'other' && existing) window.electronAPI.db.items.setType(id, result.type);
+    if (result.type && result.type !== 'other' && existing) {
+      window.electronAPI.db.items.setType(id, result.type);
+      window.electronAPI.engine.updateItemType(id, result.type);
+    }
     return {name: result.name};
   },
 }));

@@ -4,6 +4,7 @@ import {BagInitHandler} from '@/main/engine/handlers/bag-init';
 import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {ErrorHandler} from '@/main/engine/handlers/error';
+import {ItemFilterEngine} from '@/main/engine/item-filter';
 import type {EngineEvent} from '@/main/engine/types';
 
 function createEngine(events: EngineEvent[]): Engine {
@@ -91,5 +92,88 @@ describe('Engine (integration)', () => {
     events.length = 0;
     engine.start();
     expect(events.find(e => e.type === 'init_started')).toBeDefined();
+  });
+
+  describe('setKnownItems', () => {
+    it('seeds the known item set so seeded items do not trigger new_item', () => {
+      const events: EngineEvent[] = [];
+      const engine = createEngine(events);
+      engine.start();
+      engine.setKnownItems(['100']);
+
+      engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
+      vi.advanceTimersByTime(600);
+
+      // Enter a map so drops flush immediately
+      engine.onRawEvent({type: 'zone_transition', fromScene: 'XZ_YuJinZhiXiBiNanSuo200', toScene: '/Game/Art/Maps/S5_Boss'});
+      engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 10});
+
+      expect(events.filter(e => e.type === 'new_item')).toHaveLength(0);
+    });
+
+    it('emits new_item for items not in the seeded set', () => {
+      const events: EngineEvent[] = [];
+      const engine = createEngine(events);
+      engine.start();
+      engine.setKnownItems(['100']);
+
+      engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 100, quantity: 0});
+      engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 2, itemId: 777, quantity: 0});
+      vi.advanceTimersByTime(600);
+
+      engine.onRawEvent({type: 'zone_transition', fromScene: 'XZ_YuJinZhiXiBiNanSuo200', toScene: '/Game/Art/Maps/S5_Boss'});
+      engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: 777, quantity: 4});
+
+      const newItems = events.filter(e => e.type === 'new_item');
+      expect(newItems).toHaveLength(1);
+      expect(newItems[0]).toMatchObject({type: 'new_item', itemId: 777});
+    });
+
+    it('resets the known item set between runs', () => {
+      const events: EngineEvent[] = [];
+      const engine = createEngine(events);
+
+      engine.start();
+      engine.setKnownItems(['999']);
+      engine.stop();
+
+      events.length = 0;
+      engine.start();
+      // After restart, known set is empty again — 999 should now trigger new_item
+      engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 999, quantity: 0});
+      vi.advanceTimersByTime(600);
+      engine.onRawEvent({type: 'zone_transition', fromScene: 'XZ_YuJinZhiXiBiNanSuo200', toScene: '/Game/Art/Maps/S5_Boss'});
+      engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 999, quantity: 1});
+
+      expect(events.filter(e => e.type === 'new_item')).toHaveLength(1);
+    });
+  });
+
+  describe('setItemType', () => {
+    it('updates the filter engine type map live', () => {
+      const events: EngineEvent[] = [];
+      const engine = createEngine(events);
+      const filter = new ItemFilterEngine([], new Map([['42', 'other']]));
+      engine.setFilter(filter);
+
+      engine.setItemType('42', 'equipment');
+
+      // Access the private map indirectly — call shouldInclude with a type rule
+      filter.setRules([{
+        id: 'r1',
+        action: 'hide',
+        scopes: ['session'],
+        kind: {type: 'by-type', itemType: 'equipment'},
+      }]);
+      expect(filter.shouldInclude(42, 'session')).toBe(false);
+    });
+
+    it('is a no-op when no filter is set', () => {
+      const events: EngineEvent[] = [];
+      const engine = createEngine(events);
+      engine.start();
+
+      expect(() => engine.setItemType('42', 'equipment')).not.toThrow();
+    });
   });
 });

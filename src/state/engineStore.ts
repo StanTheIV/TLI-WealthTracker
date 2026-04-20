@@ -105,6 +105,17 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           drops = {...drops, [event.itemId]: (drops[event.itemId] ?? 0) + event.change};
           break;
 
+        case 'new_item': {
+          const id = String(event.itemId);
+          const itemsState = useItemsStore.getState();
+          if (!itemsState.items[id]) {
+            useItemsStore.setState({
+              items: {...itemsState.items, [id]: {id, name: '', type: 'other', price: 0, priceDate: 0}},
+            });
+          }
+          break;
+        }
+
         case 'zone_change':
           currentZone = event.to;
           break;
@@ -125,6 +136,12 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
             sessionStatus     = 'running';
             sessionElapsed    = event.tracker.elapsed;
             sessionReceivedAt = Date.now();
+            // On session start, seed renderer state from the snapshot so that
+            // a continued session carries over its drops and map count.
+            if (event.type === 'tracker_started') {
+              drops    = {...event.tracker.drops};
+              mapCount = event.sessionMeta?.mapCount ?? mapCount;
+            }
           }
           break;
 

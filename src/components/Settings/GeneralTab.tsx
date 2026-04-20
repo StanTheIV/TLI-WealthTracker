@@ -2,6 +2,7 @@ import {useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useSettingsStore, type ThemeMode} from '@/state/settingsStore';
 import {useWealthStore} from '@/state/wealthStore';
+import {useItemsStore} from '@/state/itemsStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
 import type {DbItem} from '@/types/electron';
 import SegmentedControl from '@/components/ui/SegmentedControl';
@@ -59,12 +60,13 @@ export default function GeneralTab() {
       const items: DbItem[] = Object.entries(raw).map(([id, v]) => ({
         id,
         name:      v.name      ?? '',
-        type:      v.type      ?? '',
+        type:      v.type      || 'other',
         price:     v.price     ?? 0,
         priceDate: v.last_update ?? 0,
       }));
 
       const inserted = await window.electronAPI.db.items.importBatch(items);
+      if (inserted > 0) await useItemsStore.getState().load();
       setImportStatus(inserted > 0 ? t('itemImport.success', {count: inserted}) : t('itemImport.noneNew'));
     } catch {
       setImportStatus(t('itemImport.error'));

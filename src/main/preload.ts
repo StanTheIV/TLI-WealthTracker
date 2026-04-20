@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pause:           ()                                   => ipcRenderer.send('engine:pause'),
     resume:          ()                                   => ipcRenderer.send('engine:resume'),
     updateFilterRules: (rules: unknown) => ipcRenderer.send('engine:update-filter-rules', rules),
+    updateItemType:    (id: string, type: string) => ipcRenderer.send('engine:update-item-type', id, type),
     onEvent: (cb: (event: unknown) => void) => {
       const wrapped = (_e: Electron.IpcRendererEvent, ev: unknown) => cb(ev);
       ipcRenderer.on('engine:event', wrapped);

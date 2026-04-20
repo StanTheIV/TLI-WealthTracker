@@ -106,4 +106,129 @@ describe('BagInitHandler', () => {
     expect(events.find(e => e.type === 'init_complete')).toBeUndefined();
     expect(ctx.phase).toBe('initializing'); // unchanged — ctx.reset() is engine's job
   });
+
+  describe('new_item emission at boot', () => {
+    it('emits new_item for every unknown itemId present in the bag after init', () => {
+      const handler = new BagInitHandler();
+      const ctx = makeCtx();
+      ctx.knownItems = new Set(['111']); // 111 already in DB, 222/333 are new
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      handler.onStart(ctx, emit);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 1, itemId: 111, quantity: 10}, ctx, emit);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 2, itemId: 222, quantity: 5},  ctx, emit);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 3, itemId: 333, quantity: 1},  ctx, emit);
+      vi.advanceTimersByTime(600);
+
+      const newItems = events.filter(e => e.type === 'new_item').map(e => e.type === 'new_item' ? e.itemId : -1);
+      expect(newItems.sort()).toEqual([222, 333]);
+      expect(ctx.knownItems.has('222')).toBe(true);
+      expect(ctx.knownItems.has('333')).toBe(true);
+    });
+
+    it('does not emit new_item when all bag items are already known', () => {
+      const handler = new BagInitHandler();
+      const ctx = makeCtx();
+      ctx.knownItems = new Set(['111', '222']);
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      handler.onStart(ctx, emit);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 1, itemId: 111, quantity: 10}, ctx, emit);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 2, itemId: 222, quantity: 5},  ctx, emit);
+      vi.advanceTimersByTime(600);
+
+      expect(events.filter(e => e.type === 'new_item')).toHaveLength(0);
+    });
+
+    it('emits new_item before tracker_started', () => {
+      const handler = new BagInitHandler();
+      const ctx = makeCtx();
+      ctx.knownItems = new Set();
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      handler.onStart(ctx, emit);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 1, itemId: 555, quantity: 1}, ctx, emit);
+      vi.advanceTimersByTime(600);
+
+      const types = events.map(e => e.type);
+      const newIdx     = types.indexOf('new_item');
+      const trackerIdx = types.indexOf('tracker_started');
+      expect(newIdx).toBeGreaterThanOrEqual(0);
+      expect(trackerIdx).toBeGreaterThan(newIdx);
+    });
+  });
+
+  describe('continued session restoration', () => {
+    it('replays loaded drops and time offset into ctx.session', () => {
+      const handler = new BagInitHandler();
+      const ctx = makeCtx();
+      ctx.loadedSession = {
+        id:        'abc',
+        name:      'Prior run',
+        drops:     {'100': 3, '200': 7},
+        totalTime: 120,  // seconds
+        mapTime:   30,
+        mapCount:  4,
+      };
+
+      handler.onStart(ctx, () => {});
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 1, itemId: 1, quantity: 1}, ctx, () => {});
+      vi.advanceTimersByTime(600);
+
+      const snap = ctx.session?.snapshot();
+      expect(snap?.drops[100]).toBe(3);
+      expect(snap?.drops[200]).toBe(7);
+      expect(snap?.elapsed).toBeGreaterThanOrEqual(120_000);
+      expect(ctx.mapCount).toBe(4);
+      expect(ctx.accumulatedMapTime).toBe(30_000);
+      expect(ctx.activeSessionId).toBe('abc');
+      expect(ctx.activeSessionName).toBe('Prior run');
+      expect(ctx.loadedSession).toBeNull(); // cleared after merge
+    });
+
+    it('emits tracker_started with sessionMeta reflecting loaded mapCount/mapTime', () => {
+      const handler = new BagInitHandler();
+      const ctx = makeCtx();
+      ctx.loadedSession = {
+        id:        'abc',
+        name:      'Prior',
+        drops:     {},
+        totalTime: 60,
+        mapTime:   15,
+        mapCount:  2,
+      };
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      handler.onStart(ctx, emit);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 1, itemId: 1, quantity: 1}, ctx, emit);
+      vi.advanceTimersByTime(600);
+
+      const started = events.find(e => e.type === 'tracker_started');
+      expect(started).toBeDefined();
+      if (started?.type === 'tracker_started') {
+        expect(started.tracker.kind).toBe('session');
+        expect(started.sessionMeta).toEqual({mapTime: 15_000, mapCount: 2});
+      }
+    });
+
+    it('emits zero-value sessionMeta for fresh (non-continued) runs', () => {
+      const handler = new BagInitHandler();
+      const ctx = makeCtx();
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      handler.onStart(ctx, emit);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 1, itemId: 1, quantity: 1}, ctx, emit);
+      vi.advanceTimersByTime(600);
+
+      const started = events.find(e => e.type === 'tracker_started');
+      if (started?.type === 'tracker_started') {
+        expect(started.sessionMeta).toEqual({mapTime: 0, mapCount: 0});
+      }
+    });
+  });
 });

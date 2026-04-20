@@ -107,6 +107,14 @@ export class Engine {
     }
   }
 
+  setItemType(itemId: string, type: import('@/types/itemType').ItemType): void {
+    this._ctx.filter?.setItemType(itemId, type);
+  }
+
+  setKnownItems(ids: Iterable<string>): void {
+    this._ctx.knownItems = new Set(ids);
+  }
+
   getInventory(): Map<number, number> {
     return this._ctx.bag.getInventory();
   }

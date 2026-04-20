@@ -137,7 +137,7 @@ function seedItemsIfEmpty(): void {
     const items: DbItem[] = Object.entries(raw).map(([id, v]) => ({
       id,
       name: v.name,
-      type: v.type ?? '',
+      type: v.type || 'other',
       price: v.price ?? 0,
       priceDate: v.last_update ?? 0,
     }));

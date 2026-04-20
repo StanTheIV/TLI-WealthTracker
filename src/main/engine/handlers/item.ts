@@ -71,6 +71,11 @@ export class ItemHandler implements EventHandler {
     const now = Date.now();
     for (const [itemId, change] of this._buffer) {
       if (change === 0) continue;
+      const idStr = String(itemId);
+      if (!ctx.knownItems.has(idStr)) {
+        ctx.knownItems.add(idStr);
+        emit({type: 'new_item', itemId, timestamp: now});
+      }
       ctx.distributeDrop(itemId, change);
       emit({type: 'drop', itemId, change, timestamp: now});
     }
