@@ -1,6 +1,6 @@
 import {useMemo, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {ChevronUp, ChevronDown} from 'lucide-react';
+import {ChevronUp, ChevronDown, ArrowUpRight} from 'lucide-react';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {ITEM_TYPES} from '@/types/itemType';
@@ -73,7 +73,11 @@ function FilterButton({label, active, onClick}: {label: string; active: boolean;
 // Component
 // ---------------------------------------------------------------------------
 
-export default function ItemBreakdown() {
+interface ItemBreakdownProps {
+  onRequestItemFocus: (id: string) => void;
+}
+
+export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) {
   const {t}               = useTranslation('dashboard');
   const {t: tItems}       = useTranslation('items');
   const latestBreakdown   = useWealthStore(s => s.latestBreakdown);
@@ -181,11 +185,20 @@ export default function ItemBreakdown() {
           {/* Rows — scrollable */}
           <div className="overflow-y-auto min-h-0 space-y-0.5 pt-1">
             {filtered.map(row => (
-              <div key={row.id} className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-white/3">
-                <span className="text-sm truncate flex-1">
-                  {row.name.startsWith('#')
-                    ? <span className="text-text-disabled italic">{row.name}</span>
-                    : <span className="text-text-primary">{row.name}</span>}
+              <div key={row.id} className="group flex items-center gap-2 px-1 py-0.5 rounded hover:bg-white/3">
+                <span className="text-sm truncate flex-1 flex items-center gap-1 min-w-0">
+                  <span className="truncate">
+                    {row.name.startsWith('#')
+                      ? <span className="text-text-disabled italic">{row.name}</span>
+                      : <span className="text-text-primary">{row.name}</span>}
+                  </span>
+                  <button
+                    onClick={() => onRequestItemFocus(row.id)}
+                    title={t('breakdown.openInItems')}
+                    className="shrink-0 p-0.5 rounded text-text-disabled opacity-0 group-hover:opacity-100 hover:text-accent transition-opacity"
+                  >
+                    <ArrowUpRight className="w-3 h-3" />
+                  </button>
                 </span>
                 <span className="text-xs text-text-disabled w-36 shrink-0 truncate hidden sm:block">{tItems(`types.${row.type}` as never)}</span>
                 <span className="font-mono text-xs text-text-secondary w-10 text-right shrink-0 tabular-nums">

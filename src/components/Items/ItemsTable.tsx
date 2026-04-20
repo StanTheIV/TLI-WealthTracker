@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Search, Loader2, Check, X} from 'lucide-react';
 import {useItemsStore} from '@/state/itemsStore';
@@ -69,12 +69,14 @@ function ColHeader({label, field, sortField, sortDir, onSort}: {
 // ---------------------------------------------------------------------------
 
 interface Props {
-  rows: DbItem[];
+  rows:             DbItem[];
+  focusItemId?:     string | null;
+  onFocusConsumed?: () => void;
 }
 
 type LookupStatus = 'idle' | 'loading' | 'found' | 'not_found' | 'error';
 
-export default function ItemsTable({rows}: Props) {
+export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: Props) {
   const {t}           = useTranslation('items');
   const setName       = useItemsStore(s => s.setName);
   const setType       = useItemsStore(s => s.setType);
@@ -87,7 +89,21 @@ export default function ItemsTable({rows}: Props) {
   const [editing,   setEditing]   = useState<EditingCell | null>(null);
   const [draftValue, setDraftValue] = useState('');
   const [lookupStatus, setLookupStatus] = useState<Record<string, LookupStatus>>({});
+  const [flashId, setFlashId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const rowRefs  = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Scroll the requested row into view and briefly flash it.
+  useEffect(() => {
+    if (!focusItemId) return;
+    const el = rowRefs.current[focusItemId];
+    if (!el) return;
+    el.scrollIntoView({behavior: 'smooth', block: 'center'});
+    setFlashId(focusItemId);
+    const flashTimer = setTimeout(() => setFlashId(null), 1600);
+    onFocusConsumed?.();
+    return () => clearTimeout(flashTimer);
+  }, [focusItemId, onFocusConsumed]);
 
   async function handleLookup(item: DbItem) {
     setLookupStatus(s => ({...s, [item.id]: 'loading'}));
@@ -160,8 +176,17 @@ export default function ItemsTable({rows}: Props) {
           const isEditingName  = editing?.id === item.id && editing.field === 'name';
           const isEditingPrice = editing?.id === item.id && editing.field === 'price';
 
+          const isFlashing = flashId === item.id;
+
           return (
-            <div key={item.id} className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-white/3">
+            <div
+              key={item.id}
+              ref={(el) => { rowRefs.current[item.id] = el; }}
+              className={[
+                'flex items-center gap-2 px-1 py-0.5 rounded transition-colors',
+                isFlashing ? 'bg-accent/20' : 'hover:bg-white/3',
+              ].join(' ')}
+            >
               {/* ID */}
               <span className="font-mono text-xs text-text-disabled w-14 shrink-0 tabular-nums">
                 {item.id}

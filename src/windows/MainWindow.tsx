@@ -14,6 +14,7 @@ import {useUpdaterStore} from '@/state/updaterStore';
 
 export default function MainWindow() {
   const [activeNav, setActiveNav] = useState<NavItemId>('dashboard');
+  const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const torchlightPath = useSettingsStore(s => s.torchlightPath);
   const logFileValid   = useSettingsStore(s => s.logFileValid);
   const checkForUpdate = useUpdaterStore(s => s.checkForUpdate);
@@ -24,6 +25,11 @@ export default function MainWindow() {
     loadChangelog();
   }, []);
 
+  function requestItemFocus(id: string) {
+    setFocusItemId(id);
+    setActiveNav('items');
+  }
+
   return (
     <div className="flex flex-col h-full bg-bg text-text-primary">
       {(!torchlightPath || !logFileValid) && <SetupDialog />}
@@ -32,8 +38,8 @@ export default function MainWindow() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar activeItem={activeNav} onNavChange={setActiveNav} />
         <main className="flex-1 overflow-auto">
-          {activeNav === 'dashboard' && <DashboardScreen />}
-          {activeNav === 'items'     && <ItemsScreen />}
+          {activeNav === 'dashboard' && <DashboardScreen onRequestItemFocus={requestItemFocus} />}
+          {activeNav === 'items'     && <ItemsScreen focusItemId={focusItemId} onFocusConsumed={() => setFocusItemId(null)} />}
           {activeNav === 'sessions'  && <SessionsScreen onNavChange={setActiveNav} />}
           {activeNav === 'filters'   && <FiltersScreen />}
           {activeNav === 'settings'  && <SettingsScreen />}

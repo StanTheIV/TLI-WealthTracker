@@ -1,5 +1,7 @@
 import {useEffect, useRef} from 'react';
 import {useEngineStore, type FeedEvent} from '@/state/engineStore';
+import {useItemsStore} from '@/state/itemsStore';
+import type {DbItem} from '@/types/electron';
 
 // ---------------------------------------------------------------------------
 // Per-event rendering
@@ -31,12 +33,15 @@ function eventLabel(type: string): string {
   }
 }
 
-function eventDescription(fe: FeedEvent): string {
+function eventDescription(fe: FeedEvent, items: Record<string, DbItem>): string {
   const e = fe.event;
   switch (e.type) {
     case 'init_started':  return 'Bag initialization started…';
     case 'init_complete': return `Bag ready — ${e.itemCount} item types tracked`;
-    case 'drop':          return `Item #${e.itemId}  ${e.change > 0 ? '+' : ''}${e.change}`;
+    case 'drop': {
+      const label = items[String(e.itemId)]?.name || `Item #${e.itemId}`;
+      return `${label}  ${e.change > 0 ? '+' : ''}${e.change}`;
+    }
     case 'zone_change':   return `${e.from}  →  ${e.to}`;
     case 'map_started':   return `Map #${e.mapCount} started`;
     case 'map_ended':     return `Map ended — ${(e.elapsed / 1000).toFixed(1)}s`;
@@ -57,6 +62,7 @@ function formatTime(ts: number): string {
 
 export default function EventFeed() {
   const feed  = useEngineStore(s => s.feed);
+  const items = useItemsStore(s => s.items);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new events
@@ -84,7 +90,7 @@ export default function EventFeed() {
                   {eventLabel(fe.event.type)}
                 </span>
                 <span className={`flex-1 truncate ${eventColor(fe.event.type)}`}>
-                  {eventDescription(fe)}
+                  {eventDescription(fe, items)}
                 </span>
               </div>
             ))}

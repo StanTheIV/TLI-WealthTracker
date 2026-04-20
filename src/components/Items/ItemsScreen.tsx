@@ -1,4 +1,4 @@
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Search} from 'lucide-react';
 import {useItemsStore} from '@/state/itemsStore';
@@ -43,12 +43,25 @@ function FilterButton({label, count, active, onClick}: {
 
 type Filter = 'all' | 'unknown' | 'noPrice';
 
-export default function ItemsScreen() {
+interface Props {
+  /** If non-null, ItemsScreen clears filters/search and asks the table to scroll+flash this id. */
+  focusItemId?:     string | null;
+  onFocusConsumed?: () => void;
+}
+
+export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props) {
   const {t}           = useTranslation('items');
   const items         = useItemsStore(s => s.items);
   const lookupsToday  = useItemsStore(s => s.lookupsToday);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
+
+  // Incoming focus request — clear any filter/search so the target row is visible.
+  useEffect(() => {
+    if (focusItemId === null) return;
+    setFilter('all');
+    setSearch('');
+  }, [focusItemId]);
 
   const {rows, unknownCount, noPriceCount} = useMemo(() => {
     const all = Object.values(items);
@@ -125,7 +138,7 @@ export default function ItemsScreen() {
             {t('empty')}
           </div>
         ) : (
-          <ItemsTable rows={filtered} />
+          <ItemsTable rows={filtered} focusItemId={focusItemId} onFocusConsumed={onFocusConsumed} />
         )}
       </div>
     </div>

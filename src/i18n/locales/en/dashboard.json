@@ -15,6 +15,7 @@
     "price": "Price",
     "total": "Total",
     "grandTotal": "Grand Total",
-    "empty": "No breakdown data available"
+    "empty": "No breakdown data available",
+    "openInItems": "Open in Items"
   }
 }

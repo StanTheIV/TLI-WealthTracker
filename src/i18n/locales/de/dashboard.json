@@ -15,6 +15,7 @@
     "price": "Preis",
     "total": "Gesamt",
     "grandTotal": "Gesamtsumme",
-    "empty": "Keine Aufschlüsselungsdaten verfügbar"
+    "empty": "Keine Aufschlüsselungsdaten verfügbar",
+    "openInItems": "In Gegenständen öffnen"
   }
 }
