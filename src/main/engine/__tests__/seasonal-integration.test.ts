@@ -40,10 +40,10 @@ const ts = '[2026.01.25-12.34.56:789]';
 
 const log = {
   bagInit:  (slotId: number, itemId: number, qty: number) =>
-    `${ts}GameLog: Display: [Game] BagMgr@:InitBagData PageId = 0 SlotId = ${slotId} ConfigBaseId = ${itemId} Num = ${qty}`,
+    `${ts}TLLua: Display: [Game] BagMgr@:InitBagData PageId = 0 SlotId = ${slotId} ConfigBaseId = ${itemId} Num = ${qty}`,
 
   bagUpdate: (slotId: number, itemId: number, qty: number) =>
-    `${ts}GameLog: Display: [Game] BagMgr@:Modfy BagItem PageId = 0 SlotId = ${slotId} ConfigBaseId = ${itemId} Num = ${qty}`,
+    `${ts}TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 0 SlotId = ${slotId} ConfigBaseId = ${itemId} Num = ${qty}`,
 
   zoneTransition: (from: string, to: string) =>
     `PageApplyBase@ _UpdateGameEnd: LastSceneName = World'${from}' NextSceneName = World'${to}'`,

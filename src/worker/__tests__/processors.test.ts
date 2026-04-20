@@ -14,9 +14,9 @@ import {CurrencyProcessor} from '@/worker/processors/currency';
 const ts = '[2026.01.25-12.34.56:789]';
 
 const lines = {
-  bagInit:    `${ts}GameLog: Display: [Game] BagMgr@:InitBagData PageId = 0 SlotId = 15 ConfigBaseId = 12345 Num = 50`,
-  bagUpdate:  `${ts}GameLog: Display: [Game] BagMgr@:Modfy BagItem PageId = 0 SlotId = 15 ConfigBaseId = 12345 Num = 75`,
-  bagRemove:  `${ts}GameLog: Display: [Game] BagMgr@:RemoveBagItem PageId = 0 SlotId = 15`,
+  bagInit:    `${ts}TLLua: Display: [Game] BagMgr@:InitBagData PageId = 0 SlotId = 15 ConfigBaseId = 12345 Num = 50`,
+  bagUpdate:  `${ts}TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 0 SlotId = 15 ConfigBaseId = 12345 Num = 75`,
+  bagRemove:  `${ts}TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 0 SlotId = 15`,
   zoneToMap:  `PageApplyBase@ _UpdateGameEnd: LastSceneName = World'XZ_YuJinZhiXiBiNanSuo200' NextSceneName = World'/Game/Art/Maps/S5_Magma_Boss'`,
   zoneToTown: `PageApplyBase@ _UpdateGameEnd: LastSceneName = World'/Game/Art/Maps/S5_Magma_Boss' NextSceneName = World'XZ_YuJinZhiXiBiNanSuo200'`,
   levelType:  `[2026.01.25-12.34.56:789] PreloadLevelType = 11`,
@@ -74,7 +74,7 @@ describe('BagProcessor', () => {
   });
 
   it('handles large numeric IDs', () => {
-    const line = `${ts}GameLog: Display: [Game] BagMgr@:InitBagData PageId = 2 SlotId = 999 ConfigBaseId = 9876543 Num = 100000`;
+    const line = `${ts}TLLua: Display: [Game] BagMgr@:InitBagData PageId = 2 SlotId = 999 ConfigBaseId = 9876543 Num = 100000`;
     const result = proc.process(line);
     expect(result).toEqual({
       type: 'bag_init',
@@ -86,7 +86,7 @@ describe('BagProcessor', () => {
   });
 
   it('returns null for partial BagMgr line', () => {
-    const line = `${ts}GameLog: Display: [Game] BagMgr@:SomeOtherAction`;
+    const line = `${ts}TLLua: Display: [Game] BagMgr@:SomeOtherAction`;
     expect(proc.test(line)).toBe(true); // test passes (includes BagMgr@:)
     expect(proc.process(line)).toBeNull(); // but no regex matches
   });

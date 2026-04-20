@@ -17,7 +17,7 @@ const ts = '[2026.01.25-12.34.56:789]';
 describe('Dispatcher', () => {
   it('routes bag_init to BagProcessor', () => {
     const d = createDispatcher();
-    const events = d.dispatch(`${ts}GameLog: Display: [Game] BagMgr@:InitBagData PageId = 0 SlotId = 5 ConfigBaseId = 111 Num = 10`);
+    const events = d.dispatch(`${ts}TLLua: Display: [Game] BagMgr@:InitBagData PageId = 0 SlotId = 5 ConfigBaseId = 111 Num = 10`);
     expect(events).toHaveLength(1);
     expect(events[0].type).toBe('bag_init');
   });
@@ -58,7 +58,7 @@ describe('Dispatcher', () => {
     });
     d.register(new BagProcessor());
 
-    const events = d.dispatch(`${ts}GameLog: Display: [Game] BagMgr@:InitBagData PageId = 0 SlotId = 0 ConfigBaseId = 1 Num = 1`);
+    const events = d.dispatch(`${ts}TLLua: Display: [Game] BagMgr@:InitBagData PageId = 0 SlotId = 0 ConfigBaseId = 1 Num = 1`);
     expect(events).toHaveLength(2);
     expect(events[0].type).toBe('reader_ready');
     expect(events[1].type).toBe('bag_init');
@@ -66,7 +66,7 @@ describe('Dispatcher', () => {
 
   it('handles high volume dispatch', () => {
     const d = createDispatcher();
-    const line = `${ts}GameLog: Display: [Game] BagMgr@:Modfy BagItem PageId = 0 SlotId = 3 ConfigBaseId = 555 Num = 20`;
+    const line = `${ts}TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 0 SlotId = 3 ConfigBaseId = 555 Num = 20`;
 
     // Simulate 10k lines
     let count = 0;
