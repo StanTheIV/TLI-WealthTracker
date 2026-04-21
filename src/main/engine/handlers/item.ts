@@ -1,6 +1,7 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
+import {publishDrops} from '@/main/engine/drop-publisher';
 
 const BUFFER_MS = 1500;
 
@@ -67,23 +68,8 @@ export class ItemHandler implements EventHandler {
   private _flush(ctx: EngineContext, emit: EmitFn): void {
     this._clearTimer();
     if (this._buffer.size === 0) return;
-
-    const now = Date.now();
-    for (const [itemId, change] of this._buffer) {
-      if (change === 0) continue;
-      const idStr = String(itemId);
-      if (!ctx.knownItems.has(idStr)) {
-        ctx.knownItems.add(idStr);
-        emit({type: 'new_item', itemId, timestamp: now});
-      }
-      ctx.distributeDrop(itemId, change);
-      emit({type: 'drop', itemId, change, timestamp: now});
-    }
+    publishDrops(ctx, emit, this._buffer);
     this._buffer.clear();
-
-    // Push updated snapshots so the frontend sees live drop totals
-    if (ctx.map) emit({type: 'tracker_update', tracker: ctx.map.snapshot(), timestamp: now});
-    if (ctx.session) emit({type: 'tracker_update', tracker: ctx.session.snapshot(), timestamp: now});
   }
 
   private _clearTimer(): void {
