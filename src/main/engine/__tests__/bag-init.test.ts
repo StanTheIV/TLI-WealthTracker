@@ -231,4 +231,107 @@ describe('BagInitHandler', () => {
       }
     });
   });
+
+  describe('resort handling (tracking phase)', () => {
+    function trackingCtx(init: Array<{pageId: number; slotId: number; itemId: number; quantity: number}>): EngineContext {
+      const ctx = new EngineContext();
+      ctx.phase = 'initializing';
+      for (const s of init) ctx.bag.processInit(s.pageId, s.slotId, s.itemId, s.quantity);
+      ctx.bag.finishInit();
+      ctx.phase = 'tracking';
+      return ctx;
+    }
+
+    it('pure slot reshuffle emits no drops', () => {
+      const handler = new BagInitHandler();
+      const ctx = trackingCtx([
+        {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
+        {pageId: 0, slotId: 2, itemId: 200, quantity: 3},
+      ]);
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      // Resort: same items, different slots
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 5, itemId: 100, quantity: 5}, ctx, emit);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 6, itemId: 200, quantity: 3}, ctx, emit);
+      vi.advanceTimersByTime(400);
+
+      expect(events.filter(e => e.type === 'drop')).toHaveLength(0);
+      expect(ctx.bag.getTotalForItem(100)).toBe(5);
+      expect(ctx.bag.getTotalForItem(200)).toBe(3);
+    });
+
+    it('resort with genuine quantity change emits delta', () => {
+      const handler = new BagInitHandler();
+      const ctx = trackingCtx([
+        {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
+      ]);
+      ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      // Resort: item 100 now shows 8 instead of 5 (+3 gain)
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 3, itemId: 100, quantity: 8}, ctx, emit);
+      vi.advanceTimersByTime(400);
+
+      const drops = events.filter(e => e.type === 'drop');
+      expect(drops).toHaveLength(1);
+      expect(drops[0]).toMatchObject({type: 'drop', itemId: 100, change: 3});
+    });
+
+    it('resort with item completely removed emits negative delta', () => {
+      const handler = new BagInitHandler();
+      const ctx = trackingCtx([
+        {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
+        {pageId: 0, slotId: 2, itemId: 200, quantity: 3},
+      ]);
+      ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      // Resort: item 200 no longer in snapshot
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 5, itemId: 100, quantity: 5}, ctx, emit);
+      vi.advanceTimersByTime(400);
+
+      const drops = events.filter(e => e.type === 'drop');
+      expect(drops).toHaveLength(1);
+      expect(drops[0]).toMatchObject({type: 'drop', itemId: 200, change: -3});
+    });
+
+    it('paused state: bag is re-synced but no drops emitted', () => {
+      const handler = new BagInitHandler();
+      const ctx = trackingCtx([
+        {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
+      ]);
+      ctx.paused = true;
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 3, itemId: 100, quantity: 8}, ctx, emit);
+      vi.advanceTimersByTime(400);
+
+      expect(events.filter(e => e.type === 'drop')).toHaveLength(0);
+      // Bag state still updated so that post-resume bookkeeping is correct
+      expect(ctx.bag.getTotalForItem(100)).toBe(8);
+    });
+
+    it('debounce: multiple bursts within window are merged', () => {
+      const handler = new BagInitHandler();
+      const ctx = trackingCtx([
+        {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
+      ]);
+      ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 1, itemId: 100, quantity: 5}, ctx, emit);
+      vi.advanceTimersByTime(100);
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 2, itemId: 200, quantity: 4}, ctx, emit);
+      vi.advanceTimersByTime(400);
+
+      const drops = events.filter(e => e.type === 'drop');
+      expect(drops).toHaveLength(1);
+      expect(drops[0]).toMatchObject({type: 'drop', itemId: 200, change: 4});
+    });
+  });
 });
