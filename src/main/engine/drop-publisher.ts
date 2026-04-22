@@ -34,6 +34,7 @@ export function publishDrops(
 
   if (!emitted) return;
 
-  if (ctx.map)     emit({type: 'tracker_update', tracker: ctx.map.snapshot(),     timestamp: now});
-  if (ctx.session) emit({type: 'tracker_update', tracker: ctx.session.snapshot(), timestamp: now});
+  if (ctx.map)      emit({type: 'tracker_update', tracker: ctx.map.snapshot(),      timestamp: now});
+  if (ctx.seasonal) emit({type: 'tracker_update', tracker: ctx.seasonal.snapshot(), timestamp: now});
+  if (ctx.session)  emit({type: 'tracker_update', tracker: ctx.session.snapshot(),  timestamp: now});
 }
