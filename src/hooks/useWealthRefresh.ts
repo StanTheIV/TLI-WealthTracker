@@ -1,32 +1,22 @@
-import {useEffect, useRef} from 'react';
+import {useEffect} from 'react';
 import {useEngineStore} from '@/state/engineStore';
 import {useWealthStore} from '@/state/wealthStore';
 
 /**
- * Subscribes to the engine event feed and triggers a wealth data refresh
- * after a bag init or map end. The 500ms debounce ensures the synchronous
- * DB insert in the main process has committed before the renderer queries.
+ * Refreshes the wealth store whenever the main process records a new
+ * wealth datapoint. Main emits `wealth_recorded` after the synchronous
+ * SQLite insert, so the renderer can re-fetch immediately.
  */
 export function useWealthRefresh(): void {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
-    const unsub = useEngineStore.subscribe((state, prev) => {
-      if (state.feed.length === prev.feed.length) return;
+    return useEngineStore.subscribe((state, prev) => {
       const latest = state.feed[state.feed.length - 1];
       if (!latest) return;
-
-      if (latest.event.type === 'init_complete' || latest.event.type === 'map_ended') {
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-          useWealthStore.getState().refresh();
-        }, 500);
+      const prevLatest = prev.feed[prev.feed.length - 1];
+      if (prevLatest && latest.id === prevLatest.id) return;
+      if (latest.event.type === 'wealth_recorded') {
+        useWealthStore.getState().refresh();
       }
     });
-
-    return () => {
-      unsub();
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
   }, []);
 }

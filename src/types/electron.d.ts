@@ -67,6 +67,7 @@ export type EngineEvent =
   | {type: 'session_status';   status: 'running' | 'paused'; elapsed: number; timestamp: number}
   | {type: 'session_saved';    sessionId: string}
   | {type: 'price_update';     itemId: number; price: number; timestamp: number}
+  | {type: 'wealth_recorded';  timestamp: number}
   | {type: 'error';            message: string};
 
 interface ElectronAPI {

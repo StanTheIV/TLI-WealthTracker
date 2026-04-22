@@ -237,6 +237,9 @@ function createEngine(): Engine {
 
     if (event.type === 'init_complete' || event.type === 'map_ended') {
       recordWealth();
+      const recorded: EngineEvent = {type: 'wealth_recorded', timestamp: Date.now()};
+      _getMainWindow()?.webContents.send('engine:event', recorded);
+      _getTrackerWindow()?.webContents.send('engine:event', recorded);
     }
   };
 
