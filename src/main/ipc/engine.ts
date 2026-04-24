@@ -13,6 +13,7 @@ import {DreamHandler} from '@/main/engine/handlers/dream-handler';
 import {VorexHandler} from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import {CarjackHandler} from '@/main/engine/handlers/carjack-handler';
+import {ClockworkHandler} from '@/main/engine/handlers/clockwork-handler';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {ErrorHandler} from '@/main/engine/handlers/error';
 import type {RawEvent} from '@/worker/processors/types';
@@ -252,6 +253,7 @@ function createEngine(): Engine {
     .register(new VorexHandler())
     .register(new OverrealmHandler())
     .register(new CarjackHandler())
+    .register(new ClockworkHandler())
     .register(new ItemHandler())
     .register(new ErrorHandler());
 }

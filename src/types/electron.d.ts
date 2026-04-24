@@ -4,7 +4,7 @@ export interface TrackerSnapshot {
   kind:          'session' | 'map' | 'seasonal';
   drops:         Record<number, number>;
   elapsed:       number;
-  seasonalType?: 'vorex' | 'dream' | 'overrealm' | 'carjack';
+  seasonalType?: 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork';
 }
 
 export interface UpdateInfo {

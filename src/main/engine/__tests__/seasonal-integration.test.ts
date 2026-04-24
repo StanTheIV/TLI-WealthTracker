@@ -20,6 +20,7 @@ import {LevelTypeProcessor} from '@/worker/processors/level-type';
 import {S13Processor}     from '@/worker/processors/s13';
 import {S12Processor}     from '@/worker/processors/s12';
 import {S11Processor}     from '@/worker/processors/s11';
+import {S7Processor}      from '@/worker/processors/s7';
 import {CurrencyProcessor} from '@/worker/processors/currency';
 import {Engine}           from '@/main/engine/engine';
 import {BagInitHandler}   from '@/main/engine/handlers/bag-init';
@@ -28,6 +29,7 @@ import {DreamHandler}     from '@/main/engine/handlers/dream-handler';
 import {VorexHandler}     from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import {CarjackHandler}  from '@/main/engine/handlers/carjack-handler';
+import {ClockworkHandler} from '@/main/engine/handlers/clockwork-handler';
 import {ItemHandler}      from '@/main/engine/handlers/item';
 import type {EngineEvent} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
@@ -62,6 +64,10 @@ const log = {
   s11Start: `${ts}GameLog: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Play_Mus_Gameplay_S11_Robbery_Full.Play_Mus_Gameplay_S11_Robbery_Full id 3808`,
   s11End:   `${ts}GameLog: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Stop_Mus_Gameplay_S11_Robbery_Full.Stop_Mus_Gameplay_S11_Robbery_Full id 10149`,
 
+  s7Start:   `${ts}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = -1 PushState = S7GamePlayStateStart`,
+  s7Success: `${ts}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = S7GamePlayStateStart PushState = S7GamePlayStateSuccess`,
+  s7Fail:    `${ts}TLLua: Display: [Game] PageBase@ OpenFlow0! Switch = true S7GamePlayFailStateItem 8292819`,
+
   currency: (id: number, amount: number) =>
     `${ts} ResourceMgr@:ChangeCurrency(${id}, ${amount})`,
 };
@@ -82,6 +88,7 @@ function createDispatcher(): Dispatcher {
   d.register(new S13Processor());
   d.register(new S12Processor());
   d.register(new S11Processor());
+  d.register(new S7Processor());
   d.register(new CurrencyProcessor());
   return d;
 }
@@ -94,6 +101,7 @@ function createEngine(events: EngineEvent[]): Engine {
     .register(new VorexHandler())
     .register(new OverrealmHandler())
     .register(new CarjackHandler())
+    .register(new ClockworkHandler())
     .register(new ItemHandler());
 }
 
@@ -600,6 +608,118 @@ describe('Carjack integration', () => {
 
     feed(d, e, log.bagUpdate(1, 400, 3));
     expect(ctx(e).seasonal?.snapshot().drops[400]).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Clockwork Ballet (S7) — HandleS7PushData + fail-page UI
+// ---------------------------------------------------------------------------
+
+describe('Clockwork integration', () => {
+  it('s7_start alone does NOT create a seasonal tracker — drops during the game go to session/map only', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 700, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+
+    feed(d, e, log.s7Start);
+    expect(ctx(e).seasonal).toBeNull();
+    expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'clockwork')).toBe(false);
+
+    feed(d, e, log.bagUpdate(1, 700, 4));
+    expect(ctx(e).session?.snapshot().drops[700]).toBe(4);
+    expect(ctx(e).map?.snapshot().drops[700]).toBe(4);
+    expect(ctx(e).seasonal).toBeNull();
+  });
+
+  it('s7_success (voucher turn-in) starts tracker + loot timer', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 700, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s7Start);
+    feed(d, e, log.s7Success);
+
+    expect(ctx(e).seasonal?.seasonalType).toBe('clockwork');
+    expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'clockwork')).toBe(true);
+    expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
+
+    vi.advanceTimersByTime(5_100);
+
+    expect(ctx(e).seasonal).toBeNull();
+    expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'clockwork')).toBe(true);
+  });
+
+  it('s7_fail also starts tracker + loot timer', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 700, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s7Start);
+    feed(d, e, log.s7Fail);
+
+    expect(ctx(e).seasonal?.seasonalType).toBe('clockwork');
+
+    vi.advanceTimersByTime(5_100);
+
+    expect(ctx(e).seasonal).toBeNull();
+    expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'clockwork')).toBe(true);
+  });
+
+  it('drops after the turn-in are attributed to clockwork', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 700, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s7Start);
+    feed(d, e, log.s7Success);
+
+    feed(d, e, log.bagUpdate(1, 700, 7));
+    expect(ctx(e).seasonal?.snapshot().drops[700]).toBe(7);
+    expect(ctx(e).session?.snapshot().drops[700]).toBe(7);
+    expect(ctx(e).map?.snapshot().drops[700]).toBe(7);
+  });
+
+  it('entering town during loot window cancels timer and finishes immediately', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 700, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s7Start);
+    feed(d, e, log.s7Success);
+
+    feed(d, e, log.zoneTransition(MAP, TOWN));
+
+    expect(ctx(e).seasonal).toBeNull();
+    expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'clockwork')).toBe(true);
+
+    // No double-finish after the original timer would have expired.
+    events.length = 0;
+    vi.advanceTimersByTime(5_100);
+    expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
+  });
+
+  it('duplicate s7_success is ignored while the loot timer is active', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 700, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s7Success);
+    feed(d, e, log.s7Success); // duplicate
+
+    const starts = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'clockwork');
+    expect(starts).toHaveLength(1);
   });
 });
 

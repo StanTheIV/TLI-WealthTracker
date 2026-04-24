@@ -5,6 +5,7 @@ import {LevelTypeProcessor} from '@/worker/processors/level-type';
 import {PriceProcessor} from '@/worker/processors/price';
 import {S13Processor} from '@/worker/processors/s13';
 import {S12Processor} from '@/worker/processors/s12';
+import {S7Processor} from '@/worker/processors/s7';
 import {CurrencyProcessor} from '@/worker/processors/currency';
 
 // ---------------------------------------------------------------------------
@@ -516,5 +517,57 @@ describe('CurrencyProcessor', () => {
 
   it('returns null for unrecognised line', () => {
     expect(proc.process(currencyLines.unrelated)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S7Processor (Clockwork Ballet)
+// ---------------------------------------------------------------------------
+
+const ts7 = '[2026.04.22-15.19.40:581]';
+
+const s7Lines = {
+  start:     `${ts7}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = -1 PushState = S7GamePlayStateStart`,
+  heartbeat: `${ts7}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = S7GamePlayStateStart PushState = S7GamePlayStateStart`,
+  success:   `${ts7}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = S7GamePlayStateStart PushState = S7GamePlayStateSuccess`,
+  failOpen:  `${ts7}TLLua: Display: [Game] PageBase@ OpenFlow0! Switch = true S7GamePlayFailStateItem 8292819`,
+  failOther: `${ts7}TLLua: Display: [Game] TipMsgShowMgr@DispatchPageRunChange PageName = S7GamePlayFailStateItem , PageRunState = Run`,
+};
+
+describe('S7Processor', () => {
+  const proc = new S7Processor();
+
+  it('has correct name', () => {
+    expect(proc.name).toBe('s7');
+  });
+
+  it('test() matches push-data and fail-page lines', () => {
+    expect(proc.test(s7Lines.start)).toBe(true);
+    expect(proc.test(s7Lines.heartbeat)).toBe(true);
+    expect(proc.test(s7Lines.success)).toBe(true);
+    expect(proc.test(s7Lines.failOpen)).toBe(true);
+    expect(proc.test(s7Lines.failOther)).toBe(true);
+  });
+
+  it('test() rejects unrelated lines', () => {
+    expect(proc.test(lines.bagInit)).toBe(false);
+    expect(proc.test(lines.unrelated)).toBe(false);
+  });
+
+  it('parses s7_start from -1 → Start transition', () => {
+    expect(proc.process(s7Lines.start)).toEqual({type: 's7_start'});
+  });
+
+  it('parses s7_success from Start → Success transition', () => {
+    expect(proc.process(s7Lines.success)).toEqual({type: 's7_success'});
+  });
+
+  it('parses s7_fail only from the OpenFlow0 fail-page line', () => {
+    expect(proc.process(s7Lines.failOpen)).toEqual({type: 's7_fail'});
+    expect(proc.process(s7Lines.failOther)).toBeNull();
+  });
+
+  it('ignores heartbeat pings (Start → Start)', () => {
+    expect(proc.process(s7Lines.heartbeat)).toBeNull();
   });
 });

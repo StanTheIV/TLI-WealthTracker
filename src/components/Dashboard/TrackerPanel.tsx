@@ -68,6 +68,8 @@ export default function TrackerPanel() {
     seasonalType === 'dream'     ? t('seasonal.dream')     :
     seasonalType === 'vorex'     ? t('seasonal.vorex')     :
     seasonalType === 'overrealm' ? t('seasonal.overrealm') :
+    seasonalType === 'carjack'   ? t('seasonal.carjack')   :
+    seasonalType === 'clockwork' ? t('seasonal.clockwork') :
     '';
 
   const [tableOpen, setTableOpen] = useState(false);
