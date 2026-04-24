@@ -31,8 +31,11 @@ export class Engine {
   }
 
   start(): void {
+    // Preserve loadedSession across reset — loadSession() is called before start().
+    const preserved = this._ctx.loadedSession;
     this._ctx.reset();
-    this._ctx.phase   = 'initializing';
+    this._ctx.loadedSession = preserved;
+    this._ctx.phase = 'initializing';
     for (const handlers of this._routes.values()) {
       for (const h of handlers) {
         h.onStart?.(this._ctx, this._emit);
