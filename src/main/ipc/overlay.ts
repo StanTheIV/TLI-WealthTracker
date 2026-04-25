@@ -71,7 +71,13 @@ export function registerOverlayHandlers(
   });
 
   ipcMain.on('overlay:set-size', (_e, w: number, h: number) => {
-    getTrackerWindow()?.setSize(Math.round(w), Math.round(h));
+    const win = getTrackerWindow();
+    if (!win) return;
+    // setBounds instead of setSize — on Windows, transparent + non-resizable
+    // windows can fail to shrink via setSize alone (the window keeps its
+    // previous larger footprint, eating clicks on empty space below it).
+    const [x, y] = win.getPosition();
+    win.setBounds({x, y, width: Math.round(w), height: Math.round(h)});
   });
 
   log.debug('ipc', 'Overlay handlers registered');
