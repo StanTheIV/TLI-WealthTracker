@@ -158,32 +158,32 @@
   "84": {
     "name": "",
     "type": "other",
-    "price": 555,
-    "last_update": 0
+    "price": 148,
+    "last_update": 1776930924780
   },
   "85": {
     "name": "",
     "type": "other",
-    "price": 255,
-    "last_update": 0
+    "price": 32.5,
+    "last_update": 1777004552003
   },
   "86": {
     "name": "",
     "type": "other",
-    "price": 5,
-    "last_update": 0
+    "price": 17.5,
+    "last_update": 1776927172387
   },
   "87": {
     "name": "",
     "type": "other",
-    "price": 21.5,
-    "last_update": 0
+    "price": 541.5,
+    "last_update": 1777052475575
   },
   "88": {
     "name": "",
     "type": "other",
-    "price": 60,
-    "last_update": 0
+    "price": 99,
+    "last_update": 1776828188152
   },
   "90": {
     "name": "",
@@ -242,8 +242,8 @@
   "121": {
     "name": "",
     "type": "other",
-    "price": 3500,
-    "last_update": 0
+    "price": 84,
+    "last_update": 1776782236845
   },
   "124": {
     "name": "",
@@ -332,26 +332,38 @@
   "219": {
     "name": "Tin Staff",
     "type": "equipment",
-    "price": 168,
+    "price": 9,
+    "last_update": 1776863730375
+  },
+  "414": {
+    "name": "",
+    "type": "other",
+    "price": 0,
     "last_update": 0
+  },
+  "419": {
+    "name": "",
+    "type": "other",
+    "price": 284,
+    "last_update": 1777053529718
   },
   "619": {
     "name": "",
     "type": "other",
-    "price": 0,
-    "last_update": 0
+    "price": 26,
+    "last_update": 1776868891609
   },
   "819": {
     "name": "",
     "type": "other",
-    "price": 0,
-    "last_update": 0
+    "price": 15,
+    "last_update": 1776965135744
   },
   "1001": {
     "name": "Hardrock Mallet",
     "type": "ember",
-    "price": 3125.154,
-    "last_update": 0
+    "price": 1117.5,
+    "last_update": 1776867937791
   },
   "1009": {
     "name": "Devastating Mallet",
@@ -368,8 +380,8 @@
   "1012": {
     "name": "Vindicator Maul",
     "type": "ember",
-    "price": 5037.034,
-    "last_update": 0
+    "price": 5050,
+    "last_update": 1776866477607
   },
   "1019": {
     "name": "Sierra Reverberation Maul",
@@ -386,8 +398,14 @@
   "1219": {
     "name": "Sky Severing Sword",
     "type": "equipment",
-    "price": 0,
-    "last_update": 0
+    "price": 5,
+    "last_update": 1776927836030
+  },
+  "1319": {
+    "name": "",
+    "type": "other",
+    "price": 5,
+    "last_update": 1777050732065
   },
   "1419": {
     "name": "First Man's Scepter",
@@ -395,17 +413,29 @@
     "price": 0,
     "last_update": 0
   },
+  "1513": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "1519": {
+    "name": "",
+    "type": "other",
+    "price": 120,
+    "last_update": 1777051710691
+  },
   "1619": {
     "name": "Lonely Hunter's Bow",
     "type": "equipment",
-    "price": 0,
-    "last_update": 0
+    "price": 10,
+    "last_update": 1776835758971
   },
   "1719": {
     "name": "War Ranger's Crossbow",
     "type": "equipment",
-    "price": 0,
-    "last_update": 0
+    "price": 30,
+    "last_update": 1777005977102
   },
   "1819": {
     "name": "Sun Fall Cannon",
@@ -413,23 +443,29 @@
     "price": 0,
     "last_update": 0
   },
+  "2019": {
+    "name": "",
+    "type": "other",
+    "price": 4500,
+    "last_update": 1777019011706
+  },
   "2119": {
     "name": "Heart of All Rod",
     "type": "equipment",
-    "price": 999,
-    "last_update": 0
+    "price": 20,
+    "last_update": 1777051719258
   },
   "2219": {
     "name": "Dark Gaze Scepter",
     "type": "equipment",
-    "price": 0,
-    "last_update": 0
+    "price": 55,
+    "last_update": 1776955016749
   },
   "3011": {
     "name": "Ranger's Rag",
     "type": "equipment",
-    "price": 93.5,
-    "last_update": 0
+    "price": 170,
+    "last_update": 1776946973555
   },
   "3101": {
     "name": "",
@@ -446,14 +482,20 @@
   "3111": {
     "name": "",
     "type": "other",
+    "price": 3.5,
+    "last_update": 1776784920744
+  },
+  "3210": {
+    "name": "",
+    "type": "other",
     "price": 0,
     "last_update": 0
   },
   "3211": {
     "name": "",
     "type": "other",
-    "price": 0,
-    "last_update": 0
+    "price": 5,
+    "last_update": 1776863723627
   },
   "3311": {
     "name": "",
@@ -467,6 +509,12 @@
     "price": 0,
     "last_update": 0
   },
+  "3411": {
+    "name": "",
+    "type": "other",
+    "price": 7.5,
+    "last_update": 1776955439862
+  },
   "3510": {
     "name": "",
     "type": "other",
@@ -479,7 +527,19 @@
     "price": 0,
     "last_update": 0
   },
+  "3610": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "3611": {
+    "name": "",
+    "type": "other",
+    "price": 40,
+    "last_update": 1777029603803
+  },
+  "3709": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -491,13 +551,31 @@
     "price": 0,
     "last_update": 0
   },
+  "3711": {
+    "name": "",
+    "type": "other",
+    "price": 3.5,
+    "last_update": 1776860627857
+  },
   "3811": {
     "name": "",
     "type": "other",
-    "price": 0,
-    "last_update": 0
+    "price": 110,
+    "last_update": 1776930918021
+  },
+  "3910": {
+    "name": "",
+    "type": "other",
+    "price": 3,
+    "last_update": 1776939387865
   },
   "3911": {
+    "name": "",
+    "type": "other",
+    "price": 50,
+    "last_update": 1777053547164
+  },
+  "4008": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -518,8 +596,8 @@
   "4111": {
     "name": "Long Night Sorcerer's Boots",
     "type": "other",
-    "price": 200,
-    "last_update": 0
+    "price": 100,
+    "last_update": 1777008393137
   },
   "4210": {
     "name": "",
@@ -530,8 +608,8 @@
   "4211": {
     "name": "",
     "type": "other",
-    "price": 0,
-    "last_update": 0
+    "price": 3,
+    "last_update": 1776706287875
   },
   "4311": {
     "name": "",
@@ -545,13 +623,43 @@
     "price": 0,
     "last_update": 0
   },
+  "4411": {
+    "name": "",
+    "type": "other",
+    "price": 29,
+    "last_update": 1777007490259
+  },
   "4522": {
     "name": "",
     "type": "other",
     "price": 0,
     "last_update": 0
   },
+  "4523": {
+    "name": "",
+    "type": "other",
+    "price": 84,
+    "last_update": 1777043864532
+  },
   "4525": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "4528": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "4530": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "4532": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -563,6 +671,12 @@
     "price": 0,
     "last_update": 0
   },
+  "4537": {
+    "name": "",
+    "type": "other",
+    "price": 74.5,
+    "last_update": 1777044817735
+  },
   "4624": {
     "name": "Torched Flame Ring",
     "type": "other",
@@ -573,6 +687,12 @@
     "name": "Perishing Inferno Flame Ring",
     "type": "equipment",
     "price": 888,
+    "last_update": 0
+  },
+  "4630": {
+    "name": "",
+    "type": "other",
+    "price": 0,
     "last_update": 0
   },
   "4636": {
@@ -588,6 +708,18 @@
     "last_update": 0
   },
   "4638": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "4640": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "4647": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -611,17 +743,47 @@
     "price": 0,
     "last_update": 0
   },
+  "4721": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "4722": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "4724": {
     "name": "",
     "type": "other",
     "price": 0,
     "last_update": 0
   },
+  "4725": {
+    "name": "",
+    "type": "other",
+    "price": 5,
+    "last_update": 1777019611343
+  },
   "4727": {
     "name": "",
     "type": "other",
     "price": 0,
     "last_update": 0
+  },
+  "4728": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "4730": {
+    "name": "",
+    "type": "other",
+    "price": 5,
+    "last_update": 1776708932078
   },
   "5011": {
     "name": "Elixir of Oblivion",
@@ -632,8 +794,8 @@
   "5028": {
     "name": "Netherrealm resonance",
     "type": "other",
-    "price": 0.009009009009009,
-    "last_update": 0
+    "price": 0.130013416279385,
+    "last_update": 1776964734276
   },
   "5029": {
     "name": "Reversing the Clockwork",
@@ -650,8 +812,8 @@
   "5031": {
     "name": "Sprout of Legends",
     "type": "other",
-    "price": 178,
-    "last_update": 1774253497370
+    "price": 126,
+    "last_update": 1776836534170
   },
   "5040": {
     "name": "Deep Space Resonance",
@@ -662,14 +824,14 @@
   "5080": {
     "name": "Energy Core",
     "type": "fuel",
-    "price": 0.007007007007007,
-    "last_update": 0
+    "price": 0.10025062656642,
+    "last_update": 1776759643480
   },
   "5140": {
     "name": "Remembrance Fragments",
     "type": "ember",
-    "price": 0.01001001001001,
-    "last_update": 0
+    "price": 0.10007232113039999,
+    "last_update": 1776956071985
   },
   "5141": {
     "name": "",
@@ -692,8 +854,8 @@
   "5144": {
     "name": "Remembrance Gossamer - Excellent",
     "type": "ember",
-    "price": 1,
-    "last_update": 0
+    "price": 0.50093241844754,
+    "last_update": 1776866089121
   },
   "5201": {
     "name": "Godhead Fragment",
@@ -722,20 +884,20 @@
   "5230": {
     "name": "Sublime Wedge (Rare)",
     "type": "cube",
-    "price": 0.214,
-    "last_update": 0
+    "price": 0.21021021021021,
+    "last_update": 1776942506101
   },
   "5240": {
     "name": "Unifying Wedge",
     "type": "cube",
-    "price": 71.252,
-    "last_update": 0
+    "price": 24.5,
+    "last_update": 1776942390508
   },
   "5250": {
     "name": "Transcendence Wedge (Legendary)",
     "type": "cube",
-    "price": 10,
-    "last_update": 0
+    "price": 10.8,
+    "last_update": 1776942416050
   },
   "5300": {
     "name": "Eternal Fragment",
@@ -764,8 +926,8 @@
   "5402": {
     "name": "Divinity Pact - The Brave",
     "type": "cube",
-    "price": 761.333,
-    "last_update": 0
+    "price": 75,
+    "last_update": 1776867162281
   },
   "5403": {
     "name": "Divinity Pact - Onslaughter",
@@ -866,8 +1028,8 @@
   "5419": {
     "name": "Divinity Pact - Psychic",
     "type": "cube",
-    "price": 285.885,
-    "last_update": 0
+    "price": 70,
+    "last_update": 1776942444191
   },
   "5420": {
     "name": "Divinity Pact - Warlock",
@@ -926,8 +1088,8 @@
   "5429": {
     "name": "Godhead Contract - Lich",
     "type": "cube",
-    "price": 285.421,
-    "last_update": 0
+    "price": 400,
+    "last_update": 1776941881583
   },
   "5430": {
     "name": "Divine Contract - Craftsman",
@@ -980,8 +1142,8 @@
   "6003": {
     "name": "Crow's Wail",
     "type": "card",
-    "price": 4,
-    "last_update": 0
+    "price": 6.5,
+    "last_update": 1776953179304
   },
   "6004": {
     "name": "Maud's Trick",
@@ -992,20 +1154,20 @@
   "6006": {
     "name": "Portent Moon",
     "type": "card",
-    "price": 31,
-    "last_update": 0
+    "price": 56,
+    "last_update": 1776953177497
   },
   "6007": {
     "name": "Lost Secrets",
     "type": "card",
     "price": 3,
-    "last_update": 0
+    "last_update": 1776953175175
   },
   "6008": {
     "name": "A Terrible Price",
     "type": "card",
-    "price": 82,
-    "last_update": 0
+    "price": 68,
+    "last_update": 1776953173350
   },
   "6019": {
     "name": "Helio Rock",
@@ -1016,8 +1178,8 @@
   "6026": {
     "name": "Antonius's Help",
     "type": "card",
-    "price": 1.9130434782609,
-    "last_update": 0
+    "price": 1.5106575963719,
+    "last_update": 1776953184043
   },
   "6027": {
     "name": "Aureole Rock",
@@ -1046,8 +1208,8 @@
   "6118": {
     "name": "Echo of the Gods",
     "type": "card",
-    "price": 12,
-    "last_update": 0
+    "price": 9.240530303030301,
+    "last_update": 1776953171257
   },
   "6119": {
     "name": "Stray Fireflies",
@@ -1088,8 +1250,8 @@
   "6143": {
     "name": "Second Divinity",
     "type": "card",
-    "price": 73,
-    "last_update": 0
+    "price": 54,
+    "last_update": 1776953165515
   },
   "6147": {
     "name": "Gaze Upon the Reflection",
@@ -1106,8 +1268,8 @@
   "6153": {
     "name": "Tomorrow's Direction",
     "type": "card",
-    "price": 6.4,
-    "last_update": 0
+    "price": 7.5,
+    "last_update": 1776953163419
   },
   "6205": {
     "name": "",
@@ -1118,8 +1280,8 @@
   "6216": {
     "name": "Disappearing Shadow",
     "type": "card",
-    "price": 430.633,
-    "last_update": 0
+    "price": 224,
+    "last_update": 1776753813066
   },
   "6217": {
     "name": "Unfettered Constellation",
@@ -1181,7 +1343,19 @@
     "price": 85,
     "last_update": 0
   },
+  "7039": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "7040": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7051": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -1206,6 +1380,18 @@
     "last_update": 0
   },
   "7087": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7089": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7103": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -1247,7 +1433,19 @@
     "price": 0,
     "last_update": 0
   },
+  "7113": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "7116": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7127": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -1259,13 +1457,37 @@
     "price": 0,
     "last_update": 0
   },
+  "7133": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7135": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "7136": {
     "name": "",
     "type": "other",
     "price": 0,
     "last_update": 0
   },
+  "7138": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "7140": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7142": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -1289,6 +1511,12 @@
     "price": 0,
     "last_update": 0
   },
+  "7158": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "7169": {
     "name": "",
     "type": "other",
@@ -1301,11 +1529,65 @@
     "price": 0,
     "last_update": 0
   },
-  "7401": {
+  "7230": {
     "name": "",
     "type": "other",
     "price": 0,
     "last_update": 0
+  },
+  "7241": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7317": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7319": {
+    "name": "",
+    "type": "other",
+    "price": 1,
+    "last_update": 1776749335363
+  },
+  "7320": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7323": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7326": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7329": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7331": {
+    "name": "",
+    "type": "other",
+    "price": 1,
+    "last_update": 1776752752578
+  },
+  "7401": {
+    "name": "",
+    "type": "other",
+    "price": 132.5,
+    "last_update": 1776962805593
   },
   "7407": {
     "name": "Increased Area",
@@ -1313,8 +1595,26 @@
     "price": 0,
     "last_update": 0
   },
+  "7411": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "7412": {
     "name": "Glacial Freeze",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7413": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7415": {
+    "name": "",
     "type": "other",
     "price": 0,
     "last_update": 0
@@ -1349,6 +1649,42 @@
     "price": 0,
     "last_update": 0
   },
+  "7442": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7444": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7445": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7449": {
+    "name": "",
+    "type": "other",
+    "price": 19,
+    "last_update": 1776962789730
+  },
+  "7454": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7455": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "7463": {
     "name": "",
     "type": "other",
@@ -1356,6 +1692,12 @@
     "last_update": 0
   },
   "7469": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7477": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -1370,8 +1712,8 @@
   "7504": {
     "name": "",
     "type": "other",
-    "price": 0,
-    "last_update": 0
+    "price": 68,
+    "last_update": 1776962845106
   },
   "7507": {
     "name": "",
@@ -1412,10 +1754,16 @@
   "7521": {
     "name": "",
     "type": "other",
+    "price": 135,
+    "last_update": 1776962757471
+  },
+  "7522": {
+    "name": "",
+    "type": "other",
     "price": 0,
     "last_update": 0
   },
-  "7522": {
+  "7525": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -1433,6 +1781,12 @@
     "price": 0,
     "last_update": 0
   },
+  "7606": {
+    "name": "",
+    "type": "other",
+    "price": 150,
+    "last_update": 1776962910842
+  },
   "7613": {
     "name": "",
     "type": "other",
@@ -1445,6 +1799,12 @@
     "price": 0,
     "last_update": 0
   },
+  "7618": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "7622": {
     "name": "",
     "type": "other",
@@ -1452,6 +1812,24 @@
     "last_update": 0
   },
   "7623": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7706": {
+    "name": "",
+    "type": "other",
+    "price": 75,
+    "last_update": 1776707849399
+  },
+  "7707": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7708": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -1475,6 +1853,24 @@
     "price": 2788,
     "last_update": 1774254142909
   },
+  "7915": {
+    "name": "",
+    "type": "other",
+    "price": 888,
+    "last_update": 1776962899176
+  },
+  "7988": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "7994": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "8000": {
     "name": "",
     "type": "other",
@@ -1484,13 +1880,19 @@
   "8006": {
     "name": "Activation Medium: Energy Shield",
     "type": "other",
-    "price": 750,
-    "last_update": 0
+    "price": 156.5,
+    "last_update": 1776833886488
   },
   "8011": {
     "name": "Activation Medium: Start",
     "type": "other",
     "price": 177,
+    "last_update": 0
+  },
+  "8021": {
+    "name": "",
+    "type": "other",
+    "price": 0,
     "last_update": 0
   },
   "8029": {
@@ -1511,6 +1913,12 @@
     "price": 385,
     "last_update": 1774254163416
   },
+  "8305": {
+    "name": "",
+    "type": "other",
+    "price": 25,
+    "last_update": 1777053066482
+  },
   "8306": {
     "name": "Precise: Spell Amplification",
     "type": "other",
@@ -1523,29 +1931,53 @@
     "price": 0,
     "last_update": 0
   },
+  "8310": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "8311": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "8320": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "8331": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "8603": {
     "name": "Precise: Stand as One",
     "type": "skill",
-    "price": 2887,
-    "last_update": 0
+    "price": 2639.5,
+    "last_update": 1776962922043
   },
   "8604": {
     "name": "Precision - Self-Discipline",
     "type": "other",
-    "price": 26.033,
-    "last_update": 0
+    "price": 477,
+    "last_update": 1776859927733
   },
   "8605": {
     "name": "Precise: Concentrated",
     "type": "skill",
-    "price": 666,
-    "last_update": 0
+    "price": 1000,
+    "last_update": 1776833955004
   },
   "8608": {
     "name": "Precision - Intensive Enhancement",
     "type": "other",
-    "price": 52.5,
-    "last_update": 1774254158778
+    "price": 132,
+    "last_update": 1776833983285
   },
   "8611": {
     "name": "Precision - Super Energy Symbiosis",
@@ -1568,122 +2000,122 @@
   "10001": {
     "name": "Sin's Plundering Compass",
     "type": "compass",
-    "price": 14,
-    "last_update": 0
+    "price": 19,
+    "last_update": 1777050526265
   },
   "10002": {
     "name": "Sin's Plundering Compass (Relic)",
     "type": "compass",
-    "price": 41,
-    "last_update": 0
+    "price": 51,
+    "last_update": 1777038498540
   },
   "10003": {
     "name": "Felonious Plundering Compass",
     "type": "compass",
-    "price": 18,
-    "last_update": 0
+    "price": 23,
+    "last_update": 1777004664619
   },
   "10010": {
     "name": "Rare Compass",
     "type": "compass",
-    "price": 1,
-    "last_update": 0
+    "price": 1.3030303030303,
+    "last_update": 1777004756485
   },
   "10011": {
     "name": "Linglang's Rare Compass",
     "type": "compass",
-    "price": 1.6969696969697,
-    "last_update": 0
+    "price": 3,
+    "last_update": 1776969732204
   },
   "10012": {
     "name": "Pojun's Rare Compass",
     "type": "compass",
-    "price": 12,
-    "last_update": 0
+    "price": 14,
+    "last_update": 1777041774201
   },
   "10022": {
     "name": "Soldier's Compass",
     "type": "compass",
     "price": 0.36363636363636,
-    "last_update": 0
+    "last_update": 1776952339587
   },
   "10023": {
     "name": "Soldier's Compass of All Martial Arts",
     "type": "compass",
-    "price": 0.84210526315789,
-    "last_update": 0
+    "price": 1.28174603174605,
+    "last_update": 1776962708967
   },
   "10032": {
     "name": "Elite Soldier's Compass",
     "type": "compass",
-    "price": 0.38383838383838,
-    "last_update": 0
+    "price": 0.6437451437451449,
+    "last_update": 1776952335441
   },
   "10033": {
     "name": "Enemy-Defeating Compass",
     "type": "compass",
-    "price": 8.9047619047619,
-    "last_update": 0
+    "price": 8.5,
+    "last_update": 1776969697336
   },
   "10042": {
     "name": "Strong Enemy Compass",
     "type": "compass",
-    "price": 0.36363636363636,
-    "last_update": 0
+    "price": 0.4040404040404,
+    "last_update": 1776952334363
   },
   "10043": {
     "name": "Gentle Rival Compass",
     "type": "compass",
-    "price": 0.86868686868687,
-    "last_update": 0
+    "price": 6.5050505050505,
+    "last_update": 1777038505621
   },
   "10044": {
     "name": "Rich Rival Compass",
     "type": "compass",
-    "price": 122,
-    "last_update": 0
+    "price": 182,
+    "last_update": 1777019904570
   },
   "10046": {
     "name": "Boss Compass",
     "type": "compass",
-    "price": 0.76470588235294,
-    "last_update": 0
+    "price": 1.5050505050505,
+    "last_update": 1776969694487
   },
   "10050": {
     "name": "Beacon Compass",
     "type": "compass",
-    "price": 1.1010101010101,
-    "last_update": 0
+    "price": 2.5050505050505,
+    "last_update": 1776952788981
   },
   "10051": {
     "name": "Beacon Compass of Gain",
     "type": "compass",
-    "price": 6.5050505050505,
-    "last_update": 0
+    "price": 4.3,
+    "last_update": 1777043463276
   },
   "10052": {
     "name": "Zodiac Compass",
     "type": "compass",
-    "price": 0.41414141414141,
-    "last_update": 0
+    "price": 0.22222222222222,
+    "last_update": 1777052449123
   },
   "10053": {
-    "name": "Zodiac Compass of the Vastness",
+    "name": "Vast Ecliptic Astrolabe",
     "type": "compass",
-    "price": 4.9230769230769,
-    "last_update": 0
+    "price": 15,
+    "last_update": 1777052443021
   },
   "10054": {
-    "name": "Zodiac Compass of the Ascension",
+    "name": "Ascendant Ecliptic Astrolabe",
     "type": "compass",
-    "price": 12,
-    "last_update": 0
+    "price": 8,
+    "last_update": 1777052438434
   },
   "10060": {
-    "name": "Weapon Compass of Fame",
+    "name": "Renown Edge Compass",
     "type": "compass",
     "price": 9,
-    "last_update": 0
+    "last_update": 1776969676079
   },
   "10061": {
     "name": "",
@@ -1692,22 +2124,22 @@
     "last_update": 0
   },
   "10071": {
-    "name": "Armed Compass",
+    "name": "Militant Compass",
     "type": "compass",
-    "price": 0.676073131955485,
-    "last_update": 0
+    "price": 0.9717806041335451,
+    "last_update": 1776969703741
   },
   "10072": {
-    "name": "Armed Compass of Treasure",
-    "type": "compass",
-    "price": 11,
-    "last_update": 0
-  },
-  "10073": {
-    "name": "Armed Compass of Accessory",
+    "name": "Priceless Militant Compass",
     "type": "compass",
     "price": 6,
-    "last_update": 0
+    "last_update": 1776969671932
+  },
+  "10073": {
+    "name": "Trinket Militant Compass",
+    "type": "compass",
+    "price": 6,
+    "last_update": 1777004715137
   },
   "10081": {
     "name": "Compass of Ashes",
@@ -1718,14 +2150,14 @@
   "10082": {
     "name": "BaiShou Ash Compass",
     "type": "compass",
-    "price": 2,
-    "last_update": 0
+    "price": 5,
+    "last_update": 1777004792388
   },
   "10083": {
     "name": "Selected Ash Compass",
     "type": "compass",
-    "price": 15,
-    "last_update": 0
+    "price": 19,
+    "last_update": 1776969663899
   },
   "10101": {
     "name": "Fluorescent Compass",
@@ -1736,80 +2168,92 @@
   "10102": {
     "name": "Colorful Fluorescent Compass",
     "type": "compass",
-    "price": 0.96551724137931,
-    "last_update": 0
+    "price": 1.1428571428571,
+    "last_update": 1777004782484
   },
   "10103": {
     "name": "Fluorescent Compass of Spotlight",
     "type": "compass",
-    "price": 6.75,
-    "last_update": 0
+    "price": 5,
+    "last_update": 1777045271387
+  },
+  "10104": {
+    "name": "",
+    "type": "other",
+    "price": 8,
+    "last_update": 1777004711244
+  },
+  "10109": {
+    "name": "",
+    "type": "other",
+    "price": 29,
+    "last_update": 1777041752017
   },
   "10110": {
     "name": "Prosperous Gods Compass",
     "type": "compass",
-    "price": 34,
-    "last_update": 0
+    "price": 52,
+    "last_update": 1776966026247
   },
   "10120": {
     "name": "Conquest Compass",
     "type": "compass",
-    "price": 3.3030303030303,
-    "last_update": 0
+    "price": 3.8,
+    "last_update": 1777041730483
   },
   "10122": {
     "name": "Brave Compass",
     "type": "compass",
-    "price": 6.5051025721129,
-    "last_update": 0
+    "price": 6.6666666666667,
+    "last_update": 1777019900166
   },
   "10130": {
     "name": "Mighty Compass",
     "type": "compass",
-    "price": 0.60479471719782,
-    "last_update": 0
+    "price": 0.35353535353535,
+    "last_update": 1776941665559
   },
   "10131": {
     "name": "Prosperous Mighty Compass",
     "type": "compass",
-    "price": 0.88888888888889,
-    "last_update": 0
+    "price": 8,
+    "last_update": 1776952655997
   },
   "10133": {
     "name": "Mighty Compass of Divine Might",
     "type": "compass",
-    "price": 12,
-    "last_update": 0
+    "price": 38,
+    "last_update": 1776969655363
   },
   "10134": {
     "name": "Mecha Mighty Compass (Relic)",
     "type": "compass",
-    "price": 82,
-    "last_update": 0
+    "price": 73,
+    "last_update": 1776969639504
   },
   "10140": {
     "name": "Hunting Compass",
     "type": "compass",
-    "price": 3.3030303030303,
-    "last_update": 0
+    "price": 5.5050505050505,
+    "last_update": 1777041736641
   },
   "10142": {
-    "name": "Shogun's Hunting Compass",
+    "name": "General Hunting Compass",
     "type": "compass",
-    "price": 7,
-    "last_update": 0
+    "price": 7.6666666666667,
+    "last_update": 1777050242315
   },
   "10150": {
     "name": "Mechanical Compass",
     "type": "compass",
-    "price": 1.1010101010101,
-    "last_update": 0
+    "price": 0.4040404040404,
+    "last_update": 1776704415792
   },
   "10151": {
     "name": "Glorious Mechanical Compass",
     "type": "compass",
-    "price": 5,
-    "last_update": 0
+    "price": 1,
+    "last_update": 1776952423893
   },
   "10153": {
     "name": "Differentiation Mechanical Compass",
@@ -1820,272 +2264,308 @@
   "10154": {
     "name": "Cruising Mechanical Compass (Relic)",
     "type": "compass",
-    "price": 23,
-    "last_update": 0
+    "price": 31.5,
+    "last_update": 1777019896510
   },
   "10160": {
     "name": "Black Tide Compass",
     "type": "compass",
-    "price": 0.36363636363636,
-    "last_update": 0
+    "price": 0.42105263157895,
+    "last_update": 1776747976965
   },
   "10161": {
     "name": "Black Tide Compass of the Bandit Leader",
     "type": "compass",
-    "price": 0.75,
-    "last_update": 0
+    "price": 2,
+    "last_update": 1776969690072
   },
   "10162": {
     "name": "Divine Weapon Black Tide Compass",
     "type": "compass",
-    "price": 37,
-    "last_update": 0
+    "price": 30,
+    "last_update": 1777038492566
   },
   "10170": {
     "name": "Black Sail Compass",
     "type": "compass",
-    "price": 0.30508474576271,
-    "last_update": 0
+    "price": 1,
+    "last_update": 1776850852605
   },
   "10171": {
     "name": "Advent Black Sails Compass",
     "type": "compass",
-    "price": 0.78947368421053,
-    "last_update": 0
+    "price": 3,
+    "last_update": 1777041763972
   },
   "10180": {
     "name": "Magic Cube Compass",
     "type": "compass",
-    "price": 0.403943278943275,
-    "last_update": 0
+    "price": 0.50505050505051,
+    "last_update": 1776962610248
   },
   "10181": {
     "name": "Bipolar Magic Cube Compass",
     "type": "compass",
-    "price": 1.8,
-    "last_update": 0
+    "price": 4,
+    "last_update": 1777019929096
   },
   "10182": {
     "name": "Desire's Cube Compass",
     "type": "compass",
-    "price": 31,
-    "last_update": 0
+    "price": 60,
+    "last_update": 1776969631738
   },
   "10190": {
     "name": "Maze City Compass",
     "type": "compass",
-    "price": 0.26470588235294,
-    "last_update": 0
+    "price": 0.33333333333333,
+    "last_update": 1776885347085
   },
   "10191": {
     "name": "Family's Maze City Compass",
     "type": "compass",
-    "price": 0.85786435786436,
-    "last_update": 0
+    "price": 1.1111111111111,
+    "last_update": 1776966043364
   },
   "10200": {
     "name": "Dream Compass",
     "type": "compass",
-    "price": 2.3930205949656997,
-    "last_update": 0
+    "price": 4,
+    "last_update": 1777004762953
   },
   "10210": {
     "name": "Strange Story Compass",
     "type": "compass",
-    "price": 0.33333333333333,
-    "last_update": 0
+    "price": 1,
+    "last_update": 1776952732496
   },
   "10211": {
     "name": "Strange Story Compass of the Stranger",
     "type": "compass",
-    "price": 1,
-    "last_update": 0
+    "price": 3.52,
+    "last_update": 1777019924943
   },
   "10220": {
     "name": "Doll Compass",
     "type": "compass",
-    "price": 0.221,
-    "last_update": 0
+    "price": 0.16666666666667,
+    "last_update": 1776698649009
   },
   "10221": {
     "name": "Collection of Doll Compass",
     "type": "compass",
-    "price": 16.5,
-    "last_update": 0
+    "price": 47,
+    "last_update": 1777041725061
   },
   "10222": {
     "name": "Collection of Doll Compass (Legacy)",
     "type": "compass",
-    "price": 90,
-    "last_update": 0
+    "price": 157,
+    "last_update": 1777053805682
   },
   "10230": {
     "name": "Painted Snow Compass",
     "type": "compass",
-    "price": 0.31818181818182,
-    "last_update": 0
+    "price": 0.50505050505051,
+    "last_update": 1776885355611
   },
   "10231": {
     "name": "Harvest Painted Snow Compass",
     "type": "compass",
     "price": 5,
-    "last_update": 0
+    "last_update": 1776969684633
   },
   "10240": {
     "name": "Tarot Compass",
     "type": "compass",
-    "price": 0.20512820512821,
-    "last_update": 0
+    "price": 0.36363636363636,
+    "last_update": 1776850861126
   },
   "10241": {
     "name": "Hole Card Tarot Compass",
     "type": "compass",
-    "price": 0.71428571428571,
-    "last_update": 0
+    "price": 1.88194444444445,
+    "last_update": 1777041718988
   },
   "10242": {
     "name": "Destiny Tarot Compass",
     "type": "compass",
-    "price": 25.5,
-    "last_update": 0
+    "price": 39,
+    "last_update": 1777019891285
   },
   "10250": {
-    "name": "Tycoon Compass",
+    "name": "Sandlord Compass",
     "type": "compass",
-    "price": 3.505208898535,
-    "last_update": 0
+    "price": 3.6029571646010004,
+    "last_update": 1777030719122
   },
   "10260": {
     "name": "Wanted Compass",
     "type": "compass",
-    "price": 0.36363636363636,
-    "last_update": 0
+    "price": 0.84848484848485,
+    "last_update": 1776968710101
   },
   "10261": {
     "name": "Wanted Compass with Bounty",
     "type": "compass",
-    "price": 46,
-    "last_update": 0
+    "price": 15.5,
+    "last_update": 1777041713914
   },
   "10262": {
     "name": "Wanted Compass with Alert",
     "type": "compass",
-    "price": 62.5,
-    "last_update": 0
+    "price": 63,
+    "last_update": 1777019882745
   },
   "10270": {
     "name": "Caged Compass",
     "type": "compass",
-    "price": 0.5141,
-    "last_update": 0
+    "price": 0.3030303030303,
+    "last_update": 1776924629330
   },
   "10272": {
     "name": "Golden Cage Astrolabe",
     "type": "compass",
-    "price": 550,
-    "last_update": 0
+    "price": 444,
+    "last_update": 1776888360388
   },
   "10280": {
     "name": "Overrealm Compass",
     "type": "compass",
-    "price": 0.33333333333333,
-    "last_update": 0
+    "price": 0.43434343434343,
+    "last_update": 1776968707785
   },
   "10281": {
     "name": "Shadow Overrealm Compass",
     "type": "compass",
-    "price": 19,
-    "last_update": 0
+    "price": 17,
+    "last_update": 1776966048032
   },
   "10282": {
     "name": "Containment Overrealm Compass",
     "type": "compass",
-    "price": 157,
-    "last_update": 0
+    "price": 120,
+    "last_update": 1776967550956
   },
   "10290": {
     "name": "Pig Iron Scalpel",
     "type": "other",
-    "price": 2.5050505050505,
-    "last_update": 0
+    "price": 1.7333333333333,
+    "last_update": 1777031547485
   },
   "10291": {
-    "name": "Sterling Silver Scalpel",
-    "type": "other",
-    "price": 8.9166666666667,
-    "last_update": 0
+    "name": "Scavenger Vorax Compass",
+    "type": "compass",
+    "price": 30,
+    "last_update": 1777051747869
   },
   "10292": {
     "name": "Titanium Alloy Scalpel",
     "type": "other",
-    "price": 27,
-    "last_update": 0
+    "price": 47,
+    "last_update": 1777004642592
+  },
+  "10300": {
+    "name": "Dim Lunar Stone",
+    "type": "other",
+    "price": 3.55050505050505,
+    "last_update": 1776957167041
+  },
+  "10301": {
+    "name": "Bright Lunar Stone",
+    "type": "other",
+    "price": 17,
+    "last_update": 1777052169098
+  },
+  "10302": {
+    "name": "Dazzling Lunar Stone",
+    "type": "other",
+    "price": 60.5,
+    "last_update": 1777053814810
+  },
+  "10310": {
+    "name": "Creation Compass",
+    "type": "compass",
+    "price": 0.979148660328435,
+    "last_update": 1776931340591
+  },
+  "10311": {
+    "name": "Derivative Creation Compass",
+    "type": "compass",
+    "price": 1,
+    "last_update": 1777019913700
+  },
+  "10312": {
+    "name": "Record Creation Compass",
+    "type": "compass",
+    "price": 40,
+    "last_update": 1777019887387
   },
   "12000": {
     "name": "Prosperity Deep Probe",
     "type": "compass",
-    "price": 1.7037037037037,
-    "last_update": 0
+    "price": 4.7090053763440505,
+    "last_update": 1777051203697
   },
   "12001": {
     "name": "Prosperity Deep Space Probe",
     "type": "compass",
-    "price": 32,
-    "last_update": 0
+    "price": 49,
+    "last_update": 1777052427769
   },
   "12010": {
     "name": "Equipment: Deep Space Probe",
     "type": "compass",
-    "price": 1.5278514588859,
-    "last_update": 0
+    "price": 2.94736842105265,
+    "last_update": 1776840391493
   },
   "12011": {
     "name": "Equipment: Deep Space Probe",
     "type": "compass",
-    "price": 65,
-    "last_update": 0
+    "price": 57,
+    "last_update": 1777045909623
   },
   "12020": {
     "name": "Ember Profound Probe",
     "type": "compass",
     "price": 1,
-    "last_update": 0
+    "last_update": 1776885745652
   },
   "12021": {
     "name": "Ember Deep Space Probe",
     "type": "compass",
-    "price": 10,
-    "last_update": 0
+    "price": 12,
+    "last_update": 1777045897641
   },
   "12030": {
     "name": "Fluorescent Deep Space Probe",
     "type": "compass",
-    "price": 0.18181818181818,
-    "last_update": 0
+    "price": 1,
+    "last_update": 1776840398763
   },
   "12031": {
     "name": "Fluorescent Deep Space Probe",
     "type": "compass",
-    "price": 33,
-    "last_update": 0
+    "price": 47,
+    "last_update": 1777045914846
   },
   "12040": {
     "name": "Compass's Deep Space Probe",
     "type": "compass",
-    "price": 7.5903263403263495,
-    "last_update": 0
+    "price": 11.5,
+    "last_update": 1777041757850
   },
   "12041": {
     "name": "Compass's Deep Space Probe",
     "type": "compass",
-    "price": 87,
-    "last_update": 0
+    "price": 112,
+    "last_update": 1777052422313
   },
   "12050": {
     "name": "Beacon of the Deep Probe",
     "type": "compass",
-    "price": 0.8,
-    "last_update": 0
+    "price": 1.7124060150376001,
+    "last_update": 1777045922785
   },
   "12121": {
     "name": "Doll Deep Space Probe",
@@ -2100,22 +2580,22 @@
     "last_update": 0
   },
   "71001": {
-    "name": "",
-    "type": "other",
-    "price": 0,
-    "last_update": 0
+    "name": "Memory of Origin",
+    "type": "equipment",
+    "price": 19,
+    "last_update": 1776930910478
   },
   "71002": {
-    "name": "",
-    "type": "other",
-    "price": 0,
-    "last_update": 0
+    "name": "Memory of Discipline",
+    "type": "equipment",
+    "price": 52.5,
+    "last_update": 1777028995172
   },
   "71003": {
-    "name": "",
-    "type": "other",
-    "price": 0,
-    "last_update": 0
+    "name": "Memory of Progress",
+    "type": "equipment",
+    "price": 30,
+    "last_update": 1777048578408
   },
   "100001": {
     "name": "Sin's Plundering Compass",
@@ -2141,11 +2621,17 @@
     "price": 0,
     "last_update": 0
   },
+  "101300": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "112107": {
     "name": "",
     "type": "other",
-    "price": 94.5,
-    "last_update": 0
+    "price": 100,
+    "last_update": 1776861078029
   },
   "112113": {
     "name": "",
@@ -2166,88 +2652,88 @@
     "last_update": 0
   },
   "112216": {
-    "name": "",
-    "type": "other",
+    "name": "Imperial Iron Sentry",
+    "type": "equipment",
     "price": 28,
     "last_update": 0
   },
   "112228": {
-    "name": "",
-    "type": "other",
+    "name": "Fool's Crown",
+    "type": "equipment",
     "price": 5,
     "last_update": 0
   },
   "112333": {
-    "name": "",
-    "type": "other",
+    "name": "Sea Splitter",
+    "type": "equipment",
     "price": 1,
     "last_update": 0
   },
   "112435": {
-    "name": "",
-    "type": "other",
-    "price": 20,
-    "last_update": 0
+    "name": "Heels of Hands",
+    "type": "equipment",
+    "price": 55.5,
+    "last_update": 1776888281114
   },
   "113257": {
-    "name": "",
-    "type": "other",
-    "price": 5,
-    "last_update": 0
+    "name": "False God's Skin",
+    "type": "equipment",
+    "price": 3.5,
+    "last_update": 1776920234473
   },
   "113337": {
-    "name": "",
-    "type": "other",
-    "price": 330,
-    "last_update": 0
+    "name": "Dawn Break",
+    "type": "equipment",
+    "price": 169.5,
+    "last_update": 1777035172887
   },
   "140004": {
-    "name": "Light White Dream - Weapon",
+    "name": "Shallow Dream Talking - Weapon",
     "type": "dream",
-    "price": 4.800943396226399,
-    "last_update": 0
+    "price": 9.513167013167,
+    "last_update": 1776867158126
   },
   "140005": {
-    "name": "Light White Dream - Armor",
+    "name": "Shallow Dream Talking - Armor",
     "type": "dream",
     "price": 2,
     "last_update": 0
   },
   "140006": {
-    "name": "Light White Dream - Accessory",
+    "name": "Shallow Dream Talking - Trinket",
     "type": "dream",
-    "price": 15.529411764706,
-    "last_update": 0
+    "price": 17,
+    "last_update": 1776859122131
   },
   "200003": {
-    "name": "High-Quality Ashes",
-    "type": "fuel",
+    "name": "Fine Ember",
+    "type": "ember",
     "price": 0.104,
     "last_update": 0
   },
   "200021": {
-    "name": "Fossil of Truth",
+    "name": "Truth Fossil",
     "type": "fuel",
-    "price": 19.266,
-    "last_update": 0
+    "price": 6,
+    "last_update": 1776706724067
   },
   "200028": {
-    "name": "Precious Ashes",
-    "type": "fuel",
-    "price": 0.052010297775528,
-    "last_update": 0
+    "name": "Precious Ember",
+    "type": "ember",
+    "price": 0.16973415132924,
+    "last_update": 1777042683326
   },
   "200029": {
-    "name": "Rare Ashes",
-    "type": "fuel",
-    "price": 0.18005825193325,
-    "last_update": 0
+    "name": "Matchless Ember",
+    "type": "ember",
+    "price": 0.189879456952365,
+    "last_update": 1776952900404
   },
   "200030": {
     "name": "Ultimate Ember",
     "type": "ember",
-    "price": 14.763888888889,
-    "last_update": 0
+    "price": 26,
+    "last_update": 1776943362501
   },
   "201003": {
     "name": "",
@@ -2255,29 +2741,41 @@
     "price": 0,
     "last_update": 0
   },
+  "201028": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "201030": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "210000": {
-    "name": "Demon Core",
+    "name": "Aemberon Core",
     "type": "fuel",
     "price": 0.018,
     "last_update": 0
   },
   "210001": {
-    "name": "Familiar Core",
+    "name": "Familiar Nexus",
     "type": "fuel",
     "price": 56,
     "last_update": 0
   },
   "210002": {
-    "name": "Axis of Decay",
+    "name": "Corrupted Axis",
     "type": "fuel",
-    "price": 1.8,
-    "last_update": 0
+    "price": 4.5,
+    "last_update": 1776888327881
   },
   "210003": {
-    "name": "Axis of Glory",
+    "name": "Glorious Axis",
     "type": "fuel",
-    "price": 36,
-    "last_update": 0
+    "price": 39,
+    "last_update": 1777041703464
   },
   "250001": {
     "name": "",
@@ -2285,13 +2783,37 @@
     "price": 0,
     "last_update": 0
   },
+  "260002": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "260003": {
+    "name": "Goddess of Hunting's Divinity",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "260004": {
+    "name": "Goddess of Hunting's Divinity",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "260005": {
     "name": "",
     "type": "other",
     "price": 0,
     "last_update": 0
   },
   "260101": {
+    "name": "Goddess of Deception's Divinity",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "260102": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -2303,7 +2825,19 @@
     "price": 0,
     "last_update": 0
   },
+  "260106": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "260201": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "260202": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -2321,7 +2855,31 @@
     "price": 0,
     "last_update": 0
   },
+  "260206": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "260301": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "260304": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "260305": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "260306": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -2333,22 +2891,52 @@
     "price": 0,
     "last_update": 0
   },
+  "260502": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "260503": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "260506": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "261003": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "300006": {
     "name": "Holy Fossil",
     "type": "fuel",
-    "price": 40.888888888889,
-    "last_update": 0
+    "price": 29.8660714285715,
+    "last_update": 1777042362802
   },
   "301128": {
     "name": "",
     "type": "other",
-    "price": 1498,
-    "last_update": 0
+    "price": 1199,
+    "last_update": 1776846611326
   },
   "330001": {
     "name": "Snow Paper Fragment",
     "type": "other",
     "price": 0.0589,
+    "last_update": 0
+  },
+  "330003": {
+    "name": "",
+    "type": "other",
+    "price": 0,
     "last_update": 0
   },
   "338001": {
@@ -2366,20 +2954,32 @@
   "339001": {
     "name": "Crazy Inspiration",
     "type": "other",
-    "price": 0.78,
+    "price": 0.172772341813435,
+    "last_update": 1776707782422
+  },
+  "340008": {
+    "name": "",
+    "type": "other",
+    "price": 0,
     "last_update": 0
   },
   "350001": {
     "name": "",
     "type": "other",
+    "price": 22,
+    "last_update": 1776860351820
+  },
+  "350002": {
+    "name": "",
+    "type": "other",
     "price": 10,
-    "last_update": 0
+    "last_update": 1776832660772
   },
   "350003": {
     "name": "",
     "type": "other",
-    "price": 9,
-    "last_update": 0
+    "price": 13.5,
+    "last_update": 1776757667747
   },
   "350004": {
     "name": "",
@@ -2495,6 +3095,12 @@
     "price": 16,
     "last_update": 0
   },
+  "350123": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "350302": {
     "name": "",
     "type": "other",
@@ -2561,6 +3167,12 @@
     "price": 100,
     "last_update": 0
   },
+  "350525": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "350536": {
     "name": "",
     "type": "other",
@@ -2606,8 +3218,8 @@
   "350900": {
     "name": "Undetermined Fate",
     "type": "other",
-    "price": 6840,
-    "last_update": 0
+    "price": 3989,
+    "last_update": 1776886491662
   },
   "360101": {
     "name": "Sage Lv. 1",
@@ -2630,38 +3242,38 @@
   "360201": {
     "name": "",
     "type": "other",
-    "price": 8,
-    "last_update": 0
+    "price": 24,
+    "last_update": 1777042047221
   },
   "360202": {
     "name": "",
     "type": "other",
-    "price": 5,
-    "last_update": 0
+    "price": 10,
+    "last_update": 1776853632467
   },
   "360203": {
     "name": "",
     "type": "other",
-    "price": 25.5,
-    "last_update": 0
+    "price": 50,
+    "last_update": 1776867127842
   },
   "360301": {
     "name": "",
     "type": "other",
-    "price": 101,
-    "last_update": 0
+    "price": 260,
+    "last_update": 1776848113627
   },
   "360403": {
     "name": "Basic Component",
     "type": "fuel",
-    "price": 6.50506912442395,
-    "last_update": 0
+    "price": 16,
+    "last_update": 1776702802943
   },
   "360404": {
     "name": "Expansion Component - Warlock",
     "type": "fuel",
-    "price": 72,
-    "last_update": 0
+    "price": 45,
+    "last_update": 1777041631421
   },
   "360405": {
     "name": "Expansion Component - Guardian",
@@ -2680,6 +3292,12 @@
     "type": "fuel",
     "price": 39.3,
     "last_update": 0
+  },
+  "360502": {
+    "name": "",
+    "type": "other",
+    "price": 3,
+    "last_update": 1777053772353
   },
   "360602": {
     "name": "",
@@ -2753,6 +3371,12 @@
     "price": 0,
     "last_update": 0
   },
+  "360627": {
+    "name": "",
+    "type": "other",
+    "price": 60,
+    "last_update": 1777040772930
+  },
   "360701": {
     "name": "",
     "type": "other",
@@ -2762,16 +3386,22 @@
   "370101": {
     "name": "Prism Calibrator - Rare",
     "type": "fuel",
-    "price": 0.21303885853066,
-    "last_update": 0
+    "price": 0.5025773880696149,
+    "last_update": 1776867168386
   },
   "370201": {
     "name": "Prism Gauge",
     "type": "fuel",
-    "price": 15,
-    "last_update": 0
+    "price": 21.9,
+    "last_update": 1777040940540
   },
   "370301": {
+    "name": "",
+    "type": "other",
+    "price": 67,
+    "last_update": 1777043456758
+  },
+  "370401": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -2780,8 +3410,8 @@
   "370501": {
     "name": "",
     "type": "other",
-    "price": 480,
-    "last_update": 0
+    "price": 1088,
+    "last_update": 1777041680238
   },
   "370601": {
     "name": "",
@@ -2792,66 +3422,66 @@
   "370701": {
     "name": "Prism Repairer",
     "type": "other",
-    "price": 24,
-    "last_update": 0
+    "price": 35,
+    "last_update": 1777043449456
   },
   "380001": {
     "name": "",
     "type": "other",
-    "price": 165,
-    "last_update": 0
+    "price": 35,
+    "last_update": 1776864986673
   },
   "380002": {
-    "name": "",
-    "type": "other",
-    "price": 27.5,
-    "last_update": 0
+    "name": "Vorax Limb: Legs",
+    "type": "equipment",
+    "price": 1,
+    "last_update": 1776835993958
   },
   "380003": {
-    "name": "",
-    "type": "other",
-    "price": 0,
-    "last_update": 0
+    "name": "Vorax Aberrant Limb: Legs",
+    "type": "equipment",
+    "price": 20,
+    "last_update": 1777019023922
   },
   "380004": {
     "name": "Vorax Limb: Chest",
-    "type": "other",
-    "price": 2104,
-    "last_update": 0
+    "type": "equipment",
+    "price": 19,
+    "last_update": 1777014632421
   },
   "380005": {
-    "name": "",
-    "type": "other",
-    "price": 25,
-    "last_update": 0
+    "name": "Vorax Limb: Head",
+    "type": "equipment",
+    "price": 36.5,
+    "last_update": 1777038060517
   },
   "380006": {
-    "name": "",
-    "type": "other",
-    "price": 0,
-    "last_update": 0
+    "name": "Vorax Limb: Neck",
+    "type": "equipment",
+    "price": 1,
+    "last_update": 1777051808220
   },
   "380007": {
-    "name": "",
-    "type": "other",
-    "price": 300,
-    "last_update": 0
+    "name": "Vorax Limb: Waist",
+    "type": "equipment",
+    "price": 1,
+    "last_update": 1776781331223
   },
   "380008": {
-    "name": "",
-    "type": "other",
+    "name": "Vorax Aberrant Limb: Waist",
+    "type": "card",
     "price": 0,
     "last_update": 0
   },
   "380009": {
-    "name": "",
-    "type": "other",
-    "price": 50,
-    "last_update": 0
+    "name": "Vorax Limb: Digits",
+    "type": "equipment",
+    "price": 1,
+    "last_update": 1776781333988
   },
   "380010": {
-    "name": "",
-    "type": "other",
+    "name": "Vorax Aberrant Limb: Digits",
+    "type": "equipment",
     "price": 0,
     "last_update": 0
   },
@@ -2882,14 +3512,14 @@
   "380106": {
     "name": "Tenacious Suture",
     "type": "other",
-    "price": 3,
-    "last_update": 0
+    "price": 62,
+    "last_update": 1777043473163
   },
   "380107": {
     "name": "Equisite Suture",
     "type": "other",
-    "price": 235,
-    "last_update": 0
+    "price": 600,
+    "last_update": 1777051734334
   },
   "380109": {
     "name": "",
@@ -2906,20 +3536,44 @@
   "380201": {
     "name": "",
     "type": "other",
-    "price": 0,
-    "last_update": 0
+    "price": 2.6666666666667,
+    "last_update": 1777045872293
+  },
+  "380202": {
+    "name": "",
+    "type": "other",
+    "price": 2.6030303030303,
+    "last_update": 1777045867451
+  },
+  "380203": {
+    "name": "",
+    "type": "other",
+    "price": 23.75,
+    "last_update": 1777043442174
+  },
+  "380204": {
+    "name": "Inert Organ: Matchless",
+    "type": "other",
+    "price": 20,
+    "last_update": 1776888342948
   },
   "380205": {
     "name": "Vital Organ: Fine",
     "type": "other",
-    "price": 68,
-    "last_update": 0
+    "price": 102,
+    "last_update": 1777052190997
   },
   "380206": {
     "name": "Vital Organ: Matchless",
     "type": "other",
-    "price": 91,
-    "last_update": 0
+    "price": 114,
+    "last_update": 1777042147197
+  },
+  "381001": {
+    "name": "",
+    "type": "other",
+    "price": 119,
+    "last_update": 1777043878576
   },
   "381002": {
     "name": "",
@@ -2936,8 +3590,8 @@
   "381007": {
     "name": "",
     "type": "other",
-    "price": 35,
-    "last_update": 0
+    "price": 180,
+    "last_update": 1777053554712
   },
   "381008": {
     "name": "",
@@ -2951,6 +3605,12 @@
     "price": 90,
     "last_update": 0
   },
+  "381012": {
+    "name": "",
+    "type": "other",
+    "price": 370,
+    "last_update": 1777034123446
+  },
   "381013": {
     "name": "",
     "type": "other",
@@ -2962,6 +3622,12 @@
     "type": "other",
     "price": 0,
     "last_update": 0
+  },
+  "381019": {
+    "name": "",
+    "type": "other",
+    "price": 56,
+    "last_update": 1776850356165
   },
   "381022": {
     "name": "Flawless Eyes: Cursed",
@@ -2987,6 +3653,18 @@
     "price": 20,
     "last_update": 0
   },
+  "381033": {
+    "name": "",
+    "type": "other",
+    "price": 24.5,
+    "last_update": 1777034118460
+  },
+  "381034": {
+    "name": "",
+    "type": "other",
+    "price": 32,
+    "last_update": 1777034116139
+  },
   "381036": {
     "name": "",
     "type": "other",
@@ -2996,14 +3674,44 @@
   "381043": {
     "name": "Flawless Spine: Malleable",
     "type": "other",
-    "price": 266.5,
-    "last_update": 0
+    "price": 75,
+    "last_update": 1776783645985
+  },
+  "381045": {
+    "name": "",
+    "type": "other",
+    "price": 34,
+    "last_update": 1777034109621
+  },
+  "381046": {
+    "name": "",
+    "type": "other",
+    "price": 36,
+    "last_update": 1777034128096
+  },
+  "381048": {
+    "name": "",
+    "type": "other",
+    "price": 28,
+    "last_update": 1777034104690
   },
   "381050": {
     "name": "",
     "type": "other",
     "price": 6,
     "last_update": 0
+  },
+  "381051": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "381053": {
+    "name": "",
+    "type": "other",
+    "price": 64,
+    "last_update": 1777019427161
   },
   "381055": {
     "name": "",
@@ -3016,6 +3724,12 @@
     "type": "other",
     "price": 780,
     "last_update": 0
+  },
+  "381060": {
+    "name": "",
+    "type": "other",
+    "price": 38,
+    "last_update": 1777037535212
   },
   "381061": {
     "name": "",
@@ -3034,6 +3748,12 @@
     "type": "other",
     "price": 1,
     "last_update": 0
+  },
+  "381072": {
+    "name": "",
+    "type": "other",
+    "price": 45,
+    "last_update": 1777043886115
   },
   "381073": {
     "name": "",
@@ -3071,6 +3791,42 @@
     "price": 32,
     "last_update": 0
   },
+  "382011": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382013": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382015": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382016": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382019": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382042": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "382043": {
     "name": "",
     "type": "other",
@@ -3083,6 +3839,24 @@
     "price": 0,
     "last_update": 0
   },
+  "382049": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382055": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382057": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "382061": {
     "name": "Organ: Iced Drinker's Cage",
     "type": "other",
@@ -3090,6 +3864,42 @@
     "last_update": 0
   },
   "382086": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382131": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382142": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382154": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382159": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382162": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382163": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -3113,7 +3923,25 @@
     "price": 0,
     "last_update": 0
   },
+  "382195": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382224": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "382232": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382233": {
     "name": "",
     "type": "other",
     "price": 0,
@@ -3125,20 +3953,80 @@
     "price": 0,
     "last_update": 0
   },
-  "384000": {
+  "382243": {
     "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "382252": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "384000": {
+    "name": "Crude Magnetic Pointer",
     "type": "other",
     "price": 0,
     "last_update": 0
   },
   "384001": {
-    "name": "",
+    "name": "Fine Magnetic Pointer",
     "type": "other",
     "price": 0,
     "last_update": 0
   },
   "384002": {
+    "name": "Perfect Magnetic Pointer",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "391000": {
+    "name": "Crude Lunar Dust",
+    "type": "other",
+    "price": 0.0625,
+    "last_update": 1776776632129
+  },
+  "391001": {
+    "name": "Luminous Lunar Dust",
+    "type": "other",
+    "price": 10,
+    "last_update": 1776783669784
+  },
+  "391002": {
+    "name": "Flawless Lunar Dust",
+    "type": "other",
+    "price": 7,
+    "last_update": 1776860497297
+  },
+  "392030": {
     "name": "",
+    "type": "other",
+    "price": 231.5,
+    "last_update": 1777038082046
+  },
+  "392036": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "393000": {
+    "name": "Moonlit Thread - Epic",
+    "type": "other",
+    "price": 3,
+    "last_update": 1777041693720
+  },
+  "400000": {
+    "name": "Glacial Abyss Beacon (Timemark 1)",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
+  "400005": {
+    "name": "Glacial Abyss Beacon (Timemark 6)",
     "type": "other",
     "price": 0,
     "last_update": 0
@@ -3152,13 +4040,19 @@
   "400007": {
     "name": "Beacon of the Frozen Abyss (Time 8)",
     "type": "other",
-    "price": 1.9090909090909,
-    "last_update": 0
+    "price": 3.5941722972973,
+    "last_update": 1777050017735
   },
   "400008": {
     "name": "Deep Space Beacon",
     "type": "other",
     "price": 28.369318181818002,
+    "last_update": 0
+  },
+  "400013": {
+    "name": "",
+    "type": "other",
+    "price": 0,
     "last_update": 0
   },
   "400014": {
@@ -3170,7 +4064,13 @@
   "400015": {
     "name": "Beacon in the Boiling Sea (Time 8)",
     "type": "other",
-    "price": 2.802,
+    "price": 3.1052631578947,
+    "last_update": 1776962548258
+  },
+  "400020": {
+    "name": "",
+    "type": "other",
+    "price": 0,
     "last_update": 0
   },
   "400021": {
@@ -3182,7 +4082,13 @@
   "400022": {
     "name": "Beacon in the Iron Realm (Time 8)",
     "type": "other",
-    "price": 0.80645161290323,
+    "price": 2.6666666666667,
+    "last_update": 1776962552847
+  },
+  "400026": {
+    "name": "",
+    "type": "other",
+    "price": 0,
     "last_update": 0
   },
   "400027": {
@@ -3194,7 +4100,13 @@
   "400028": {
     "name": "Beacon in the Thunder Wasteland (Time 8)",
     "type": "other",
-    "price": 0.9396969696969699,
+    "price": 3.5050505050505,
+    "last_update": 1776962965203
+  },
+  "400031": {
+    "name": "",
+    "type": "other",
+    "price": 0,
     "last_update": 0
   },
   "400032": {
@@ -3206,8 +4118,8 @@
   "400033": {
     "name": "Beacon in the Dark Night (Time 8)",
     "type": "other",
-    "price": 0.82352941176471,
-    "last_update": 0
+    "price": 2.7979797979798,
+    "last_update": 1776962557256
   },
   "410101": {
     "name": "Command: Answer the Question",
@@ -3236,14 +4148,14 @@
   "410201": {
     "name": "Invitation to the Void Sea - Desire",
     "type": "other",
-    "price": 19.197,
-    "last_update": 0
+    "price": 24,
+    "last_update": 1776943233103
   },
   "410202": {
     "name": "Invitation to the Void Sea - Ecstasy",
     "type": "other",
-    "price": 25,
-    "last_update": 0
+    "price": 30,
+    "last_update": 1776943047267
   },
   "410203": {
     "name": "Invitation to the Void Sea - Ouch",
@@ -3314,14 +4226,14 @@
   "430001": {
     "name": "The Beginning of the Beginning",
     "type": "other",
-    "price": 0,
-    "last_update": 0
+    "price": 0.5,
+    "last_update": 1776869904047
   },
   "430002": {
     "name": "The Beginning of the End",
     "type": "other",
-    "price": 8.486,
-    "last_update": 0
+    "price": 5.2,
+    "last_update": 1776873993523
   },
   "440001": {
     "name": "God's Emblem - Mechanical",
@@ -3359,6 +4271,12 @@
     "price": 0,
     "last_update": 0
   },
+  "560033": {
+    "name": "",
+    "type": "other",
+    "price": 0,
+    "last_update": 0
+  },
   "990005": {
     "name": "The Essence of the Mist",
     "type": "other",
@@ -3368,8 +4286,8 @@
   "990007": {
     "name": "Resident's Eye",
     "type": "other",
-    "price": 0.557,
-    "last_update": 0
+    "price": 0.77777777777778,
+    "last_update": 1776867190833
   },
   "990091": {
     "name": "Conquering Ashes",
