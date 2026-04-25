@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     resume:          ()                                   => ipcRenderer.send('engine:resume'),
     updateFilterRules: (rules: unknown) => ipcRenderer.send('engine:update-filter-rules', rules),
     updateItemType:    (id: string, type: string) => ipcRenderer.send('engine:update-item-type', id, type),
+    dismissMaterial:   (itemId: number) => ipcRenderer.send('engine:dismiss-material', itemId),
+    setLowStockThreshold: (n: number)   => ipcRenderer.send('engine:set-low-stock-threshold', n),
     onEvent: (cb: (event: unknown) => void) => {
       const wrapped = (_e: Electron.IpcRendererEvent, ev: unknown) => cb(ev);
       ipcRenderer.on('engine:event', wrapped);

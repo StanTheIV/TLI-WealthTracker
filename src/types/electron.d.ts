@@ -68,6 +68,7 @@ export type EngineEvent =
   | {type: 'session_saved';    sessionId: string}
   | {type: 'price_update';     itemId: number; price: number; timestamp: number}
   | {type: 'wealth_recorded';  timestamp: number}
+  | {type: 'map_material_warning'; items: Array<{itemId: number; quantity: number}>; timestamp: number}
   | {type: 'error';            message: string};
 
 interface ElectronAPI {
@@ -96,6 +97,8 @@ interface ElectronAPI {
     resume:          () => void;
     updateFilterRules: (rules: unknown) => void;
     updateItemType:    (id: string, type: string) => void;
+    dismissMaterial:      (itemId: number) => void;
+    setLowStockThreshold: (n: number) => void;
     onEvent:         (cb: (event: EngineEvent) => void) => () => void;
   };
 

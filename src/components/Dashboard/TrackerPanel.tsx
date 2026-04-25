@@ -9,6 +9,7 @@ import {useAnimatedPresence} from '@/hooks/useAnimatedPresence';
 import type {TrackerSnapshot} from '@/types/electron';
 import TrackerRow from './TrackerRow';
 import DropTable from './DropTable';
+import LowStockWarningRow from './LowStockWarningRow';
 
 // -----------------------------------------------------------------------
 // Total FE helper
@@ -41,7 +42,14 @@ export default function TrackerPanel() {
   const mapTrackerReceivedAt      = useEngineStore(s => s.mapTrackerReceivedAt);
   const seasonalTrackerReceivedAt = useEngineStore(s => s.seasonalTrackerReceivedAt);
   const mapCount                  = useEngineStore(s => s.mapCount);
+  const lowStockWarnings          = useEngineStore(s => s.lowStockWarnings);
+  const dismissedMaterials        = useEngineStore(s => s.dismissedMaterials);
   const rateTimeframe             = useSettingsStore(s => s.rateTimeframe);
+
+  const visibleWarnings = useMemo(
+    () => lowStockWarnings.filter(w => !dismissedMaterials.has(w.itemId)),
+    [lowStockWarnings, dismissedMaterials],
+  );
 
   // Keep last-seen snapshots alive for exit animations
   const lastMapRef      = useRef<TrackerSnapshot | null>(null);
@@ -54,6 +62,7 @@ export default function TrackerPanel() {
 
   const mapPresence      = useAnimatedPresence(mapTracker !== null);
   const seasonalPresence = useAnimatedPresence(seasonalTracker !== null);
+  const warningPresence  = useAnimatedPresence(visibleWarnings.length > 0);
 
   const elapsedMs      = useTrackerElapsed(sessionElapsed, sessionReceivedAt, isRunning);
   const mapElapsed     = useTrackerElapsed(lastMapRef.current?.elapsed ?? 0, mapTrackerReceivedAt, isRunning);
@@ -122,6 +131,13 @@ export default function TrackerPanel() {
               accentClass="bg-gold"
               paused={isPaused}
             />
+          </div>
+        )}
+
+        {/* Low-stock map-material warning — fourth row, animated enter/exit */}
+        {warningPresence.shouldRender && (
+          <div className={warningPresence.animClass}>
+            <LowStockWarningRow warnings={visibleWarnings} />
           </div>
         )}
       </div>

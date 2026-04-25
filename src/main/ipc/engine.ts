@@ -15,6 +15,7 @@ import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import {CarjackHandler} from '@/main/engine/handlers/carjack-handler';
 import {ClockworkHandler} from '@/main/engine/handlers/clockwork-handler';
 import {ItemHandler} from '@/main/engine/handlers/item';
+import {MapMaterialHandler} from '@/main/engine/handlers/map-material';
 import {ErrorHandler} from '@/main/engine/handlers/error';
 import type {RawEvent} from '@/worker/processors/types';
 import type {EngineEvent} from '@/types/electron';
@@ -27,6 +28,7 @@ const LOG_SUBPATH = 'TorchLight/Saved/Logs/UE_game.log';
 
 let logReaderProcess: UtilityProcess | null = null;
 let engine: Engine | null = null;
+let mapMaterialHandler: MapMaterialHandler | null = null;
 
 // Window accessors — set once in registerEngineHandlers
 let _getMainWindow:    () => BrowserWindow | null = () => null;
@@ -246,6 +248,7 @@ function createEngine(): Engine {
 
   // PriceHandler is no longer registered here — prices are handled directly
   // in onWorkerMessage so they work even without a running engine.
+  mapMaterialHandler = new MapMaterialHandler();
   return new Engine(emit)
     .register(new BagInitHandler())
     .register(new ZoneHandler())
@@ -255,6 +258,7 @@ function createEngine(): Engine {
     .register(new CarjackHandler())
     .register(new ClockworkHandler())
     .register(new ItemHandler())
+    .register(mapMaterialHandler)
     .register(new ErrorHandler());
 }
 
@@ -307,6 +311,14 @@ function startEngine(logPath: string, loadSessionId?: string): void {
     log.info('filter', `Filter set: "${activeFilter.name}" (${rules.length} rules)`);
   }
 
+  // Restore the user's low-stock threshold (defaults to 0).
+  const rawThreshold = settingsGetAll()['lowStockThreshold'];
+  const parsedThreshold = rawThreshold !== undefined ? Number(rawThreshold) : 0;
+  const threshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0
+    ? Math.floor(parsedThreshold)
+    : 0;
+  mapMaterialHandler?.setThreshold(threshold);
+
   log.info('engine', 'Engine started');
 }
 
@@ -316,6 +328,7 @@ function stopEngine(): void {
     engine.stop();
     engine = null;
   }
+  mapMaterialHandler = null;
   activeSession = null;
   // Worker keeps running — it's independent
 }
@@ -344,6 +357,12 @@ export function registerEngineHandlers(
   ipcMain.on('engine:resume', ()  => { engine?.resume(); log.info('engine', 'Engine resumed'); });
   ipcMain.on('engine:update-item-type', (_e, id: string, rawType: string) => {
     engine?.setItemType(id, mapRawType(rawType));
+  });
+  ipcMain.on('engine:dismiss-material', (_e, itemId: number) => {
+    mapMaterialHandler?.dismiss(itemId);
+  });
+  ipcMain.on('engine:set-low-stock-threshold', (_e, n: number) => {
+    mapMaterialHandler?.setThreshold(n);
   });
   ipcMain.on('engine:update-filter-rules', (_e, payload: FilterRule[] | null) => {
     if (!engine) return;

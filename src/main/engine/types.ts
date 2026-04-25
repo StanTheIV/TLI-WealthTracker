@@ -24,6 +24,7 @@ export type EngineEvent =
   | {type: 'session_saved';    sessionId: string}
   | {type: 'price_update';     itemId: number; price: number; timestamp: number}
   | {type: 'wealth_recorded';  timestamp: number}
+  | {type: 'map_material_warning'; items: Array<{itemId: number; quantity: number}>; timestamp: number}
   | {type: 'error';            message: string};
 
 // ---------------------------------------------------------------------------

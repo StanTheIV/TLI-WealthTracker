@@ -11,6 +11,11 @@ export interface FeedEvent {
   event:     EngineEvent;
 }
 
+export interface LowStockWarning {
+  itemId:   number;
+  quantity: number;
+}
+
 interface EngineState {
   phase:                    'idle' | 'initializing' | 'tracking';
   feed:                     FeedEvent[];
@@ -28,13 +33,18 @@ interface EngineState {
   activeSessionName:        string | null;
   /** ID of the last auto-saved session (used to trigger sessions list refresh). */
   lastSavedSessionId:       string | null;
+  /** Latest low-stock map-material warnings, emitted on each map entry. */
+  lowStockWarnings:         LowStockWarning[];
+  /** Item IDs the user has dismissed this session — mirror of main-process set. */
+  dismissedMaterials:       Set<number>;
 }
 
 interface EngineActions {
-  init:               () => void; // register IPC listener once
-  handleEvent:        (event: EngineEvent) => void;
-  reset:              () => void;
+  init:                 () => void; // register IPC listener once
+  handleEvent:          (event: EngineEvent) => void;
+  reset:                () => void;
   setActiveSessionName: (name: string | null) => void;
+  dismissLowStockItem:  (itemId: number) => void;
 }
 
 let _nextId = 0;
@@ -55,6 +65,8 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
   sessionReceivedAt:         null,
   activeSessionName:         null,
   lastSavedSessionId:        null,
+  lowStockWarnings:          [],
+  dismissedMaterials:        new Set<number>(),
 
   init: () => {
     if (_initialized) return;
@@ -81,6 +93,8 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
 
       let activeSessionName    = s.activeSessionName;
       let lastSavedSessionId  = s.lastSavedSessionId;
+      let lowStockWarnings     = s.lowStockWarnings;
+      let dismissedMaterials   = s.dismissedMaterials;
 
       switch (event.type) {
         case 'init_started':
@@ -95,6 +109,8 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           sessionElapsed            = 0;
           sessionReceivedAt         = null;
           activeSessionName         = null;
+          lowStockWarnings          = [];
+          dismissedMaterials        = new Set<number>();
           break;
 
         case 'init_complete':
@@ -179,6 +195,15 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           if (existing) useItemsStore.setState({items: {...useItemsStore.getState().items, [id]: {...existing, price: event.price}}});
           break;
         }
+
+        case 'map_material_warning':
+          // The engine is authoritative: its emitted list already excludes
+          // dismissed items. The local dismissedMaterials set is only used
+          // to hide a row optimistically between a click-dismiss and the
+          // next map entry. Reset it on each event so we trust the engine.
+          lowStockWarnings   = event.items;
+          dismissedMaterials = new Set<number>();
+          break;
       }
 
       return {
@@ -187,6 +212,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
         mapTrackerReceivedAt, seasonalTrackerReceivedAt,
         sessionStatus, sessionElapsed, sessionReceivedAt,
         activeSessionName, lastSavedSessionId,
+        lowStockWarnings, dismissedMaterials,
       };
     });
   },
@@ -197,7 +223,17 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
     mapTrackerReceivedAt: null, seasonalTrackerReceivedAt: null,
     sessionStatus: 'idle', sessionElapsed: 0, sessionReceivedAt: null,
     activeSessionName: null, lastSavedSessionId: null,
+    lowStockWarnings: [], dismissedMaterials: new Set<number>(),
   }),
 
   setActiveSessionName: (name) => set({activeSessionName: name}),
+
+  dismissLowStockItem: (itemId) => {
+    window.electronAPI.engine.dismissMaterial(itemId);
+    set(s => {
+      const next = new Set(s.dismissedMaterials);
+      next.add(itemId);
+      return {dismissedMaterials: next};
+    });
+  },
 }));

@@ -15,5 +15,13 @@
     "total": "Total"
   },
   "noDrops": "No drops yet",
-  "initializing": "Sort your bag in-game to initialize"
+  "initializing": "Sort your bag in-game to initialize",
+  "lowStock": {
+    "singular": "Low on 1 material",
+    "plural":   "Low on {{count}} materials",
+    "dismiss":  "Dismiss",
+    "expand":   "Show details",
+    "collapse": "Hide details",
+    "remaining": "{{count}} left"
+  }
 }

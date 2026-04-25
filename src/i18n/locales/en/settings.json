@@ -54,6 +54,10 @@
       "label": "FE rate display",
       "hour": "Per Hour",
       "minute": "Per Minute"
+    },
+    "lowStock": {
+      "label": "Low-stock warning threshold",
+      "hint": "Warn when a tracked map material's count drops to this number or below. Default 0 warns only when you run out."
     }
   },
   "overlay": {

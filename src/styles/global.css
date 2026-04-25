@@ -37,6 +37,12 @@ html {
   to   { opacity: 1; }
 }
 
+/* Low-stock warning — pulse between dim and bright danger tint */
+@keyframes tracker-warning-pulse {
+  0%, 100% { background-color: color-mix(in srgb, var(--color-danger) 12%, transparent); }
+  50%      { background-color: color-mix(in srgb, var(--color-danger) 32%, transparent); }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 4px;

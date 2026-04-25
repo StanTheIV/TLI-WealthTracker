@@ -5,36 +5,39 @@ export type RateTimeframe = 'hour' | 'minute';
 export type ThemeMode = 'system' | 'dark' | 'light';
 
 interface SettingsState {
-  torchlightPath: string;
-  overlayOpacity: number;
-  language:       string;
-  logFileValid:   boolean;
-  serperApiKey:   string;
-  rateTimeframe:  RateTimeframe;
-  themeMode:      ThemeMode;
-  isLoaded:       boolean;
+  torchlightPath:    string;
+  overlayOpacity:    number;
+  language:          string;
+  logFileValid:      boolean;
+  serperApiKey:      string;
+  rateTimeframe:     RateTimeframe;
+  themeMode:         ThemeMode;
+  lowStockThreshold: number;
+  isLoaded:          boolean;
 }
 
 interface SettingsActions {
-  load:               () => Promise<void>;
-  setTorchlightPath:  (v: string) => void;
-  setOverlayOpacity:  (v: number) => void;
-  setLanguage:        (v: string) => void;
-  validateLogFile:    () => Promise<boolean>;
-  setSerperApiKey:    (v: string) => void;
-  setRateTimeframe:   (v: RateTimeframe) => void;
-  setThemeMode:       (v: ThemeMode) => void;
+  load:                  () => Promise<void>;
+  setTorchlightPath:     (v: string) => void;
+  setOverlayOpacity:     (v: number) => void;
+  setLanguage:           (v: string) => void;
+  validateLogFile:       () => Promise<boolean>;
+  setSerperApiKey:       (v: string) => void;
+  setRateTimeframe:      (v: RateTimeframe) => void;
+  setThemeMode:          (v: ThemeMode) => void;
+  setLowStockThreshold:  (v: number) => void;
 }
 
 const DEFAULTS: SettingsState = {
-  torchlightPath: '',
-  overlayOpacity: 0.9,
-  language:       'en',
-  logFileValid:   false,
-  serperApiKey:   '',
-  rateTimeframe:  'hour',
-  themeMode:      'system',
-  isLoaded:       false,
+  torchlightPath:    '',
+  overlayOpacity:    0.9,
+  language:          'en',
+  logFileValid:      false,
+  serperApiKey:      '',
+  rateTimeframe:     'hour',
+  themeMode:         'system',
+  lowStockThreshold: 0,
+  isLoaded:          false,
 };
 
 function persist(key: string, value: string) {
@@ -58,6 +61,10 @@ export const useSettingsStore = create<Store>((set, get) => ({
     const logFileValid = torchlightPath
       ? await window.electronAPI.checkLogFile(torchlightPath)
       : false;
+    const parsedThreshold = raw.lowStockThreshold !== undefined ? Number(raw.lowStockThreshold) : 0;
+    const lowStockThreshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0
+      ? Math.floor(parsedThreshold)
+      : 0;
     set({
       torchlightPath,
       overlayOpacity: raw.overlayOpacity ? Number(raw.overlayOpacity) : 0.9,
@@ -66,8 +73,10 @@ export const useSettingsStore = create<Store>((set, get) => ({
       serperApiKey: raw.serper_api_key ?? '',
       rateTimeframe: (raw.rateTimeframe === 'minute' ? 'minute' : 'hour') as RateTimeframe,
       themeMode: (['system', 'dark', 'light'].includes(raw.themeMode ?? '') ? raw.themeMode : 'system') as ThemeMode,
+      lowStockThreshold,
       isLoaded: true,
     });
+    window.electronAPI.engine.setLowStockThreshold(lowStockThreshold);
   },
 
   setTorchlightPath: (v) => {
@@ -100,6 +109,13 @@ export const useSettingsStore = create<Store>((set, get) => ({
   setThemeMode: (v) => {
     persist('themeMode', v);
     set({themeMode: v});
+  },
+
+  setLowStockThreshold: (v) => {
+    const clamped = Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+    persist('lowStockThreshold', String(clamped));
+    window.electronAPI.engine.setLowStockThreshold(clamped);
+    set({lowStockThreshold: clamped});
   },
 
   validateLogFile: async () => {

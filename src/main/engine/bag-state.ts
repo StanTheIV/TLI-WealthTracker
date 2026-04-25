@@ -35,6 +35,7 @@ export class BagState {
   private _initialBaselines = new Map<number, number>();
   private _baseline = new Map<number, number>();
   private _initialized = false;
+  private _lastDeltas: SlotChange[] = [];
 
   get initialized(): boolean { return this._initialized; }
   get slotCount():   number  { return this._slots.size; }
@@ -134,12 +135,22 @@ export class BagState {
     return new Map(this._totals);
   }
 
+  /**
+   * The SlotChange[] returned by the most recent processUpdate/processRemove/
+   * processResort call. Lets a second handler consume the same deltas that
+   * ItemHandler already processed, without re-applying them.
+   */
+  getLastDeltas(): SlotChange[] {
+    return this._lastDeltas;
+  }
+
   reset(): void {
     this._slots.clear();
     this._totals.clear();
     this._initialBaselines.clear();
     this._baseline.clear();
     this._initialized = false;
+    this._lastDeltas  = [];
   }
 
   // ---------------------------------------------------------------------
@@ -164,6 +175,7 @@ export class BagState {
       else             this._baseline.set(itemId, total);
       out.push({itemId, change});
     }
+    this._lastDeltas = out;
     return out;
   }
 }

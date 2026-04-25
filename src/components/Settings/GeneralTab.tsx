@@ -21,6 +21,8 @@ export default function GeneralTab() {
   const setRateTimeframe  = useSettingsStore(s => s.setRateTimeframe);
   const themeMode         = useSettingsStore(s => s.themeMode);
   const setThemeMode      = useSettingsStore(s => s.setThemeMode);
+  const lowStockThreshold    = useSettingsStore(s => s.lowStockThreshold);
+  const setLowStockThreshold = useSettingsStore(s => s.setLowStockThreshold);
 
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
@@ -128,13 +130,27 @@ export default function GeneralTab() {
         <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-4">
           {t('tracker.heading')}
         </h2>
-        <div className="bg-surface rounded-lg p-4 border border-border">
+        <div className="bg-surface rounded-lg p-4 border border-border mb-3">
           <p className="text-sm text-text-primary mb-3">{t('tracker.rateTimeframe.label')}</p>
           <SegmentedControl
             segments={(['hour', 'minute'] as const).map(tf => ({value: tf, label: t(`tracker.rateTimeframe.${tf}`)}))}
             value={rateTimeframe}
             onChange={setRateTimeframe}
           />
+        </div>
+        <div className="bg-surface rounded-lg p-4 border border-border">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm text-text-primary">{t('tracker.lowStock.label')}</p>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={lowStockThreshold}
+              onChange={e => setLowStockThreshold(Number(e.target.value))}
+              className="w-20 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm font-mono tabular-nums text-text-primary text-right outline-none focus:border-accent/50 transition-colors"
+            />
+          </div>
+          <p className="text-xs text-text-secondary">{t('tracker.lowStock.hint')}</p>
         </div>
       </section>
 
