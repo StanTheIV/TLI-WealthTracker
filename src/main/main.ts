@@ -6,7 +6,7 @@ import {initLogger, log} from './logger';
 import type {DbItem} from './db';
 import {registerDbHandlers} from './ipc/db';
 import {registerOverlayHandlers} from './ipc/overlay';
-import {registerEngineHandlers, stopEngineForShutdown} from './ipc/engine';
+import {registerEngineHandlers, stopEngineForShutdown, notifyEngineItemTypeChanged} from './ipc/engine';
 import {registerUpdaterHandlers} from './ipc/updater';
 
 const DEV = !app.isPackaged;
@@ -160,7 +160,11 @@ app.whenReady().then(() => {
   seedItemsIfEmpty();
   initLogger(settingsGetAll);
 
-  registerDbHandlers();
+  registerDbHandlers({
+    getMainWindow:    () => mainWindow,
+    getTrackerWindow: () => trackerWindow,
+    onItemTypeChanged: (id, type) => notifyEngineItemTypeChanged(id, type),
+  });
   registerOverlayHandlers(
     () => trackerWindow,
     (w) => { trackerWindow = w; },

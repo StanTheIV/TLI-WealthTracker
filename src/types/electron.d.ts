@@ -21,6 +21,13 @@ export interface DbItem {
   priceDate: number;
 }
 
+/** Broadcast on every item mutation in the main process so all renderer windows
+ *  keep their itemsStore copies in sync. `changes` is a partial DbItem patch. */
+export interface ItemChangedPatch {
+  id:      string;
+  changes: Partial<Omit<DbItem, 'id'>>;
+}
+
 export interface DbSession {
   id:        string;
   name:      string;
@@ -95,8 +102,8 @@ interface ElectronAPI {
     stop:            () => void;
     pause:           () => void;
     resume:          () => void;
+    reset:           () => void;
     updateFilterRules: (rules: unknown) => void;
-    updateItemType:    (id: string, type: string) => void;
     dismissMaterial:      (itemId: number) => void;
     setLowStockThreshold: (n: number) => void;
     onEvent:         (cb: (event: EngineEvent) => void) => () => void;
@@ -130,6 +137,7 @@ interface ElectronAPI {
       setPrice:   (id: string, price: number) => Promise<void>;
       lookupName:  (id: string) => Promise<{name: string | null; type: string | null; lookupsToday: number} | {error: string; lookupsToday: number}>;
       importBatch: (items: DbItem[]) => Promise<number>;
+      onChanged:   (cb: (patch: ItemChangedPatch) => void) => () => void;
     };
     lookups: {
       getToday: () => Promise<number>;

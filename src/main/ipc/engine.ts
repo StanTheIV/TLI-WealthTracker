@@ -2,6 +2,7 @@ import {ipcMain, BrowserWindow, utilityProcess} from 'electron';
 import type {UtilityProcess} from 'electron';
 import {log} from '@/main/logger';
 import {itemsGetAll, itemsSetPrice, itemsInsertIfMissing, wealthInsert, sessionsInsert, sessionsUpdate, sessionsGetOne, filtersGetAll, settingsGetAll} from '@/main/db';
+import {broadcastItemsChanged} from '@/main/items-broadcast';
 import type {DbSession} from '@/main/db';
 import {ItemFilterEngine} from '@/main/engine/item-filter';
 import type {FilterRule} from '@/types/itemFilter';
@@ -168,7 +169,12 @@ function onWorkerMessage(raw: RawEvent): void {
     log.info('price', `Price update: item=${raw.itemId} -> ${raw.price} FE`);
     itemsSetPrice(String(raw.itemId), raw.price);
 
-    // Notify renderer
+    // Sync renderer itemsStores via the unified items:changed broadcast.
+    broadcastItemsChanged({id: String(raw.itemId), changes: {price: raw.price}});
+
+    // Also emit the engine event so any other engine-event consumers (e.g. a
+    // future "price updated" feed entry) keep working. The itemsStore no
+    // longer reacts to this — items:changed is the source of truth.
     const event: EngineEvent = {type: 'price_update', itemId: raw.itemId, price: raw.price, timestamp: Date.now()};
     _getMainWindow()?.webContents.send('engine:event', event);
     _getTrackerWindow()?.webContents.send('engine:event', event);
@@ -333,6 +339,15 @@ function stopEngine(): void {
   // Worker keeps running — it's independent
 }
 
+/**
+ * Called when the user changes an item's type (via the Items tab UI). Updates
+ * the engine's filter type-cache so the next drop event uses the new type.
+ * No-op when the engine isn't running.
+ */
+export function notifyEngineItemTypeChanged(id: string, type: string): void {
+  engine?.setItemType(id, mapRawType(type));
+}
+
 /** Called by main.ts on window close to ensure the session is auto-saved before quit. */
 export function stopEngineForShutdown(): void {
   stopEngine();
@@ -355,9 +370,16 @@ export function registerEngineHandlers(
   ipcMain.on('engine:stop',   ()  => stopEngine());
   ipcMain.on('engine:pause',  ()  => { engine?.pause();  log.info('engine', 'Engine paused'); });
   ipcMain.on('engine:resume', ()  => { engine?.resume(); log.info('engine', 'Engine resumed'); });
-  ipcMain.on('engine:update-item-type', (_e, id: string, rawType: string) => {
-    engine?.setItemType(id, mapRawType(rawType));
+  ipcMain.on('engine:reset',  ()  => {
+    if (!engine) return;
+    engine.reset();
+    // The discarded run's identity must not be reused by the next Stop.
+    activeSession = {sessionId: crypto.randomUUID(), sessionName: null, isOverride: false};
+    log.info('session', `Session reset; new id=${activeSession.sessionId}`);
   });
+  // Note: item type changes are now propagated via `db:items:set-type`,
+  // which the db handler registration wires up to call
+  // notifyEngineItemTypeChanged() so the engine's filter cache stays current.
   ipcMain.on('engine:dismiss-material', (_e, itemId: number) => {
     mapMaterialHandler?.dismiss(itemId);
   });

@@ -33,8 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stop:            ()                                   => ipcRenderer.send('engine:stop'),
     pause:           ()                                   => ipcRenderer.send('engine:pause'),
     resume:          ()                                   => ipcRenderer.send('engine:resume'),
+    reset:           ()                                   => ipcRenderer.send('engine:reset'),
     updateFilterRules: (rules: unknown) => ipcRenderer.send('engine:update-filter-rules', rules),
-    updateItemType:    (id: string, type: string) => ipcRenderer.send('engine:update-item-type', id, type),
     dismissMaterial:   (itemId: number) => ipcRenderer.send('engine:dismiss-material', itemId),
     setLowStockThreshold: (n: number)   => ipcRenderer.send('engine:set-low-stock-threshold', n),
     onEvent: (cb: (event: unknown) => void) => {
@@ -75,6 +75,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       setPrice:   (id: string, price: number)           => ipcRenderer.invoke('db:items:set-price', id, price),
       lookupName:   (id: string)                          => ipcRenderer.invoke('db:items:lookup-name', id),
       importBatch:  (items: unknown)                      => ipcRenderer.invoke('db:items:import-batch', items),
+      onChanged: (cb: (patch: {id: string; changes: Partial<{name: string; type: string; price: number; priceDate: number}>}) => void) => {
+        const wrapped = (_e: Electron.IpcRendererEvent, patch: {id: string; changes: Partial<{name: string; type: string; price: number; priceDate: number}>}) => cb(patch);
+        ipcRenderer.on('items:changed', wrapped);
+        return () => ipcRenderer.removeListener('items:changed', wrapped);
+      },
     },
     lookups: {
       getToday: () => ipcRenderer.invoke('db:lookups:today'),

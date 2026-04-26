@@ -17,8 +17,11 @@ function AppInner() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Both windows need engine events and item prices
+    // Both windows need engine events and item prices.
+    // initBroadcastListener subscribes to items:changed so any item edit in
+    // any window propagates to this window's itemsStore in real time.
     useEngineStore.getState().init();
+    useItemsStore.getState().initBroadcastListener();
     Promise.all([
       useItemsStore.getState().load(),
       windowType === 'main' ? useSettingsStore.getState().load() : Promise.resolve(),

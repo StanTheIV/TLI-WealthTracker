@@ -12,8 +12,24 @@ import DropTable from './DropTable';
 import LowStockWarningRow from './LowStockWarningRow';
 
 // -----------------------------------------------------------------------
-// Total FE helper
+// Helpers
 // -----------------------------------------------------------------------
+
+/**
+ * Compact average-per-map renderer. Examples:
+ *   45_000  -> "0:45"
+ *   258_000 -> "4:18"
+ *   3_725_000 -> "1:02:05" (very slow players)
+ */
+function formatAvgPerMap(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const h        = Math.floor(totalSec / 3600);
+  const m        = Math.floor((totalSec % 3600) / 60);
+  const s        = totalSec % 60;
+  const pad      = (n: number) => String(n).padStart(2, '0');
+  if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+  return `${m}:${pad(s)}`;
+}
 
 function useTotalFE(drops: Record<number, number>): number {
   const items = useItemsStore(s => s.items);
@@ -42,9 +58,11 @@ export default function TrackerPanel() {
   const mapTrackerReceivedAt      = useEngineStore(s => s.mapTrackerReceivedAt);
   const seasonalTrackerReceivedAt = useEngineStore(s => s.seasonalTrackerReceivedAt);
   const mapCount                  = useEngineStore(s => s.mapCount);
+  const accumulatedMapTime        = useEngineStore(s => s.accumulatedMapTime);
   const lowStockWarnings          = useEngineStore(s => s.lowStockWarnings);
   const dismissedMaterials        = useEngineStore(s => s.dismissedMaterials);
   const rateTimeframe             = useSettingsStore(s => s.rateTimeframe);
+  const pauseTotalTimerInTown     = useSettingsStore(s => s.pauseTotalTimerInTown);
 
   const visibleWarnings = useMemo(
     () => lowStockWarnings.filter(w => !dismissedMaterials.has(w.itemId)),
@@ -84,6 +102,22 @@ export default function TrackerPanel() {
   const [tableOpen, setTableOpen] = useState(false);
   const tableDrops = mapTracker ? (lastMapRef.current?.drops ?? {}) : sessionDrops;
 
+  // Total-row badge: "#N · M:SS avg" where avg = (accumulatedMapTime + active
+  // map's live elapsed) / mapCount. Active-map time is added only while still
+  // in a map — once the map ends, map_ended folds it into accumulatedMapTime.
+  const liveMapTime = (mapTracker !== null ? mapElapsed : 0) + accumulatedMapTime;
+  const avgMapMs    = mapCount > 0 ? Math.floor(liveMapTime / mapCount) : 0;
+  const totalBadge  = mapCount > 0
+    ? (avgMapMs > 0 ? `#${mapCount} · ${formatAvgPerMap(avgMapMs)}` : `#${mapCount}`)
+    : undefined;
+
+  // When pauseTotalTimerInTown is on, the Total row's displayed elapsed
+  // becomes "in-map only" — wall-clock minus town time. While in a map this
+  // ticks live; in town it freezes at the last map_ended boundary. Same
+  // formula as liveMapTime; reuse it. Rate calc auto-follows since
+  // TrackerRow divides FE by elapsedMs.
+  const totalElapsedMs = pauseTotalTimerInTown ? liveMapTime : elapsedMs;
+
   if (enginePhase !== 'tracking') {
     return (
       <div className="flex flex-col items-center justify-center gap-2 px-4 py-5">
@@ -100,12 +134,12 @@ export default function TrackerPanel() {
 
         {/* Total — always visible */}
         <TrackerRow
-          label={t('total')}
+          label={pauseTotalTimerInTown ? t('totalInMaps') : t('total')}
           valueFE={sessionFE}
-          elapsedMs={elapsedMs}
+          elapsedMs={totalElapsedMs}
           rateTimeframe={rateTimeframe}
           accentClass="bg-accent"
-          badge={mapCount > 0 ? `#${mapCount}` : undefined}
+          badge={totalBadge}
           paused={isPaused}
         />
 

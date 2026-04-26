@@ -7,13 +7,14 @@ export default function OverlayWindow() {
   const contentRef = useRef<HTMLDivElement>(null);
   const dragState  = useRef<{startX: number; startY: number} | null>(null);
   const [opacity, setOpacity]       = useState(0.9);
+  const [clickThroughWhileRunning, setClickThroughWhileRunning] = useState(false);
   const [handleHovered, setHandleHovered] = useState(false);
 
   const sessionStatus = useEngineStore(s => s.sessionStatus);
   const enginePhase   = useEngineStore(s => s.phase);
 
   const isActivelyTracking = sessionStatus === 'running' && enginePhase === 'tracking';
-  const clickThrough       = isActivelyTracking && opacity <= 0.5;
+  const clickThrough       = isActivelyTracking && clickThroughWhileRunning;
 
   useEffect(() => {
     window.electronAPI.overlay.setClickThrough(clickThrough);
@@ -21,7 +22,11 @@ export default function OverlayWindow() {
 
   useEffect(() => {
     window.electronAPI.db.settings.getAll().then((raw: Record<string, string>) => {
-      if (raw.overlayOpacity) setOpacity(Number(raw.overlayOpacity));
+      if (raw.overlayOpacity)           setOpacity(Number(raw.overlayOpacity));
+      if (raw.clickThroughWhileRunning) setClickThroughWhileRunning(raw.clickThroughWhileRunning === 'true');
+      if (raw.pauseTotalTimerInTown !== undefined) {
+        useSettingsStore.setState({pauseTotalTimerInTown: raw.pauseTotalTimerInTown === 'true'});
+      }
     });
   }, []);
 
@@ -30,6 +35,12 @@ export default function OverlayWindow() {
     return window.electronAPI.overlay.onSettingChange((key, value) => {
       if (key === 'rateTimeframe' && (value === 'hour' || value === 'minute')) {
         useSettingsStore.setState({rateTimeframe: value as RateTimeframe});
+      }
+      if (key === 'clickThroughWhileRunning') {
+        setClickThroughWhileRunning(value === 'true');
+      }
+      if (key === 'pauseTotalTimerInTown') {
+        useSettingsStore.setState({pauseTotalTimerInTown: value === 'true'});
       }
     });
   }, []);

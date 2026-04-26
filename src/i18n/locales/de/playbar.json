@@ -9,6 +9,7 @@
     "start": "Start",
     "pause": "Pause",
     "resume": "Fortsetzen",
-    "stop": "Stopp"
+    "stop": "Stopp",
+    "reset": "Tracker zurücksetzen"
   }
 }

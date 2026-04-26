@@ -35,7 +35,7 @@ export default function DropTable({drops}: DropTableProps) {
         const unitPrice = item?.price ?? 0;
         return {
           id:         idStr,
-          name:       item?.name ?? `#${idStr}`,
+          name:       item?.name || `#${idStr}`,
           unitPrice,
           quantity:   qty,
           totalValue: qty * unitPrice,

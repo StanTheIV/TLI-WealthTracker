@@ -1,7 +1,8 @@
 import {useTranslation} from 'react-i18next';
-import {Play, Pause, Square} from 'lucide-react';
+import {Play, Pause, Square, RotateCcw} from 'lucide-react';
 import {useTracking} from '@/state/TrackingContext';
 import {useEngineStore} from '@/state/engineStore';
+import HoldButton from '@/components/ui/HoldButton';
 
 function formatElapsed(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -11,7 +12,7 @@ function formatElapsed(ms: number): string {
 
 export default function Playbar() {
   const {t} = useTranslation('playbar');
-  const {status, elapsedMs, start, pause, resume, stop} = useTracking();
+  const {status, elapsedMs, start, pause, resume, stop, reset} = useTracking();
   const enginePhase       = useEngineStore(s => s.phase);
   const currentZone       = useEngineStore(s => s.currentZone);
   const mapCount          = useEngineStore(s => s.mapCount);
@@ -51,18 +52,38 @@ export default function Playbar() {
           </button>
         )}
         {status === 'running' && (<>
-          <button onClick={pause} className="w-10 h-10 rounded-full bg-surface-elevated text-text-primary flex items-center justify-center hover:opacity-80 transition-opacity">
+          <button onClick={pause} className="w-10 h-10 rounded-full bg-surface-elevated text-text-primary flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.pause')}>
             <Pause className="w-4 h-4" />
           </button>
-          <button onClick={stop} className="w-9 h-9 rounded-full bg-danger text-white flex items-center justify-center hover:opacity-80 transition-opacity">
+          <HoldButton
+            onConfirm={reset}
+            holdMs={1000}
+            size={36}
+            title={t('buttons.reset')}
+            className="bg-surface-elevated text-text-secondary hover:bg-gold/15 hover:text-gold"
+            ringClass="stroke-gold"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </HoldButton>
+          <button onClick={stop} className="w-9 h-9 rounded-full bg-danger text-white flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.stop')}>
             <Square className="w-3.5 h-3.5 fill-current" />
           </button>
         </>)}
         {status === 'paused' && (<>
-          <button onClick={resume} className="w-10 h-10 rounded-full bg-accent text-bg flex items-center justify-center hover:opacity-80 transition-opacity">
+          <button onClick={resume} className="w-10 h-10 rounded-full bg-accent text-bg flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.resume')}>
             <Play className="w-4 h-4 fill-current" />
           </button>
-          <button onClick={stop} className="w-9 h-9 rounded-full bg-danger text-white flex items-center justify-center hover:opacity-80 transition-opacity">
+          <HoldButton
+            onConfirm={reset}
+            holdMs={1000}
+            size={36}
+            title={t('buttons.reset')}
+            className="bg-surface-elevated text-text-secondary hover:bg-gold/15 hover:text-gold"
+            ringClass="stroke-gold"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </HoldButton>
+          <button onClick={stop} className="w-9 h-9 rounded-full bg-danger text-white flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.stop')}>
             <Square className="w-3.5 h-3.5 fill-current" />
           </button>
         </>)}

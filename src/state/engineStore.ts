@@ -29,6 +29,8 @@ interface EngineState {
   sessionStatus:            'idle' | 'running' | 'paused';
   sessionElapsed:           number;
   sessionReceivedAt:        number | null;
+  /** Cumulative ms spent inside maps in this session (excludes the active map). */
+  accumulatedMapTime:       number;
   /** Non-null when continuing a saved session — holds the session name. */
   activeSessionName:        string | null;
   /** ID of the last auto-saved session (used to trigger sessions list refresh). */
@@ -63,6 +65,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
   sessionStatus:             'idle',
   sessionElapsed:            0,
   sessionReceivedAt:         null,
+  accumulatedMapTime:        0,
   activeSessionName:         null,
   lastSavedSessionId:        null,
   lowStockWarnings:          [],
@@ -95,6 +98,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
       let lastSavedSessionId  = s.lastSavedSessionId;
       let lowStockWarnings     = s.lowStockWarnings;
       let dismissedMaterials   = s.dismissedMaterials;
+      let accumulatedMapTime   = s.accumulatedMapTime;
 
       switch (event.type) {
         case 'init_started':
@@ -108,6 +112,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           sessionStatus             = 'idle';
           sessionElapsed            = 0;
           sessionReceivedAt         = null;
+          accumulatedMapTime        = 0;
           activeSessionName         = null;
           lowStockWarnings          = [];
           dismissedMaterials        = new Set<number>();
@@ -140,6 +145,10 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           mapCount = event.mapCount;
           break;
 
+        case 'map_ended':
+          accumulatedMapTime += event.elapsed;
+          break;
+
         case 'tracker_started':
         case 'tracker_update':
           if (event.tracker.kind === 'map') {
@@ -153,10 +162,13 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
             sessionElapsed    = event.tracker.elapsed;
             sessionReceivedAt = Date.now();
             // On session start, seed renderer state from the snapshot so that
-            // a continued session carries over its drops and map count.
+            // a continued session carries over its drops, map count, and
+            // accumulated map time. Also fires on Engine.reset() so the
+            // average-per-map metric resets correctly.
             if (event.type === 'tracker_started') {
-              drops    = {...event.tracker.drops};
-              mapCount = event.sessionMeta?.mapCount ?? mapCount;
+              drops              = {...event.tracker.drops};
+              mapCount           = event.sessionMeta?.mapCount ?? mapCount;
+              accumulatedMapTime = event.sessionMeta?.mapTime  ?? accumulatedMapTime;
             }
           }
           break;
@@ -169,12 +181,13 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
             seasonalTracker           = null;
             seasonalTrackerReceivedAt = null;
           } else if (event.tracker.kind === 'session') {
-            phase             = 'idle';
-            drops             = event.tracker.drops;
-            sessionStatus     = 'idle';
-            sessionElapsed    = 0;
-            sessionReceivedAt = null;
-            activeSessionName = null;
+            phase              = 'idle';
+            drops              = event.tracker.drops;
+            sessionStatus      = 'idle';
+            sessionElapsed     = 0;
+            sessionReceivedAt  = null;
+            accumulatedMapTime = 0;
+            activeSessionName  = null;
           }
           break;
 
@@ -188,13 +201,10 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           lastSavedSessionId = event.sessionId;
           break;
 
-        case 'price_update': {
-          // DB already written by PriceHandler in main process — only sync in-memory cache
-          const id       = String(event.itemId);
-          const existing = useItemsStore.getState().items[id];
-          if (existing) useItemsStore.setState({items: {...useItemsStore.getState().items, [id]: {...existing, price: event.price}}});
+        case 'price_update':
+          // The main process now broadcasts price changes via items:changed,
+          // which itemsStore subscribes to directly. No work needed here.
           break;
-        }
 
         case 'map_material_warning':
           // The engine is authoritative: its emitted list already excludes
@@ -211,6 +221,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
         mapTracker, seasonalTracker,
         mapTrackerReceivedAt, seasonalTrackerReceivedAt,
         sessionStatus, sessionElapsed, sessionReceivedAt,
+        accumulatedMapTime,
         activeSessionName, lastSavedSessionId,
         lowStockWarnings, dismissedMaterials,
       };
@@ -222,6 +233,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
     currentZone: null, mapTracker: null, seasonalTracker: null,
     mapTrackerReceivedAt: null, seasonalTrackerReceivedAt: null,
     sessionStatus: 'idle', sessionElapsed: 0, sessionReceivedAt: null,
+    accumulatedMapTime: 0,
     activeSessionName: null, lastSavedSessionId: null,
     lowStockWarnings: [], dismissedMaterials: new Set<number>(),
   }),

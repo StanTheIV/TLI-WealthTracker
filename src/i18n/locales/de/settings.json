@@ -54,12 +54,24 @@
       "label": "FE-Ratenanzeige",
       "hour": "Pro Stunde",
       "minute": "Pro Minute"
+    },
+    "lowStock": {
+      "label": "Schwellenwert für Bestandswarnung",
+      "hint": "Warne, sobald die Anzahl eines beobachteten Map-Materials auf diesen Wert oder darunter fällt. Standard 0 warnt erst, wenn nichts mehr übrig ist."
+    },
+    "pauseInTown": {
+      "label": "Total-Timer in der Stadt pausieren",
+      "hint": "Wenn aktiviert, friert der Total-Timer in der Stadt ein, damit die FE/h-Rate die tatsächliche Map-Performance widerspiegelt. Map- und Seasonal-Tracker bleiben unverändert. Gespeicherte Sitzungen behalten weiterhin die volle Echtzeit."
     }
   },
   "overlay": {
     "heading": "Overlay-Fenster",
     "opacity": "Hintergrundtransparenz",
-    "opacityHint": "Steuert, wie transparent der Overlay-Hintergrund erscheint"
+    "opacityHint": "Steuert, wie transparent der Overlay-Hintergrund erscheint",
+    "clickThrough": {
+      "label": "Tracker bei aktiver Sitzung durchklickbar",
+      "hint": "Wenn aktiviert, gehen Klicks während einer laufenden Sitzung durch das Overlay hindurch — du kannst das Spiel darunter bedienen. Pausiere oder stoppe, um den Tracker zu bedienen."
+    }
   },
   "logPath": {
     "heading": "Spiel-Log-Pfad",

@@ -1,4 +1,4 @@
-import {ipcMain} from 'electron';
+import {ipcMain, BrowserWindow} from 'electron';
 import {log} from '@/main/logger';
 import {
   settingsGetAll, settingsSet,
@@ -8,19 +8,67 @@ import {
   wealthInsert, wealthGetRange, wealthGetLatest, wealthClear,
   getLookupCountToday, recordLookup,
   filtersGetAll, filtersInsert, filtersUpdate, filtersDelete, filtersSetEnabled,
+  type DbItem,
 } from '@/main/db';
+import {broadcastItemsChanged, setItemBroadcastWindows} from '@/main/items-broadcast';
 
-export function registerDbHandlers(): void {
+interface RegisterDeps {
+  getMainWindow:    () => BrowserWindow | null;
+  getTrackerWindow: () => BrowserWindow | null;
+  /** Notify the engine that an item's type changed so its filter cache stays in sync. */
+  onItemTypeChanged?: (id: string, type: string) => void;
+}
+
+export function registerDbHandlers(deps: RegisterDeps): void {
+  setItemBroadcastWindows(deps.getMainWindow, deps.getTrackerWindow);
   ipcMain.handle('db:settings:get-all',  ()               => settingsGetAll());
   ipcMain.handle('db:settings:set',      (_e, k, v)       => settingsSet(k, v));
 
   ipcMain.handle('db:items:get-all',     ()               => itemsGetAll());
-  ipcMain.handle('db:items:upsert',      (_e, item)       => itemsUpsert(item));
-  ipcMain.handle('db:items:set-name',    (_e, id, name)   => itemsSetName(id, name));
-  ipcMain.handle('db:items:set-type',    (_e, id, type)   => itemsSetType(id, type));
-  ipcMain.handle('db:items:set-price',   (_e, id, price)  => itemsSetPrice(id, price));
-  ipcMain.handle('db:items:lookup-name',  async (_e, id: string) => lookupName(id));
-  ipcMain.handle('db:items:import-batch',       (_e, items)     => itemsImportBatch(items));
+  ipcMain.handle('db:items:upsert',      (_e, item: DbItem) => {
+    itemsUpsert(item);
+    broadcastItemsChanged({id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
+  });
+  ipcMain.handle('db:items:set-name',    (_e, id: string, name: string)   => {
+    itemsSetName(id, name);
+    broadcastItemsChanged({id, changes: {name}});
+  });
+  ipcMain.handle('db:items:set-type',    (_e, id: string, type: string)   => {
+    itemsSetType(id, type);
+    broadcastItemsChanged({id, changes: {type}});
+    deps.onItemTypeChanged?.(id, type);
+  });
+  ipcMain.handle('db:items:set-price',   (_e, id: string, price: number)  => {
+    itemsSetPrice(id, price);
+    broadcastItemsChanged({id, changes: {price}});
+  });
+  ipcMain.handle('db:items:lookup-name',  async (_e, id: string) => {
+    const result = await lookupName(id);
+    if ('name' in result || 'type' in result) {
+      // Persist whatever we found and broadcast the patch so all renderers
+      // (including the overlay) update without an extra round-trip.
+      const changes: Partial<Omit<DbItem, 'id'>> = {};
+      if (result.name) {
+        itemsSetName(id, result.name);
+        changes.name = result.name;
+      }
+      if (result.type && result.type !== 'other') {
+        itemsSetType(id, result.type);
+        changes.type = result.type;
+        deps.onItemTypeChanged?.(id, result.type);
+      }
+      if (Object.keys(changes).length > 0) broadcastItemsChanged({id, changes});
+    }
+    return result;
+  });
+  ipcMain.handle('db:items:import-batch',       (_e, items: DbItem[])     => {
+    const inserted = itemsImportBatch(items);
+    // Bulk import: broadcast per-item so each renderer can patch incrementally.
+    for (const item of items) {
+      broadcastItemsChanged({id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
+    }
+    return inserted;
+  });
 
   ipcMain.handle('db:sessions:get-all',  ()                      => sessionsGetAll());
   ipcMain.handle('db:sessions:insert',   (_e, session)           => sessionsInsert(session));

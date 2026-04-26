@@ -17,6 +17,7 @@ interface TrackingContextValue extends TrackingState {
   pause:           () => void;
   resume:          () => void;
   stop:            () => void;
+  reset:           () => void;
 }
 
 const TrackingContext = createContext<TrackingContextValue | null>(null);
@@ -95,6 +96,21 @@ export function TrackingProvider({children}: {children: ReactNode}) {
     window.electronAPI.overlay.hide();
   }, [clearTick]);
 
+  const reset = useCallback(() => {
+    window.electronAPI.engine.reset();
+    accumulatedRef.current = 0;
+    // Drop the continued-session label so the new run shows as fresh.
+    useEngineStore.getState().setActiveSessionName(null);
+    if (statusRef.current === 'running') {
+      // Restart the local tick so elapsedMs counts from 0.
+      setState(prev => ({...prev, elapsedMs: 0, sessionId: crypto.randomUUID()}));
+      startTick();
+    } else {
+      // Paused: just zero the displayed elapsed; tick stays stopped.
+      setState(prev => ({...prev, elapsedMs: 0, sessionId: crypto.randomUUID()}));
+    }
+  }, [startTick]);
+
   // Start the tick only once the engine finishes bag init.
   // For continued sessions the engine's session tracker already has the loaded
   // elapsed baked in — pick it up from engineStore so the timer reads correctly.
@@ -113,7 +129,7 @@ export function TrackingProvider({children}: {children: ReactNode}) {
   useEffect(() => () => clearTick(), [clearTick]);
 
   return (
-    <TrackingContext.Provider value={{...state, start, continueSession, pause, resume, stop}}>
+    <TrackingContext.Provider value={{...state, start, continueSession, pause, resume, stop, reset}}>
       {children}
     </TrackingContext.Provider>
   );

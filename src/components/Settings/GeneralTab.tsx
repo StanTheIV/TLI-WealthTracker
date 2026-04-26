@@ -11,6 +11,8 @@ export default function GeneralTab() {
   const {t} = useTranslation('settings');
   const torchlightPath  = useSettingsStore(s => s.torchlightPath);
   const overlayOpacity  = useSettingsStore(s => s.overlayOpacity);
+  const clickThroughWhileRunning    = useSettingsStore(s => s.clickThroughWhileRunning);
+  const setClickThroughWhileRunning = useSettingsStore(s => s.setClickThroughWhileRunning);
   const language        = useSettingsStore(s => s.language);
   const serperApiKey    = useSettingsStore(s => s.serperApiKey);
   const setTorchlightPath = useSettingsStore(s => s.setTorchlightPath);
@@ -23,6 +25,8 @@ export default function GeneralTab() {
   const setThemeMode      = useSettingsStore(s => s.setThemeMode);
   const lowStockThreshold    = useSettingsStore(s => s.lowStockThreshold);
   const setLowStockThreshold = useSettingsStore(s => s.setLowStockThreshold);
+  const pauseTotalTimerInTown    = useSettingsStore(s => s.pauseTotalTimerInTown);
+  const setPauseTotalTimerInTown = useSettingsStore(s => s.setPauseTotalTimerInTown);
 
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
@@ -138,6 +142,18 @@ export default function GeneralTab() {
             onChange={setRateTimeframe}
           />
         </div>
+        <div className="bg-surface rounded-lg p-4 border border-border mb-3">
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <span className="text-sm text-text-primary">{t('tracker.pauseInTown.label')}</span>
+            <input
+              type="checkbox"
+              checked={pauseTotalTimerInTown}
+              onChange={e => setPauseTotalTimerInTown(e.target.checked)}
+              className="w-4 h-4 accent-accent cursor-pointer"
+            />
+          </label>
+          <p className="text-xs text-text-secondary mt-2">{t('tracker.pauseInTown.hint')}</p>
+        </div>
         <div className="bg-surface rounded-lg p-4 border border-border">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-text-primary">{t('tracker.lowStock.label')}</p>
@@ -158,7 +174,7 @@ export default function GeneralTab() {
         <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-4">
           {t('overlay.heading')}
         </h2>
-        <div className="bg-surface rounded-lg p-4 border border-border">
+        <div className="bg-surface rounded-lg p-4 border border-border mb-3">
           <div className="flex justify-between mb-3">
             <span className="text-sm text-text-primary">{t('overlay.opacity')}</span>
             <span className="text-sm font-semibold text-accent">{Math.round(overlayOpacity * 100)}%</span>
@@ -171,6 +187,18 @@ export default function GeneralTab() {
             className="w-full accent-accent"
           />
           <p className="text-xs text-text-secondary mt-2">{t('overlay.opacityHint')}</p>
+        </div>
+        <div className="bg-surface rounded-lg p-4 border border-border">
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <span className="text-sm text-text-primary">{t('overlay.clickThrough.label')}</span>
+            <input
+              type="checkbox"
+              checked={clickThroughWhileRunning}
+              onChange={e => setClickThroughWhileRunning(e.target.checked)}
+              className="w-4 h-4 accent-accent cursor-pointer"
+            />
+          </label>
+          <p className="text-xs text-text-secondary mt-2">{t('overlay.clickThrough.hint')}</p>
         </div>
       </section>
 

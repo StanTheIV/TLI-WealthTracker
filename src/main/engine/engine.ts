@@ -4,6 +4,8 @@ import {EngineContext} from './context';
 import type {LoadedSessionData} from './context';
 import type {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/types/itemFilter';
+import {Tracker} from './tracker';
+import {log} from '@/main/logger';
 
 /**
  * EventRouter — thin routing layer.
@@ -76,6 +78,76 @@ export class Engine {
       }
     }
     this._ctx.reset();
+  }
+
+  /**
+   * Reset the in-flight session WITHOUT touching bag state, filters, or known
+   * items. Drops and elapsed for session/map/seasonal go to zero. Map count
+   * resets to 0 (or 1 if currently in a map — that map becomes "map #1" of the
+   * new run). The current run is discarded; nothing is auto-saved.
+   *
+   * Pause/run state is preserved: a paused session stays paused, a running
+   * one stays running.
+   */
+  reset(): void {
+    if (this._ctx.phase !== 'tracking') return;
+
+    const now = Date.now();
+    const wasPaused = this._ctx.paused;
+
+    // Tear down map/seasonal trackers so the renderer drops their UI state.
+    // We deliberately do NOT emit tracker_finished for the session: the
+    // renderer treats that as "session is over → flip phase to idle", which
+    // would put the panel into the initializing-placeholder state. Instead we
+    // overwrite the session in place via the tracker_started below.
+    if (this._ctx.seasonal) {
+      this._emit({type: 'tracker_finished', tracker: this._ctx.seasonal.snapshot(), timestamp: now});
+      this._ctx.seasonal = null;
+    }
+    if (this._ctx.map) {
+      this._emit({type: 'tracker_finished', tracker: this._ctx.map.snapshot(), timestamp: now});
+      this._ctx.map = null;
+    }
+    this._ctx.session = null;
+
+    // Wipe map / session counters but preserve scene + bag + filter.
+    this._ctx.mapCount           = 0;
+    this._ctx.accumulatedMapTime = 0;
+    this._ctx.mapStartTime       = 0;
+    this._ctx.activeSessionId    = null;
+    this._ctx.activeSessionName  = null;
+    this._ctx.loadedSession      = null;
+
+    // Fresh session tracker. Match pause state.
+    this._ctx.session = new Tracker('session');
+    if (wasPaused) this._ctx.session.pause();
+    this._emit({
+      type:        'tracker_started',
+      tracker:     this._ctx.session.snapshot(),
+      timestamp:   now,
+      sessionMeta: {mapTime: 0, mapCount: 0},
+    });
+
+    // If we're currently in a map, recreate that map's tracker as map #1.
+    if (this._ctx.inMap) {
+      this._ctx.mapCount    = 1;
+      this._ctx.mapStartTime = now;
+      this._ctx.map         = new Tracker('map');
+      if (wasPaused) this._ctx.map.pause();
+      this._emit({type: 'map_started', mapCount: 1, timestamp: now});
+      this._emit({type: 'tracker_started', tracker: this._ctx.map.snapshot(), timestamp: now});
+    }
+
+    // Mirror current pause state to the renderer so its session_status line
+    // matches what we just rebuilt.
+    this._emit({
+      type:      'session_status',
+      status:    wasPaused ? 'paused' : 'running',
+      elapsed:   0,
+      timestamp: now,
+    });
+
+    log.info('engine', `Session reset (inMap=${this._ctx.inMap}, paused=${wasPaused})`);
   }
 
   pause(): void {

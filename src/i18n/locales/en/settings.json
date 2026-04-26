@@ -58,12 +58,20 @@
     "lowStock": {
       "label": "Low-stock warning threshold",
       "hint": "Warn when a tracked map material's count drops to this number or below. Default 0 warns only when you run out."
+    },
+    "pauseInTown": {
+      "label": "Pause Total timer in town",
+      "hint": "When enabled, the Total timer freezes while you're in town so the FE/h rate reflects in-map farming throughput. Map and Seasonal trackers are unaffected. Saved sessions still record full wall-clock time."
     }
   },
   "overlay": {
     "heading": "Overlay Window",
     "opacity": "Background Opacity",
-    "opacityHint": "Controls how transparent the overlay background appears"
+    "opacityHint": "Controls how transparent the overlay background appears",
+    "clickThrough": {
+      "label": "Click-through tracker while running",
+      "hint": "When enabled, clicks pass through the overlay during an active session so you can interact with the game underneath. Pause or stop to interact with the tracker."
+    }
   },
   "logPath": {
     "heading": "Game Log Path",
