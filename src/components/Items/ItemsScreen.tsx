@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Search} from 'lucide-react';
 import {useItemsStore} from '@/state/itemsStore';
@@ -56,6 +56,13 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
 
+  // When the user narrows the table (search query or filter pill), remember
+  // the first row that was visible. When they clear the narrowing, scroll
+  // back to that row so they don't lose their place. The "first row" is
+  // tracked in a ref so we don't trigger renders on every keystroke.
+  const lastFirstFilteredIdRef = useRef<string | null>(null);
+  const [restoreFocusId, setRestoreFocusId] = useState<string | null>(null);
+
   // Incoming focus request — clear any filter/search so the target row is visible.
   useEffect(() => {
     if (focusItemId === null) return;
@@ -81,6 +88,36 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
     return result;
   }, [rows, filter, search]);
 
+  const isNarrowed = filter !== 'all' || search.trim().length > 0;
+
+  // Track the first row visible while the user has narrowed the list. The
+  // table sorts internally, so "first row" is approximated as the first row
+  // in the filtered slice — close enough; if the user clears with a non-id
+  // sort active, they still land near where they were.
+  useEffect(() => {
+    if (isNarrowed) {
+      lastFirstFilteredIdRef.current = filtered[0]?.id ?? null;
+    }
+  }, [isNarrowed, filtered]);
+
+  function handleSearchChange(next: string) {
+    const wasNarrowed = isNarrowed;
+    setSearch(next);
+    if (wasNarrowed && !next.trim() && filter === 'all' && lastFirstFilteredIdRef.current) {
+      setRestoreFocusId(lastFirstFilteredIdRef.current);
+      lastFirstFilteredIdRef.current = null;
+    }
+  }
+
+  function handleFilterChange(next: Filter) {
+    const wasNarrowed = isNarrowed;
+    setFilter(next);
+    if (wasNarrowed && next === 'all' && !search.trim() && lastFirstFilteredIdRef.current) {
+      setRestoreFocusId(lastFirstFilteredIdRef.current);
+      lastFirstFilteredIdRef.current = null;
+    }
+  }
+
   return (
     <div className="flex flex-col h-full p-6 overflow-hidden">
       {/* Header */}
@@ -103,19 +140,19 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
           <FilterButton
             label={t('filters.all')}
             active={filter === 'all'}
-            onClick={() => setFilter('all')}
+            onClick={() => handleFilterChange('all')}
           />
           <FilterButton
             label={t('filters.unknown')}
             count={unknownCount}
             active={filter === 'unknown'}
-            onClick={() => setFilter('unknown')}
+            onClick={() => handleFilterChange('unknown')}
           />
           <FilterButton
             label={t('filters.noPrice')}
             count={noPriceCount}
             active={filter === 'noPrice'}
-            onClick={() => setFilter('noPrice')}
+            onClick={() => handleFilterChange('noPrice')}
           />
         </div>
 
@@ -124,7 +161,7 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
           <input
             type="text"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => handleSearchChange(e.target.value)}
             placeholder="Search ID or name…"
             className="bg-surface-elevated border border-border rounded-full pl-6 pr-3 py-1 text-[11px] text-text-primary placeholder:text-text-disabled outline-none focus:border-accent/50 transition-colors w-48"
           />
@@ -138,7 +175,14 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
             {t('empty')}
           </div>
         ) : (
-          <ItemsTable rows={filtered} focusItemId={focusItemId} onFocusConsumed={onFocusConsumed} />
+          <ItemsTable
+            rows={filtered}
+            focusItemId={focusItemId ?? restoreFocusId}
+            onFocusConsumed={() => {
+              setRestoreFocusId(null);
+              onFocusConsumed?.();
+            }}
+          />
         )}
       </div>
     </div>
