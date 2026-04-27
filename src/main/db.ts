@@ -82,6 +82,18 @@ function createTables(): void {
       enabled INTEGER NOT NULL DEFAULT 0,
       rules   TEXT NOT NULL DEFAULT '[]'
     );
+
+    CREATE TABLE IF NOT EXISTS session_maps (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id  TEXT NOT NULL,
+      map_index   INTEGER NOT NULL,
+      started_at  REAL NOT NULL,
+      duration    REAL NOT NULL,
+      drops       TEXT NOT NULL DEFAULT '{}',
+      spent       TEXT NOT NULL DEFAULT '{}'
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_maps_session ON session_maps (session_id);
   `);
   migrateWealth();
   migrateItems();
@@ -254,6 +266,9 @@ export function sessionsUpdate(session: DbSession): void {
 
 export function sessionsDelete(id: string): void {
   db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+  // Cascade: per-map rows have no FK constraint; clean them up explicitly so
+  // deleting a session doesn't leave orphans behind.
+  sessionMapsDeleteForSession(id);
 }
 
 export function sessionsRename(id: string, name: string): void {
@@ -264,6 +279,51 @@ export function sessionsGetOne(id: string): DbSession | null {
   const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as {id: string; name: string; saved_at: string; total_time: number; map_time: number; map_count: number; drops: string} | undefined;
   if (!row) return null;
   return {id: row.id, name: row.name, savedAt: row.saved_at, totalTime: row.total_time, mapTime: row.map_time, mapCount: row.map_count, drops: JSON.parse(row.drops)};
+}
+
+// ---------------------------------------------------------------------------
+// Session maps — per-map breakdown rows attached to a session
+// ---------------------------------------------------------------------------
+
+export interface DbSessionMap {
+  sessionId: string;
+  mapIndex:  number;
+  startedAt: number;        // ms epoch
+  duration:  number;        // ms
+  drops:     Record<string, number>;
+  spent:     Record<string, number>;
+}
+
+export function sessionMapsInsert(rows: DbSessionMap[]): void {
+  if (rows.length === 0) return;
+  const stmt = db.prepare(`
+    INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent)
+    VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent)
+  `);
+  const tx = db.transaction((rs: DbSessionMap[]) => {
+    for (const r of rs) {
+      stmt.run({...r, drops: JSON.stringify(r.drops), spent: JSON.stringify(r.spent)});
+    }
+  });
+  tx(rows);
+}
+
+export function sessionMapsGetForSession(sessionId: string): DbSessionMap[] {
+  const rows = db.prepare(
+    'SELECT session_id, map_index, started_at, duration, drops, spent FROM session_maps WHERE session_id = ? ORDER BY map_index ASC'
+  ).all(sessionId) as {session_id: string; map_index: number; started_at: number; duration: number; drops: string; spent: string}[];
+  return rows.map(r => ({
+    sessionId: r.session_id,
+    mapIndex:  r.map_index,
+    startedAt: r.started_at,
+    duration:  r.duration,
+    drops:     JSON.parse(r.drops),
+    spent:     JSON.parse(r.spent),
+  }));
+}
+
+export function sessionMapsDeleteForSession(sessionId: string): void {
+  db.prepare('DELETE FROM session_maps WHERE session_id = ?').run(sessionId);
 }
 
 // ---------------------------------------------------------------------------

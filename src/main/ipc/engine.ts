@@ -1,9 +1,9 @@
 import {ipcMain, BrowserWindow, utilityProcess} from 'electron';
 import type {UtilityProcess} from 'electron';
 import {log} from '@/main/logger';
-import {itemsGetAll, itemsSetPrice, itemsInsertIfMissing, wealthInsert, sessionsInsert, sessionsUpdate, sessionsGetOne, filtersGetAll, settingsGetAll} from '@/main/db';
+import {itemsGetAll, itemsSetPrice, itemsInsertIfMissing, wealthInsert, sessionsInsert, sessionsUpdate, sessionsGetOne, filtersGetAll, settingsGetAll, sessionMapsInsert} from '@/main/db';
 import {broadcastItemsChanged} from '@/main/items-broadcast';
-import type {DbSession} from '@/main/db';
+import type {DbSession, DbSessionMap} from '@/main/db';
 import {ItemFilterEngine} from '@/main/engine/item-filter';
 import type {FilterRule} from '@/types/itemFilter';
 import {mapRawType} from '@/types/itemType';
@@ -46,6 +46,16 @@ interface ActiveSessionState {
 }
 
 let activeSession: ActiveSessionState | null = null;
+
+/**
+ * Buffer of per-map rows for the active session. Filled on every map exit
+ * (tracker_finished kind=map) and flushed to disk in autoSaveSession when
+ * the run actually persists. Cleared on engine reset / stop / save.
+ *
+ * We buffer rather than write-through so that a discarded short run (below
+ * MIN_SAVE_DURATION_MS, no drops) doesn't leave orphan map rows behind.
+ */
+let pendingMapRows: DbSessionMap[] = [];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -101,6 +111,13 @@ function autoSaveSession(
     sessionsUpdate(record);
   } else {
     sessionsInsert(record);
+  }
+
+  // Flush any per-map rows accumulated during this run alongside the session.
+  if (pendingMapRows.length > 0) {
+    sessionMapsInsert(pendingMapRows);
+    log.debug('database', `Saved ${pendingMapRows.length} per-map rows for session ${session.sessionId}`);
+    pendingMapRows = [];
   }
 
   log.info('session', `Session saved: id=${record.id}`);
@@ -230,6 +247,22 @@ function createEngine(): Engine {
       if (inserted) log.info('database', `New item discovered: id=${id}`);
     }
 
+    // Buffer a per-map row on every map exit. Flushed to disk inside
+    // autoSaveSession; cleared if the run is discarded.
+    if (event.type === 'tracker_finished' && event.tracker.kind === 'map' && activeSession) {
+      const drops: Record<string, number> = {};
+      for (const [k, v] of Object.entries(event.tracker.drops)) drops[String(k)] = v;
+      const spent = mapMaterialHandler?.getLastSpends() ?? {};
+      pendingMapRows.push({
+        sessionId: activeSession.sessionId,
+        mapIndex:  pendingMapRows.length + 1,
+        startedAt: event.timestamp - event.tracker.elapsed,
+        duration:  event.tracker.elapsed,
+        drops,
+        spent,
+      });
+    }
+
     // Auto-save session on stop, then notify renderer so it can refresh
     if (event.type === 'tracker_finished' && event.tracker.kind === 'session' && activeSession) {
       const savedId = autoSaveSession(event, activeSession);
@@ -239,6 +272,9 @@ function createEngine(): Engine {
         _getMainWindow()?.webContents.send('engine:event', savedEvent);
         _getTrackerWindow()?.webContents.send('engine:event', savedEvent);
       }
+      // Whatever path autoSaveSession took (saved or skipped), the buffer
+      // is no longer needed once the session ends.
+      pendingMapRows = [];
     }
 
     _getMainWindow()?.webContents.send('engine:event', event);
@@ -336,6 +372,10 @@ function stopEngine(): void {
   }
   mapMaterialHandler = null;
   activeSession = null;
+  // Defensive: if any buffered map rows survived (e.g. engine.stop() didn't
+  // emit tracker_finished for some reason), drop them now so they can't
+  // contaminate the next session.
+  pendingMapRows = [];
   // Worker keeps running — it's independent
 }
 
@@ -373,7 +413,9 @@ export function registerEngineHandlers(
   ipcMain.on('engine:reset',  ()  => {
     if (!engine) return;
     engine.reset();
-    // The discarded run's identity must not be reused by the next Stop.
+    // The discarded run's identity must not be reused by the next Stop, and
+    // any buffered per-map rows belong to the discarded run — drop them.
+    pendingMapRows = [];
     activeSession = {sessionId: crypto.randomUUID(), sessionName: null, isOverride: false};
     log.info('session', `Session reset; new id=${activeSession.sessionId}`);
   });

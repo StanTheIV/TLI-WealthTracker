@@ -92,6 +92,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       rename:  (id: string, name: string)        => ipcRenderer.invoke('db:sessions:rename', id, name),
       getOne:  (id: string)                      => ipcRenderer.invoke('db:sessions:get-one', id),
     },
+    sessionMaps: {
+      getForSession: (sessionId: string) => ipcRenderer.invoke('db:session-maps:get-for-session', sessionId),
+    },
     seasonal: {
       getAll:   ()              => ipcRenderer.invoke('db:seasonal:get-all'),
       upsert:   (stat: unknown) => ipcRenderer.invoke('db:seasonal:upsert', stat),

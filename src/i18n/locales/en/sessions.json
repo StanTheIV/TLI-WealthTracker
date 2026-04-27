@@ -16,7 +16,19 @@
     "mapTime":      "Map time",
     "mapsRun":      "Maps run",
     "uniqueItems":  "Unique items",
-    "income":       "Income"
+    "income":       "Income",
+    "back":         "Back to sessions",
+    "totalFE":      "Total FE",
+    "fePerHour":    "FE / hour",
+    "perMapTitle":  "Per-map cost vs income",
+    "perMapEmpty":  "No per-map breakdown available for this session.",
+    "byTypeTitle":  "Value by item type",
+    "byTypeEmpty":  "No drops to break down.",
+    "tooltipIncome": "Income",
+    "tooltipCost":   "Cost",
+    "tooltipNet":    "Net",
+    "tooltipMap":      "Map #{{n}}",
+    "tooltipMapRange": "Maps #{{from}}–{{to}}"
   },
   "actions": {
     "continue":      "Continue Session",

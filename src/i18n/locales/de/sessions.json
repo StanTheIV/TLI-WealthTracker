@@ -16,7 +16,19 @@
     "mapTime":      "Kartenzeit",
     "mapsRun":      "Gespielte Karten",
     "uniqueItems":  "Einzigartige Items",
-    "income":       "Einnahmen"
+    "income":       "Einnahmen",
+    "back":         "Zurück zu Sitzungen",
+    "totalFE":      "Gesamt FE",
+    "fePerHour":    "FE / Stunde",
+    "perMapTitle":  "Kosten vs. Einnahmen pro Karte",
+    "perMapEmpty":  "Keine Karten-Aufschlüsselung für diese Sitzung verfügbar.",
+    "byTypeTitle":  "Wert nach Item-Typ",
+    "byTypeEmpty":  "Keine Drops zum Aufschlüsseln.",
+    "tooltipIncome": "Einnahmen",
+    "tooltipCost":   "Kosten",
+    "tooltipNet":    "Netto",
+    "tooltipMap":      "Karte #{{n}}",
+    "tooltipMapRange": "Karten #{{from}}–{{to}}"
   },
   "actions": {
     "continue":      "Sitzung fortsetzen",

@@ -38,6 +38,17 @@ export interface DbSession {
   drops:     Record<string, number>;
 }
 
+/** Per-map breakdown row for a saved session. Written by the engine on every
+ *  map exit and flushed to disk alongside the session's own row. */
+export interface DbSessionMap {
+  sessionId: string;
+  mapIndex:  number;
+  startedAt: number;        // ms epoch
+  duration:  number;        // ms
+  drops:     Record<string, number>;
+  spent:     Record<string, number>;
+}
+
 export interface DbSeasonalStat {
   zoneType:    string;
   zoneCount:   number;
@@ -149,6 +160,9 @@ interface ElectronAPI {
       delete:  (id: string) => Promise<void>;
       rename:  (id: string, name: string) => Promise<void>;
       getOne:  (id: string) => Promise<DbSession | null>;
+    };
+    sessionMaps: {
+      getForSession: (sessionId: string) => Promise<DbSessionMap[]>;
     };
     seasonal: {
       getAll:  () => Promise<DbSeasonalStat[]>;

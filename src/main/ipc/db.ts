@@ -4,6 +4,7 @@ import {
   settingsGetAll, settingsSet,
   itemsGetAll, itemsUpsert, itemsSetName, itemsSetType, itemsSetPrice, itemsImportBatch,
   sessionsGetAll, sessionsInsert, sessionsUpdate, sessionsDelete, sessionsRename, sessionsGetOne,
+  sessionMapsGetForSession,
   seasonalStatsGetAll, seasonalStatsUpsert,
   wealthInsert, wealthGetRange, wealthGetLatest, wealthClear,
   getLookupCountToday, recordLookup,
@@ -76,6 +77,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:sessions:delete',   (_e, id: string)        => sessionsDelete(id));
   ipcMain.handle('db:sessions:rename',   (_e, id: string, name: string) => sessionsRename(id, name));
   ipcMain.handle('db:sessions:get-one',  (_e, id: string)        => sessionsGetOne(id));
+  ipcMain.handle('db:session-maps:get-for-session', (_e, sessionId: string) => sessionMapsGetForSession(sessionId));
 
   ipcMain.handle('db:seasonal:get-all',  ()               => seasonalStatsGetAll());
   ipcMain.handle('db:seasonal:upsert',   (_e, stat)       => seasonalStatsUpsert(stat));

@@ -40,12 +40,27 @@ export class MapMaterialHandler implements EventHandler {
   private _activeLow:     Set<number>                   = new Set();
   /** Item qty <= _threshold triggers a warning. Default 0 (warn only at 0). */
   private _threshold:     number                        = 0;
+  /** Snapshot of the materials spent on the most recent map entry. Cleared
+   *  on each new map entry, so consumers should read it on map exit. */
+  private _lastSpends:    Map<number, number>           = new Map();
+
+  /** Returns the materials spent (positive quantities) on the most recent
+   *  town -> map entry. Read on map exit / session save. */
+  getLastSpends(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const [id, qty] of this._lastSpends) {
+      // _pendingSpends accumulates negative deltas; flip sign for export.
+      if (qty < 0) out[String(id)] = -qty;
+    }
+    return out;
+  }
 
   onStop(): void {
     this._pendingSpends.clear();
     this._watch.clear();
     this._dismissed.clear();
     this._activeLow.clear();
+    this._lastSpends.clear();
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -98,6 +113,10 @@ export class MapMaterialHandler implements EventHandler {
   }
 
   private _onMapEntry(ctx: EngineContext, emit: EmitFn): void {
+    // Snapshot the spends for this map entry — consumers (e.g. the engine
+    // emit callback writing per-map history) read this on map exit.
+    this._lastSpends = new Map(this._pendingSpends);
+
     const spent = new Set(this._pendingSpends.keys());
 
     // Promotion.
