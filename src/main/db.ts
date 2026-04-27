@@ -388,7 +388,15 @@ export function wealthGetLatest(limit: number): DbWealthDatapoint[] {
 }
 
 export function wealthClear(): void {
-  db.prepare('DELETE FROM wealth_datapoints').run();
+  // The wealth reset button is a "clear all historical farming data" action.
+  // Wealth datapoints, saved sessions, and per-map breakdowns all describe
+  // the same farming history from different angles, so they go together.
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM wealth_datapoints').run();
+    db.prepare('DELETE FROM session_maps').run();
+    db.prepare('DELETE FROM sessions').run();
+  });
+  tx();
 }
 
 // ---------------------------------------------------------------------------

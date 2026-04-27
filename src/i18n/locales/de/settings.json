@@ -90,11 +90,11 @@
     "error": "Ungültiges Dateiformat."
   },
   "wealthReset": {
-    "heading": "Wohlstandsdiagramm",
-    "label": "Gesamten Verlauf des Wohlstandsdiagramms löschen. Dies kann nicht rückgängig gemacht werden.",
-    "button": "Verlauf zurücksetzen",
-    "confirm": "Bist du sicher? Alle Wohlstandsdaten werden dauerhaft gelöscht.",
-    "done": "Verlauf wurde gelöscht."
+    "heading": "Farm-Verlauf",
+    "label": "Wohlstandsdiagramm, gespeicherte Sitzungen und Map-Aufschlüsselungen löschen. Dies kann nicht rückgängig gemacht werden.",
+    "button": "Farm-Verlauf zurücksetzen",
+    "confirm": "Bist du sicher? Wohlstandsdiagramm, gespeicherte Sitzungen und Map-Aufschlüsselungen werden dauerhaft gelöscht.",
+    "done": "Farm-Verlauf wurde gelöscht."
   },
   "apiKeys": {
     "heading": "API-Schlüssel",

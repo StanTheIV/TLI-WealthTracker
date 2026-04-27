@@ -3,6 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {useSettingsStore, type ThemeMode} from '@/state/settingsStore';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
+import {useSessionsStore} from '@/state/sessionsStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
 import type {DbItem} from '@/types/electron';
 import SegmentedControl from '@/components/ui/SegmentedControl';
@@ -256,7 +257,10 @@ export default function GeneralTab() {
                 <button
                   onClick={async () => {
                     await window.electronAPI.db.wealth.clear();
+                    // wealth.clear() now also wipes sessions + session_maps,
+                    // so refresh both stores so the UI matches.
                     await useWealthStore.getState().refresh();
+                    await useSessionsStore.getState().refresh();
                     setWealthResetState('done');
                   }}
                   className="px-4 py-2 rounded-lg bg-danger/15 border border-danger text-sm text-danger hover:bg-danger/25 transition-colors font-medium"

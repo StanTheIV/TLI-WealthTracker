@@ -90,11 +90,11 @@
     "error": "Invalid file format."
   },
   "wealthReset": {
-    "heading": "Wealth Chart",
-    "label": "Clear all wealth chart history. This cannot be undone.",
-    "button": "Reset Wealth History",
-    "confirm": "Are you sure? This will permanently delete all wealth chart data.",
-    "done": "Wealth history cleared."
+    "heading": "Farming History",
+    "label": "Clear all wealth chart data, saved sessions, and per-map breakdowns. This cannot be undone.",
+    "button": "Reset Farming History",
+    "confirm": "Are you sure? This will permanently delete all wealth chart data, saved sessions, and per-map breakdowns.",
+    "done": "Farming history cleared."
   },
   "apiKeys": {
     "heading": "API Keys",
