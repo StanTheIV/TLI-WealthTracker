@@ -162,6 +162,38 @@ describe('distributeDrop — filter on seasonal scope', () => {
 // Whitelist pattern through distributeDrop
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Return value — used by drop-publisher to gate the renderer-facing 'drop' event
+// ---------------------------------------------------------------------------
+
+describe('distributeDrop — return value reflects session-scope acceptance', () => {
+  it('returns true when no filter is set', () => {
+    const ctx = makeTrackingCtx();
+    expect(ctx.distributeDrop(100, 5)).toBe(true);
+  });
+
+  it('returns true when session scope accepts the drop', () => {
+    const ctx = makeTrackingCtx();
+    const types = new Map([['100', 'equipment' as const]]);
+    ctx.filter = new ItemFilterEngine(
+      // Hide from map only — session still accepts.
+      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['map'])],
+      types,
+    );
+    expect(ctx.distributeDrop(100, 5)).toBe(true);
+  });
+
+  it('returns false when session scope rejects the drop', () => {
+    const ctx = makeTrackingCtx();
+    const types = new Map([['100', 'equipment' as const]]);
+    ctx.filter = new ItemFilterEngine(
+      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session'])],
+      types,
+    );
+    expect(ctx.distributeDrop(100, 5)).toBe(false);
+  });
+});
+
 describe('distributeDrop — whitelist pattern', () => {
   it('whitelisted item is tracked in session even when type rule would hide it', () => {
     const ctx = makeTrackingCtx();

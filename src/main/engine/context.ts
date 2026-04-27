@@ -70,11 +70,17 @@ export class EngineContext {
    * The seasonal scope key is derived from the active seasonal tracker's type
    * so Vorex, Dream, and Overrealm can each have independent filter rules.
    * Default when no filter is set: include all items.
+   *
+   * Returns whether the session scope accepted the drop — used by the
+   * publisher to gate the renderer-facing `drop` event so the dashboard's
+   * unfiltered aggregate (engineStore.drops) and the live feed honour the
+   * session filter just like the session tracker itself does.
    */
-  distributeDrop(itemId: number, change: number): void {
+  distributeDrop(itemId: number, change: number): boolean {
     const f = this.filter;
 
-    if (!f || f.shouldInclude(itemId, 'session' as FilterScope)) {
+    const sessionIncluded = !f || f.shouldInclude(itemId, 'session' as FilterScope);
+    if (sessionIncluded) {
       this.session?.addDrop(itemId, change);
     }
     if (!f || f.shouldInclude(itemId, 'map' as FilterScope)) {
@@ -86,6 +92,7 @@ export class EngineContext {
         this.seasonal.addDrop(itemId, change);
       }
     }
+    return sessionIncluded;
   }
 
   reset(): void {

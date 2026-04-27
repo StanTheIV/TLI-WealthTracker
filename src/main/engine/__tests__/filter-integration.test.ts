@@ -161,13 +161,19 @@ describe('filter-integration — hide by type, all scopes', () => {
     expect(ctx(engine).session?.snapshot().drops[200]).toBe(3);         // passes
   });
 
-  it('drop events are still emitted to the renderer even when filtered from trackers', () => {
+  it('drop events to the renderer are gated on the session filter so the dashboard aggregate matches the session tracker', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
 
-    boot(engine, [{slotId: 1, itemId: 100, quantity: 0}]);
+    boot(engine, [
+      {slotId: 1, itemId: 100, quantity: 0},
+      {slotId: 2, itemId: 200, quantity: 0},
+    ]);
 
-    const types = new Map([['100', 'equipment' as const]]);
+    const types = new Map([
+      ['100', 'equipment' as const],
+      ['200', 'cube'      as const],
+    ]);
     engine.setFilter(new ItemFilterEngine(
       [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session', 'map'])],
       types,
@@ -175,13 +181,34 @@ describe('filter-integration — hide by type, all scopes', () => {
 
     enterMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
+    engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: 200, quantity: 3});
 
-    const dropEvents = events.filter(e => e.type === 'drop');
+    const dropEvents = events.filter((e): e is Extract<EngineEvent, {type: 'drop'}> => e.type === 'drop');
+    expect(dropEvents.map(e => e.itemId)).toEqual([200]);
+  });
+
+  it('keeps emitting drop events for filtered map-scope items as long as the session accepts them', () => {
+    const events: EngineEvent[] = [];
+    const engine = createEngine(events);
+
+    boot(engine, [{slotId: 1, itemId: 100, quantity: 0}]);
+
+    const types = new Map([['100', 'equipment' as const]]);
+    engine.setFilter(new ItemFilterEngine(
+      // Hide from map only — session still tracks it, so the dashboard
+      // aggregate must show the drop.
+      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['map'])],
+      types,
+    ));
+
+    enterMap(engine);
+    engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
+
+    const dropEvents = events.filter((e): e is Extract<EngineEvent, {type: 'drop'}> => e.type === 'drop');
     expect(dropEvents).toHaveLength(1);
-    if (dropEvents[0].type === 'drop') {
-      expect(dropEvents[0].itemId).toBe(100);
-      expect(dropEvents[0].change).toBe(5);
-    }
+    expect(dropEvents[0].itemId).toBe(100);
+    expect(ctx(engine).session?.snapshot().drops[100]).toBe(5);
+    expect(ctx(engine).map?.snapshot().drops[100]).toBeUndefined();
   });
 });
 
