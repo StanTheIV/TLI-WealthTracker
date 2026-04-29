@@ -35,6 +35,13 @@ export class Watcher {
       this._readDelta();
     });
 
+    // fs.watchFile only fires when stats change between polls. On Windows the
+    // baseline is taken at registration time, so writes that happen between
+    // statSync above and the first 250ms poll can be missed (the next poll
+    // still sees the post-write size). Schedule one immediate delta read so
+    // those writes are picked up on the next event-loop tick.
+    setImmediate(() => this._readDelta());
+
     return true;
   }
 
