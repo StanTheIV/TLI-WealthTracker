@@ -14,6 +14,13 @@ export interface Theme {
   buttonText:      string;
   danger:          string;
   success:         string;
+  // Per-item-type accent palette used by the Sessions chart breakdown.
+  typeEmber:       string;
+  typeFuel:        string;
+  typeDream:       string;
+  typeCube:        string;
+  typeCard:        string;
+  typeSkill:       string;
 }
 
 // Prussian-blue base + tech-blue accent + sunflower-gold highlight
@@ -33,6 +40,12 @@ export const darkTheme: Theme = {
   buttonText:      '#ffffff',
   danger:          '#d94f4f',
   success:         '#3dbf7a',
+  typeEmber:       '#e85a8b',
+  typeFuel:        '#e8a23a',
+  typeDream:       '#8a6dff',
+  typeCube:        '#5dd1d6',
+  typeCard:        '#c25dff',
+  typeSkill:       '#5d8eff',
 };
 
 // Warm parchment + tech-blue accent + amber gold
@@ -52,4 +65,11 @@ export const lightTheme: Theme = {
   buttonText:      '#ffffff',
   danger:          '#b83030',
   success:         '#2a9a5e',
+  // Light-mode equivalents — slightly darker so they read on parchment.
+  typeEmber:       '#c43d70',
+  typeFuel:        '#b87410',
+  typeDream:       '#5e3fc8',
+  typeCube:        '#2a9aa1',
+  typeCard:        '#9a35d4',
+  typeSkill:       '#2a5fc8',
 };

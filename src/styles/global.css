@@ -19,6 +19,13 @@ html {
   --color-border:           #181838;
   --color-danger:           #d94f4f;
   --color-success:          #3dbf7a;
+  /* Per-item-type accent palette (Sessions chart). Mirrored in src/theme/colors.ts. */
+  --color-type-ember:       #e85a8b;
+  --color-type-fuel:        #e8a23a;
+  --color-type-dream:       #8a6dff;
+  --color-type-cube:        #5dd1d6;
+  --color-type-card:        #c25dff;
+  --color-type-skill:       #5d8eff;
 }
 
 /* Tracker card animations */
@@ -74,4 +81,10 @@ html {
   --color-border:           #c8c0e0;
   --color-danger:           #b83030;
   --color-success:          #2a9a5e;
+  --color-type-ember:       #c43d70;
+  --color-type-fuel:        #b87410;
+  --color-type-dream:       #5e3fc8;
+  --color-type-cube:        #2a9aa1;
+  --color-type-card:        #9a35d4;
+  --color-type-skill:       #2a5fc8;
 }

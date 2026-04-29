@@ -29,16 +29,16 @@ function formatFEFull(value: number): string {
   return value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
-// Distinct color per item type — derived once from theme tokens + a tweak.
+// Distinct color per item type — derived from theme tokens.
 function typeColors(theme: ReturnType<typeof useTheme>): Record<ItemType, string> {
   return {
-    ember:       '#e85a8b',
-    fuel:        '#e8a23a',
+    ember:       theme.typeEmber,
+    fuel:        theme.typeFuel,
     compass:     theme.accent,
-    dream:       '#8a6dff',
-    cube:        '#5dd1d6',
-    card:        '#c25dff',
-    skill:       '#5d8eff',
+    dream:       theme.typeDream,
+    cube:        theme.typeCube,
+    card:        theme.typeCard,
+    skill:       theme.typeSkill,
     equipment:   theme.success,
     mapMaterial: theme.gold,
     other:       theme.textDisabled,
