@@ -1,10 +1,12 @@
+import type {FilterRule} from './itemFilter';
+
 export {};
 
 export interface TrackerSnapshot {
   kind:          'session' | 'map' | 'seasonal';
   drops:         Record<number, number>;
   elapsed:       number;
-  seasonalType?: 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork';
+  seasonalType?: 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord';
 }
 
 export interface UpdateInfo {
@@ -114,7 +116,7 @@ interface ElectronAPI {
     pause:           () => void;
     resume:          () => void;
     reset:           () => void;
-    updateFilterRules: (rules: unknown) => void;
+    updateFilterRules: (rules: FilterRule[] | null) => void;
     dismissMaterial:      (itemId: number) => void;
     setLowStockThreshold: (n: number) => void;
     onEvent:         (cb: (event: EngineEvent) => void) => () => void;

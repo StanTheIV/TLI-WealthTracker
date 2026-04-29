@@ -1,4 +1,14 @@
 import {contextBridge, ipcRenderer} from 'electron';
+import type {
+  DbItem,
+  DbSession,
+  DbSeasonalStat,
+  DbWealthDatapoint,
+  DbItemFilter,
+  EngineEvent,
+  ItemChangedPatch,
+} from '@/types/electron';
+import type {FilterRule} from '@/types/itemFilter';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   pickFolder:    () => ipcRenderer.invoke('dialog:pick-folder') as Promise<string | null>,
@@ -10,20 +20,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setClickThrough:(enabled: boolean)       => ipcRenderer.send('overlay:set-clickthrough', enabled),
     setPosition:    (x: number, y: number)   => ipcRenderer.send('overlay:set-position', x, y),
     setSize:        (w: number, h: number)   => ipcRenderer.send('overlay:set-size', w, h),
-    notifyReady:    ()                       => ipcRenderer.send('overlay:sized'),
+    notifyReady:    ()                       => ipcRenderer.send('overlay:notify-ready'),
     moveBy:         (dx: number, dy: number) => ipcRenderer.send('overlay:move-by', dx, dy),
     getPosition:    ()                       => ipcRenderer.invoke('overlay:get-position'),
     setOpacity:     (v: number)              => ipcRenderer.send('overlay:set-opacity', v),
     onOpacity: (cb: (v: number) => void) => {
       const wrapped = (_e: Electron.IpcRendererEvent, v: number) => cb(v);
-      ipcRenderer.on('overlay:opacity', wrapped);
-      return () => ipcRenderer.removeListener('overlay:opacity', wrapped);
+      ipcRenderer.on('overlay:opacity-changed', wrapped);
+      return () => ipcRenderer.removeListener('overlay:opacity-changed', wrapped);
     },
     broadcastSetting: (key: string, value: string) => ipcRenderer.send('settings:broadcast', key, value),
     onSettingChange: (cb: (key: string, value: string) => void) => {
       const wrapped = (_e: Electron.IpcRendererEvent, key: string, value: string) => cb(key, value);
-      ipcRenderer.on('settings:change', wrapped);
-      return () => ipcRenderer.removeListener('settings:change', wrapped);
+      ipcRenderer.on('settings:changed', wrapped);
+      return () => ipcRenderer.removeListener('settings:changed', wrapped);
     },
   },
 
@@ -34,11 +44,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pause:           ()                                   => ipcRenderer.send('engine:pause'),
     resume:          ()                                   => ipcRenderer.send('engine:resume'),
     reset:           ()                                   => ipcRenderer.send('engine:reset'),
-    updateFilterRules: (rules: unknown) => ipcRenderer.send('engine:update-filter-rules', rules),
+    updateFilterRules: (rules: FilterRule[] | null) => ipcRenderer.send('engine:update-filter-rules', rules),
     dismissMaterial:   (itemId: number) => ipcRenderer.send('engine:dismiss-material', itemId),
     setLowStockThreshold: (n: number)   => ipcRenderer.send('engine:set-low-stock-threshold', n),
-    onEvent: (cb: (event: unknown) => void) => {
-      const wrapped = (_e: Electron.IpcRendererEvent, ev: unknown) => cb(ev);
+    onEvent: (cb: (event: EngineEvent) => void) => {
+      const wrapped = (_e: Electron.IpcRendererEvent, ev: EngineEvent) => cb(ev);
       ipcRenderer.on('engine:event', wrapped);
       return () => ipcRenderer.removeListener('engine:event', wrapped);
     },
@@ -69,25 +79,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     items: {
       getAll:     ()                                    => ipcRenderer.invoke('db:items:get-all'),
-      upsert:     (item: unknown)                       => ipcRenderer.invoke('db:items:upsert', item),
+      upsert:     (item: DbItem)                        => ipcRenderer.invoke('db:items:upsert', item),
       setName:    (id: string, name: string)            => ipcRenderer.invoke('db:items:set-name', id, name),
       setType:    (id: string, type: string)            => ipcRenderer.invoke('db:items:set-type', id, type),
       setPrice:   (id: string, price: number)           => ipcRenderer.invoke('db:items:set-price', id, price),
       lookupName:   (id: string)                          => ipcRenderer.invoke('db:items:lookup-name', id),
-      importBatch:  (items: unknown)                      => ipcRenderer.invoke('db:items:import-batch', items),
-      onChanged: (cb: (patch: {id: string; changes: Partial<{name: string; type: string; price: number; priceDate: number}>}) => void) => {
-        const wrapped = (_e: Electron.IpcRendererEvent, patch: {id: string; changes: Partial<{name: string; type: string; price: number; priceDate: number}>}) => cb(patch);
+      importBatch:  (items: DbItem[])                     => ipcRenderer.invoke('db:items:import-batch', items),
+      onChanged: (cb: (patch: ItemChangedPatch) => void) => {
+        const wrapped = (_e: Electron.IpcRendererEvent, patch: ItemChangedPatch) => cb(patch);
         ipcRenderer.on('items:changed', wrapped);
         return () => ipcRenderer.removeListener('items:changed', wrapped);
       },
     },
     lookups: {
-      getToday: () => ipcRenderer.invoke('db:lookups:today'),
+      getToday: () => ipcRenderer.invoke('db:lookups:get-today'),
     },
     sessions: {
       getAll:  ()                                => ipcRenderer.invoke('db:sessions:get-all'),
-      insert:  (session: unknown)                => ipcRenderer.invoke('db:sessions:insert', session),
-      update:  (session: unknown)                => ipcRenderer.invoke('db:sessions:update', session),
+      insert:  (session: DbSession)              => ipcRenderer.invoke('db:sessions:insert', session),
+      update:  (session: DbSession)              => ipcRenderer.invoke('db:sessions:update', session),
       delete:  (id: string)                      => ipcRenderer.invoke('db:sessions:delete', id),
       rename:  (id: string, name: string)        => ipcRenderer.invoke('db:sessions:rename', id, name),
       getOne:  (id: string)                      => ipcRenderer.invoke('db:sessions:get-one', id),
@@ -96,19 +106,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
       getForSession: (sessionId: string) => ipcRenderer.invoke('db:session-maps:get-for-session', sessionId),
     },
     seasonal: {
-      getAll:   ()              => ipcRenderer.invoke('db:seasonal:get-all'),
-      upsert:   (stat: unknown) => ipcRenderer.invoke('db:seasonal:upsert', stat),
+      getAll:   ()                     => ipcRenderer.invoke('db:seasonal:get-all'),
+      upsert:   (stat: DbSeasonalStat) => ipcRenderer.invoke('db:seasonal:upsert', stat),
     },
     wealth: {
-      insert:    (point: unknown)            => ipcRenderer.invoke('db:wealth:insert', point),
+      insert:    (point: DbWealthDatapoint)  => ipcRenderer.invoke('db:wealth:insert', point),
       getRange:  (from: number, to: number)  => ipcRenderer.invoke('db:wealth:get-range', from, to),
       getLatest: (limit: number)             => ipcRenderer.invoke('db:wealth:get-latest', limit),
       clear:     ()                          => ipcRenderer.invoke('db:wealth:clear'),
     },
     filters: {
       getAll:     ()                                  => ipcRenderer.invoke('db:filters:get-all'),
-      insert:     (filter: unknown)                   => ipcRenderer.invoke('db:filters:insert', filter),
-      update:     (filter: unknown)                   => ipcRenderer.invoke('db:filters:update', filter),
+      insert:     (filter: DbItemFilter)              => ipcRenderer.invoke('db:filters:insert', filter),
+      update:     (filter: DbItemFilter)              => ipcRenderer.invoke('db:filters:update', filter),
       delete:     (id: string)                        => ipcRenderer.invoke('db:filters:delete', id),
       setEnabled: (id: string, enabled: boolean)      => ipcRenderer.invoke('db:filters:set-enabled', id, enabled),
     },

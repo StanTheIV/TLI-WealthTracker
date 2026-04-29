@@ -87,7 +87,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:wealth:get-latest', (_e, limit)      => wealthGetLatest(limit));
   ipcMain.handle('db:wealth:clear',      ()               => wealthClear());
 
-  ipcMain.handle('db:lookups:today',     ()               => getLookupCountToday());
+  ipcMain.handle('db:lookups:get-today', ()               => getLookupCountToday());
 
   ipcMain.handle('db:filters:get-all',    ()                        => filtersGetAll());
   ipcMain.handle('db:filters:insert',     (_e, filter)              => filtersInsert(filter));

@@ -8,6 +8,7 @@ import {registerDbHandlers} from './ipc/db';
 import {registerOverlayHandlers} from './ipc/overlay';
 import {registerEngineHandlers, stopEngineForShutdown, notifyEngineItemTypeChanged} from './ipc/engine';
 import {registerUpdaterHandlers} from './ipc/updater';
+import {registerLoggingHandlers} from './ipc/logging';
 
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER = 'http://localhost:5173';
@@ -175,10 +176,7 @@ app.whenReady().then(() => {
     () => trackerWindow,
   );
   registerUpdaterHandlers(() => mainWindow);
-
-  // Logging IPC handlers
-  ipcMain.handle('logging:reload-config', () => { log.reloadConfig(); });
-  ipcMain.handle('logging:get-log-path',  () => join(app.getPath('userData'), 'tli-tracker.log'));
+  registerLoggingHandlers();
 
   log.debug('app', 'IPC handlers registered');
 

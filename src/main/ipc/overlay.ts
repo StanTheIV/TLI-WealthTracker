@@ -20,7 +20,7 @@ export function registerOverlayHandlers(
     log.debug('overlay', 'Overlay shown');
   });
 
-  ipcMain.on('overlay:sized', () => {
+  ipcMain.on('overlay:notify-ready', () => {
     sizedOnce = true;
     if (pendingShow) {
       pendingShow = false;
@@ -43,12 +43,12 @@ export function registerOverlayHandlers(
   });
 
   ipcMain.on('overlay:set-opacity', (_e, v: number) => {
-    getTrackerWindow()?.webContents.send('overlay:opacity', v);
+    getTrackerWindow()?.webContents.send('overlay:opacity-changed', v);
     log.debug('overlay', `Overlay opacity: ${v}`);
   });
 
   ipcMain.on('settings:broadcast', (_e, key: string, value: string) => {
-    getTrackerWindow()?.webContents.send('settings:change', key, value);
+    getTrackerWindow()?.webContents.send('settings:changed', key, value);
   });
 
   ipcMain.on('overlay:move-by', (_e, dx: number, dy: number) => {
