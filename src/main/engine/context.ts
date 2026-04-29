@@ -63,6 +63,11 @@ export class EngineContext {
   inOverrealm:      boolean = false;  // currently inside Overrealm stages
   overrealmExiting: boolean = false;  // portal 52 seen; waiting for zone transition to start loot timer
 
+  // Sandlord (S10) state — true between hub-entry and real-town return.
+  // Read by ZoneHandler to suppress map-tracker creation for the entire bubble
+  // (hub + sub-maps), so the whole experience is captured by one seasonal tracker.
+  inSandlord:       boolean = false;
+
   /**
    * Fan a drop out to all active trackers, applying per-scope filter rules.
    * Called by ItemHandler._flush() — the single drop publisher.
@@ -116,5 +121,6 @@ export class EngineContext {
     this.vorexAbandoning   = false;
     this.inOverrealm       = false;
     this.overrealmExiting  = false;
+    this.inSandlord        = false;
   }
 }

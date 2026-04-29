@@ -30,6 +30,7 @@ import {VorexHandler}     from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import {CarjackHandler}  from '@/main/engine/handlers/carjack-handler';
 import {ClockworkHandler} from '@/main/engine/handlers/clockwork-handler';
+import {SandlordHandler}  from '@/main/engine/handlers/sandlord-handler';
 import {ItemHandler}      from '@/main/engine/handlers/item';
 import type {EngineEvent} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
@@ -96,6 +97,7 @@ function createDispatcher(): Dispatcher {
 function createEngine(events: EngineEvent[]): Engine {
   return new Engine((e) => events.push(e))
     .register(new BagInitHandler())
+    .register(new SandlordHandler())  // before ZoneHandler — sets ctx.inSandlord
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())
@@ -719,6 +721,138 @@ describe('Clockwork integration', () => {
     feed(d, e, log.s7Success); // duplicate
 
     const starts = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'clockwork');
+    expect(starts).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sandlord (S10) — pure zone-transition trigger, whole bubble in one tracker
+// ---------------------------------------------------------------------------
+
+const SANDLORD_HUB     = '/Game/Art/Season/S10/Maps/YunDuanLvZhou/YunDuanLvZhou.YunDuanLvZhou';
+const SANDLORD_SUB_MAP = '/Game/Art/Maps/06SQ/SQ_NvShenQunBai100/SQ_NvShenQunBai100.SQ_NvShenQunBai100';
+
+describe('Sandlord integration', () => {
+  it('town → hub starts a sandlord seasonal tracker and no map tracker', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
+
+    expect(ctx(e).seasonal?.seasonalType).toBe('sandlord');
+    expect(ctx(e).inSandlord).toBe(true);
+    expect(ctx(e).inMap).toBe(false);
+    expect(ctx(e).map).toBeNull();
+    expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'sandlord')).toBe(true);
+    expect(events.some(ev => ev.type === 'map_started')).toBe(false);
+  });
+
+  it('hub → sub-map keeps the bubble open, no map tracker is created', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
+    events.length = 0;
+
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, SANDLORD_SUB_MAP));
+
+    expect(ctx(e).seasonal?.seasonalType).toBe('sandlord');
+    expect(ctx(e).inMap).toBe(false);
+    expect(ctx(e).map).toBeNull();
+    expect(events.some(ev => ev.type === 'map_started')).toBe(false);
+    expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'sandlord')).toBe(false);
+  });
+
+  it('drops inside hub and sub-map are attributed to the single sandlord tracker', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
+    feed(d, e, log.bagUpdate(1, 800, 3));   // delta +3
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, SANDLORD_SUB_MAP));
+    feed(d, e, log.bagUpdate(1, 800, 10));  // delta +7
+    vi.advanceTimersByTime(2_000);          // flush ItemHandler town-debounce
+
+    expect(ctx(e).seasonal?.snapshot().drops[800]).toBe(10);
+    expect(ctx(e).map).toBeNull();
+  });
+
+  it('returning to town finishes the sandlord tracker and clears the bubble flag', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, SANDLORD_SUB_MAP));
+    feed(d, e, log.zoneTransition(SANDLORD_SUB_MAP, SANDLORD_HUB));
+    events.length = 0;
+
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, TOWN));
+
+    expect(ctx(e).seasonal).toBeNull();
+    expect(ctx(e).inSandlord).toBe(false);
+    expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'sandlord')).toBe(true);
+    expect(events.some(ev => ev.type === 'map_ended')).toBe(false);
+  });
+
+  it('after sandlord ends, normal map tracking resumes on next map entry', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, TOWN));
+    events.length = 0;
+
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+
+    expect(ctx(e).inMap).toBe(true);
+    expect(ctx(e).map).not.toBeNull();
+    expect(events.some(ev => ev.type === 'map_started')).toBe(true);
+  });
+
+  it('repeated sandlord runs each get their own tracker and do not double-start', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
+
+    // First run
+    feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, SANDLORD_SUB_MAP));
+    feed(d, e, log.zoneTransition(SANDLORD_SUB_MAP, SANDLORD_HUB));
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, TOWN));
+
+    // Second run
+    feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, TOWN));
+
+    const starts   = events.filter(ev => ev.type === 'tracker_started'  && ev.tracker.seasonalType === 'sandlord');
+    const finishes = events.filter(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'sandlord');
+    expect(starts).toHaveLength(2);
+    expect(finishes).toHaveLength(2);
+  });
+
+  it('sub-map → hub does not duplicate tracker_started', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, SANDLORD_SUB_MAP));
+    feed(d, e, log.zoneTransition(SANDLORD_SUB_MAP, SANDLORD_HUB));
+
+    const starts = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'sandlord');
     expect(starts).toHaveLength(1);
   });
 });

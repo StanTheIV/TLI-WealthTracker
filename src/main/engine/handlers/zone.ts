@@ -22,6 +22,10 @@ function shortScene(scene: string): string {
  *
  * Must be registered BEFORE SeasonalHandler and ItemHandler so ctx.inMap is
  * updated before those handlers read it on the same zone_transition event.
+ *
+ * Exception: SandlordHandler must run BEFORE ZoneHandler, because Zone reads
+ * ctx.inSandlord (set by SandlordHandler) on the same event to decide whether
+ * to suppress map-tracker creation inside the Sandlord bubble.
  */
 export class ZoneHandler implements EventHandler {
   readonly name    = 'zone';
@@ -42,7 +46,7 @@ export class ZoneHandler implements EventHandler {
       timestamp: now,
     });
 
-    if (entering === 'map' && !ctx.inMap) {
+    if (entering === 'map' && !ctx.inMap && !ctx.inSandlord) {
       ctx.inMap        = true;
       ctx.mapCount    += 1;
       ctx.mapStartTime = now;

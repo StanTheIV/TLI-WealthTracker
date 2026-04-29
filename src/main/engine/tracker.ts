@@ -1,4 +1,4 @@
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork';
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord';
 export type TrackerKind = 'session' | 'map' | 'seasonal';
 
 export interface TrackerSnapshot {

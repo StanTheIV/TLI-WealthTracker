@@ -15,6 +15,7 @@ import {VorexHandler} from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import {CarjackHandler} from '@/main/engine/handlers/carjack-handler';
 import {ClockworkHandler} from '@/main/engine/handlers/clockwork-handler';
+import {SandlordHandler} from '@/main/engine/handlers/sandlord-handler';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {MapMaterialHandler} from '@/main/engine/handlers/map-material';
 import {ErrorHandler} from '@/main/engine/handlers/error';
@@ -291,6 +292,7 @@ function createEngine(): Engine {
   // running engine (between-session price scrapes happen in town).
   return new Engine(emit)
     .register(new BagInitHandler())
+    .register(new SandlordHandler())  // before ZoneHandler — sets ctx.inSandlord
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())
