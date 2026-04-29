@@ -51,9 +51,11 @@ Each scope has its own elapsed timer and item breakdown.
 The tracker automatically detects and tracks these seasonal farming mechanics:
 
 - **Dream (Season 5)** — Detected via level type transitions
-- **Vorex (Season 13)** — Tracks window open/close/abandon states; correctly attributes reward-zone loot even after the window closes
-- **Overrealm (Season 12)** — Multi-stage tracking; captures loot collected after exiting the portal (5-second collection window)
+- **Clockwork (Season 7)** — Tracks the Clockwork Ballet seasonal event from entry to exit
+- **Sandlord (Season 10)** — Covers the Sandlord hub and all its sub-maps as a single tracker; starts on entering the hub and stops on returning to town
 - **Carjack (Season 11)** — Combat timer with post-combat loot window (5 seconds)
+- **Overrealm (Season 12)** — Multi-stage tracking; captures loot collected after exiting the portal (5-second collection window)
+- **Vorex (Season 13)** — Tracks window open/close/abandon states; correctly attributes reward-zone loot even after the window closes
 
 Each seasonal tracker starts and stops independently, pauses when the event pauses, and only counts loot that belongs to that event.
 
@@ -69,7 +71,7 @@ A local database of every item you've encountered, with names, types, and prices
 
 ### Dashboard & Analytics
 
-- **Wealth chart** — Area chart showing cumulative FE earned over the session timeline
+- **Wealth chart** — Area chart of cumulative FE over time, with a range selector (1D / 3D / 7D / 1M / All) and an x-axis that adapts to the selected range — hour-level detail on 1D and 3D, dates on 7D and longer
 - **Item breakdown table** — All items with quantity, unit price, and total value columns; sortable by any column; filterable by item type
 - **Live event feed** — Real-time log of drops, zone changes, map starts/ends, and errors with color coding and timestamps
 
@@ -77,6 +79,7 @@ A local database of every item you've encountered, with names, types, and prices
 
 - List of all saved sessions with sortable columns (name, date, duration, maps run, income)
 - Session detail panel: saved date, total time, map time, maps run, unique items, total income
+- Per-map breakdown table with a cost-vs-income chart per run, showing entry material spend against drops earned, colour-coded by item type (ember, fuel, dream, cube, card, skill, etc.)
 - Rename or delete sessions
 - Continue any past session to add new drops to its totals
 
@@ -87,7 +90,7 @@ Control exactly which items are counted in each tracking scope.
 - Rule-based: rules are evaluated in order, first match wins
 - Two rule types: match by **item type** (e.g. hide all Embers) or match by **specific item**
 - Two actions per rule: **Show** (always count) or **Hide** (never count)
-- Seven independent scopes: Session, Map, Vorex, Dream, Overrealm, Carjack, Wealth chart
+- Nine independent scopes: Session, Map, Vorex, Dream, Overrealm, Carjack, Clockwork, Sandlord, Wealth chart
 - Multiple named filter sets — enable/disable per set
 - Rules can be reordered via drag-and-drop
 - Changes take effect live, even mid-session
