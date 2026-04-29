@@ -30,7 +30,7 @@ export default function LowStockWarningRow({warnings}: Props) {
     <div
       className="relative flex flex-col rounded-md overflow-hidden"
       style={{
-        backgroundColor: 'rgba(17,17,40,var(--card-opacity,1))',
+        backgroundColor: 'color-mix(in srgb, var(--color-surface-elevated) calc(var(--card-opacity, 1) * 100%), transparent)',
         animation: 'tracker-warning-pulse 1.2s ease-in-out infinite',
       }}
     >
