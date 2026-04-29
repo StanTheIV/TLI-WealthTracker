@@ -29,7 +29,6 @@ const LOG_SUBPATH = 'TorchLight/Saved/Logs/UE_game.log';
 
 let logReaderProcess: UtilityProcess | null = null;
 let engine: Engine | null = null;
-let mapMaterialHandler: MapMaterialHandler | null = null;
 
 // Window accessors — set once in registerEngineHandlers
 let _getMainWindow:    () => BrowserWindow | null = () => null;
@@ -252,7 +251,7 @@ function createEngine(): Engine {
     if (event.type === 'tracker_finished' && event.tracker.kind === 'map' && activeSession) {
       const drops: Record<string, number> = {};
       for (const [k, v] of Object.entries(event.tracker.drops)) drops[String(k)] = v;
-      const spent = mapMaterialHandler?.getLastSpends() ?? {};
+      const spent = engine?.getLastMapSpends() ?? {};
       pendingMapRows.push({
         sessionId: activeSession.sessionId,
         mapIndex:  pendingMapRows.length + 1,
@@ -288,9 +287,8 @@ function createEngine(): Engine {
     }
   };
 
-  // PriceHandler is no longer registered here — prices are handled directly
-  // in onWorkerMessage so they work even without a running engine.
-  mapMaterialHandler = new MapMaterialHandler();
+  // Prices are handled directly in onWorkerMessage so they work even without a
+  // running engine (between-session price scrapes happen in town).
   return new Engine(emit)
     .register(new BagInitHandler())
     .register(new ZoneHandler())
@@ -300,7 +298,7 @@ function createEngine(): Engine {
     .register(new CarjackHandler())
     .register(new ClockworkHandler())
     .register(new ItemHandler())
-    .register(mapMaterialHandler)
+    .register(new MapMaterialHandler())
     .register(new ErrorHandler());
 }
 
@@ -359,7 +357,7 @@ function startEngine(logPath: string, loadSessionId?: string): void {
   const threshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0
     ? Math.floor(parsedThreshold)
     : 0;
-  mapMaterialHandler?.setThreshold(threshold);
+  engine.setLowStockThreshold(threshold);
 
   log.info('engine', 'Engine started');
 }
@@ -370,7 +368,6 @@ function stopEngine(): void {
     engine.stop();
     engine = null;
   }
-  mapMaterialHandler = null;
   activeSession = null;
   // Defensive: if any buffered map rows survived (e.g. engine.stop() didn't
   // emit tracker_finished for some reason), drop them now so they can't
@@ -423,10 +420,10 @@ export function registerEngineHandlers(
   // which the db handler registration wires up to call
   // notifyEngineItemTypeChanged() so the engine's filter cache stays current.
   ipcMain.on('engine:dismiss-material', (_e, itemId: number) => {
-    mapMaterialHandler?.dismiss(itemId);
+    engine?.dismissMaterial(itemId);
   });
   ipcMain.on('engine:set-low-stock-threshold', (_e, n: number) => {
-    mapMaterialHandler?.setThreshold(n);
+    engine?.setLowStockThreshold(n);
   });
   ipcMain.on('engine:update-filter-rules', (_e, payload: FilterRule[] | null) => {
     if (!engine) return;

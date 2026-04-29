@@ -5,6 +5,7 @@ import type {LoadedSessionData} from './context';
 import type {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/types/itemFilter';
 import {Tracker} from './tracker';
+import {MapMaterialHandler} from './handlers/map-material';
 import {log} from '@/main/logger';
 
 /**
@@ -19,6 +20,9 @@ export class Engine {
   private _emit: EmitFn;
   // Map from event type → ordered list of handlers
   private _routes = new Map<string, EventHandler[]>();
+  // Typed reference to the map-material handler so the IPC layer can mutate
+  // its state through Engine methods rather than reaching across the boundary.
+  private _mapMaterial: MapMaterialHandler | null = null;
 
   constructor(emit: EmitFn) {
     this._emit = emit;
@@ -29,6 +33,7 @@ export class Engine {
       if (!this._routes.has(type)) this._routes.set(type, []);
       this._routes.get(type)!.push(handler);
     }
+    if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
     return this;
   }
 
@@ -192,6 +197,22 @@ export class Engine {
 
   getInventory(): Map<number, number> {
     return this._ctx.bag.getInventory();
+  }
+
+  // --- Map material delegation -------------------------------------------------
+  // Thin pass-throughs to the registered MapMaterialHandler so the IPC layer
+  // never reaches into a handler instance directly.
+
+  dismissMaterial(itemId: number): void {
+    this._mapMaterial?.dismiss(itemId);
+  }
+
+  setLowStockThreshold(n: number): void {
+    this._mapMaterial?.setThreshold(n);
+  }
+
+  getLastMapSpends(): Record<string, number> {
+    return this._mapMaterial?.getLastSpends() ?? {};
   }
 
   onRawEvent(event: RawEvent): void {

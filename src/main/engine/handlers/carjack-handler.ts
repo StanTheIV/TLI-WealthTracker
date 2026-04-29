@@ -27,6 +27,9 @@ export class CarjackHandler implements EventHandler {
   readonly handles = ['s11_start', 's11_end', 'zone_transition', 'bag_update'] as const;
 
   private _lootTimer: LootCollectionTimer | null = null;
+  // Private de-dup guard for repeated s11_start lines — handler-local on
+  // purpose. Unlike OverrealmHandler's flags on EngineContext (read across
+  // event types), this is only consulted inside this handler.
   private _inCarjack: boolean = false;
 
   onStop(_ctx: EngineContext): void {
