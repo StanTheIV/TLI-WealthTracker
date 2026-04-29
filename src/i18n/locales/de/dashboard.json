@@ -3,7 +3,14 @@
   "subtitle": "Vermögensübersicht",
   "chart": {
     "title": "Vermögen über Zeit",
-    "empty": "Noch keine Vermögensdaten — starte das Tracking und sortiere dein Inventar, um den ersten Datenpunkt zu erfassen"
+    "empty": "Noch keine Vermögensdaten — starte das Tracking und sortiere dein Inventar, um den ersten Datenpunkt zu erfassen",
+    "range": {
+      "1d":  "1T",
+      "3d":  "3T",
+      "7d":  "7T",
+      "1m":  "1M",
+      "all": "Alle"
+    }
   },
   "breakdown": {
     "title": "Gegenstandsübersicht",

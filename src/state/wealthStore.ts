@@ -9,51 +9,75 @@ export interface BreakdownEntry {
 
 export type Breakdown = Record<string, BreakdownEntry>;
 
+export type WealthRange = '1d' | '3d' | '7d' | '1m' | 'all';
+
 interface WealthState {
   datapoints:      DbWealthDatapoint[];
   latestBreakdown: Breakdown;
   latestTimestamp: number | null;
+  range:           WealthRange;
   isLoaded:        boolean;
 }
 
 interface WealthActions {
-  load:    () => Promise<void>;
-  refresh: () => Promise<void>;
+  load:     () => Promise<void>;
+  refresh:  () => Promise<void>;
+  setRange: (range: WealthRange) => Promise<void>;
 }
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-function parseLatest(points: DbWealthDatapoint[]): {breakdown: Breakdown; latestTimestamp: number | null} {
-  if (points.length === 0) return {breakdown: {}, latestTimestamp: null};
-  const latest = points[points.length - 1];
+const RANGE_MS: Record<Exclude<WealthRange, 'all'>, number> = {
+  '1d': 1  * DAY_MS,
+  '3d': 3  * DAY_MS,
+  '7d': 7  * DAY_MS,
+  '1m': 30 * DAY_MS,
+};
+
+function parseBreakdown(point: DbWealthDatapoint | undefined): {breakdown: Breakdown; latestTimestamp: number | null} {
+  if (!point) return {breakdown: {}, latestTimestamp: null};
   try {
-    return {breakdown: JSON.parse(latest.breakdown) as Breakdown, latestTimestamp: latest.timestamp};
+    return {breakdown: JSON.parse(point.breakdown) as Breakdown, latestTimestamp: point.timestamp};
   } catch {
-    return {breakdown: {}, latestTimestamp: latest.timestamp};
+    return {breakdown: {}, latestTimestamp: point.timestamp};
   }
 }
 
-async function fetchPoints(): Promise<DbWealthDatapoint[]> {
-  const now  = Date.now();
-  const from = now - THIRTY_DAYS_MS;
-  return window.electronAPI.db.wealth.getRange(from, now);
+async function fetchPoints(range: WealthRange): Promise<DbWealthDatapoint[]> {
+  const now = Date.now();
+  if (range === 'all') return window.electronAPI.db.wealth.getRange(0, now);
+  return window.electronAPI.db.wealth.getRange(now - RANGE_MS[range], now);
 }
 
-export const useWealthStore = create<WealthState & WealthActions>((set) => ({
+async function fetchLatest(): Promise<DbWealthDatapoint | undefined> {
+  const points = await window.electronAPI.db.wealth.getLatest(1);
+  return points[points.length - 1];
+}
+
+export const useWealthStore = create<WealthState & WealthActions>((set, get) => ({
   datapoints:      [],
   latestBreakdown: {},
   latestTimestamp: null,
+  range:           '1m',
   isLoaded:        false,
 
   load: async () => {
-    const points = await fetchPoints();
-    const {breakdown, latestTimestamp} = parseLatest(points);
+    const {range} = get();
+    const [points, latest] = await Promise.all([fetchPoints(range), fetchLatest()]);
+    const {breakdown, latestTimestamp} = parseBreakdown(latest);
     set({datapoints: points, latestBreakdown: breakdown, latestTimestamp, isLoaded: true});
   },
 
   refresh: async () => {
-    const points = await fetchPoints();
-    const {breakdown, latestTimestamp} = parseLatest(points);
+    const {range} = get();
+    const [points, latest] = await Promise.all([fetchPoints(range), fetchLatest()]);
+    const {breakdown, latestTimestamp} = parseBreakdown(latest);
     set({datapoints: points, latestBreakdown: breakdown, latestTimestamp});
+  },
+
+  setRange: async (range) => {
+    set({range});
+    const points = await fetchPoints(range);
+    set({datapoints: points});
   },
 }));

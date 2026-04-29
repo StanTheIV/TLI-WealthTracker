@@ -3,7 +3,14 @@
   "subtitle": "Wealth overview",
   "chart": {
     "title": "Wealth Over Time",
-    "empty": "No wealth data yet — start tracking and sort your bag to record the first datapoint"
+    "empty": "No wealth data yet — start tracking and sort your bag to record the first datapoint",
+    "range": {
+      "1d":  "1D",
+      "3d":  "3D",
+      "7d":  "7D",
+      "1m":  "1M",
+      "all": "All"
+    }
   },
   "breakdown": {
     "title": "Item Breakdown",
