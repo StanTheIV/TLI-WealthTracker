@@ -69,6 +69,17 @@ export class EngineContext {
   inSandlord:       boolean = false;
 
   /**
+   * True when the player is inside an active loot context (a regular map, or
+   * a seasonal bubble like Sandlord that suppresses the map tracker). Used by
+   * ItemHandler to decide whether bag deltas should flush immediately (loot)
+   * or debounce (town sorting). Add new clauses here when a future seasonal
+   * suppresses map-tracker creation.
+   */
+  isLootContext(): boolean {
+    return this.inMap || this.inSandlord;
+  }
+
+  /**
    * Fan a drop out to all active trackers, applying per-scope filter rules.
    * Called by ItemHandler._flush() — the single drop publisher.
    *

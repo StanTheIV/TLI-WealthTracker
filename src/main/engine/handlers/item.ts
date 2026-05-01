@@ -50,15 +50,16 @@ export class ItemHandler implements EventHandler {
     }
 
     if (event.type === 'zone_transition') {
-      // ZoneHandler runs first (registered before ItemHandler) and has already
-      // updated ctx.inMap. If we just left a map, flush immediately.
-      if (!ctx.inMap) this._flush(ctx, emit);
+      // ZoneHandler / SandlordHandler run first (registered before ItemHandler)
+      // and have already updated ctx.inMap / ctx.inSandlord. If we just left a
+      // loot context, flush immediately.
+      if (!ctx.isLootContext()) this._flush(ctx, emit);
     }
   }
 
   private _scheduleFlush(ctx: EngineContext, emit: EmitFn): void {
-    if (ctx.inMap) {
-      this._flush(ctx, emit); // immediate in map
+    if (ctx.isLootContext()) {
+      this._flush(ctx, emit); // immediate in map / Sandlord bubble
     } else {
       this._clearTimer();
       this._timer = setTimeout(() => this._flush(ctx, emit), BUFFER_MS);
