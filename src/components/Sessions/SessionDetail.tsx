@@ -189,6 +189,10 @@ function ByTypePieChart({drops, prices, itemTypes}: {
     const totals: Record<ItemType, number> = {} as Record<ItemType, number>;
     for (const type of ITEM_TYPES) totals[type] = 0;
     for (const [id, qty] of Object.entries(drops)) {
+      // Negative quantities (e.g. items listed on the auction house mid-session)
+      // aren't income — they're conversions. Clamp to 0 so they don't subtract
+      // from the breakdown of where drops actually came from.
+      if (qty <= 0) continue;
       const type  = itemTypes[id] ?? 'other';
       const price = prices[id] ?? 0;
       totals[type] += qty * price;
