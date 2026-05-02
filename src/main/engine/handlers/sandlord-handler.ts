@@ -14,12 +14,27 @@ const TOWN_MARKER         = 'YuJinZhiXiBiNanSuo';
  * sub-maps — runs as a single seasonal tracker with no per-map trackers
  * created inside. Returning to real town finishes it.
  *
- * Must be registered BEFORE ZoneHandler so `ctx.inSandlord` is set in time
- * for ZoneHandler to suppress map-tracker creation on the same event.
+ * The "no per-map trackers inside" rule is enforced via suppressMapTracker():
+ * Engine asks each handler on every map-entry zone_transition whether it
+ * wants to suppress map-tracker creation. SandlordHandler answers true while
+ * its bubble is active.
+ *
+ * Must be registered BEFORE ZoneHandler so its suppressMapTracker() answer is
+ * current when ZoneHandler consults ctx.isMapSuppressed() on the same event.
  */
 export class SandlordHandler implements EventHandler {
   readonly name    = 'sandlord';
   readonly handles = ['zone_transition'] as const;
+
+  private _inSandlord = false;
+
+  suppressMapTracker(): boolean {
+    return this._inSandlord;
+  }
+
+  onStop(_ctx: EngineContext): void {
+    this._inSandlord = false;
+  }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
     if (event.type !== 'zone_transition') return;
@@ -29,14 +44,14 @@ export class SandlordHandler implements EventHandler {
     const enteringHub  = event.toScene.includes(SANDLORD_HUB_MARKER);
     const enteringTown = event.toScene.includes(TOWN_MARKER);
 
-    if (enteringHub && !ctx.inSandlord) {
-      ctx.inSandlord = true;
+    if (enteringHub && !this._inSandlord) {
+      this._inSandlord = true;
       startSeasonal('sandlord', ctx, emit);
       return;
     }
 
-    if (ctx.inSandlord && enteringTown) {
-      ctx.inSandlord = false;
+    if (this._inSandlord && enteringTown) {
+      this._inSandlord = false;
       finishSeasonal(ctx, emit);
     }
   }

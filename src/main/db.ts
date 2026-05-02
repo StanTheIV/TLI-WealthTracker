@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import {app} from 'electron';
 import {join} from 'path';
 import {log} from './logger';
+import type {SeasonalType} from './engine/tracker';
 
 let db: Database.Database;
 
@@ -84,13 +85,14 @@ function createTables(): void {
     );
 
     CREATE TABLE IF NOT EXISTS session_maps (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id  TEXT NOT NULL,
-      map_index   INTEGER NOT NULL,
-      started_at  REAL NOT NULL,
-      duration    REAL NOT NULL,
-      drops       TEXT NOT NULL DEFAULT '{}',
-      spent       TEXT NOT NULL DEFAULT '{}'
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id    TEXT NOT NULL,
+      map_index     INTEGER NOT NULL,
+      started_at    REAL NOT NULL,
+      duration      REAL NOT NULL,
+      drops         TEXT NOT NULL DEFAULT '{}',
+      spent         TEXT NOT NULL DEFAULT '{}',
+      seasonal_type TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_session_maps_session ON session_maps (session_id);
@@ -98,6 +100,7 @@ function createTables(): void {
   migrateWealth();
   migrateItems();
   migrateFilters();
+  migrateSessionMaps();
   log.debug('database', 'Tables created');
 }
 
@@ -106,6 +109,14 @@ function migrateFilters(): void {
     // no-op — placeholder for future migrations
   } catch {
     // ignore
+  }
+}
+
+function migrateSessionMaps(): void {
+  try {
+    db.exec("ALTER TABLE session_maps ADD COLUMN seasonal_type TEXT");
+  } catch {
+    // Column already exists — ignore
   }
 }
 
@@ -286,23 +297,31 @@ export function sessionsGetOne(id: string): DbSession | null {
 // ---------------------------------------------------------------------------
 
 export interface DbSessionMap {
-  sessionId: string;
-  mapIndex:  number;
-  startedAt: number;        // ms epoch
-  duration:  number;        // ms
-  drops:     Record<string, number>;
-  spent:     Record<string, number>;
+  sessionId:    string;
+  mapIndex:     number;
+  startedAt:    number;        // ms epoch
+  duration:     number;        // ms
+  drops:        Record<string, number>;
+  spent:        Record<string, number>;
+  /** Non-null when this row represents a standalone seasonal run (e.g. Sandlord)
+   *  rather than a regular map. Null for plain map rows. */
+  seasonalType: SeasonalType | null;
 }
 
 export function sessionMapsInsert(rows: DbSessionMap[]): void {
   if (rows.length === 0) return;
   const stmt = db.prepare(`
-    INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent)
-    VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent)
+    INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type)
+    VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType)
   `);
   const tx = db.transaction((rs: DbSessionMap[]) => {
     for (const r of rs) {
-      stmt.run({...r, drops: JSON.stringify(r.drops), spent: JSON.stringify(r.spent)});
+      stmt.run({
+        ...r,
+        drops:        JSON.stringify(r.drops),
+        spent:        JSON.stringify(r.spent),
+        seasonalType: r.seasonalType,
+      });
     }
   });
   tx(rows);
@@ -310,15 +329,16 @@ export function sessionMapsInsert(rows: DbSessionMap[]): void {
 
 export function sessionMapsGetForSession(sessionId: string): DbSessionMap[] {
   const rows = db.prepare(
-    'SELECT session_id, map_index, started_at, duration, drops, spent FROM session_maps WHERE session_id = ? ORDER BY map_index ASC'
-  ).all(sessionId) as {session_id: string; map_index: number; started_at: number; duration: number; drops: string; spent: string}[];
+    'SELECT session_id, map_index, started_at, duration, drops, spent, seasonal_type FROM session_maps WHERE session_id = ? ORDER BY map_index ASC'
+  ).all(sessionId) as {session_id: string; map_index: number; started_at: number; duration: number; drops: string; spent: string; seasonal_type: string | null}[];
   return rows.map(r => ({
-    sessionId: r.session_id,
-    mapIndex:  r.map_index,
-    startedAt: r.started_at,
-    duration:  r.duration,
-    drops:     JSON.parse(r.drops),
-    spent:     JSON.parse(r.spent),
+    sessionId:    r.session_id,
+    mapIndex:     r.map_index,
+    startedAt:    r.started_at,
+    duration:     r.duration,
+    drops:        JSON.parse(r.drops),
+    spent:        JSON.parse(r.spent),
+    seasonalType: r.seasonal_type as SeasonalType | null,
   }));
 }
 

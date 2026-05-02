@@ -2,10 +2,9 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
-import {startSeasonal, finishSeasonal} from './seasonal-helpers';
+import {startSeasonal, finishSeasonal, finishOnTownEntry} from './seasonal-helpers';
 
 const LOOT_COLLECTION_MS = 5_000;
-const TOWN_MARKER        = 'YuJinZhiXiBiNanSuo';
 
 /**
  * ClockworkHandler — manages the Clockwork Ballet (S7) seasonal tracker lifecycle.
@@ -67,11 +66,8 @@ export class ClockworkHandler implements EventHandler {
   }
 
   private _handleZoneTransition(toScene: string, ctx: EngineContext, emit: EmitFn): void {
-    // Entering town while loot timer is active — stop immediately.
-    if (toScene.includes(TOWN_MARKER) && this._lootTimer?.active) {
-      this._lootTimer.cancel();
+    if (finishOnTownEntry(toScene, this._lootTimer, ctx, emit)) {
       this._lootTimer = null;
-      finishSeasonal(ctx, emit);
     }
   }
 

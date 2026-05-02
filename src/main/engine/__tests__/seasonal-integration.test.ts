@@ -97,7 +97,7 @@ function createDispatcher(): Dispatcher {
 function createEngine(events: EngineEvent[]): Engine {
   return new Engine((e) => events.push(e))
     .register(new BagInitHandler())
-    .register(new SandlordHandler())  // before ZoneHandler — sets ctx.inSandlord
+    .register(new SandlordHandler())  // before ZoneHandler — answers suppressMapTracker()
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())
@@ -117,6 +117,11 @@ function feed(dispatcher: Dispatcher, engine: Engine, line: string): void {
 /** Reach into the engine's private context (test-only). */
 function ctx(engine: Engine): EngineContext {
   return (engine as unknown as {_ctx: EngineContext})._ctx;
+}
+
+/** Test-only handler accessor for asserting handler-local state. */
+function overrealm(engine: Engine): OverrealmHandler {
+  return engine.getHandler('overrealm') as OverrealmHandler;
 }
 
 /** Boot engine and complete bag init with a given inventory. */
@@ -241,12 +246,9 @@ describe('Vorex integration', () => {
     feed(d, e, log.s13Start);
     feed(d, e, log.s13Abandon);
 
-    expect(ctx(e).vorexAbandoning).toBe(true);
-
     // Zone to reward zone = completed
     feed(d, e, log.zoneTransition(MAP, VOREX_REWARD));
 
-    expect(ctx(e).vorexAbandoning).toBe(false);
     expect(ctx(e).seasonal?.seasonalType).toBe('vorex'); // still alive for loot
     expect(ctx(e).seasonal?.active).toBe(true);
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false); // not finished yet
@@ -265,7 +267,6 @@ describe('Vorex integration', () => {
     // Zone to some other area = abandoned
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
-    expect(ctx(e).vorexAbandoning).toBe(false);
     expect(ctx(e).seasonal).toBeNull();
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'vorex')).toBe(true);
   });
@@ -302,7 +303,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
 
     expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
-    expect(ctx(e).inOverrealm).toBe(true);
+    expect(overrealm(e).isInOverrealm()).toBe(true);
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm')).toBe(true);
   });
 
@@ -329,7 +330,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
 
     feed(d, e, log.portalExit);
-    expect(ctx(e).overrealmExiting).toBe(true);
+    expect(overrealm(e).isExiting()).toBe(true);
   });
 
   it('other portal IDs do not set overrealmExiting', () => {
@@ -341,7 +342,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
 
     feed(d, e, log.portalOther); // cfgId 50 — internal portal, ignored
-    expect(ctx(e).overrealmExiting).toBe(false);
+    expect(overrealm(e).isExiting()).toBe(false);
   });
 
   it('zone transition after portal 52 starts loot collection timer, tracker stays alive', () => {
@@ -357,8 +358,8 @@ describe('Overrealm integration', () => {
     // Zone transition back to map = exited Overrealm
     feed(d, e, log.zoneTransition(MAP, MAP + '_next'));
 
-    expect(ctx(e).inOverrealm).toBe(false);
-    expect(ctx(e).overrealmExiting).toBe(false);
+    expect(overrealm(e).isInOverrealm()).toBe(false);
+    expect(overrealm(e).isExiting()).toBe(false);
     expect(ctx(e).seasonal?.seasonalType).toBe('overrealm'); // timer still running
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
   });
@@ -462,7 +463,7 @@ describe('Overrealm integration', () => {
     // Re-enter before timer expires
     feed(d, e, log.s12Entry);
 
-    expect(ctx(e).inOverrealm).toBe(true);
+    expect(overrealm(e).isInOverrealm()).toBe(true);
     expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
 
     // Timer cancelled — advancing time should not finish the tracker
@@ -742,7 +743,7 @@ describe('Sandlord integration', () => {
     feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
 
     expect(ctx(e).seasonal?.seasonalType).toBe('sandlord');
-    expect(ctx(e).inSandlord).toBe(true);
+    expect(e.hasMapSuppressingHandler()).toBe(true);
     expect(ctx(e).inMap).toBe(false);
     expect(ctx(e).map).toBeNull();
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'sandlord')).toBe(true);
@@ -797,7 +798,7 @@ describe('Sandlord integration', () => {
     feed(d, e, log.zoneTransition(SANDLORD_HUB, TOWN));
 
     expect(ctx(e).seasonal).toBeNull();
-    expect(ctx(e).inSandlord).toBe(false);
+    expect(e.hasMapSuppressingHandler()).toBe(false);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'sandlord')).toBe(true);
     expect(events.some(ev => ev.type === 'map_ended')).toBe(false);
   });
@@ -854,6 +855,71 @@ describe('Sandlord integration', () => {
 
     const starts = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'sandlord');
     expect(starts).toHaveLength(1);
+  });
+
+  // The IPC layer uses engine.hasActiveMapTracker() at the moment a seasonal
+  // tracker_finished arrives to discriminate "Sandlord-style standalone run"
+  // (write a session_maps row) from "Vorex/Dream/etc. inside a map" (skip,
+  // because the upcoming map row already covers it). These two tests pin
+  // that discriminator's behaviour.
+
+  it('hasActiveMapTracker is false when sandlord seasonal finishes', () => {
+    let activeMapAtSeasonalFinish: boolean | null = null;
+    const events: EngineEvent[] = [];
+    let engine: Engine;
+    const captureEmit = (e: EngineEvent) => {
+      events.push(e);
+      if (e.type === 'tracker_finished' && e.tracker.kind === 'seasonal') {
+        activeMapAtSeasonalFinish = engine.hasActiveMapTracker();
+      }
+    };
+    engine = new Engine(captureEmit)
+      .register(new BagInitHandler())
+      .register(new SandlordHandler())
+      .register(new ZoneHandler())
+      .register(new DreamHandler())
+      .register(new VorexHandler())
+      .register(new OverrealmHandler())
+      .register(new CarjackHandler())
+      .register(new ClockworkHandler())
+      .register(new ItemHandler());
+    const d = createDispatcher();
+
+    boot(d, engine, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, engine, log.zoneTransition(TOWN, SANDLORD_HUB));
+    feed(d, engine, log.zoneTransition(SANDLORD_HUB, TOWN));
+
+    expect(activeMapAtSeasonalFinish).toBe(false);
+  });
+
+  it('hasActiveMapTracker is true when in-map seasonal (vorex) finishes via town entry', () => {
+    let activeMapAtSeasonalFinish: boolean | null = null;
+    const events: EngineEvent[] = [];
+    let engine: Engine;
+    const captureEmit = (e: EngineEvent) => {
+      events.push(e);
+      if (e.type === 'tracker_finished' && e.tracker.kind === 'seasonal') {
+        activeMapAtSeasonalFinish = engine.hasActiveMapTracker();
+      }
+    };
+    engine = new Engine(captureEmit)
+      .register(new BagInitHandler())
+      .register(new SandlordHandler())
+      .register(new ZoneHandler())
+      .register(new DreamHandler())
+      .register(new VorexHandler())
+      .register(new OverrealmHandler())
+      .register(new CarjackHandler())
+      .register(new ClockworkHandler())
+      .register(new ItemHandler());
+    const d = createDispatcher();
+
+    boot(d, engine, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, engine, log.zoneTransition(TOWN, MAP));
+    feed(d, engine, log.s13Start);
+    feed(d, engine, log.zoneTransition(MAP, TOWN));
+
+    expect(activeMapAtSeasonalFinish).toBe(true);
   });
 });
 

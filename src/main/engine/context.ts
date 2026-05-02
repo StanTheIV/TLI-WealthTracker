@@ -53,30 +53,24 @@ export class EngineContext {
   /** IDs of items already known in the DB — used to detect first-time drops. */
   knownItems: Set<string> = new Set();
 
-  // Previous level type value — needed to detect Dream entry/exit transitions
-  levelType: number = 3;
-
-  // S13 Vorex state
-  vorexAbandoning: boolean = false;   // s13_abandon seen; waiting for zone transition to resolve
-
-  // S12 Overrealm state
-  inOverrealm:      boolean = false;  // currently inside Overrealm stages
-  overrealmExiting: boolean = false;  // portal 52 seen; waiting for zone transition to start loot timer
-
-  // Sandlord (S10) state — true between hub-entry and real-town return.
-  // Read by ZoneHandler to suppress map-tracker creation for the entire bubble
-  // (hub + sub-maps), so the whole experience is captured by one seasonal tracker.
-  inSandlord:       boolean = false;
+  /**
+   * Set by the owning Engine in its constructor. Returns true when any
+   * registered handler currently wants to suppress map-tracker creation
+   * (e.g. SandlordHandler while inside the Sandlord bubble). Replaces the
+   * old per-seasonal flag fields like `inSandlord` — handler-local state
+   * stays inside the handler, and the cross-handler signal is one indirect
+   * function call away.
+   */
+  isMapSuppressed: () => boolean = () => false;
 
   /**
    * True when the player is inside an active loot context (a regular map, or
-   * a seasonal bubble like Sandlord that suppresses the map tracker). Used by
-   * ItemHandler to decide whether bag deltas should flush immediately (loot)
-   * or debounce (town sorting). Add new clauses here when a future seasonal
-   * suppresses map-tracker creation.
+   * a seasonal bubble that suppresses the map tracker). Used by ItemHandler
+   * to decide whether bag deltas should flush immediately (loot) or debounce
+   * (town sorting).
    */
   isLootContext(): boolean {
-    return this.inMap || this.inSandlord;
+    return this.inMap || this.isMapSuppressed();
   }
 
   /**
@@ -128,10 +122,5 @@ export class EngineContext {
     this.seasonal          = null;
     this.filter            = null;
     this.knownItems        = new Set();
-    this.levelType         = 3;
-    this.vorexAbandoning   = false;
-    this.inOverrealm       = false;
-    this.overrealmExiting  = false;
-    this.inSandlord        = false;
   }
 }

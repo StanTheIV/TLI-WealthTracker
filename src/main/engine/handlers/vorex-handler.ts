@@ -22,6 +22,14 @@ export class VorexHandler implements EventHandler {
   readonly name    = 'vorex';
   readonly handles = ['s13_start', 's13_window_close', 's13_abandon', 'zone_transition'] as const;
 
+  // s13_abandon seen; waiting for zone_transition to resolve. Handler-local
+  // because no other handler reads it.
+  private _abandoning = false;
+
+  onStop(_ctx: EngineContext): void {
+    this._abandoning = false;
+  }
+
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
     if (ctx.phase !== 'tracking') return;
     if (ctx.paused) return;
@@ -45,11 +53,11 @@ export class VorexHandler implements EventHandler {
         break;
 
       case 's13_abandon':
-        ctx.vorexAbandoning = true;
+        this._abandoning = true;
         break;
 
       case 'zone_transition':
-        if (ctx.vorexAbandoning) {
+        if (this._abandoning) {
           this._resolveAbandon(event.toScene, ctx, emit);
         }
         break;
@@ -57,7 +65,7 @@ export class VorexHandler implements EventHandler {
   }
 
   private _resolveAbandon(toScene: string, ctx: EngineContext, emit: EmitFn): void {
-    ctx.vorexAbandoning = false;
+    this._abandoning = false;
 
     if (toScene.includes(VOREX_REWARD_ZONE)) {
       // Completed — resume so reward-zone loot is attributed to Vorex.

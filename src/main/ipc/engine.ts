@@ -1,9 +1,10 @@
-import {ipcMain, BrowserWindow, utilityProcess} from 'electron';
-import type {UtilityProcess} from 'electron';
+import {ipcMain, BrowserWindow} from 'electron';
 import {log} from '@/main/logger';
-import {itemsGetAll, itemsSetPrice, itemsInsertIfMissing, wealthInsert, sessionsInsert, sessionsUpdate, sessionsGetOne, filtersGetAll, settingsGetAll, sessionMapsInsert} from '@/main/db';
+import {itemsGetAll, itemsSetPrice, itemsInsertIfMissing, sessionsGetOne, filtersGetAll, settingsGetAll} from '@/main/db';
 import {broadcastItemsChanged} from '@/main/items-broadcast';
-import type {DbSession, DbSessionMap} from '@/main/db';
+import {SessionPersistence} from '@/main/session-persistence';
+import {WorkerProcess} from '@/main/worker-process';
+import {WealthRecorder} from '@/main/wealth-recorder';
 import {ItemFilterEngine} from '@/main/engine/item-filter';
 import type {FilterRule} from '@/types/itemFilter';
 import {mapRawType} from '@/types/itemType';
@@ -28,160 +29,35 @@ const LOG_SUBPATH = 'TorchLight/Saved/Logs/UE_game.log';
 // Module-level state
 // ---------------------------------------------------------------------------
 
-let logReaderProcess: UtilityProcess | null = null;
+let worker: WorkerProcess | null = null;
 let engine: Engine | null = null;
+let persistence: SessionPersistence | null = null;
 
 // Window accessors — set once in registerEngineHandlers
 let _getMainWindow:    () => BrowserWindow | null = () => null;
 let _getTrackerWindow: () => BrowserWindow | null = () => null;
 
-/** Tracks the identity of the current session for auto-save on stop. */
-interface ActiveSessionState {
-  /** UUID for this run — either a new random ID or the ID of the loaded session. */
-  sessionId:    string;
-  /** Name of a loaded (continued) session. Null for new sessions. */
-  sessionName:  string | null;
-  /** True when this run is continuing a previously saved session. */
-  isOverride:   boolean;
+/** Send a payload to both renderer windows (no-ops cleanly when either is closed). */
+function broadcastToRenderers(channel: string, payload: unknown): void {
+  _getMainWindow()?.webContents.send(channel, payload);
+  _getTrackerWindow()?.webContents.send(channel, payload);
 }
 
-let activeSession: ActiveSessionState | null = null;
-
-/**
- * Buffer of per-map rows for the active session. Filled on every map exit
- * (tracker_finished kind=map) and flushed to disk in autoSaveSession when
- * the run actually persists. Cleared on engine reset / stop / save.
- *
- * We buffer rather than write-through so that a discarded short run (below
- * MIN_SAVE_DURATION_MS, no drops) doesn't leave orphan map rows behind.
- */
-let pendingMapRows: DbSessionMap[] = [];
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function generateSessionName(): string {
-  const now   = new Date();
-  const month = now.toLocaleString('en', {month: 'short'});
-  const day   = now.getDate();
-  const year  = now.getFullYear();
-  const time  = now.toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit', hour12: false});
-  return `Session - ${month} ${day}, ${year} ${time}`;
-}
-
-/** Minimum total session duration (ms) before auto-saving. */
-const MIN_SAVE_DURATION_MS = 30_000;
-
-/**
- * Persists the just-finished session to the DB.
- * Called synchronously from the emit callback (Node.js single-threaded — safe).
- * Returns the saved session ID, or null if nothing was saved.
- */
-function autoSaveSession(
-  event: Extract<EngineEvent, {type: 'tracker_finished'}>,
-  session: ActiveSessionState,
-): string | null {
-  const {tracker, sessionMeta} = event;
-  if (!sessionMeta) return null;
-
-  const {elapsed: totalTimeMs} = tracker;
-  const {mapTime: mapTimeMs, mapCount} = sessionMeta;
-
-  const hasDrops = Object.keys(tracker.drops).length > 0;
-  const hasTime  = totalTimeMs >= MIN_SAVE_DURATION_MS;
-  if (!hasDrops && !hasTime) return null;
-
-  const drops: Record<string, number> = {};
-  for (const [k, v] of Object.entries(tracker.drops)) drops[String(k)] = v;
-
-  const now = new Date().toISOString();
-
-  const record: DbSession = {
-    id:        session.sessionId,
-    name:      session.sessionName ?? generateSessionName(),
-    savedAt:   now,
-    totalTime: totalTimeMs / 1000, // ms → seconds
-    mapTime:   mapTimeMs  / 1000,
-    mapCount,
-    drops,
-  };
-
-  if (session.isOverride) {
-    sessionsUpdate(record);
-  } else {
-    sessionsInsert(record);
-  }
-
-  // Flush any per-map rows accumulated during this run alongside the session.
-  if (pendingMapRows.length > 0) {
-    sessionMapsInsert(pendingMapRows);
-    log.debug('database', `Saved ${pendingMapRows.length} per-map rows for session ${session.sessionId}`);
-    pendingMapRows = [];
-  }
-
-  log.info('session', `Session saved: id=${record.id}`);
-  return record.id;
-}
-
-// ---------------------------------------------------------------------------
-// Wealth recording
-// ---------------------------------------------------------------------------
-
-function recordWealth(): void {
-  if (!engine) return;
-  const inventory = engine.getInventory();
-  const itemMap   = new Map(itemsGetAll().map(i => [i.id, i]));
-  const filter    = engine.getFilter();
-
-  const breakdown: Record<string, {qty: number; price: number; total: number}> = {};
-  let totalValue = 0;
-
-  for (const [itemId, qty] of inventory) {
-    if (qty <= 0) continue;
-    if (filter && !filter.shouldInclude(itemId, 'wealth')) continue;
-    const item  = itemMap.get(String(itemId));
-    const price = item?.price ?? 0;
-    const itemTotal = qty * price;
-    breakdown[String(itemId)] = {qty, price, total: itemTotal};
-    totalValue += itemTotal;
-  }
-
-  wealthInsert({
-    timestamp: Date.now(),
-    value:     totalValue,
-    sessionId: activeSession?.sessionId ?? null,
-    breakdown: JSON.stringify(breakdown),
-  });
-
-  log.debug('wealth', `Wealth snapshot: value=${totalValue}, items=${Object.keys(breakdown).length}`);
-}
+const wealthRecorder = new WealthRecorder({
+  getEngine:    () => engine,
+  getSessionId: () => persistence?.getSessionId() ?? null,
+});
 
 // ---------------------------------------------------------------------------
 // Log reader (worker) — runs independently of the engine
 // ---------------------------------------------------------------------------
 
 /**
- * Handles a raw event from the worker process.
- * Price events are always processed (even without an active engine).
- * All other events are forwarded to the engine if it exists.
+ * Routes a worker-emitted RawEvent. Price updates are processed even without
+ * an active engine (between-session price scrapes happen in town); everything
+ * else is forwarded to the engine if it's running.
  */
-function onWorkerMessage(raw: RawEvent): void {
-  if (raw.type === 'worker_log') {
-    log[raw.logType]('worker', raw.message);
-    return;
-  }
-
-  if (raw.type === 'reader_ready') {
-    log.debug('worker', 'Reader ready');
-    return;
-  }
-
-  if (raw.type === 'reader_error') {
-    log.error('worker', `Reader error: ${raw.message}`);
-    return;
-  }
-
+function onWorkerEvent(raw: RawEvent): void {
   if (raw.type === 'price_update') {
     log.info('price', `Price update: item=${raw.itemId} -> ${raw.price} FE`);
     itemsSetPrice(String(raw.itemId), raw.price);
@@ -193,37 +69,21 @@ function onWorkerMessage(raw: RawEvent): void {
     // future "price updated" feed entry) keep working. The itemsStore no
     // longer reacts to this — items:changed is the source of truth.
     const event: EngineEvent = {type: 'price_update', itemId: raw.itemId, price: raw.price, timestamp: Date.now()};
-    _getMainWindow()?.webContents.send('engine:event', event);
-    _getTrackerWindow()?.webContents.send('engine:event', event);
+    broadcastToRenderers('engine:event', event);
     return;
   }
 
-  // All other events go to the engine (if running)
   engine?.onRawEvent(raw);
 }
 
-function startWorker(logPath: string): void {
-  if (logReaderProcess) return; // already running
-
-  const {join} = require('path') as typeof import('path');
-  logReaderProcess = utilityProcess.fork(join(__dirname, 'index.js'));
-
-  logReaderProcess.on('message', onWorkerMessage);
-  logReaderProcess.on('exit', () => {
-    log.warn('worker', 'Worker exited');
-    logReaderProcess = null;
-  });
-
-  logReaderProcess.postMessage({type: 'start', logPath});
-  log.info('worker', `Worker started, tailing: ${logPath}`);
+function ensureWorker(logPath: string): void {
+  if (!worker) worker = new WorkerProcess(onWorkerEvent);
+  worker.start(logPath);
 }
 
 function stopWorker(): void {
-  if (logReaderProcess) {
-    log.info('worker', 'Worker stopped');
-    logReaderProcess.kill();
-    logReaderProcess = null;
-  }
+  worker?.stop();
+  worker = null;
 }
 
 /** Resolves the game log path from the torchlight path stored in settings. */
@@ -247,44 +107,25 @@ function createEngine(): Engine {
       if (inserted) log.info('database', `New item discovered: id=${id}`);
     }
 
-    // Buffer a per-map row on every map exit. Flushed to disk inside
-    // autoSaveSession; cleared if the run is discarded.
-    if (event.type === 'tracker_finished' && event.tracker.kind === 'map' && activeSession) {
-      const drops: Record<string, number> = {};
-      for (const [k, v] of Object.entries(event.tracker.drops)) drops[String(k)] = v;
-      const spent = engine?.getLastMapSpends() ?? {};
-      pendingMapRows.push({
-        sessionId: activeSession.sessionId,
-        mapIndex:  pendingMapRows.length + 1,
-        startedAt: event.timestamp - event.tracker.elapsed,
-        duration:  event.tracker.elapsed,
-        drops,
-        spent,
-      });
-    }
-
-    // Auto-save session on stop, then notify renderer so it can refresh
-    if (event.type === 'tracker_finished' && event.tracker.kind === 'session' && activeSession) {
-      const savedId = autoSaveSession(event, activeSession);
-      if (savedId) {
-        log.info('engine', `Session auto-saved: id=${savedId}`);
-        const savedEvent: EngineEvent = {type: 'session_saved', sessionId: savedId};
-        _getMainWindow()?.webContents.send('engine:event', savedEvent);
-        _getTrackerWindow()?.webContents.send('engine:event', savedEvent);
+    // Route tracker_finished events through SessionPersistence — it owns the
+    // per-map / per-seasonal row buffer and the auto-save logic. Returns an
+    // outcome only for kind=session (the auto-save commit point); other kinds
+    // produce a null outcome and just buffer internally.
+    if (engine && persistence) {
+      const outcome = persistence.onTrackerFinished(event, engine);
+      if (outcome?.savedId) {
+        log.info('engine', `Session auto-saved: id=${outcome.savedId}`);
+        const savedEvent: EngineEvent = {type: 'session_saved', sessionId: outcome.savedId};
+        broadcastToRenderers('engine:event', savedEvent);
       }
-      // Whatever path autoSaveSession took (saved or skipped), the buffer
-      // is no longer needed once the session ends.
-      pendingMapRows = [];
     }
 
-    _getMainWindow()?.webContents.send('engine:event', event);
-    _getTrackerWindow()?.webContents.send('engine:event', event);
+    broadcastToRenderers('engine:event', event);
 
     if (event.type === 'init_complete' || event.type === 'map_ended') {
-      recordWealth();
+      wealthRecorder.snapshot();
       const recorded: EngineEvent = {type: 'wealth_recorded', timestamp: Date.now()};
-      _getMainWindow()?.webContents.send('engine:event', recorded);
-      _getTrackerWindow()?.webContents.send('engine:event', recorded);
+      broadcastToRenderers('engine:event', recorded);
     }
   };
 
@@ -292,7 +133,7 @@ function createEngine(): Engine {
   // running engine (between-session price scrapes happen in town).
   return new Engine(emit)
     .register(new BagInitHandler())
-    .register(new SandlordHandler())  // before ZoneHandler — sets ctx.inSandlord
+    .register(new SandlordHandler())  // before ZoneHandler — answers suppressMapTracker()
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())
@@ -308,34 +149,25 @@ function startEngine(logPath: string, loadSessionId?: string): void {
   stopEngine();
 
   // Ensure worker is running (idempotent — won't restart if already up)
-  startWorker(logPath);
+  ensureWorker(logPath);
 
   engine = createEngine();
 
-  if (loadSessionId) {
-    const loaded = sessionsGetOne(loadSessionId);
-    if (loaded) {
-      activeSession = {
-        sessionId:   loaded.id,
-        sessionName: loaded.name,
-        isOverride:  true,
-      };
-      log.info('session', `Session loaded: id=${loaded.id}, name="${loaded.name}"`);
-      engine.loadSession({
-        id:        loaded.id,
-        name:      loaded.name,
-        drops:     loaded.drops,
-        totalTime: loaded.totalTime, // seconds — engine converts to ms
-        mapTime:   loaded.mapTime,
-        mapCount:  loaded.mapCount,
-      });
-    } else {
-      activeSession = {sessionId: crypto.randomUUID(), sessionName: null, isOverride: false};
-      log.info('session', `Session created: id=${activeSession.sessionId}`);
-    }
+  const loaded = loadSessionId ? sessionsGetOne(loadSessionId) : null;
+  if (loaded) {
+    persistence = new SessionPersistence({sessionId: loaded.id, sessionName: loaded.name, isOverride: true});
+    log.info('session', `Session loaded: id=${loaded.id}, name="${loaded.name}"`);
+    engine.loadSession({
+      id:        loaded.id,
+      name:      loaded.name,
+      drops:     loaded.drops,
+      totalTime: loaded.totalTime, // seconds — engine converts to ms
+      mapTime:   loaded.mapTime,
+      mapCount:  loaded.mapCount,
+    });
   } else {
-    activeSession = {sessionId: crypto.randomUUID(), sessionName: null, isOverride: false};
-    log.info('session', `Session created: id=${activeSession.sessionId}`);
+    persistence = new SessionPersistence({sessionId: crypto.randomUUID(), sessionName: null, isOverride: false});
+    log.info('session', `Session created: id=${persistence.getSessionId()}`);
   }
 
   engine.start();
@@ -370,11 +202,11 @@ function stopEngine(): void {
     engine.stop();
     engine = null;
   }
-  activeSession = null;
-  // Defensive: if any buffered map rows survived (e.g. engine.stop() didn't
-  // emit tracker_finished for some reason), drop them now so they can't
-  // contaminate the next session.
-  pendingMapRows = [];
+  // Drop the persistence instance — its destructor effectively discards any
+  // per-run rows that survived an abnormal stop, since the buffer is private
+  // and the instance is unreachable after this point.
+  persistence?.discard();
+  persistence = null;
   // Worker keeps running — it's independent
 }
 
@@ -413,10 +245,11 @@ export function registerEngineHandlers(
     if (!engine) return;
     engine.reset();
     // The discarded run's identity must not be reused by the next Stop, and
-    // any buffered per-map rows belong to the discarded run — drop them.
-    pendingMapRows = [];
-    activeSession = {sessionId: crypto.randomUUID(), sessionName: null, isOverride: false};
-    log.info('session', `Session reset; new id=${activeSession.sessionId}`);
+    // any buffered per-run rows belong to the discarded run — replacing the
+    // SessionPersistence instance drops both.
+    persistence?.discard();
+    persistence = new SessionPersistence({sessionId: crypto.randomUUID(), sessionName: null, isOverride: false});
+    log.info('session', `Session reset; new id=${persistence.getSessionId()}`);
   });
   // Note: item type changes are now propagated via `db:items:set-type`,
   // which the db handler registration wires up to call
@@ -449,6 +282,6 @@ export function registerEngineHandlers(
   // Start the worker immediately if we already have a valid torchlight path
   const logPath = resolveLogPath();
   if (logPath) {
-    startWorker(logPath);
+    ensureWorker(logPath);
   }
 }

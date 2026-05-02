@@ -3,7 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {ArrowLeft} from 'lucide-react';
 import {
   ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import {useSessionsStore} from '@/state/sessionsStore';
@@ -54,14 +54,19 @@ function typeColors(theme: ReturnType<typeof useTheme>): Record<ItemType, string
 const MAX_BARS = 50;
 
 interface PerMapDatum {
-  /** First map index in this bucket (1-based). Equals lastIndex for size=1. */
-  firstIndex: number;
-  lastIndex:  number;
+  /** First run index in this bucket (1-based). Equals lastIndex for size=1. */
+  firstIndex:     number;
+  lastIndex:      number;
   /** Display label for the X axis: "42" or "41–50". */
-  xLabel:     string;
-  income:     number; // positive
-  cost:       number; // negative — so it stacks below 0 on the same y-axis
-  net:        number; // income + cost
+  xLabel:         string;
+  /** Income from regular map runs in this bucket (positive). */
+  mapIncome:      number;
+  /** Income from standalone seasonal runs (e.g. Sandlord) in this bucket (positive). */
+  seasonalIncome: number;
+  /** Map-material cost across all runs in the bucket — negated so it stacks below 0. */
+  cost:           number;
+  /** Running cumulative net (income − cost summed up to and including this bucket). */
+  cumulative:     number;
 }
 
 interface PerMapTooltipPayload {
@@ -75,13 +80,23 @@ function PerMapTooltip({active, payload}: {active?: boolean; payload?: PerMapToo
   const heading = d.firstIndex === d.lastIndex
     ? t('details.tooltipMap', {n: d.firstIndex})
     : t('details.tooltipMapRange', {from: d.firstIndex, to: d.lastIndex});
+  const totalIncome = d.mapIncome + d.seasonalIncome;
+  const net         = totalIncome - Math.abs(d.cost);
   return (
     <div className="bg-surface border border-border rounded px-3 py-2 text-xs shadow-lg space-y-1">
       <p className="text-text-secondary">{heading}</p>
-      <p className="font-mono text-success">{t('details.tooltipIncome')}: +{formatFEFull(d.income)}</p>
+      {d.mapIncome > 0 && (
+        <p className="font-mono text-success">{t('details.tooltipIncome')}: +{formatFEFull(d.mapIncome)}</p>
+      )}
+      {d.seasonalIncome > 0 && (
+        <p className="font-mono text-gold">{t('details.tooltipSeasonalIncome')}: +{formatFEFull(d.seasonalIncome)}</p>
+      )}
       <p className="font-mono text-danger">{t('details.tooltipCost')}: {formatFEFull(d.cost)}</p>
-      <p className={`font-mono font-semibold ${d.net >= 0 ? 'text-gold' : 'text-danger'}`}>
-        {t('details.tooltipNet')}: {d.net >= 0 ? '+' : ''}{formatFEFull(d.net)}
+      <p className={`font-mono font-semibold ${net >= 0 ? 'text-gold' : 'text-danger'}`}>
+        {t('details.tooltipNet')}: {net >= 0 ? '+' : ''}{formatFEFull(net)}
+      </p>
+      <p className="font-mono text-text-secondary text-[10px]">
+        {t('details.tooltipCumulative')}: {d.cumulative >= 0 ? '+' : ''}{formatFEFull(d.cumulative)}
       </p>
     </div>
   );
@@ -95,23 +110,30 @@ function PerMapBarChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<st
     if (maps.length === 0) return [];
     const bucketSize = Math.max(1, Math.ceil(maps.length / MAX_BARS));
     const out: PerMapDatum[] = [];
+    let runningNet = 0;
     for (let i = 0; i < maps.length; i += bucketSize) {
       const slice = maps.slice(i, i + bucketSize);
-      let income = 0;
-      let cost   = 0;
+      let mapIncome      = 0;
+      let seasonalIncome = 0;
+      let cost           = 0;
       for (const m of slice) {
-        for (const [id, qty] of Object.entries(m.drops)) income += qty * (prices[id] ?? 0);
-        for (const [id, qty] of Object.entries(m.spent)) cost   += qty * (prices[id] ?? 0);
+        let rowIncome = 0;
+        for (const [id, qty] of Object.entries(m.drops)) rowIncome += qty * (prices[id] ?? 0);
+        for (const [id, qty] of Object.entries(m.spent)) cost      += qty * (prices[id] ?? 0);
+        if (m.seasonalType !== null) seasonalIncome += rowIncome;
+        else                         mapIncome      += rowIncome;
       }
       const firstIndex = slice[0].mapIndex;
       const lastIndex  = slice[slice.length - 1].mapIndex;
+      runningNet += (mapIncome + seasonalIncome) - cost;
       out.push({
         firstIndex,
         lastIndex,
         xLabel: firstIndex === lastIndex ? `${firstIndex}` : `${firstIndex}–${lastIndex}`,
-        income,
+        mapIncome,
+        seasonalIncome,
         cost: -cost,
-        net:  income - cost,
+        cumulative: runningNet,
       });
     }
     return out;
@@ -127,7 +149,7 @@ function PerMapBarChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<st
 
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} margin={{top: 8, right: 8, bottom: 0, left: 0}}>
+      <ComposedChart data={data} margin={{top: 8, right: 8, bottom: 0, left: 0}}>
         <CartesianGrid strokeDasharray="3 3" stroke={theme.border} vertical={false} />
         <XAxis
           dataKey="xLabel"
@@ -145,9 +167,19 @@ function PerMapBarChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<st
         />
         <ReferenceLine y={0} stroke={theme.border} strokeWidth={1.5} />
         <Tooltip content={<PerMapTooltip />} cursor={{fill: theme.border, opacity: 0.3}} />
-        <Bar dataKey="income" stackId="a" fill={theme.success} radius={[2, 2, 0, 0]} />
-        <Bar dataKey="cost"   stackId="a" fill={theme.danger}  radius={[0, 0, 2, 2]} />
-      </BarChart>
+        <Bar dataKey="mapIncome"      stackId="a" fill={theme.success} radius={[2, 2, 0, 0]} />
+        <Bar dataKey="seasonalIncome" stackId="a" fill={theme.gold}    radius={[2, 2, 0, 0]} />
+        <Bar dataKey="cost"           stackId="a" fill={theme.danger}  radius={[0, 0, 2, 2]} />
+        <Line
+          type="monotone"
+          dataKey="cumulative"
+          stroke={theme.accent}
+          strokeWidth={2}
+          dot={false}
+          activeDot={{r: 4, fill: theme.accent, stroke: theme.surface, strokeWidth: 2}}
+          isAnimationActive={false}
+        />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }

@@ -19,13 +19,21 @@ export class DreamHandler implements EventHandler {
   readonly name    = 'dream';
   readonly handles = ['level_type'] as const;
 
+  // Last seen level_type. Default 3 (map) so the very first dream entry is
+  // detected as a transition out of map.
+  private _levelType: number = LEVEL_TYPE_MAP;
+
+  onStop(_ctx: EngineContext): void {
+    this._levelType = LEVEL_TYPE_MAP;
+  }
+
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
     if (ctx.phase !== 'tracking') return;
     if (ctx.paused) return;
     if (event.type !== 'level_type') return;
 
-    const oldType = ctx.levelType;
-    ctx.levelType = event.levelType;
+    const oldType = this._levelType;
+    this._levelType = event.levelType;
     if (oldType === event.levelType) return;
 
     if (oldType === LEVEL_TYPE_MAP && event.levelType === LEVEL_TYPE_DREAM) {

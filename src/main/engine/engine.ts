@@ -18,14 +18,21 @@ import {log} from '@/main/logger';
 export class Engine {
   private _ctx  = new EngineContext();
   private _emit: EmitFn;
-  // Map from event type → ordered list of handlers
+  // Map from event type → ordered list of handlers (a handler appears in
+  // multiple buckets if it registered for multiple event types).
   private _routes = new Map<string, EventHandler[]>();
+  // Deduplicated registry — used for cross-cutting iteration that should
+  // visit each handler exactly once (onStop, suppressMapTracker queries).
+  private _handlers: EventHandler[] = [];
   // Typed reference to the map-material handler so the IPC layer can mutate
   // its state through Engine methods rather than reaching across the boundary.
   private _mapMaterial: MapMaterialHandler | null = null;
 
   constructor(emit: EmitFn) {
     this._emit = emit;
+    // Lets handlers query "should the next map-entry create a tracker?"
+    // through ctx without having to know about the Engine instance directly.
+    this._ctx.isMapSuppressed = () => this.hasMapSuppressingHandler();
   }
 
   register(handler: EventHandler): this {
@@ -33,6 +40,7 @@ export class Engine {
       if (!this._routes.has(type)) this._routes.set(type, []);
       this._routes.get(type)!.push(handler);
     }
+    this._handlers.push(handler);
     if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
     return this;
   }
@@ -43,11 +51,7 @@ export class Engine {
     this._ctx.reset();
     this._ctx.loadedSession = preserved;
     this._ctx.phase = 'initializing';
-    for (const handlers of this._routes.values()) {
-      for (const h of handlers) {
-        h.onStart?.(this._ctx, this._emit);
-      }
-    }
+    for (const h of this._handlers) h.onStart?.(this._ctx, this._emit);
   }
 
   /**
@@ -72,16 +76,7 @@ export class Engine {
       });
     }
 
-    // Deduplicate — a handler registered for multiple types appears multiple times in _routes
-    const seen = new Set<EventHandler>();
-    for (const handlers of this._routes.values()) {
-      for (const h of handlers) {
-        if (!seen.has(h)) {
-          seen.add(h);
-          h.onStop?.(this._ctx);
-        }
-      }
-    }
+    for (const h of this._handlers) h.onStop?.(this._ctx);
     this._ctx.reset();
   }
 
@@ -197,6 +192,32 @@ export class Engine {
 
   getInventory(): Map<number, number> {
     return this._ctx.bag.getInventory();
+  }
+
+  /** True iff a map tracker is currently active. The IPC layer checks this
+   *  when a seasonal tracker finishes to tell whether the seasonal was running
+   *  inside a map (Vorex / Dream / etc.) or standalone (Sandlord). */
+  hasActiveMapTracker(): boolean {
+    return this._ctx.map !== null;
+  }
+
+  /**
+   * True iff any registered handler currently wants to suppress map-tracker
+   * creation. ZoneHandler reads this on map-entry zone_transition to decide
+   * whether to skip creating ctx.map. Lets a handler like Sandlord declare
+   * "I own this bubble" without exposing handler-local state on ctx.
+   */
+  hasMapSuppressingHandler(): boolean {
+    for (const h of this._handlers) {
+      if (h.suppressMapTracker?.()) return true;
+    }
+    return false;
+  }
+
+  /** Look up a registered handler by its `name` field — primarily a test
+   *  affordance for asserting handler-local state. Returns null if unknown. */
+  getHandler(name: string): EventHandler | null {
+    return this._handlers.find(h => h.name === name) ?? null;
   }
 
   // --- Map material delegation -------------------------------------------------

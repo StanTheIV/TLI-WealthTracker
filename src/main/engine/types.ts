@@ -43,4 +43,11 @@ export interface EventHandler {
   onStart?(ctx: EngineContext, emit: EmitFn): void;
   /** Called on engine stop — must clean up any timers */
   onStop?(ctx: EngineContext): void;
+  /**
+   * When true, ZoneHandler suppresses map-tracker creation on the next
+   * map-entry zone_transition. Used by seasonals that own the entire bubble
+   * themselves (e.g. Sandlord), so no per-map tracker is created inside.
+   * Default false / undefined.
+   */
+  suppressMapTracker?(): boolean;
 }

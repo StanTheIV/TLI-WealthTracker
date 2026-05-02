@@ -40,15 +40,18 @@ export interface DbSession {
   drops:     Record<string, number>;
 }
 
-/** Per-map breakdown row for a saved session. Written by the engine on every
- *  map exit and flushed to disk alongside the session's own row. */
+/** Per-run breakdown row for a saved session. Written by the engine on every
+ *  map exit, and on standalone seasonal runs (e.g. Sandlord) that have no
+ *  enclosing map. Flushed to disk alongside the session's own row. */
 export interface DbSessionMap {
-  sessionId: string;
-  mapIndex:  number;
-  startedAt: number;        // ms epoch
-  duration:  number;        // ms
-  drops:     Record<string, number>;
-  spent:     Record<string, number>;
+  sessionId:    string;
+  mapIndex:     number;
+  startedAt:    number;        // ms epoch
+  duration:     number;        // ms
+  drops:        Record<string, number>;
+  spent:        Record<string, number>;
+  /** Non-null for standalone seasonal runs (Sandlord, etc.); null for plain map rows. */
+  seasonalType: 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | null;
 }
 
 export interface DbSeasonalStat {

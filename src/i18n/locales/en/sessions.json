@@ -24,11 +24,13 @@
     "perMapEmpty":  "No per-map breakdown available for this session.",
     "byTypeTitle":  "Value by item type",
     "byTypeEmpty":  "No drops to break down.",
-    "tooltipIncome": "Income",
-    "tooltipCost":   "Cost",
-    "tooltipNet":    "Net",
-    "tooltipMap":      "Map #{{n}}",
-    "tooltipMapRange": "Maps #{{from}}–{{to}}"
+    "tooltipIncome":         "Income",
+    "tooltipSeasonalIncome": "Seasonal",
+    "tooltipCost":           "Cost",
+    "tooltipNet":            "Net",
+    "tooltipCumulative":     "Cumulative",
+    "tooltipMap":            "Map #{{n}}",
+    "tooltipMapRange":       "Maps #{{from}}–{{to}}"
   },
   "actions": {
     "continue":      "Continue Session",
