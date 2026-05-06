@@ -23,10 +23,9 @@ function shortScene(scene: string): string {
  * Must be registered BEFORE SeasonalHandler and ItemHandler so ctx.inMap is
  * updated before those handlers read it on the same zone_transition event.
  *
- * Exception: a map-suppressing seasonal handler (e.g. SandlordHandler) must
- * run BEFORE ZoneHandler so its `suppressMapTracker()` answer is current
- * when Zone consults `ctx.isMapSuppressed()` to decide whether to create a
- * map tracker on the same event.
+ * Exception: a bubble-owning seasonal handler (e.g. SandlordHandler) must run
+ * BEFORE ZoneHandler so `ctx.seasonal?.ownsBubble` is set when Zone reads it
+ * on map-entry to decide whether to create a per-map tracker.
  */
 export class ZoneHandler implements EventHandler {
   readonly name    = 'zone';
@@ -47,7 +46,7 @@ export class ZoneHandler implements EventHandler {
       timestamp: now,
     });
 
-    if (entering === 'map' && !ctx.inMap && !ctx.isMapSuppressed()) {
+    if (entering === 'map' && !ctx.inMap && !ctx.seasonal?.ownsBubble) {
       ctx.inMap        = true;
       ctx.mapCount    += 1;
       ctx.mapStartTime = now;

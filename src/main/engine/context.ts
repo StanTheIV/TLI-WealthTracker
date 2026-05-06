@@ -54,46 +54,43 @@ export class EngineContext {
   knownItems: Set<string> = new Set();
 
   /**
-   * Set by the owning Engine in its constructor. Returns true when any
-   * registered handler currently wants to suppress map-tracker creation
-   * (e.g. SandlordHandler while inside the Sandlord bubble). Replaces the
-   * old per-seasonal flag fields like `inSandlord` — handler-local state
-   * stays inside the handler, and the cross-handler signal is one indirect
-   * function call away.
-   */
-  isMapSuppressed: () => boolean = () => false;
-
-  /**
-   * True when the player is inside an active loot context (a regular map, or
-   * a seasonal bubble that suppresses the map tracker). Used by ItemHandler
-   * to decide whether bag deltas should flush immediately (loot) or debounce
-   * (town sorting).
+   * True when a tracker that should receive drops is currently active —
+   * either a regular map tracker or any seasonal tracker. Used by
+   * publishDrops to gate tracker fan-out and the renderer-facing `drop`
+   * event so town activity (no map, no seasonal) doesn't pollute earnings.
    */
   isLootContext(): boolean {
-    return this.inMap || this.isMapSuppressed();
+    return this.map !== null || this.seasonal !== null;
   }
 
   /**
-   * Fan a drop out to all active trackers, applying per-scope filter rules.
-   * Called by ItemHandler._flush() — the single drop publisher.
+   * Fan a drop out to active trackers, applying per-scope filter rules.
+   * Called by publishDrops — the single drop entry point.
    *
    * The seasonal scope key is derived from the active seasonal tracker's type
    * so Vorex, Dream, and Overrealm can each have independent filter rules.
    * Default when no filter is set: include all items.
+   *
+   * `opts.includeMap` (default true) controls whether the map tracker
+   * receives the drop. Pass `false` for pre-map spend flushes — those
+   * attribute to session and seasonal but live separately as `m.spent` in
+   * the per-map record, so adding them to the map tracker would double-count
+   * with the chart's cost line.
    *
    * Returns whether the session scope accepted the drop — used by the
    * publisher to gate the renderer-facing `drop` event so the dashboard's
    * unfiltered aggregate (engineStore.drops) and the live feed honour the
    * session filter just like the session tracker itself does.
    */
-  distributeDrop(itemId: number, change: number): boolean {
-    const f = this.filter;
+  distributeDrop(itemId: number, change: number, opts: {includeMap?: boolean} = {}): boolean {
+    const f          = this.filter;
+    const includeMap = opts.includeMap ?? true;
 
     const sessionIncluded = !f || f.shouldInclude(itemId, 'session' as FilterScope);
     if (sessionIncluded) {
       this.session?.addDrop(itemId, change);
     }
-    if (!f || f.shouldInclude(itemId, 'map' as FilterScope)) {
+    if (includeMap && (!f || f.shouldInclude(itemId, 'map' as FilterScope))) {
       this.map?.addDrop(itemId, change);
     }
     if (this.seasonal) {

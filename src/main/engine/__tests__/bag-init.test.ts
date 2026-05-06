@@ -261,12 +261,13 @@ describe('BagInitHandler', () => {
       expect(ctx.bag.getTotalForItem(200)).toBe(3);
     });
 
-    it('resort with genuine quantity change emits delta', () => {
+    it('resort with genuine quantity change emits delta when in a loot context', () => {
       const handler = new BagInitHandler();
       const ctx = trackingCtx([
         {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
       ]);
       ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
+      ctx.map = {addDrop: vi.fn(), snapshot: () => ({kind: 'map', drops: {}, elapsed: 0})} as never;
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -279,13 +280,14 @@ describe('BagInitHandler', () => {
       expect(drops[0]).toMatchObject({type: 'drop', itemId: 100, change: 3});
     });
 
-    it('resort with item completely removed emits negative delta', () => {
+    it('resort with item completely removed emits negative delta when in a loot context', () => {
       const handler = new BagInitHandler();
       const ctx = trackingCtx([
         {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
         {pageId: 0, slotId: 2, itemId: 200, quantity: 3},
       ]);
       ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
+      ctx.map = {addDrop: vi.fn(), snapshot: () => ({kind: 'map', drops: {}, elapsed: 0})} as never;
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -296,6 +298,24 @@ describe('BagInitHandler', () => {
       const drops = events.filter(e => e.type === 'drop');
       expect(drops).toHaveLength(1);
       expect(drops[0]).toMatchObject({type: 'drop', itemId: 200, change: -3});
+    });
+
+    it('resort in town does not emit drops (town activity does not count as earnings)', () => {
+      const handler = new BagInitHandler();
+      const ctx = trackingCtx([
+        {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
+      ]);
+      ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
+      // No ctx.map / ctx.seasonal — we're in town
+      const events: Parameters<EmitFn>[0][] = [];
+      const emit: EmitFn = (e) => events.push(e);
+
+      handler.handle({type: 'bag_init', pageId: 0, slotId: 3, itemId: 100, quantity: 8}, ctx, emit);
+      vi.advanceTimersByTime(400);
+
+      expect(events.some(e => e.type === 'drop')).toBe(false);
+      // Bag state still synced so the next loot-context delta is correct
+      expect(ctx.bag.getTotalForItem(100)).toBe(8);
     });
 
     it('paused state: bag is re-synced but no drops emitted', () => {
@@ -321,6 +341,7 @@ describe('BagInitHandler', () => {
         {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
       ]);
       ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
+      ctx.map = {addDrop: vi.fn(), snapshot: () => ({kind: 'map', drops: {}, elapsed: 0})} as never;
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 

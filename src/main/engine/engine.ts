@@ -5,6 +5,7 @@ import type {LoadedSessionData} from './context';
 import type {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/types/itemFilter';
 import {Tracker} from './tracker';
+import {ItemHandler} from './handlers/item';
 import {MapMaterialHandler} from './handlers/map-material';
 import {log} from '@/main/logger';
 
@@ -22,17 +23,16 @@ export class Engine {
   // multiple buckets if it registered for multiple event types).
   private _routes = new Map<string, EventHandler[]>();
   // Deduplicated registry — used for cross-cutting iteration that should
-  // visit each handler exactly once (onStop, suppressMapTracker queries).
+  // visit each handler exactly once (onStop).
   private _handlers: EventHandler[] = [];
   // Typed reference to the map-material handler so the IPC layer can mutate
   // its state through Engine methods rather than reaching across the boundary.
   private _mapMaterial: MapMaterialHandler | null = null;
+  // Typed reference to the item handler for derived queries (pre-map spends).
+  private _item:        ItemHandler        | null = null;
 
   constructor(emit: EmitFn) {
     this._emit = emit;
-    // Lets handlers query "should the next map-entry create a tracker?"
-    // through ctx without having to know about the Engine instance directly.
-    this._ctx.isMapSuppressed = () => this.hasMapSuppressingHandler();
   }
 
   register(handler: EventHandler): this {
@@ -41,6 +41,7 @@ export class Engine {
       this._routes.get(type)!.push(handler);
     }
     this._handlers.push(handler);
+    if (handler instanceof ItemHandler)        this._item        = handler;
     if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
     return this;
   }
@@ -201,19 +202,6 @@ export class Engine {
     return this._ctx.map !== null;
   }
 
-  /**
-   * True iff any registered handler currently wants to suppress map-tracker
-   * creation. ZoneHandler reads this on map-entry zone_transition to decide
-   * whether to skip creating ctx.map. Lets a handler like Sandlord declare
-   * "I own this bubble" without exposing handler-local state on ctx.
-   */
-  hasMapSuppressingHandler(): boolean {
-    for (const h of this._handlers) {
-      if (h.suppressMapTracker?.()) return true;
-    }
-    return false;
-  }
-
   /** Look up a registered handler by its `name` field — primarily a test
    *  affordance for asserting handler-local state. Returns null if unknown. */
   getHandler(name: string): EventHandler | null {
@@ -232,8 +220,22 @@ export class Engine {
     this._mapMaterial?.setThreshold(n);
   }
 
+  /**
+   * Per-map spend record for the most recently entered map: { itemId →
+   * positive quantity consumed }. Sourced from ItemHandler's pre-map buffer
+   * flush — i.e. the bag deltas that landed in the freshly-created map
+   * tracker from a town buffer. Only negative entries (actual spends) are
+   * exported; positive entries (e.g. last-second vendor purchase) are
+   * filtered out. Returns `{}` when there's nothing to attribute.
+   */
   getLastMapSpends(): Record<string, number> {
-    return this._mapMaterial?.getLastSpends() ?? {};
+    const out: Record<string, number> = {};
+    const flush = this._item?.getLastPreMapFlush();
+    if (!flush) return out;
+    for (const [id, change] of flush) {
+      if (change < 0) out[String(id)] = -change;
+    }
+    return out;
   }
 
   onRawEvent(event: RawEvent): void {

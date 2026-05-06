@@ -133,7 +133,7 @@ function createEngine(): Engine {
   // running engine (between-session price scrapes happen in town).
   return new Engine(emit)
     .register(new BagInitHandler())
-    .register(new SandlordHandler())  // before ZoneHandler — answers suppressMapTracker()
+    .register(new SandlordHandler())  // before ZoneHandler — sets ctx.seasonal.ownsBubble
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())

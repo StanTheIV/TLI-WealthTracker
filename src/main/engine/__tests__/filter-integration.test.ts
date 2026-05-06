@@ -308,29 +308,22 @@ describe('filter-integration — live rule update', () => {
 // Town drops (delayed flush) respect the filter
 // ---------------------------------------------------------------------------
 
-describe('filter-integration — delayed flush in town', () => {
-  it('town drops are still filtered when the buffer flushes after the delay', () => {
+describe('filter-integration — town drops never reach trackers', () => {
+  it('town drops do not reach the session tracker (filter is irrelevant in town)', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
 
     boot(engine, [{slotId: 1, itemId: 100, quantity: 0}]);
 
-    const types = new Map([['100', 'equipment' as const]]);
-    engine.setFilter(new ItemFilterEngine(
-      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session'])],
-      types,
-    ));
-
-    // Stay in town (no enterMap)
+    // No filter set — even unfiltered, town deltas must not credit the session.
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
 
-    // Not flushed yet
     expect(ctx(engine).session?.snapshot().drops[100]).toBeUndefined();
 
     vi.advanceTimersByTime(1600);
 
-    // Filter applied at flush time
     expect(ctx(engine).session?.snapshot().drops[100]).toBeUndefined();
+    expect(events.some(e => e.type === 'drop')).toBe(false);
   });
 });
 

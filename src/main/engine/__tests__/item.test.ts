@@ -9,6 +9,7 @@ function makeCtx(inMap = false): EngineContext {
   ctx.phase   = 'tracking';
   ctx.inMap   = inMap;
   ctx.session = new Tracker('session');
+  if (inMap) ctx.map = new Tracker('map');
   // Pre-init the bag with one slot so processUpdate works
   ctx.bag.processInit(0, 1, 111, 10);
   ctx.bag.finishInit();
@@ -33,26 +34,27 @@ describe('ItemHandler', () => {
     expect(drops[0]).toMatchObject({type: 'drop', itemId: 111, change: 5});
   });
 
-  it('buffers and delays flush when in town', () => {
+  it('discards town buffer with no drop event after debounce, but still emits new_item', () => {
     const handler = new ItemHandler();
     const ctx = makeCtx(false);
+    ctx.knownItems = new Set(); // 111 unknown so new_item should fire
     const events: Parameters<EmitFn>[0][] = [];
     const emit: EmitFn = (e) => events.push(e);
 
     handler.handle({type: 'bag_update', pageId: 0, slotId: 1, itemId: 111, quantity: 15}, ctx, emit);
 
-    expect(events).toHaveLength(0); // not yet
+    expect(events).toHaveLength(0); // buffered, not yet flushed
 
     vi.advanceTimersByTime(1600);
 
-    const drops = events.filter(e => e.type === 'drop');
-    expect(drops).toHaveLength(1);
-    expect(drops[0]).toMatchObject({type: 'drop', itemId: 111, change: 5});
+    expect(events.some(e => e.type === 'drop')).toBe(false);
+    expect(events.some(e => e.type === 'tracker_update')).toBe(false);
+    expect(events.filter(e => e.type === 'new_item')).toHaveLength(1);
+    expect(ctx.session?.snapshot().drops[111]).toBeUndefined();
   });
 
-  it('accumulates multiple changes for same item before flush', () => {
+  it('does not credit session tracker for town deltas after debounce', () => {
     const ctx = makeCtx(false);
-    // Give the bag a second slot with same item
     ctx.bag.processInit(0, 2, 111, 5);
     ctx.bag.finishInit();
 
@@ -65,29 +67,52 @@ describe('ItemHandler', () => {
 
     vi.advanceTimersByTime(1600);
 
-    const drops = events.filter(e => e.type === 'drop');
-    expect(drops).toHaveLength(1);
-    if (drops[0].type === 'drop') {
-      expect(drops[0].change).toBe(6); // net +6
-    }
+    expect(events.some(e => e.type === 'drop')).toBe(false);
+    expect(ctx.session?.snapshot().drops[111]).toBeUndefined();
   });
 
-  it('flushes on zone_transition when leaving map (ctx.inMap already false)', () => {
+  it('map→town zone_transition does not surface a drop (buffer is empty in steady state)', () => {
     const handler = new ItemHandler();
-    const ctx = makeCtx(false); // ZoneHandler already set inMap=false before us
+    const ctx = makeCtx(false); // ZoneHandler already cleared ctx.map and set inMap=false
     const events: Parameters<EmitFn>[0][] = [];
     const emit: EmitFn = (e) => events.push(e);
 
-    // Buffer a change in town (not flushed yet)
-    ctx.bag.processInit(0, 1, 111, 10);
-    ctx.bag.finishInit();
-    handler.handle({type: 'bag_update', pageId: 0, slotId: 1, itemId: 111, quantity: 15}, ctx, emit);
-    expect(events).toHaveLength(0);
-
-    // Zone transition (inMap already false — ZoneHandler ran first)
+    // Zone transition with empty buffer (the in-map flush already happened
+    // synchronously on the bag event before ZoneHandler nullified ctx.map).
     handler.handle({type: 'zone_transition', fromScene: '/Game/Art/Maps/X', toScene: 'Town'}, ctx, emit);
 
-    expect(events.some(e => e.type === 'drop')).toBe(true);
+    expect(events.some(e => e.type === 'drop')).toBe(false);
+  });
+
+  it('town→map zone_transition flushes buffered town deltas as pre-map spend (session yes, map no)', () => {
+    const handler = new ItemHandler();
+    // Start in town
+    const ctx = makeCtx(false);
+    const events: Parameters<EmitFn>[0][] = [];
+    const emit: EmitFn = (e) => events.push(e);
+
+    // Buffer a negative town delta (e.g. map-creation material spent in town)
+    handler.handle({type: 'bag_update', pageId: 0, slotId: 1, itemId: 111, quantity: 7}, ctx, emit); // -3
+    expect(events.some(e => e.type === 'drop')).toBe(false);
+
+    // Simulate ZoneHandler having just run on town→map: it created ctx.map
+    // and set inMap=true before ItemHandler sees the same zone_transition event.
+    ctx.inMap = true;
+    ctx.map   = new Tracker('map');
+
+    handler.handle({type: 'zone_transition', fromScene: 'Town', toScene: '/Game/Art/Maps/X'}, ctx, emit);
+
+    // The renderer-facing `drop` event still fires (session-aggregate update).
+    const drops = events.filter(e => e.type === 'drop');
+    expect(drops).toHaveLength(1);
+    expect(drops[0]).toMatchObject({type: 'drop', itemId: 111, change: -3});
+
+    // Pre-map flush goes into session but NOT the new map tracker. The map
+    // tracker shows only what dropped IN the map; pre-map spend lives
+    // separately in the per-map `spent` field via getLastPreMapFlush().
+    expect(ctx.map?.snapshot().drops[111]).toBeUndefined();
+    expect(ctx.session?.snapshot().drops[111]).toBe(-3);
+    expect(handler.getLastPreMapFlush().get(111)).toBe(-3);
   });
 
   it('ignores events when not in tracking phase', () => {

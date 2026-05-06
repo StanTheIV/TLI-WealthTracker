@@ -13,21 +13,36 @@ function isTownScene(scene: string): boolean {
  * MapMaterialHandler — detects map-creation material spends and warns when
  * the player is about to run out.
  *
+ * Watchlist signal: town-side negative bag deltas accumulate per-item in
+ * `_pendingSpends`; positive town deltas net against existing negatives only
+ * (asymmetric — a pickup that comes BEFORE any spend doesn't pre-empt the
+ * later spend, but a pickup that comes AFTER a spend cancels it out). On a
+ * town→map transition, items still in `_pendingSpends` advance their
+ * `_watch` streak; items in `_watch` not present drop off.
+ *
+ * IMPORTANT: this watchlist signal is independent of `m.spent`, which comes
+ * from `ItemHandler.getLastPreMapFlush()` and reflects the net buffer at
+ * map-entry time. The watchlist's order-asymmetric netting is more
+ * forgiving (a pickup-then-spend still counts as a spend, so the player gets
+ * warned about recurring map material consumption) — the chart's `m.spent`
+ * is strictly net (so a buy-and-spend in the same window shows zero cost).
+ *
+ * AH listings, vault deposits, etc. WILL briefly appear in `_pendingSpends`
+ * for the next map's promotion, reaching streak=1. The 2+ consecutive-map
+ * threshold ensures one-off listings never fire a low-stock warning.
+ *
  * Behavior:
- *   - Town-side negative bag deltas are accumulated into _pendingSpends.
- *   - On a town -> map transition (a real map creation), items in
- *     _pendingSpends advance a streak counter in _watch, and items in
- *     _watch that weren't spent this map are dropped.
- *   - An item becomes "watched" at streak >= 2 (spent on two consecutive
- *     maps). When its current quantity is <= 1 on a map entry, it's
- *     included in the emitted map_material_warning event.
- *   - Map -> map transitions (e.g. into Vorex / Overrealm / seasonal
- *     instances) are NOT map creation events and are ignored — they don't
- *     promote, decay, or emit.
+ *   - Town-side negative bag deltas accumulated into `_pendingSpends`.
+ *   - On a town→map transition: items in `_pendingSpends` advance streak;
+ *     items in `_watch` not in `_pendingSpends` decay; emits a warning
+ *     snapshot for watched items at qty <= threshold.
+ *   - On `bag_update` / `bag_remove` (positive deltas): if a watched item's
+ *     qty recovers to >= 2, dismissal clears and a fresh warning fires.
+ *   - Map → map transitions are NOT map creation events and are ignored.
  *   - Dismissed items are suppressed until they recover to qty >= 2.
  *
- * MUST be registered AFTER ZoneHandler and ItemHandler so that ctx.inMap
- * is fresh and BagState deltas have been computed.
+ * MUST be registered AFTER ZoneHandler so `ctx.inMap` reflects the current
+ * scene before this handler runs.
  */
 export class MapMaterialHandler implements EventHandler {
   readonly name    = 'map-material';
@@ -40,27 +55,12 @@ export class MapMaterialHandler implements EventHandler {
   private _activeLow:     Set<number>                   = new Set();
   /** Item qty <= _threshold triggers a warning. Default 0 (warn only at 0). */
   private _threshold:     number                        = 0;
-  /** Snapshot of the materials spent on the most recent map entry. Cleared
-   *  on each new map entry, so consumers should read it on map exit. */
-  private _lastSpends:    Map<number, number>           = new Map();
-
-  /** Returns the materials spent (positive quantities) on the most recent
-   *  town -> map entry. Read on map exit / session save. */
-  getLastSpends(): Record<string, number> {
-    const out: Record<string, number> = {};
-    for (const [id, qty] of this._lastSpends) {
-      // _pendingSpends accumulates negative deltas; flip sign for export.
-      if (qty < 0) out[String(id)] = -qty;
-    }
-    return out;
-  }
 
   onStop(): void {
     this._pendingSpends.clear();
     this._watch.clear();
     this._dismissed.clear();
     this._activeLow.clear();
-    this._lastSpends.clear();
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -71,12 +71,14 @@ export class MapMaterialHandler implements EventHandler {
       let recovered = false;
       for (const d of deltas) {
         if (d.change < 0 && !ctx.inMap) {
-          // Only town-side negative deltas count as map-creation spends.
+          // Town-side negative → accumulate as pending spend.
           this._pendingSpends.set(d.itemId, (this._pendingSpends.get(d.itemId) ?? 0) + d.change);
         } else if (d.change > 0) {
-          // Positive delta — may be restock in town or an in-map pickup.
+          // Positive delta — net against existing town pending spend (cancel
+          // a previously-recorded spend if the player restocked it). Don't
+          // pre-empt a future spend with an earlier pickup — only net if
+          // there's already a pending negative for this item.
           if (!ctx.inMap) {
-            // Net against pending town spends (e.g. restock during sort).
             const current = this._pendingSpends.get(d.itemId);
             if (current !== undefined) {
               const next = current + d.change;
@@ -84,8 +86,9 @@ export class MapMaterialHandler implements EventHandler {
               else           this._pendingSpends.set(d.itemId, next);
             }
           }
-          // Any positive delta that brings a watched item to >= 2 clears its
-          // dismissal and triggers a live warning refresh.
+          // Any positive delta that brings a watched item to >= 2 clears
+          // its dismissal and triggers a live warning refresh — works in
+          // both town (restock) and in-map (loot pickup).
           if (this._watch.has(d.itemId) && ctx.bag.getTotalForItem(d.itemId) >= 2) {
             this._dismissed.delete(d.itemId);
             recovered = true;
@@ -101,38 +104,31 @@ export class MapMaterialHandler implements EventHandler {
       const toTown   = isTownScene(event.toScene);
 
       if (ctx.inMap && fromTown) {
-        // Real map creation: town -> map. Run promotion / decay / warning.
+        // Real map creation: town → map. Run promotion / decay / warning.
         this._onMapEntry(ctx, emit);
       } else if (toTown) {
-        // Returned to town. Drop any pending spends so post-map town activity
-        // attributes to the next map's creation.
+        // Returned to town. Drop any pending spends so post-map town
+        // activity attributes to the next map's creation.
         this._pendingSpends.clear();
       }
-      // Else: map -> map (seasonal entry, etc.) — leave watch state alone.
+      // Else: map → map (seasonal entry, etc.) — leave watch state alone.
     }
   }
 
   private _onMapEntry(ctx: EngineContext, emit: EmitFn): void {
-    // Snapshot the spends for this map entry — consumers (e.g. the engine
-    // emit callback writing per-map history) read this on map exit.
-    this._lastSpends = new Map(this._pendingSpends);
-
     const spent = new Set(this._pendingSpends.keys());
 
     // Promotion.
     for (const itemId of spent) {
-      const entry = this._watch.get(itemId);
+      const entry      = this._watch.get(itemId);
       const nextStreak = entry ? entry.streak + 1 : 1;
       this._watch.set(itemId, {streak: nextStreak});
-      // Newly added to the watchlist (first time the streak hit 2 — i.e.
-      // the item became "tracked as a recurring map material").
       if (nextStreak === 2) {
         log.info('engine', `Map material added to tracking: itemId=${itemId}`);
       }
     }
 
-    // Decay — items that broke their streak leave the watchlist, and their
-    // dismissal is cleared so a fresh return can re-warn.
+    // Decay — items that broke their streak leave the watchlist.
     for (const itemId of [...this._watch.keys()]) {
       if (!spent.has(itemId)) {
         const wasTracked = (this._watch.get(itemId)?.streak ?? 0) >= 2;
@@ -160,8 +156,6 @@ export class MapMaterialHandler implements EventHandler {
       if (qty <= this._threshold) {
         warnings.push({itemId, quantity: qty});
         nowLow.add(itemId);
-        // Log only on the transition into the low state (avoid spam when
-        // the warning re-emits on every map entry while still low).
         if (!this._activeLow.has(itemId)) {
           log.info('engine', `Map material low-stock detected: itemId=${itemId} qty=${qty} threshold=${this._threshold}`);
         }

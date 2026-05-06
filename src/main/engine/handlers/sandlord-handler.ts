@@ -14,27 +14,17 @@ const TOWN_MARKER         = 'YuJinZhiXiBiNanSuo';
  * sub-maps — runs as a single seasonal tracker with no per-map trackers
  * created inside. Returning to real town finishes it.
  *
- * The "no per-map trackers inside" rule is enforced via suppressMapTracker():
- * Engine asks each handler on every map-entry zone_transition whether it
- * wants to suppress map-tracker creation. SandlordHandler answers true while
- * its bubble is active.
+ * The "no per-map trackers inside" rule is enforced by creating the seasonal
+ * Tracker with `ownsBubble: true`. ZoneHandler reads `ctx.seasonal?.ownsBubble`
+ * on map-entry zone_transition and skips creating a per-map tracker when it's
+ * set. That's the only signal needed — no cross-handler callbacks.
  *
- * Must be registered BEFORE ZoneHandler so its suppressMapTracker() answer is
- * current when ZoneHandler consults ctx.isMapSuppressed() on the same event.
+ * Must be registered BEFORE ZoneHandler so `ctx.seasonal` is created (and
+ * `ownsBubble` is readable) before ZoneHandler runs on the same event.
  */
 export class SandlordHandler implements EventHandler {
   readonly name    = 'sandlord';
   readonly handles = ['zone_transition'] as const;
-
-  private _inSandlord = false;
-
-  suppressMapTracker(): boolean {
-    return this._inSandlord;
-  }
-
-  onStop(_ctx: EngineContext): void {
-    this._inSandlord = false;
-  }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
     if (event.type !== 'zone_transition') return;
@@ -43,15 +33,14 @@ export class SandlordHandler implements EventHandler {
 
     const enteringHub  = event.toScene.includes(SANDLORD_HUB_MARKER);
     const enteringTown = event.toScene.includes(TOWN_MARKER);
+    const inSandlord   = ctx.seasonal?.seasonalType === 'sandlord';
 
-    if (enteringHub && !this._inSandlord) {
-      this._inSandlord = true;
-      startSeasonal('sandlord', ctx, emit);
+    if (enteringHub && !inSandlord) {
+      startSeasonal('sandlord', ctx, emit, {ownsBubble: true});
       return;
     }
 
-    if (this._inSandlord && enteringTown) {
-      this._inSandlord = false;
+    if (inSandlord && enteringTown) {
       finishSeasonal(ctx, emit);
     }
   }

@@ -17,20 +17,25 @@ export interface TrackerSnapshot {
  *   seasonal — created by seasonal trigger, destroyed by corresponding exit
  *
  * All three instances receive the same drops via EngineContext.distributeDrop().
+ *
+ * `ownsBubble` is set on seasonals (e.g. Sandlord) whose bubble subsumes regular
+ * map zones — ZoneHandler consults it to skip creating a per-map tracker inside.
  */
 export class Tracker {
   readonly kind:          TrackerKind;
   readonly seasonalType?: SeasonalType;
+  readonly ownsBubble:    boolean;
 
   private _drops:       Map<number, number> = new Map();
   private _startTime:   number;
   private _accumulated: number = 0;
   private _pausedAt:    number | null = null;
 
-  constructor(kind: TrackerKind, seasonalType?: SeasonalType) {
-    this.kind        = kind;
+  constructor(kind: TrackerKind, seasonalType?: SeasonalType, ownsBubble: boolean = false) {
+    this.kind         = kind;
     this.seasonalType = seasonalType;
-    this._startTime  = Date.now();
+    this.ownsBubble   = ownsBubble;
+    this._startTime   = Date.now();
   }
 
   get active(): boolean {

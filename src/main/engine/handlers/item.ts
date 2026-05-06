@@ -1,18 +1,34 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {publishDrops} from '@/main/engine/drop-publisher';
+import {publishDrops, type PublishMode} from '@/main/engine/drop-publisher';
 
 const BUFFER_MS = 1500;
 
 /**
  * ItemHandler — tracks inventory changes and emits drop events.
  *
- * Buffers multiple bag changes within a time window to debounce rapid
- * successive slot updates for the same item. Flushes immediately in a
- * map; delays flush in town (player may be sorting/picking up items).
+ * Buffer behavior, by context:
+ *   - In a loot context (regular map or bubble-owning seasonal): every
+ *     bag delta flushes immediately, distributed to session / map / seasonal.
+ *   - In town: deltas accumulate in a buffer. The buffer flushes either:
+ *       a) the 1500ms timer fires (settled town activity → discarded; baseline
+ *          and `new_item` still update, but no tracker gets credited),
+ *       b) a zone_transition lands us in a loot context (the buffer's contents
+ *          are pre-map spends — flushed with mode 'pre-map' so they go to the
+ *          session/seasonal trackers but NOT the map tracker, and are exposed
+ *          via `getLastPreMapFlush()` for `m.spent` and the watchlist),
+ *       c) a zone_transition lands us still in town (pure town transition,
+ *          e.g. portal between town zones — buffer keeps draining into the
+ *          'town' bucket on the next timer tick).
  *
- * Also handles zone_transition to flush the buffer when leaving a map.
+ * Timer rule: the 1500ms is a max-wait from the FIRST town event, not a
+ * sliding window from the last. This prevents a long sequence of small town
+ * changes from indefinitely deferring the flush and leaking into the next map.
+ *
+ * Bag baselines (`BagState._baseline`) advance on every delta regardless of
+ * what we publish — discarding a town buffer never desynchronises future
+ * in-map delta calculations.
  */
 export class ItemHandler implements EventHandler {
   readonly name    = 'item';
@@ -21,10 +37,24 @@ export class ItemHandler implements EventHandler {
   // itemId → net change since last flush
   private _buffer: Map<number, number> = new Map();
   private _timer:  ReturnType<typeof setTimeout> | null = null;
+  // Snapshot of the most recent pre-map flush (zone_transition into a loot
+  // context with non-empty buffer). Consumed by Engine.getLastMapSpends() and
+  // MapMaterialHandler. Cleared on engine stop.
+  private _lastPreMapFlush: Map<number, number> = new Map();
+
+  /**
+   * Returns the most recent pre-map buffer flush — the deltas that landed
+   * in a fresh loot context from a town buffer. The map is read-only by
+   * convention; consumers must not mutate it.
+   */
+  getLastPreMapFlush(): ReadonlyMap<number, number> {
+    return this._lastPreMapFlush;
+  }
 
   onStop(_ctx: EngineContext): void {
     this._clearTimer();
     this._buffer.clear();
+    this._lastPreMapFlush.clear();
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -50,26 +80,39 @@ export class ItemHandler implements EventHandler {
     }
 
     if (event.type === 'zone_transition') {
-      // ZoneHandler / SandlordHandler run first (registered before ItemHandler)
-      // and have already updated ctx.inMap / ctx.inSandlord. If we just left a
-      // loot context, flush immediately.
-      if (!ctx.isLootContext()) this._flush(ctx, emit);
+      // Bubble-owning seasonals (Sandlord) and ZoneHandler ran first, so
+      // ctx.seasonal / ctx.map / ctx.inMap are already updated. If the buffer
+      // holds town-buffered deltas and we just entered a loot context, flush
+      // them as pre-map spends.
+      if (this._buffer.size === 0) return;
+      const mode: PublishMode = ctx.isLootContext() ? 'pre-map' : 'town';
+      this._flush(ctx, emit, mode);
     }
   }
 
   private _scheduleFlush(ctx: EngineContext, emit: EmitFn): void {
     if (ctx.isLootContext()) {
-      this._flush(ctx, emit); // immediate in map / Sandlord bubble
-    } else {
-      this._clearTimer();
-      this._timer = setTimeout(() => this._flush(ctx, emit), BUFFER_MS);
+      this._flush(ctx, emit, 'in-map'); // immediate
+      return;
+    }
+    // In town: set the timer once on the first buffered event; subsequent
+    // events extend the buffer but do NOT restart the timer. Max wait from
+    // first event = BUFFER_MS, regardless of how many events follow.
+    if (this._timer === null) {
+      this._timer = setTimeout(() => this._flush(ctx, emit, 'town'), BUFFER_MS);
     }
   }
 
-  private _flush(ctx: EngineContext, emit: EmitFn): void {
+  private _flush(ctx: EngineContext, emit: EmitFn, mode: PublishMode): void {
     this._clearTimer();
     if (this._buffer.size === 0) return;
-    publishDrops(ctx, emit, this._buffer);
+
+    if (mode === 'pre-map') {
+      // Snapshot the buffer for downstream consumers (m.spent, watchlist).
+      this._lastPreMapFlush = new Map(this._buffer);
+    }
+
+    publishDrops(ctx, emit, this._buffer, {mode});
     this._buffer.clear();
   }
 

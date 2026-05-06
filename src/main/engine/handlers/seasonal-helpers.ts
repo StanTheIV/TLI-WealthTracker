@@ -14,13 +14,18 @@ import type {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
 
 const TOWN_MARKER = 'YuJinZhiXiBiNanSuo';
 
-export function startSeasonal(type: SeasonalType, ctx: EngineContext, emit: EmitFn): void {
+export function startSeasonal(
+  type: SeasonalType,
+  ctx:  EngineContext,
+  emit: EmitFn,
+  opts: {ownsBubble?: boolean} = {},
+): void {
   // If a different seasonal type is already running, finish it first.
   if (ctx.seasonal && ctx.seasonal.seasonalType !== type) {
     finishSeasonal(ctx, emit);
   }
   if (!ctx.seasonal) {
-    ctx.seasonal = new Tracker('seasonal', type);
+    ctx.seasonal = new Tracker('seasonal', type, opts.ownsBubble ?? false);
     emit({type: 'tracker_started', tracker: ctx.seasonal.snapshot(), timestamp: Date.now()});
   }
 }

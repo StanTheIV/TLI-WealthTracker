@@ -97,7 +97,7 @@ function createDispatcher(): Dispatcher {
 function createEngine(events: EngineEvent[]): Engine {
   return new Engine((e) => events.push(e))
     .register(new BagInitHandler())
-    .register(new SandlordHandler())  // before ZoneHandler — answers suppressMapTracker()
+    .register(new SandlordHandler())  // before ZoneHandler — sets ctx.seasonal.ownsBubble
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())
@@ -743,7 +743,7 @@ describe('Sandlord integration', () => {
     feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
 
     expect(ctx(e).seasonal?.seasonalType).toBe('sandlord');
-    expect(e.hasMapSuppressingHandler()).toBe(true);
+    expect(ctx(e).seasonal?.ownsBubble).toBe(true);
     expect(ctx(e).inMap).toBe(false);
     expect(ctx(e).map).toBeNull();
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'sandlord')).toBe(true);
@@ -798,7 +798,6 @@ describe('Sandlord integration', () => {
     feed(d, e, log.zoneTransition(SANDLORD_HUB, TOWN));
 
     expect(ctx(e).seasonal).toBeNull();
-    expect(e.hasMapSuppressingHandler()).toBe(false);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'sandlord')).toBe(true);
     expect(events.some(ev => ev.type === 'map_ended')).toBe(false);
   });
