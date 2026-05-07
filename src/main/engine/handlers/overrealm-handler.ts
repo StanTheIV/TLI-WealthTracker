@@ -1,10 +1,17 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
-import {startSeasonal, finishSeasonal, finishOnTownEntry} from './seasonal-helpers';
+import type {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
+import {
+  startSeasonal,
+  finishOnTownEntry,
+  createLootTimer,
+  startLootTimer,
+  refreshLootTimer,
+  cancelLootTimer,
+} from './seasonal-helpers';
 
-const LOOT_COLLECTION_MS = 5_000;
+const DEFAULT_LOOT_COLLECTION_MS = 5_000;
 
 /**
  * OverrealmHandler — manages the Overrealm (S12) seasonal tracker lifecycle.
@@ -36,7 +43,8 @@ export class OverrealmHandler implements EventHandler {
   readonly name    = 'overrealm';
   readonly handles = ['s12_entry', 's12_exit', 'zone_transition', 'bag_update'] as const;
 
-  private _lootTimer:   LootCollectionTimer | null = null;
+  private _lootTimer:      LootCollectionTimer | null = null;
+  private _lootDurationMs: number                     = DEFAULT_LOOT_COLLECTION_MS;
   // True between s12_entry and s12_exit: the player is in Overrealm proper
   // (not yet in the post-exit loot window).
   private _inOverrealm: boolean = false;
@@ -45,6 +53,13 @@ export class OverrealmHandler implements EventHandler {
   isInOverrealm(): boolean { return this._inOverrealm; }
   /** Test-only: is the post-exit loot collection timer running? */
   isLootCollecting(): boolean { return this._lootTimer?.active ?? false; }
+
+  /** Update the post-exit loot window in milliseconds. Takes effect on the
+   *  next exit (the in-flight timer, if any, keeps its original duration). */
+  setLootDurationMs(ms: number): void {
+    const next = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+    this._lootDurationMs = next;
+  }
 
   onStop(_ctx: EngineContext): void {
     this._lootTimer?.cancel();
@@ -72,7 +87,7 @@ export class OverrealmHandler implements EventHandler {
         break;
 
       case 'bag_update':
-        this._lootTimer?.refresh();
+        if (this._lootTimer) refreshLootTimer(this._lootTimer, 'overrealm', emit);
         break;
     }
   }
@@ -81,7 +96,7 @@ export class OverrealmHandler implements EventHandler {
     // Re-entry while loot timer is running — player took another Overrealm
     // portal in the same map. Cancel the timer and resume the session.
     if (this._lootTimer?.active) {
-      this._lootTimer.cancel();
+      cancelLootTimer(this._lootTimer, 'overrealm', emit);
       this._lootTimer   = null;
       this._inOverrealm = true;
       return;
@@ -101,10 +116,9 @@ export class OverrealmHandler implements EventHandler {
     // is ignored.
     if (!this._inOverrealm) return;
     this._inOverrealm = false;
-    this._lootTimer = new LootCollectionTimer(LOOT_COLLECTION_MS, () => {
+    this._lootTimer = createLootTimer(this._lootDurationMs, 'overrealm', ctx, emit, () => {
       this._lootTimer = null;
-      finishSeasonal(ctx, emit);
     });
-    this._lootTimer.start();
+    startLootTimer(this._lootTimer, 'overrealm', emit);
   }
 }

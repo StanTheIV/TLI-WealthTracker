@@ -15,6 +15,12 @@ interface SettingsState {
   rateTimeframe:            RateTimeframe;
   themeMode:                ThemeMode;
   lowStockThreshold:        number;
+  /** Post-exit Overrealm loot collection window, in seconds. */
+  overrealmLootSec:         number;
+  /** Post-combat Carjack loot collection window, in seconds. */
+  carjackLootSec:           number;
+  /** Post-turn-in Clockwork loot collection window, in seconds. */
+  clockworkLootSec:         number;
   isLoaded:                 boolean;
 }
 
@@ -30,7 +36,12 @@ interface SettingsActions {
   setRateTimeframe:             (v: RateTimeframe) => void;
   setThemeMode:                 (v: ThemeMode) => void;
   setLowStockThreshold:         (v: number) => void;
+  setOverrealmLootSec:          (v: number) => void;
+  setCarjackLootSec:            (v: number) => void;
+  setClockworkLootSec:          (v: number) => void;
 }
+
+const DEFAULT_LOOT_SEC = 5;
 
 const DEFAULTS: SettingsState = {
   torchlightPath:           '',
@@ -43,8 +54,18 @@ const DEFAULTS: SettingsState = {
   rateTimeframe:            'hour',
   themeMode:                'system',
   lowStockThreshold:        0,
+  overrealmLootSec:         DEFAULT_LOOT_SEC,
+  carjackLootSec:           DEFAULT_LOOT_SEC,
+  clockworkLootSec:         DEFAULT_LOOT_SEC,
   isLoaded:                 false,
 };
+
+function parseLootSec(raw: string | undefined): number {
+  if (raw === undefined) return DEFAULT_LOOT_SEC;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_LOOT_SEC;
+  return Math.floor(n);
+}
 
 function persist(key: string, value: string) {
   window.electronAPI.db.settings.set(key, value).catch(
@@ -71,6 +92,9 @@ export const useSettingsStore = create<Store>((set, get) => ({
     const lowStockThreshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0
       ? Math.floor(parsedThreshold)
       : 0;
+    const overrealmLootSec = parseLootSec(raw.overrealmLootMs ? String(Number(raw.overrealmLootMs) / 1000) : undefined);
+    const carjackLootSec   = parseLootSec(raw.carjackLootMs   ? String(Number(raw.carjackLootMs)   / 1000) : undefined);
+    const clockworkLootSec = parseLootSec(raw.clockworkLootMs ? String(Number(raw.clockworkLootMs) / 1000) : undefined);
     set({
       torchlightPath,
       overlayOpacity: raw.overlayOpacity ? Number(raw.overlayOpacity) : 0.9,
@@ -82,9 +106,15 @@ export const useSettingsStore = create<Store>((set, get) => ({
       rateTimeframe: (raw.rateTimeframe === 'minute' ? 'minute' : 'hour') as RateTimeframe,
       themeMode: (['system', 'dark', 'light'].includes(raw.themeMode ?? '') ? raw.themeMode : 'system') as ThemeMode,
       lowStockThreshold,
+      overrealmLootSec,
+      carjackLootSec,
+      clockworkLootSec,
       isLoaded: true,
     });
     window.electronAPI.engine.setLowStockThreshold(lowStockThreshold);
+    window.electronAPI.engine.setOverrealmLootMs(overrealmLootSec * 1000);
+    window.electronAPI.engine.setCarjackLootMs(carjackLootSec * 1000);
+    window.electronAPI.engine.setClockworkLootMs(clockworkLootSec * 1000);
   },
 
   setTorchlightPath: (v) => {
@@ -134,6 +164,27 @@ export const useSettingsStore = create<Store>((set, get) => ({
     persist('lowStockThreshold', String(clamped));
     window.electronAPI.engine.setLowStockThreshold(clamped);
     set({lowStockThreshold: clamped});
+  },
+
+  setOverrealmLootSec: (v) => {
+    const clamped = Number.isFinite(v) && v > 0 ? Math.floor(v) : DEFAULT_LOOT_SEC;
+    persist('overrealmLootMs', String(clamped * 1000));
+    window.electronAPI.engine.setOverrealmLootMs(clamped * 1000);
+    set({overrealmLootSec: clamped});
+  },
+
+  setCarjackLootSec: (v) => {
+    const clamped = Number.isFinite(v) && v > 0 ? Math.floor(v) : DEFAULT_LOOT_SEC;
+    persist('carjackLootMs', String(clamped * 1000));
+    window.electronAPI.engine.setCarjackLootMs(clamped * 1000);
+    set({carjackLootSec: clamped});
+  },
+
+  setClockworkLootSec: (v) => {
+    const clamped = Number.isFinite(v) && v > 0 ? Math.floor(v) : DEFAULT_LOOT_SEC;
+    persist('clockworkLootMs', String(clamped * 1000));
+    window.electronAPI.engine.setClockworkLootMs(clamped * 1000);
+    set({clockworkLootSec: clamped});
   },
 
   validateLogFile: async () => {

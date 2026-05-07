@@ -84,7 +84,7 @@ describe('ItemHandler', () => {
     expect(events.some(e => e.type === 'drop')).toBe(false);
   });
 
-  it('town→map zone_transition flushes buffered town deltas as pre-map spend (session yes, map no)', () => {
+  it('town→map zone_transition flushes buffered town deltas into session AND map (also recorded as pre-map spend)', () => {
     const handler = new ItemHandler();
     // Start in town
     const ctx = makeCtx(false);
@@ -102,15 +102,17 @@ describe('ItemHandler', () => {
 
     handler.handle({type: 'zone_transition', fromScene: 'Town', toScene: '/Game/Art/Maps/X'}, ctx, emit);
 
-    // The renderer-facing `drop` event still fires (session-aggregate update).
     const drops = events.filter(e => e.type === 'drop');
     expect(drops).toHaveLength(1);
     expect(drops[0]).toMatchObject({type: 'drop', itemId: 111, change: -3});
 
-    // Pre-map flush goes into session but NOT the new map tracker. The map
-    // tracker shows only what dropped IN the map; pre-map spend lives
-    // separately in the per-map `spent` field via getLastPreMapFlush().
-    expect(ctx.map?.snapshot().drops[111]).toBeUndefined();
+    // Pre-map flush goes into BOTH the map tracker (so the live map widget
+    // shows the spend) AND the session tracker. The same delta is also
+    // captured in getLastPreMapFlush() so the engine can expose it as
+    // m.spent for the per-map chart's cost line. The chart math is
+    // responsible for not double-counting the negative-in-m.drops with
+    // the positive-magnitude in m.spent — see SessionDetail.tsx.
+    expect(ctx.map?.snapshot().drops[111]).toBe(-3);
     expect(ctx.session?.snapshot().drops[111]).toBe(-3);
     expect(handler.getLastPreMapFlush().get(111)).toBe(-3);
   });

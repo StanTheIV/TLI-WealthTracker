@@ -146,16 +146,7 @@ export class BagInitHandler implements EventHandler {
     // When paused, keep bag state in sync but do not credit/debit trackers.
     if (ctx.paused) return;
 
-    publishDrops(
-      ctx,
-      emit,
-      changes.map(c => [c.itemId, c.change] as const),
-      // Resorts during tracking phase are always treated as in-map activity
-      // when in a loot context; otherwise as settled town activity. There is
-      // no 'pre-map' resort case because resorts don't accumulate across the
-      // town→map boundary like the ItemHandler buffer does.
-      {mode: ctx.isLootContext() ? 'in-map' : 'town'},
-    );
+    publishDrops(ctx, emit, changes.map(c => [c.itemId, c.change] as const), {lootContext: ctx.isLootContext()});
   }
 
   // ---------------------------------------------------------------------

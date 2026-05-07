@@ -14,6 +14,9 @@
 export class LootCollectionTimer {
   private _timer:     ReturnType<typeof setTimeout> | null = null;
   private _startedAt: number = 0;
+  // The current scheduled wait — equals durationMs after start(), or 80%
+  // of it after a refresh re-arms.
+  private _currentDurationMs: number = 0;
   private _onExpire:  () => void;
 
   readonly durationMs: number;
@@ -29,7 +32,8 @@ export class LootCollectionTimer {
 
   start(): void {
     this._clear();
-    this._startedAt = Date.now();
+    this._startedAt          = Date.now();
+    this._currentDurationMs  = this.durationMs;
     this._timer = setTimeout(() => {
       this._timer = null;
       this._onExpire();
@@ -37,24 +41,38 @@ export class LootCollectionTimer {
   }
 
   /**
+   * Returns the timestamp at which the timer is currently scheduled to fire,
+   * or null when not active. Useful for surfacing a live countdown.
+   */
+  get deadline(): number | null {
+    if (!this.active) return null;
+    return this._startedAt + this._currentDurationMs;
+  }
+
+  /**
    * Called on each item pickup during the loot window.
    * Resets the timer to 80% of total duration only if remaining time has
    * already fallen below that threshold — avoids infinite extension.
+   * Returns true when the timer was actually re-armed (so callers can
+   * publish a new deadline), false when the pickup didn't trigger a reset.
    */
-  refresh(): void {
-    if (!this.active) return;
+  refresh(): boolean {
+    if (!this.active) return false;
 
     const remaining  = this.durationMs - (Date.now() - this._startedAt);
     const threshold  = this.durationMs * 0.8;
 
     if (remaining < threshold) {
       this._clear();
-      this._startedAt = Date.now();
+      this._startedAt          = Date.now();
+      this._currentDurationMs  = threshold;
       this._timer = setTimeout(() => {
         this._timer = null;
         this._onExpire();
       }, threshold);
+      return true;
     }
+    return false;
   }
 
   cancel(): void {

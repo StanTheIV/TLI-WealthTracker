@@ -7,6 +7,9 @@ import type {FilterRule} from '@/types/itemFilter';
 import {Tracker} from './tracker';
 import {ItemHandler} from './handlers/item';
 import {MapMaterialHandler} from './handlers/map-material';
+import {OverrealmHandler} from './handlers/overrealm-handler';
+import {CarjackHandler} from './handlers/carjack-handler';
+import {ClockworkHandler} from './handlers/clockwork-handler';
 import {log} from '@/main/logger';
 
 /**
@@ -30,6 +33,10 @@ export class Engine {
   private _mapMaterial: MapMaterialHandler | null = null;
   // Typed reference to the item handler for derived queries (pre-map spends).
   private _item:        ItemHandler        | null = null;
+  // Typed references to seasonal handlers with configurable loot windows.
+  private _overrealm:   OverrealmHandler   | null = null;
+  private _carjack:     CarjackHandler     | null = null;
+  private _clockwork:   ClockworkHandler   | null = null;
 
   constructor(emit: EmitFn) {
     this._emit = emit;
@@ -43,6 +50,9 @@ export class Engine {
     this._handlers.push(handler);
     if (handler instanceof ItemHandler)        this._item        = handler;
     if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
+    if (handler instanceof OverrealmHandler)   this._overrealm   = handler;
+    if (handler instanceof CarjackHandler)     this._carjack     = handler;
+    if (handler instanceof ClockworkHandler)   this._clockwork   = handler;
     return this;
   }
 
@@ -218,6 +228,21 @@ export class Engine {
 
   setLowStockThreshold(n: number): void {
     this._mapMaterial?.setThreshold(n);
+  }
+
+  // --- Seasonal loot timer durations (ms) ----------------------------------
+  // Pass-throughs so the IPC layer never reaches into a handler instance.
+
+  setOverrealmLootDurationMs(ms: number): void {
+    this._overrealm?.setLootDurationMs(ms);
+  }
+
+  setCarjackLootDurationMs(ms: number): void {
+    this._carjack?.setLootDurationMs(ms);
+  }
+
+  setClockworkLootDurationMs(ms: number): void {
+    this._clockwork?.setLootDurationMs(ms);
   }
 
   /**

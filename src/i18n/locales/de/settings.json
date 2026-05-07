@@ -64,6 +64,23 @@
       "hint": "Wenn aktiviert, friert der Total-Timer in der Stadt ein, damit die FE/h-Rate die tatsächliche Map-Performance widerspiegelt. Map- und Seasonal-Tracker bleiben unverändert. Gespeicherte Sitzungen behalten weiterhin die volle Echtzeit."
     }
   },
+  "lootTimers": {
+    "heading": "Seasonal-Loot-Fenster",
+    "hint": "Wie lange nach Ende einer Seasonal-Mechanik Drops noch dem jeweiligen Tracker zugerechnet werden. Jedes Aufheben verlängert das Fenster. Pro Mechanik einstellbar (in Sekunden).",
+    "unit": "Sekunden",
+    "overrealm": {
+      "label": "Overrealm",
+      "hint": "Zeit nach Verlassen des Overrealms, in der Drops weiterhin dem Overrealm-Tracker zugerechnet werden. Das Truhen-Spawn dauert ein paar Sekunden — verlängern, wenn Drops in der nächsten Map statt im Overrealm landen."
+    },
+    "carjack": {
+      "label": "Carjack",
+      "hint": "Zeit nach Ende der Carjack-Kampfmusik, in der Drops weiterhin zugerechnet werden. Drops fallen meist binnen 1-2 Sekunden; 5s ist großzügig."
+    },
+    "clockwork": {
+      "label": "Clockwork Ballet",
+      "hint": "Zeit nach einer Clockwork-Voucher-Abgabe, in der Drops weiterhin zugerechnet werden."
+    }
+  },
   "overlay": {
     "heading": "Overlay-Fenster",
     "opacity": "Hintergrundtransparenz",

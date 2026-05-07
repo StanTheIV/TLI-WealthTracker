@@ -71,26 +71,19 @@ export class EngineContext {
    * so Vorex, Dream, and Overrealm can each have independent filter rules.
    * Default when no filter is set: include all items.
    *
-   * `opts.includeMap` (default true) controls whether the map tracker
-   * receives the drop. Pass `false` for pre-map spend flushes — those
-   * attribute to session and seasonal but live separately as `m.spent` in
-   * the per-map record, so adding them to the map tracker would double-count
-   * with the chart's cost line.
-   *
    * Returns whether the session scope accepted the drop — used by the
    * publisher to gate the renderer-facing `drop` event so the dashboard's
    * unfiltered aggregate (engineStore.drops) and the live feed honour the
    * session filter just like the session tracker itself does.
    */
-  distributeDrop(itemId: number, change: number, opts: {includeMap?: boolean} = {}): boolean {
-    const f          = this.filter;
-    const includeMap = opts.includeMap ?? true;
+  distributeDrop(itemId: number, change: number): boolean {
+    const f = this.filter;
 
     const sessionIncluded = !f || f.shouldInclude(itemId, 'session' as FilterScope);
     if (sessionIncluded) {
       this.session?.addDrop(itemId, change);
     }
-    if (includeMap && (!f || f.shouldInclude(itemId, 'map' as FilterScope))) {
+    if (!f || f.shouldInclude(itemId, 'map' as FilterScope)) {
       this.map?.addDrop(itemId, change);
     }
     if (this.seasonal) {

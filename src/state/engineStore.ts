@@ -39,6 +39,10 @@ interface EngineState {
   lowStockWarnings:         LowStockWarning[];
   /** Item IDs the user has dismissed this session — mirror of main-process set. */
   dismissedMaterials:       Set<number>;
+  /** Deadline (ms epoch) at which the active seasonal's loot collection
+   *  window expires. Null when no loot window is running. Updated on every
+   *  loot_window_started event (initial start AND each refresh). */
+  lootWindowDeadline:       number | null;
 }
 
 interface EngineActions {
@@ -70,6 +74,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
   lastSavedSessionId:        null,
   lowStockWarnings:          [],
   dismissedMaterials:        new Set<number>(),
+  lootWindowDeadline:        null,
 
   init: () => {
     if (_initialized) return;
@@ -99,6 +104,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
       let lowStockWarnings     = s.lowStockWarnings;
       let dismissedMaterials   = s.dismissedMaterials;
       let accumulatedMapTime   = s.accumulatedMapTime;
+      let lootWindowDeadline   = s.lootWindowDeadline;
 
       switch (event.type) {
         case 'init_started':
@@ -116,6 +122,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           activeSessionName         = null;
           lowStockWarnings          = [];
           dismissedMaterials        = new Set<number>();
+          lootWindowDeadline        = null;
           break;
 
         case 'init_complete':
@@ -180,6 +187,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           } else if (event.tracker.kind === 'seasonal') {
             seasonalTracker           = null;
             seasonalTrackerReceivedAt = null;
+            lootWindowDeadline        = null;
           } else if (event.tracker.kind === 'session') {
             phase              = 'idle';
             drops              = event.tracker.drops;
@@ -214,6 +222,14 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           lowStockWarnings   = event.items;
           dismissedMaterials = new Set<number>();
           break;
+
+        case 'loot_window_started':
+          lootWindowDeadline = event.deadline;
+          break;
+
+        case 'loot_window_ended':
+          lootWindowDeadline = null;
+          break;
       }
 
       return {
@@ -224,6 +240,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
         accumulatedMapTime,
         activeSessionName, lastSavedSessionId,
         lowStockWarnings, dismissedMaterials,
+        lootWindowDeadline,
       };
     });
   },
@@ -236,6 +253,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
     accumulatedMapTime: 0,
     activeSessionName: null, lastSavedSessionId: null,
     lowStockWarnings: [], dismissedMaterials: new Set<number>(),
+    lootWindowDeadline: null,
   }),
 
   setActiveSessionName: (name) => set({activeSessionName: name}),

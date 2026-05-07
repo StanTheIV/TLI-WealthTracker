@@ -1,10 +1,16 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
-import {startSeasonal, finishSeasonal, finishOnTownEntry} from './seasonal-helpers';
+import type {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
+import {
+  startSeasonal,
+  finishOnTownEntry,
+  createLootTimer,
+  startLootTimer,
+  refreshLootTimer,
+} from './seasonal-helpers';
 
-const LOOT_COLLECTION_MS = 5_000;
+const DEFAULT_LOOT_COLLECTION_MS = 5_000;
 
 /**
  * ClockworkHandler — manages the Clockwork Ballet (S7) seasonal tracker lifecycle.
@@ -28,7 +34,15 @@ export class ClockworkHandler implements EventHandler {
   readonly name    = 'clockwork';
   readonly handles = ['s7_success', 's7_fail', 'zone_transition', 'bag_update'] as const;
 
-  private _lootTimer: LootCollectionTimer | null = null;
+  private _lootTimer:      LootCollectionTimer | null = null;
+  private _lootDurationMs: number                     = DEFAULT_LOOT_COLLECTION_MS;
+
+  /** Update the post-turn-in loot window in milliseconds. Takes effect on
+   *  the next turn-in (the in-flight timer, if any, keeps its original duration). */
+  setLootDurationMs(ms: number): void {
+    const next = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+    this._lootDurationMs = next;
+  }
 
   onStop(_ctx: EngineContext): void {
     this._lootTimer?.cancel();
@@ -50,7 +64,7 @@ export class ClockworkHandler implements EventHandler {
         break;
 
       case 'bag_update':
-        this._lootTimer?.refresh();
+        if (this._lootTimer) refreshLootTimer(this._lootTimer, 'clockwork', emit);
         break;
     }
   }
@@ -72,10 +86,9 @@ export class ClockworkHandler implements EventHandler {
   }
 
   private _startLootTimer(ctx: EngineContext, emit: EmitFn): void {
-    this._lootTimer = new LootCollectionTimer(LOOT_COLLECTION_MS, () => {
+    this._lootTimer = createLootTimer(this._lootDurationMs, 'clockwork', ctx, emit, () => {
       this._lootTimer = null;
-      finishSeasonal(ctx, emit);
     });
-    this._lootTimer.start();
+    startLootTimer(this._lootTimer, 'clockwork', emit);
   }
 }

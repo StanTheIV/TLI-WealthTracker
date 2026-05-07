@@ -5,6 +5,7 @@ import {useEngineStore} from '@/state/engineStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useSettingsStore} from '@/state/settingsStore';
 import {useTrackerElapsed} from '@/hooks/useTrackerElapsed';
+import {useLootWindowCountdown} from '@/hooks/useLootWindowCountdown';
 import {useAnimatedPresence} from '@/hooks/useAnimatedPresence';
 import type {TrackerSnapshot} from '@/types/electron';
 import TrackerRow from './TrackerRow';
@@ -61,6 +62,7 @@ export default function TrackerPanel() {
   const accumulatedMapTime        = useEngineStore(s => s.accumulatedMapTime);
   const lowStockWarnings          = useEngineStore(s => s.lowStockWarnings);
   const dismissedMaterials        = useEngineStore(s => s.dismissedMaterials);
+  const lootWindowDeadline        = useEngineStore(s => s.lootWindowDeadline);
   const rateTimeframe             = useSettingsStore(s => s.rateTimeframe);
   const pauseTotalTimerInTown     = useSettingsStore(s => s.pauseTotalTimerInTown);
 
@@ -89,6 +91,8 @@ export default function TrackerPanel() {
   const sessionFE  = useTotalFE(sessionDrops);
   const mapFE      = useTotalFE(lastMapRef.current?.drops ?? {});
   const seasonalFE = useTotalFE(lastSeasonalRef.current?.drops ?? {});
+
+  const lootCountdownSec = useLootWindowCountdown(lootWindowDeadline);
 
   const seasonalType  = lastSeasonalRef.current?.seasonalType;
   const seasonalLabel =
@@ -164,6 +168,7 @@ export default function TrackerPanel() {
               elapsedMs={seasonalElapsed}
               rateTimeframe={rateTimeframe}
               accentClass="bg-gold"
+              countdownSec={lootCountdownSec}
               paused={isPaused}
             />
           </div>

@@ -1,10 +1,16 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
-import {startSeasonal, finishSeasonal, finishOnTownEntry} from './seasonal-helpers';
+import type {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
+import {
+  startSeasonal,
+  finishOnTownEntry,
+  createLootTimer,
+  startLootTimer,
+  refreshLootTimer,
+} from './seasonal-helpers';
 
-const LOOT_COLLECTION_MS = 5_000;
+const DEFAULT_LOOT_COLLECTION_MS = 5_000;
 
 /**
  * CarjackHandler — manages the Carjack (S11) seasonal tracker lifecycle.
@@ -25,11 +31,19 @@ export class CarjackHandler implements EventHandler {
   readonly name    = 'carjack';
   readonly handles = ['s11_start', 's11_end', 'zone_transition', 'bag_update'] as const;
 
-  private _lootTimer: LootCollectionTimer | null = null;
+  private _lootTimer:      LootCollectionTimer | null = null;
+  private _lootDurationMs: number                     = DEFAULT_LOOT_COLLECTION_MS;
   // Private de-dup guard for repeated s11_start lines — handler-local on
   // purpose. Unlike OverrealmHandler's flags on EngineContext (read across
   // event types), this is only consulted inside this handler.
   private _inCarjack: boolean = false;
+
+  /** Update the post-combat loot window in milliseconds. Takes effect on
+   *  the next end (the in-flight timer, if any, keeps its original duration). */
+  setLootDurationMs(ms: number): void {
+    const next = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+    this._lootDurationMs = next;
+  }
 
   onStop(_ctx: EngineContext): void {
     this._lootTimer?.cancel();
@@ -55,7 +69,7 @@ export class CarjackHandler implements EventHandler {
         break;
 
       case 'bag_update':
-        this._lootTimer?.refresh();
+        if (this._lootTimer) refreshLootTimer(this._lootTimer, 'carjack', emit);
         break;
     }
   }
@@ -83,10 +97,9 @@ export class CarjackHandler implements EventHandler {
   }
 
   private _startLootTimer(ctx: EngineContext, emit: EmitFn): void {
-    this._lootTimer = new LootCollectionTimer(LOOT_COLLECTION_MS, () => {
+    this._lootTimer = createLootTimer(this._lootDurationMs, 'carjack', ctx, emit, () => {
       this._lootTimer = null;
-      finishSeasonal(ctx, emit);
     });
-    this._lootTimer.start();
+    startLootTimer(this._lootTimer, 'carjack', emit);
   }
 }

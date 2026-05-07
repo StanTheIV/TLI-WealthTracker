@@ -64,6 +64,23 @@
       "hint": "When enabled, the Total timer freezes while you're in town so the FE/h rate reflects in-map farming throughput. Map and Seasonal trackers are unaffected. Saved sessions still record full wall-clock time."
     }
   },
+  "lootTimers": {
+    "heading": "Seasonal Loot Windows",
+    "hint": "How long after a seasonal mechanic ends to keep crediting drops to its tracker. Each pickup refreshes the window. Set per mechanic (in seconds).",
+    "unit": "seconds",
+    "overrealm": {
+      "label": "Overrealm",
+      "hint": "Time after exiting Overrealm to keep attributing drops to the Overrealm tracker. The reward chest spawn animation needs a few seconds — extend if you find drops landing in the next map instead."
+    },
+    "carjack": {
+      "label": "Carjack",
+      "hint": "Time after the Carjack combat music stops to keep attributing drops. Drops typically land within 1-2 seconds; the default 5s is generous."
+    },
+    "clockwork": {
+      "label": "Clockwork Ballet",
+      "hint": "Time after a Clockwork voucher turn-in to keep attributing drops."
+    }
+  },
   "overlay": {
     "heading": "Overlay Window",
     "opacity": "Background Opacity",

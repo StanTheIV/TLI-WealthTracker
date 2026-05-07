@@ -9,6 +9,9 @@ interface TrackerRowProps {
   accentClass:   string; // Tailwind bg color class for the left accent bar, e.g. 'bg-accent'
   dim?:          boolean;
   badge?:        string; // small pill text, e.g. "#42"
+  /** Seconds remaining in a post-mechanic loot collection window. When set,
+   *  rendered as a small accent-colored "Ns" pill next to the label. */
+  countdownSec?: number | null;
   paused?:       boolean;
 }
 
@@ -41,7 +44,7 @@ function formatRate(valueFE: number | null, elapsedMs: number | null, timeframe:
 }
 
 export default function TrackerRow({
-  label, valueFE, elapsedMs, rateTimeframe, accentClass, dim = false, badge, paused = false,
+  label, valueFE, elapsedMs, rateTimeframe, accentClass, dim = false, badge, countdownSec, paused = false,
 }: TrackerRowProps) {
   const elapsedSec = elapsedMs !== null ? Math.floor(elapsedMs / 1000) * 1000 : null;
   const rateStr = useMemo(
@@ -76,6 +79,12 @@ export default function TrackerRow({
           {badge && !paused && (
             <span className="text-[12px] font-mono tabular-nums px-1 py-px rounded bg-white/8 text-text-disabled leading-none">
               {badge}
+            </span>
+          )}
+
+          {countdownSec !== null && countdownSec !== undefined && !paused && (
+            <span className="text-[12px] font-mono tabular-nums px-1 py-px rounded bg-gold-muted/40 text-gold leading-none">
+              {countdownSec}s
             </span>
           )}
 

@@ -98,6 +98,8 @@ export type EngineEvent =
   | {type: 'price_update';     itemId: number; price: number; timestamp: number}
   | {type: 'wealth_recorded';  timestamp: number}
   | {type: 'map_material_warning'; items: Array<{itemId: number; quantity: number}>; timestamp: number}
+  | {type: 'loot_window_started'; seasonalType: TrackerSnapshot['seasonalType']; deadline: number; timestamp: number}
+  | {type: 'loot_window_ended';   seasonalType: TrackerSnapshot['seasonalType']; timestamp: number}
   | {type: 'error';            message: string};
 
 interface ElectronAPI {
@@ -128,6 +130,9 @@ interface ElectronAPI {
     updateFilterRules: (rules: FilterRule[] | null) => void;
     dismissMaterial:      (itemId: number) => void;
     setLowStockThreshold: (n: number) => void;
+    setOverrealmLootMs:   (ms: number) => void;
+    setCarjackLootMs:     (ms: number) => void;
+    setClockworkLootMs:   (ms: number) => void;
     onEvent:         (cb: (event: EngineEvent) => void) => () => void;
   };
 

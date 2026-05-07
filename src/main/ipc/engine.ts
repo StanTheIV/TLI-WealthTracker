@@ -185,15 +185,27 @@ function startEngine(logPath: string, loadSessionId?: string): void {
     log.info('filter', `Filter set: "${activeFilter.name}" (${rules.length} rules)`);
   }
 
-  // Restore the user's low-stock threshold (defaults to 0).
-  const rawThreshold = settingsGetAll()['lowStockThreshold'];
-  const parsedThreshold = rawThreshold !== undefined ? Number(rawThreshold) : 0;
-  const threshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0
-    ? Math.floor(parsedThreshold)
-    : 0;
-  engine.setLowStockThreshold(threshold);
+  // Restore persisted engine settings.
+  const settings = settingsGetAll();
+  engine.setLowStockThreshold(parsePositiveInt(settings['lowStockThreshold'], 0, /*allowZero*/ true));
+
+  // Per-handler loot collection windows (ms). Default 5000.
+  const overrealmMs = parsePositiveInt(settings['overrealmLootMs'], 5000, /*allowZero*/ false);
+  const carjackMs   = parsePositiveInt(settings['carjackLootMs'],   5000, /*allowZero*/ false);
+  const clockworkMs = parsePositiveInt(settings['clockworkLootMs'], 5000, /*allowZero*/ false);
+  engine.setOverrealmLootDurationMs(overrealmMs);
+  engine.setCarjackLootDurationMs(carjackMs);
+  engine.setClockworkLootDurationMs(clockworkMs);
 
   log.info('engine', 'Engine started');
+}
+
+function parsePositiveInt(raw: string | undefined, fallback: number, allowZero: boolean): number {
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  if (allowZero ? n < 0 : n <= 0) return fallback;
+  return Math.floor(n);
 }
 
 function stopEngine(): void {
@@ -259,6 +271,15 @@ export function registerEngineHandlers(
   });
   ipcMain.on('engine:set-low-stock-threshold', (_e, n: number) => {
     engine?.setLowStockThreshold(n);
+  });
+  ipcMain.on('engine:set-overrealm-loot-ms', (_e, ms: number) => {
+    engine?.setOverrealmLootDurationMs(ms);
+  });
+  ipcMain.on('engine:set-carjack-loot-ms', (_e, ms: number) => {
+    engine?.setCarjackLootDurationMs(ms);
+  });
+  ipcMain.on('engine:set-clockwork-loot-ms', (_e, ms: number) => {
+    engine?.setClockworkLootDurationMs(ms);
   });
   ipcMain.on('engine:update-filter-rules', (_e, payload: FilterRule[] | null) => {
     if (!engine) return;

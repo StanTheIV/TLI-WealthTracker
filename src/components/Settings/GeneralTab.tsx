@@ -28,6 +28,12 @@ export default function GeneralTab() {
   const setLowStockThreshold = useSettingsStore(s => s.setLowStockThreshold);
   const pauseTotalTimerInTown    = useSettingsStore(s => s.pauseTotalTimerInTown);
   const setPauseTotalTimerInTown = useSettingsStore(s => s.setPauseTotalTimerInTown);
+  const overrealmLootSec    = useSettingsStore(s => s.overrealmLootSec);
+  const setOverrealmLootSec = useSettingsStore(s => s.setOverrealmLootSec);
+  const carjackLootSec      = useSettingsStore(s => s.carjackLootSec);
+  const setCarjackLootSec   = useSettingsStore(s => s.setCarjackLootSec);
+  const clockworkLootSec    = useSettingsStore(s => s.clockworkLootSec);
+  const setClockworkLootSec = useSettingsStore(s => s.setClockworkLootSec);
 
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
@@ -169,6 +175,36 @@ export default function GeneralTab() {
           </div>
           <p className="text-xs text-text-secondary">{t('tracker.lowStock.hint')}</p>
         </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-4">
+          {t('lootTimers.heading')}
+        </h2>
+        <p className="text-xs text-text-secondary mb-3">{t('lootTimers.hint')}</p>
+        {([
+          {key: 'overrealm', value: overrealmLootSec, set: setOverrealmLootSec},
+          {key: 'carjack',   value: carjackLootSec,   set: setCarjackLootSec},
+          {key: 'clockwork', value: clockworkLootSec, set: setClockworkLootSec},
+        ] as const).map(row => (
+          <div key={row.key} className="bg-surface rounded-lg p-4 border border-border mb-3">
+            <div className="flex items-center justify-between mb-2 gap-3">
+              <p className="text-sm text-text-primary">{t(`lootTimers.${row.key}.label`)}</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={row.value}
+                  onChange={e => row.set(Number(e.target.value))}
+                  className="w-20 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm font-mono tabular-nums text-text-primary text-right outline-none focus:border-accent/50 transition-colors"
+                />
+                <span className="text-xs text-text-secondary">{t('lootTimers.unit')}</span>
+              </div>
+            </div>
+            <p className="text-xs text-text-secondary">{t(`lootTimers.${row.key}.hint`)}</p>
+          </div>
+        ))}
       </section>
 
       <section className="mb-8">
