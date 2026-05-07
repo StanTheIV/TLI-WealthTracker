@@ -45,6 +45,11 @@ function generateSessionName(): string {
 export class SessionPersistence {
   private readonly _meta: SessionMeta;
   private _pendingRows: DbSessionMap[] = [];
+  /** mapIndex of the most-recently-buffered primary row (regular map or
+   *  standalone seasonal). Overlap seasonal rows attach to this. 0 before any
+   *  primary row exists — overlap rows in that window have no parent and are
+   *  treated as standalones (defensive; should never happen in practice). */
+  private _lastPrimaryMapIndex: number = 0;
 
   constructor(meta: SessionMeta) {
     this._meta = meta;
@@ -56,10 +61,13 @@ export class SessionPersistence {
 
   /**
    * Consume a `tracker_finished` event from the engine. Routes by tracker kind:
-   *   map      -> buffer a map row (seasonalType=null)
-   *   seasonal -> buffer a standalone seasonal row when no map tracker is
-   *               active (Sandlord case); ignore when one is active because
-   *               the upcoming map row already covers the seasonal portion.
+   *   map      -> buffer a primary map row (seasonalType=null), bumps map index.
+   *   seasonal -> standalone (no active map): primary row, bumps map index.
+   *               overlap (active map):       buffer with parentMapIndex set so
+   *                                           aggregations can avoid the
+   *                                           double-counting that would
+   *                                           otherwise occur (drops also live
+   *                                           in the parent map row).
    *   session  -> commit (autoSave) and return whether anything was saved.
    *
    * For non-`tracker_finished` events this is a no-op; callers can pipe every
@@ -71,12 +79,20 @@ export class SessionPersistence {
     const {tracker, timestamp} = event;
 
     if (tracker.kind === 'map') {
-      this._pendingRows.push(this._buildRow(tracker, timestamp, /*spent*/ engine.getLastMapSpends(), /*seasonalType*/ null));
+      const mapIndex = ++this._lastPrimaryMapIndex;
+      this._pendingRows.push(this._buildRow(tracker, timestamp, engine.getLastMapSpends(), null, mapIndex, null));
       return null;
     }
 
-    if (tracker.kind === 'seasonal' && !engine.hasActiveMapTracker()) {
-      this._pendingRows.push(this._buildRow(tracker, timestamp, /*spent*/ {}, tracker.seasonalType ?? null));
+    if (tracker.kind === 'seasonal') {
+      if (engine.hasActiveMapTracker() && this._lastPrimaryMapIndex > 0) {
+        // Overlap row — drops also live in the parent map row's tracker.
+        this._pendingRows.push(this._buildRow(tracker, timestamp, {}, tracker.seasonalType ?? null, this._lastPrimaryMapIndex, this._lastPrimaryMapIndex));
+      } else {
+        // Standalone seasonal (Sandlord, etc.) — primary row.
+        const mapIndex = ++this._lastPrimaryMapIndex;
+        this._pendingRows.push(this._buildRow(tracker, timestamp, {}, tracker.seasonalType ?? null, mapIndex, null));
+      }
       return null;
     }
 
@@ -84,6 +100,7 @@ export class SessionPersistence {
       const savedId = this._autoSave(event);
       // Whatever path autoSave took (saved or skipped), the buffer is gone.
       this._pendingRows = [];
+      this._lastPrimaryMapIndex = 0;
       return {savedId};
     }
 
@@ -96,6 +113,7 @@ export class SessionPersistence {
    */
   discard(): void {
     this._pendingRows = [];
+    this._lastPrimaryMapIndex = 0;
   }
 
   // -- private --------------------------------------------------------------
@@ -105,17 +123,20 @@ export class SessionPersistence {
     timestamp: number,
     spent: Record<string, number>,
     seasonalType: DbSessionMap['seasonalType'],
+    mapIndex: number,
+    parentMapIndex: number | null,
   ): DbSessionMap {
     const drops: Record<string, number> = {};
     for (const [k, v] of Object.entries(tracker.drops)) drops[String(k)] = v;
     return {
       sessionId:    this._meta.sessionId,
-      mapIndex:     this._pendingRows.length + 1,
+      mapIndex,
       startedAt:    timestamp - tracker.elapsed,
       duration:     tracker.elapsed,
       drops,
       spent,
       seasonalType,
+      parentMapIndex,
     };
   }
 

@@ -85,14 +85,15 @@ function createTables(): void {
     );
 
     CREATE TABLE IF NOT EXISTS session_maps (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id    TEXT NOT NULL,
-      map_index     INTEGER NOT NULL,
-      started_at    REAL NOT NULL,
-      duration      REAL NOT NULL,
-      drops         TEXT NOT NULL DEFAULT '{}',
-      spent         TEXT NOT NULL DEFAULT '{}',
-      seasonal_type TEXT
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id       TEXT NOT NULL,
+      map_index        INTEGER NOT NULL,
+      started_at       REAL NOT NULL,
+      duration         REAL NOT NULL,
+      drops            TEXT NOT NULL DEFAULT '{}',
+      spent            TEXT NOT NULL DEFAULT '{}',
+      seasonal_type    TEXT,
+      parent_map_index INTEGER
     );
 
     CREATE INDEX IF NOT EXISTS idx_session_maps_session ON session_maps (session_id);
@@ -101,6 +102,7 @@ function createTables(): void {
   migrateItems();
   migrateFilters();
   migrateSessionMaps();
+  migrateSessionMapsParent();
   log.debug('database', 'Tables created');
 }
 
@@ -115,6 +117,14 @@ function migrateFilters(): void {
 function migrateSessionMaps(): void {
   try {
     db.exec("ALTER TABLE session_maps ADD COLUMN seasonal_type TEXT");
+  } catch {
+    // Column already exists — ignore
+  }
+}
+
+function migrateSessionMapsParent(): void {
+  try {
+    db.exec("ALTER TABLE session_maps ADD COLUMN parent_map_index INTEGER");
   } catch {
     // Column already exists — ignore
   }
@@ -306,21 +316,29 @@ export interface DbSessionMap {
   /** Non-null when this row represents a standalone seasonal run (e.g. Sandlord)
    *  rather than a regular map. Null for plain map rows. */
   seasonalType: SeasonalType | null;
+  /** Non-null only for "overlap" seasonal rows that ran inside a regular map —
+   *  points at the `mapIndex` of the parent map row. Null for primary rows
+   *  (regular maps and standalone seasonals). Drops in an overlap row are
+   *  ALSO present in the parent map row's drops (engine fans drops into both
+   *  trackers); aggregations that sum across rows must filter by parentMapIndex
+   *  to avoid double-counting. */
+  parentMapIndex: number | null;
 }
 
 export function sessionMapsInsert(rows: DbSessionMap[]): void {
   if (rows.length === 0) return;
   const stmt = db.prepare(`
-    INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type)
-    VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType)
+    INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index)
+    VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType, @parentMapIndex)
   `);
   const tx = db.transaction((rs: DbSessionMap[]) => {
     for (const r of rs) {
       stmt.run({
         ...r,
-        drops:        JSON.stringify(r.drops),
-        spent:        JSON.stringify(r.spent),
-        seasonalType: r.seasonalType,
+        drops:          JSON.stringify(r.drops),
+        spent:          JSON.stringify(r.spent),
+        seasonalType:   r.seasonalType,
+        parentMapIndex: r.parentMapIndex,
       });
     }
   });
@@ -329,16 +347,17 @@ export function sessionMapsInsert(rows: DbSessionMap[]): void {
 
 export function sessionMapsGetForSession(sessionId: string): DbSessionMap[] {
   const rows = db.prepare(
-    'SELECT session_id, map_index, started_at, duration, drops, spent, seasonal_type FROM session_maps WHERE session_id = ? ORDER BY map_index ASC'
-  ).all(sessionId) as {session_id: string; map_index: number; started_at: number; duration: number; drops: string; spent: string; seasonal_type: string | null}[];
+    'SELECT session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index FROM session_maps WHERE session_id = ? ORDER BY id ASC'
+  ).all(sessionId) as {session_id: string; map_index: number; started_at: number; duration: number; drops: string; spent: string; seasonal_type: string | null; parent_map_index: number | null}[];
   return rows.map(r => ({
-    sessionId:    r.session_id,
-    mapIndex:     r.map_index,
-    startedAt:    r.started_at,
-    duration:     r.duration,
-    drops:        JSON.parse(r.drops),
-    spent:        JSON.parse(r.spent),
-    seasonalType: r.seasonal_type as SeasonalType | null,
+    sessionId:      r.session_id,
+    mapIndex:       r.map_index,
+    startedAt:      r.started_at,
+    duration:       r.duration,
+    drops:          JSON.parse(r.drops),
+    spent:          JSON.parse(r.spent),
+    seasonalType:   r.seasonal_type as SeasonalType | null,
+    parentMapIndex: r.parent_map_index,
   }));
 }
 

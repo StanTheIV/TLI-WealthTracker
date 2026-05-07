@@ -11,9 +11,13 @@ import {useItemsStore} from '@/state/itemsStore';
 import {useTracking} from '@/state/TrackingContext';
 import {useTheme} from '@/theme/ThemeContext';
 import {ITEM_TYPES, type ItemType} from '@/types/itemType';
-import type {DbSessionMap} from '@/types/electron';
+import type {DbSessionMap, TrackerSnapshot} from '@/types/electron';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
 import {formatDate, formatDuration} from './SessionsTable';
+
+type SeasonalType = NonNullable<TrackerSnapshot['seasonalType']>;
+type Source       = 'map' | SeasonalType;
+const SOURCES: Source[] = ['map', 'overrealm', 'clockwork', 'carjack', 'sandlord', 'vorex', 'dream'];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -42,6 +46,21 @@ function typeColors(theme: ReturnType<typeof useTheme>): Record<ItemType, string
     equipment:   theme.success,
     mapMaterial: theme.gold,
     other:       theme.textDisabled,
+  };
+}
+
+// Distinct color per loot source. Map = green to match the per-map chart's
+// regular-map bars; sandlord = gold to match the standalone-seasonal stack;
+// the rest reuse type tokens for visual variety.
+function sourceColors(theme: ReturnType<typeof useTheme>): Record<Source, string> {
+  return {
+    map:       theme.success,
+    sandlord:  theme.gold,
+    overrealm: theme.accent,
+    clockwork: theme.typeCube,
+    carjack:   theme.typeCard,
+    vorex:     theme.typeEmber,
+    dream:     theme.typeDream,
   };
 }
 
@@ -107,19 +126,30 @@ function PerMapBarChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<st
   const theme = useTheme();
 
   const data = useMemo<PerMapDatum[]>(() => {
-    if (maps.length === 0) return [];
-    const bucketSize = Math.max(1, Math.ceil(maps.length / MAX_BARS));
+    // Overlap seasonal rows live inside their parent map's drops already
+    // (engine fans drops into both trackers — see context.distributeDrop).
+    // Aggregating across all rows would double-count, so primary rows only.
+    const primary = maps.filter(m => m.parentMapIndex == null);
+    if (primary.length === 0) return [];
+    const bucketSize = Math.max(1, Math.ceil(primary.length / MAX_BARS));
     const out: PerMapDatum[] = [];
     let runningNet = 0;
-    for (let i = 0; i < maps.length; i += bucketSize) {
-      const slice = maps.slice(i, i + bucketSize);
+    for (let i = 0; i < primary.length; i += bucketSize) {
+      const slice = primary.slice(i, i + bucketSize);
       let mapIncome      = 0;
       let seasonalIncome = 0;
       let cost           = 0;
       for (const m of slice) {
+        // Income = positive entries in m.drops only. Negative entries are
+        // pre-map material spends that ItemHandler flushed into the map
+        // tracker on town→map; the same deltas live (positive-magnitude) in
+        // m.spent and feed the cost line. Counting them in both would
+        // double-count, so income takes only the positives.
         let rowIncome = 0;
-        for (const [id, qty] of Object.entries(m.drops)) rowIncome += qty * (prices[id] ?? 0);
-        for (const [id, qty] of Object.entries(m.spent)) cost      += qty * (prices[id] ?? 0);
+        for (const [id, qty] of Object.entries(m.drops)) {
+          if (qty > 0) rowIncome += qty * (prices[id] ?? 0);
+        }
+        for (const [id, qty] of Object.entries(m.spent)) cost += qty * (prices[id] ?? 0);
         if (m.seasonalType !== null) seasonalIncome += rowIncome;
         else                         mapIncome      += rowIncome;
       }
@@ -270,6 +300,101 @@ function ByTypePieChart({drops, prices, itemTypes}: {
           ))}
         </Pie>
         <Tooltip content={<ByTypeTooltip />} />
+        <Legend
+          verticalAlign="bottom"
+          iconType="circle"
+          wrapperStyle={{fontSize: 11, color: theme.textSecondary}}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pie: value by source (regular map vs each seasonal mechanic)
+// ---------------------------------------------------------------------------
+
+interface BySourceDatum {
+  source: Source;
+  label:  string;
+  value:  number;
+  pct:    number;
+}
+
+function BySourceTooltip({active, payload}: {active?: boolean; payload?: {payload: BySourceDatum}[]}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-surface border border-border rounded px-3 py-2 text-xs shadow-lg">
+      <p className="text-text-primary font-semibold mb-1">{d.label}</p>
+      <p className="font-mono text-gold">{formatFEFull(d.value)} FE</p>
+      <p className="text-text-secondary">{d.pct.toFixed(1)}%</p>
+    </div>
+  );
+}
+
+function BySourcePieChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<string, number>}) {
+  const {t} = useTranslation('sessions');
+  const theme  = useTheme();
+  const colors = useMemo(() => sourceColors(theme), [theme]);
+
+  const data = useMemo<BySourceDatum[]>(() => {
+    const totals: Record<Source, number> = {} as Record<Source, number>;
+    for (const s of SOURCES) totals[s] = 0;
+    for (const m of maps) {
+      // Engine fans each drop into BOTH ctx.map and ctx.seasonal when a
+      // seasonal overlaps a map (context.distributeDrop). Result: a parent
+      // map row's drops include the seasonal-window drops too. Counter that
+      // by subtracting the overlap row's income from the 'map' bucket.
+      const source: Source = (m.seasonalType ?? 'map') as Source;
+      let rowIncome = 0;
+      for (const [id, qty] of Object.entries(m.drops)) {
+        if (qty > 0) rowIncome += qty * (prices[id] ?? 0);
+      }
+      totals[source] += rowIncome;
+      if (m.parentMapIndex != null) totals.map -= rowIncome;
+    }
+    const grand = Object.values(totals).reduce((s, v) => s + Math.max(0, v), 0);
+    if (grand <= 0) return [];
+    return SOURCES
+      .filter(source => totals[source] > 0)
+      .map(source => ({
+        source,
+        label: t(`details.source.${source}` as never),
+        value: totals[source],
+        pct:   (totals[source] / grand) * 100,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [maps, prices, t]);
+
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 rounded-lg border border-border bg-surface text-xs text-text-disabled px-6 text-center">
+        {t('details.bySourceEmpty')}
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <PieChart>
+        <Pie
+          data={data}
+          dataKey="value"
+          nameKey="label"
+          cx="50%"
+          cy="50%"
+          innerRadius={50}
+          outerRadius={95}
+          paddingAngle={2}
+          stroke={theme.surface}
+          strokeWidth={2}
+        >
+          {data.map(entry => (
+            <Cell key={entry.source} fill={colors[entry.source]} />
+          ))}
+        </Pie>
+        <Tooltip content={<BySourceTooltip />} />
         <Legend
           verticalAlign="bottom"
           iconType="circle"
@@ -453,8 +578,8 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
           />
         </div>
 
-        {/* Charts row: per-map (wider) + by-type pie (narrower) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Charts row: per-map (wider) + by-type pie + by-source pie */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-2 flex flex-col gap-2">
             <h2 className="text-[11px] font-semibold uppercase tracking-widest text-text-secondary">
               {t('details.perMapTitle')}
@@ -470,6 +595,16 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
               {t('details.byTypeTitle')}
             </h2>
             <ByTypePieChart drops={session.drops} prices={prices} itemTypes={itemTypes} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <h2 className="text-[11px] font-semibold uppercase tracking-widest text-text-secondary">
+              {t('details.bySourceTitle')}
+            </h2>
+            {!mapsLoaded ? (
+              <div className="h-[300px]" />
+            ) : (
+              <BySourcePieChart maps={maps} prices={prices} />
+            )}
           </div>
         </div>
       </div>

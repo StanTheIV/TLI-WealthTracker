@@ -24,6 +24,17 @@
     "perMapEmpty":  "No per-map breakdown available for this session.",
     "byTypeTitle":  "Value by item type",
     "byTypeEmpty":  "No drops to break down.",
+    "bySourceTitle": "Value by source",
+    "bySourceEmpty": "No drops to break down.",
+    "source": {
+      "map":       "Map",
+      "vorex":     "Vorex",
+      "dream":     "Dream",
+      "overrealm": "Overrealm",
+      "carjack":   "Carjack",
+      "clockwork": "Clockwork",
+      "sandlord":  "Sandlord"
+    },
     "tooltipIncome":         "Income",
     "tooltipSeasonalIncome": "Seasonal",
     "tooltipCost":           "Cost",

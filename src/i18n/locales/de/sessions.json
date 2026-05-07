@@ -24,6 +24,17 @@
     "perMapEmpty":  "Keine Karten-Aufschlüsselung für diese Sitzung verfügbar.",
     "byTypeTitle":  "Wert nach Item-Typ",
     "byTypeEmpty":  "Keine Drops zum Aufschlüsseln.",
+    "bySourceTitle": "Wert nach Quelle",
+    "bySourceEmpty": "Keine Drops zum Aufschlüsseln.",
+    "source": {
+      "map":       "Karte",
+      "vorex":     "Vorex",
+      "dream":     "Dream",
+      "overrealm": "Overrealm",
+      "carjack":   "Carjack",
+      "clockwork": "Clockwork",
+      "sandlord":  "Sandlord"
+    },
     "tooltipIncome":         "Einnahmen",
     "tooltipSeasonalIncome": "Saisonal",
     "tooltipCost":           "Kosten",

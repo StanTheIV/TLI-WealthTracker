@@ -41,8 +41,9 @@ export interface DbSession {
 }
 
 /** Per-run breakdown row for a saved session. Written by the engine on every
- *  map exit, and on standalone seasonal runs (e.g. Sandlord) that have no
- *  enclosing map. Flushed to disk alongside the session's own row. */
+ *  map exit, on standalone seasonal runs (e.g. Sandlord) that have no
+ *  enclosing map, AND on seasonal runs that overlap a regular map (Overrealm,
+ *  Clockwork, etc.). Flushed to disk alongside the session's own row. */
 export interface DbSessionMap {
   sessionId:    string;
   mapIndex:     number;
@@ -50,8 +51,13 @@ export interface DbSessionMap {
   duration:     number;        // ms
   drops:        Record<string, number>;
   spent:        Record<string, number>;
-  /** Non-null for standalone seasonal runs (Sandlord, etc.); null for plain map rows. */
+  /** Non-null for seasonal rows (standalone OR overlap); null for plain map rows. */
   seasonalType: 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | null;
+  /** Non-null only for overlap seasonal rows — points at the `mapIndex` of the
+   *  parent map row whose drops also include this seasonal's drops. Null for
+   *  primary rows (regular maps and standalone seasonals). Sum-across-rows
+   *  aggregations must filter by `parentMapIndex == null` to avoid double-counting. */
+  parentMapIndex: number | null;
 }
 
 export interface DbSeasonalStat {
