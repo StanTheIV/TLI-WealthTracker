@@ -414,10 +414,10 @@ describe('S13Processor', () => {
 // ---------------------------------------------------------------------------
 
 const s12Lines = {
-  entry:       '[2026.01.25-12.34.56:789] USceneEffectMgr::S12SwitchFinish called',
-  portalExit:  '[2026.01.25-12.34.56:789] Create Map Portal cfgId 52',
-  portalOther: '[2026.01.25-12.34.56:789] Create Map Portal cfgId 50',
-  portalOther2:'[2026.01.25-12.34.56:789] Create Map Portal cfgId 51',
+  entry: '[2026.01.25-12.34.56:789]TLGame: Display: [Game] USceneEffectMgr::S12SwitchFinish success.',
+  exit:  '[2026.01.25-12.34.56:789]TLGame: Display: [Game] gameplay type 8001 received notifyId 101 NotifyData ',
+  // notifyId 102/103/104 fire during a run but are not the exit signal
+  notifyOther: '[2026.01.25-12.34.56:789]TLGame: Display: [Game] gameplay type 8001 received notifyId 104 NotifyData ',
 };
 
 describe('S12Processor', () => {
@@ -431,34 +431,22 @@ describe('S12Processor', () => {
     expect(proc.test(s12Lines.entry)).toBe(true);
   });
 
-  it('test() matches Create Map Portal lines', () => {
-    expect(proc.test(s12Lines.portalExit)).toBe(true);
-    expect(proc.test(s12Lines.portalOther)).toBe(true);
+  it('test() matches the notifyId 101 exit line', () => {
+    expect(proc.test(s12Lines.exit)).toBe(true);
   });
 
   it('test() rejects unrelated lines', () => {
     expect(proc.test(lines.bagInit)).toBe(false);
     expect(proc.test(lines.unrelated)).toBe(false);
+    expect(proc.test(s12Lines.notifyOther)).toBe(false);
   });
 
   it('parses s12_entry', () => {
     expect(proc.process(s12Lines.entry)).toEqual({type: 's12_entry'});
   });
 
-  it('parses map_portal_created for cfgId 52 only', () => {
-    expect(proc.process(s12Lines.portalExit)).toEqual({type: 'map_portal_created', cfgId: 52});
-  });
-
-  it('returns null for non-exit portal IDs (50, 51)', () => {
-    expect(proc.process(s12Lines.portalOther)).toBeNull();
-    expect(proc.process(s12Lines.portalOther2)).toBeNull();
-  });
-
-  it('returns null for unrecognised line that passed test()', () => {
-    // test() matches on 'Create Map Portal' but regex may not extract a valid cfgId
-    const weird = 'Create Map Portal cfgId abc';
-    expect(proc.test(weird)).toBe(true);
-    expect(proc.process(weird)).toBeNull();
+  it('parses s12_exit on notifyId 101', () => {
+    expect(proc.process(s12Lines.exit)).toEqual({type: 's12_exit'});
   });
 });
 

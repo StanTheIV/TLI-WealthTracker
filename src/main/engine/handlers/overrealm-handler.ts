@@ -10,40 +10,46 @@ const LOOT_COLLECTION_MS = 5_000;
  * OverrealmHandler — manages the Overrealm (S12) seasonal tracker lifecycle.
  *
  * Event flow:
- *   s12_entry          : S12SwitchFinish — fires per stage (1, 2, 3)
- *                        Only the first entry starts the tracker.
- *   map_portal_created : cfgId 52 — exit portal appeared, set exit flag
- *   zone_transition    : if exit flag set, start LootCollectionTimer
- *   bag_update         : refreshes the loot timer on each item pickup
- *   zone_transition    : entering town cancels loot timer and finishes immediately
+ *   s12_entry       : USceneEffectMgr::S12SwitchFinish — fires on every
+ *                     Overrealm pact switch (initial entry, each inner stage
+ *                     transition, AND the exit transition itself).
+ *                     - When outside Overrealm → start tracker.
+ *                     - When inside Overrealm  → ignore (stage transition).
+ *                     - When in loot window    → cancel timer, resume session
+ *                                                (player re-entered a new
+ *                                                 Overrealm portal in the same
+ *                                                 map).
+ *   s12_exit        : gameplay type 8001 received notifyId 101 — fires when
+ *                     the Overrealm pact deactivates and the player is back
+ *                     in the Netherrealm. Arms the LootCollectionTimer.
+ *   bag_update      : refreshes the loot timer on each item pickup.
+ *   zone_transition : entering town cancels the loot timer and finishes
+ *                     immediately (existing seasonal-helpers behavior).
  *
- * Loot collection: after exiting Overrealm the player loots items that dropped
- * inside. The timer stays alive per pickup, refreshing to 80% of total duration
- * whenever remaining time drops below that threshold.
+ * Loot collection: after the s12_exit signal, drops in the next 5s attribute
+ * to the Overrealm tracker. Each pickup refreshes the timer to 80% of total
+ * duration whenever remaining time drops below that threshold.
  *
  * Must be registered AFTER ZoneHandler and BEFORE ItemHandler.
  */
 export class OverrealmHandler implements EventHandler {
   readonly name    = 'overrealm';
-  readonly handles = ['s12_entry', 'map_portal_created', 'zone_transition', 'bag_update'] as const;
+  readonly handles = ['s12_entry', 's12_exit', 'zone_transition', 'bag_update'] as const;
 
-  private _lootTimer: LootCollectionTimer | null = null;
-  // Currently inside the Overrealm stages (1, 2, or 3).
-  private _inOverrealm = false;
-  // Portal 52 was created — the next zone_transition is the exit, time to
-  // arm the loot-collection timer.
-  private _exiting = false;
+  private _lootTimer:   LootCollectionTimer | null = null;
+  // True between s12_entry and s12_exit: the player is in Overrealm proper
+  // (not yet in the post-exit loot window).
+  private _inOverrealm: boolean = false;
 
   /** Test-only: is the player currently inside the Overrealm stages? */
   isInOverrealm(): boolean { return this._inOverrealm; }
-  /** Test-only: is the handler waiting for the exit-zone transition? */
-  isExiting(): boolean { return this._exiting; }
+  /** Test-only: is the post-exit loot collection timer running? */
+  isLootCollecting(): boolean { return this._lootTimer?.active ?? false; }
 
   onStop(_ctx: EngineContext): void {
     this._lootTimer?.cancel();
-    this._lootTimer = null;
+    this._lootTimer   = null;
     this._inOverrealm = false;
-    this._exiting     = false;
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -55,13 +61,14 @@ export class OverrealmHandler implements EventHandler {
         this._handleEntry(ctx, emit);
         break;
 
-      case 'map_portal_created':
-        // S12Processor only emits cfgId 52 — no need to re-check cfgId here.
-        if (this._inOverrealm) this._exiting = true;
+      case 's12_exit':
+        this._handleExit(ctx, emit);
         break;
 
       case 'zone_transition':
-        this._handleZoneTransition(event.toScene, ctx, emit);
+        if (finishOnTownEntry(event.toScene, this._lootTimer, ctx, emit)) {
+          this._lootTimer = null;
+        }
         break;
 
       case 'bag_update':
@@ -71,44 +78,29 @@ export class OverrealmHandler implements EventHandler {
   }
 
   private _handleEntry(ctx: EngineContext, emit: EmitFn): void {
-    // Re-entered while loot timer is running — cancel timer and continue session.
+    // Re-entry while loot timer is running — player took another Overrealm
+    // portal in the same map. Cancel the timer and resume the session.
     if (this._lootTimer?.active) {
       this._lootTimer.cancel();
-      this._lootTimer = null;
+      this._lootTimer   = null;
       this._inOverrealm = true;
       return;
     }
 
-    // Already inside (stage 2/3 transition) — ignore.
+    // Already inside (stage 2/3/4 transition) — ignore.
     if (this._inOverrealm) return;
 
-    // Post-exit echo of S12SwitchFinish — ignore and clear flag.
-    if (this._exiting) {
-      this._exiting = false;
-      return;
-    }
-
-    // First stage entry.
+    // First entry — start the tracker.
     this._inOverrealm = true;
     startSeasonal('overrealm', ctx, emit);
   }
 
-  private _handleZoneTransition(toScene: string, ctx: EngineContext, emit: EmitFn): void {
-    // Portal 52 was seen — exit to map, start loot collection window.
-    if (this._inOverrealm && this._exiting) {
-      this._inOverrealm = false;
-      this._exiting     = false;
-      this._startLootTimer(ctx, emit);
-      return;
-    }
-
-    // Entering town while loot timer is active — stop immediately.
-    if (finishOnTownEntry(toScene, this._lootTimer, ctx, emit)) {
-      this._lootTimer = null;
-    }
-  }
-
-  private _startLootTimer(ctx: EngineContext, emit: EmitFn): void {
+  private _handleExit(ctx: EngineContext, emit: EmitFn): void {
+    // Defensive: only act if we believe we're inside Overrealm. A spurious
+    // s12_exit (e.g. engine started mid-Overrealm and missed the entry)
+    // is ignored.
+    if (!this._inOverrealm) return;
+    this._inOverrealm = false;
     this._lootTimer = new LootCollectionTimer(LOOT_COLLECTION_MS, () => {
       this._lootTimer = null;
       finishSeasonal(ctx, emit);

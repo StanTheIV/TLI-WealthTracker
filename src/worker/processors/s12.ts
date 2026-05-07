@@ -2,35 +2,32 @@ import type {Processor, RawEvent} from './types';
 
 export type S12Event =
   | {type: 's12_entry'}
-  | {type: 'map_portal_created'; cfgId: number};
+  | {type: 's12_exit'};
 
 // USceneEffectMgr::S12SwitchFinish → s12_entry
-//   Fires on every stage transition (1→2, 2→3). Only the first entry starts tracking.
+//   Fires on every Overrealm pact/area switch:
+//     - the initial entry (Netherrealm → Overrealm)
+//     - each stage transition inside (stage 1 → 2, 2 → 3, …)
+//     - the exit transition (Overrealm → Netherrealm)
+//   The handler decides which one matters based on its own state.
 //
-// Create Map Portal cfgId 52       → map_portal_created
-//   cfgId 52 = "exit to map" portal, appears when completing the final Overrealm stage.
-//   Other cfgIds (50, 51) are internal portals and are ignored.
-const RE_ENTRY  = /S12SwitchFinish/;
-const RE_PORTAL = /Create Map Portal cfgId (\d+)/;
-
-const OVERREALM_EXIT_PORTAL = 52;
+// gameplay type 8001 received notifyId 101 → s12_exit
+//   Fires once when the Overrealm pact deactivates and the player is back in
+//   the Netherrealm (regular map). Arrives ~200ms after the exit
+//   S12SwitchFinish. This is the trigger that arms the loot-collection timer.
+const RE_ENTRY = /S12SwitchFinish/;
+const RE_EXIT  = /gameplay type 8001 received notifyId 101\b/;
 
 export class S12Processor implements Processor {
   readonly name = 's12';
 
   test(line: string): boolean {
-    return line.includes('S12SwitchFinish') || line.includes('Create Map Portal');
+    return line.includes('S12SwitchFinish') || line.includes('gameplay type 8001 received notifyId 101');
   }
 
   process(line: string): RawEvent | null {
     if (RE_ENTRY.test(line)) return {type: 's12_entry'};
-
-    const m = RE_PORTAL.exec(line);
-    if (m) {
-      const cfgId = +m[1];
-      if (cfgId === OVERREALM_EXIT_PORTAL) return {type: 'map_portal_created', cfgId};
-    }
-
+    if (RE_EXIT.test(line))  return {type: 's12_exit'};
     return null;
   }
 }

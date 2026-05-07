@@ -58,9 +58,8 @@ const log = {
   s13WindowClose: `${ts} S13GamePlayMain::Destory`,
   s13Abandon:     `${ts} S13GamePlay Destory`,
 
-  s12Entry:       `${ts} USceneEffectMgr::S12SwitchFinish called`,
-  portalExit:     `${ts} Create Map Portal cfgId 52`,
-  portalOther:    `${ts} Create Map Portal cfgId 50`,
+  s12Entry:       `${ts}TLGame: Display: [Game] USceneEffectMgr::S12SwitchFinish success.`,
+  s12Exit:        `${ts}TLGame: Display: [Game] gameplay type 8001 received notifyId 101 NotifyData `,
 
   s11Start: `${ts}GameLog: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Play_Mus_Gameplay_S11_Robbery_Full.Play_Mus_Gameplay_S11_Robbery_Full id 3808`,
   s11End:   `${ts}GameLog: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Stop_Mus_Gameplay_S11_Robbery_Full.Stop_Mus_Gameplay_S11_Robbery_Full id 10149`,
@@ -321,31 +320,7 @@ describe('Overrealm integration', () => {
     expect(started).toHaveLength(1);
   });
 
-  it('portal 52 sets overrealmExiting flag', () => {
-    const d = createDispatcher();
-    const e = createEngine([]);
-
-    boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
-    feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s12Entry);
-
-    feed(d, e, log.portalExit);
-    expect(overrealm(e).isExiting()).toBe(true);
-  });
-
-  it('other portal IDs do not set overrealmExiting', () => {
-    const d = createDispatcher();
-    const e = createEngine([]);
-
-    boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
-    feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s12Entry);
-
-    feed(d, e, log.portalOther); // cfgId 50 — internal portal, ignored
-    expect(overrealm(e).isExiting()).toBe(false);
-  });
-
-  it('zone transition after portal 52 starts loot collection timer, tracker stays alive', () => {
+  it('s12_exit arms the loot collection timer; tracker stays alive', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
@@ -353,14 +328,11 @@ describe('Overrealm integration', () => {
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
-    feed(d, e, log.portalExit);
-
-    // Zone transition back to map = exited Overrealm
-    feed(d, e, log.zoneTransition(MAP, MAP + '_next'));
+    feed(d, e, log.s12Exit);
 
     expect(overrealm(e).isInOverrealm()).toBe(false);
-    expect(overrealm(e).isExiting()).toBe(false);
-    expect(ctx(e).seasonal?.seasonalType).toBe('overrealm'); // timer still running
+    expect(overrealm(e).isLootCollecting()).toBe(true);
+    expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
   });
 
@@ -371,8 +343,7 @@ describe('Overrealm integration', () => {
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
-    feed(d, e, log.portalExit);
-    feed(d, e, log.zoneTransition(MAP, MAP + '_next'));
+    feed(d, e, log.s12Exit);
 
     // Still in loot window — bag update should reach overrealm tracker
     feed(d, e, log.bagUpdate(1, 300, 7));
@@ -387,8 +358,7 @@ describe('Overrealm integration', () => {
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
-    feed(d, e, log.portalExit);
-    feed(d, e, log.zoneTransition(MAP, MAP + '_next'));
+    feed(d, e, log.s12Exit);
 
     expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
 
@@ -407,18 +377,17 @@ describe('Overrealm integration', () => {
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
-    feed(d, e, log.portalExit);
-    feed(d, e, log.zoneTransition(MAP, MAP + '_next'));
+    feed(d, e, log.s12Exit);
 
     // Advance to 4.5s (remaining=0.5s < 80% threshold=4s → refresh resets to 4s)
     vi.advanceTimersByTime(4_500);
-    expect(ctx(e).seasonal?.seasonalType).toBe('overrealm'); // still alive
+    expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
 
     feed(d, e, log.bagUpdate(1, 300, 2)); // triggers refresh → timer reset to 4s
 
     // 3.9s later — still within the refreshed 4s window
     vi.advanceTimersByTime(3_900);
-    expect(ctx(e).seasonal?.seasonalType).toBe('overrealm'); // still alive
+    expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
 
     // Let it expire (0.1s + buffer)
     vi.advanceTimersByTime(200);
@@ -433,13 +402,12 @@ describe('Overrealm integration', () => {
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
-    feed(d, e, log.portalExit);
-    feed(d, e, log.zoneTransition(MAP, MAP + '_next'));
+    feed(d, e, log.s12Exit);
 
     expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
 
     // Enter town — should cancel timer and finish immediately
-    feed(d, e, log.zoneTransition(MAP + '_next', TOWN));
+    feed(d, e, log.zoneTransition(MAP, TOWN));
 
     expect(ctx(e).seasonal).toBeNull();
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'overrealm')).toBe(true);
@@ -457,18 +425,36 @@ describe('Overrealm integration', () => {
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
-    feed(d, e, log.portalExit);
-    feed(d, e, log.zoneTransition(MAP, MAP + '_next'));
+    feed(d, e, log.s12Exit);
 
-    // Re-enter before timer expires
+    // Re-enter before timer expires (player took another Overrealm portal in
+    // the same map).
     feed(d, e, log.s12Entry);
 
     expect(overrealm(e).isInOverrealm()).toBe(true);
+    expect(overrealm(e).isLootCollecting()).toBe(false);
     expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
 
     // Timer cancelled — advancing time should not finish the tracker
     vi.advanceTimersByTime(6_000);
     expect(ctx(e).seasonal?.seasonalType).toBe('overrealm');
+  });
+
+  it('s12_exit while NOT in Overrealm is ignored (defensive)', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+
+    // Spurious s12_exit with no preceding s12_entry — engine is fresh, no
+    // tracker, no loot window. Must be a no-op.
+    feed(d, e, log.s12Exit);
+
+    expect(ctx(e).seasonal).toBeNull();
+    expect(overrealm(e).isLootCollecting()).toBe(false);
+    expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm')).toBe(false);
   });
 });
 
