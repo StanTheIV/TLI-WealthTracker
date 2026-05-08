@@ -69,7 +69,7 @@ describe('Carjack integration', () => {
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'carjack')).toBe(true);
   });
 
-  it('bag_update during loot window refreshes timer when below 80% threshold', () => {
+  it('bag_update during loot window refreshes timer (decaying 80%-of-current rule)', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
@@ -79,7 +79,7 @@ describe('Carjack integration', () => {
     feed(d, e, log.s11Start);
     feed(d, e, log.s11End);
 
-    // Advance to 4.5s (remaining=0.5s < 80% threshold=4s → refresh resets to 4s)
+    // Advance to 4.5s (remaining=0.5s < 0.8 * 5000 = 4s → refresh re-arms to 4s)
     vi.advanceTimersByTime(4_500);
     expect(ctx(e).seasonals.get('carjack')).toBeDefined();
 

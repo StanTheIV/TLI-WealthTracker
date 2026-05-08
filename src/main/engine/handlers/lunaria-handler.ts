@@ -7,6 +7,7 @@ import {
   createPausingLootTimer,
   startLootTimer,
   refreshLootTimer,
+  resetLootTimer,
   resumeSeasonal,
 } from './seasonal-helpers';
 
@@ -25,11 +26,11 @@ const DEFAULT_LOOT_COLLECTION_MS = 5_000;
  *   s14_strum (UECtrlComponent@ DoAction S14GameplayStart):
  *     - First ever              → startSeasonal('lunaria') + arm pausing timer.
  *     - Tracker exists, paused  → resume() + arm a fresh pausing timer.
- *     - Tracker exists, active  → refresh the existing timer (only re-arms
- *                                 if remaining time dropped below 80% of the
- *                                 configured window — same rule as Overrealm).
+ *     - Tracker exists, active  → resetLootTimer — strum is re-engagement,
+ *                                 always re-arms the full window so any decay
+ *                                 from previous pickups is undone.
  *   bag_update (during the loot window):
- *     - Refreshes the existing timer (same 80% rule).
+ *     - Pickup-refresh the existing timer (decaying 80%-of-current rule).
  *
  *   When the pausing loot timer expires, the tracker pauses in place. The
  *   next strum resumes it. ZoneHandler finishes on town entry.
@@ -65,9 +66,9 @@ export class LunariaHandler implements EventHandler {
     if (event.type === 's14_strum') {
       this._handleStrum(ctx, emit);
     } else if (event.type === 'bag_update' && this._lootTimer) {
-      // Pickup during the loot window — same 80%-threshold refresh rule as
-      // Overrealm/Carjack/Clockwork. Lunaria is an in-Netherrealm mechanic
-      // so pickups elsewhere can't reach this branch (timer is null).
+      // Pickup during the loot window — decaying refresh: each successive
+      // pickup that triggers a re-arm shrinks the window to 80% of the
+      // current one (same rule as Overrealm/Carjack/Clockwork).
       refreshLootTimer(this._lootTimer, 'lunaria', emit);
     }
   }
@@ -92,11 +93,10 @@ export class LunariaHandler implements EventHandler {
       return;
     }
 
-    // Active tracker, in-flight timer — refresh under the 80% rule. A strum
-    // is treated as engagement just like a pickup; both share the same
-    // refresh semantics so the timer never re-arms on every event.
+    // Active tracker, in-flight timer — strum is re-engagement, unconditionally
+    // re-arm the full window so any decay from prior pickups is undone.
     if (this._lootTimer) {
-      refreshLootTimer(this._lootTimer, 'lunaria', emit);
+      resetLootTimer(this._lootTimer, 'lunaria', emit);
     } else {
       // Defensive: tracker active but no timer (shouldn't happen — _arm runs
       // on tracker creation/resume). Arm a fresh one.

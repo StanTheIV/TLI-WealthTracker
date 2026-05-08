@@ -87,7 +87,7 @@ describe('Overrealm integration', () => {
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'overrealm')).toBe(true);
   });
 
-  it('bag_update during loot window refreshes timer when below 80% threshold', () => {
+  it('bag_update during loot window refreshes timer (decaying 80%-of-current rule)', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
@@ -97,7 +97,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
     feed(d, e, log.s12Exit);
 
-    // Advance to 4.5s (remaining=0.5s < 80% threshold=4s → refresh resets to 4s)
+    // Advance to 4.5s (remaining=0.5s < 0.8 * 5000 = 4s → refresh re-arms to 4s)
     vi.advanceTimersByTime(4_500);
     expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
 

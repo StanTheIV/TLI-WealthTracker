@@ -2,20 +2,27 @@
  * LootCollectionTimer — keeps a seasonal tracker alive during post-exit looting.
  *
  * When a seasonal mechanic ends (e.g. Overrealm), the player returns to the map
- * and loots the items that dropped inside. This timer extends attribution of those
- * drops to the seasonal tracker for a configurable window.
+ * and loots the items that dropped inside. This timer extends attribution of
+ * those drops to the seasonal tracker for a configurable window.
  *
- * Each item pickup refreshes the timer, but only if remaining time has dropped
- * below 80% of the total duration. This prevents the timer from being reset
- * indefinitely while still giving a generous window for each loot pickup.
+ * Two refresh modes:
+ *  - `refresh()` (pickups): re-arms the timer to 80% of the *current* window
+ *    when the remaining time has fallen below that 80% threshold. Because the
+ *    new window itself becomes the next basis, the window shrinks geometrically
+ *    on each successive pickup (5000ms → 4000ms → 3200ms → ...). This makes
+ *    long camp sessions wind down naturally instead of getting infinitely
+ *    extended one pickup at a time.
+ *  - `reset()` (strums / encounter re-engagement): unconditionally re-arms back
+ *    to the full configured `durationMs`, undoing any decay so the player gets
+ *    a fresh full window when they re-engage the mechanic.
  *
  * Reusable for any seasonal mechanic that needs post-exit loot attribution.
  */
 export class LootCollectionTimer {
   private _timer:     ReturnType<typeof setTimeout> | null = null;
   private _startedAt: number = 0;
-  // The current scheduled wait — equals durationMs after start(), or 80%
-  // of it after a refresh re-arms.
+  // The currently scheduled wait — equals durationMs after start()/reset(),
+  // shrinks to 80% of itself on each refresh() that actually re-arms.
   private _currentDurationMs: number = 0;
   private _onExpire:  () => void;
 
@@ -31,13 +38,7 @@ export class LootCollectionTimer {
   }
 
   start(): void {
-    this._clear();
-    this._startedAt          = Date.now();
-    this._currentDurationMs  = this.durationMs;
-    this._timer = setTimeout(() => {
-      this._timer = null;
-      this._onExpire();
-    }, this.durationMs);
+    this._arm(this.durationMs);
   }
 
   /**
@@ -50,33 +51,44 @@ export class LootCollectionTimer {
   }
 
   /**
-   * Called on each item pickup during the loot window.
-   * Resets the timer to 80% of total duration only if remaining time has
-   * already fallen below that threshold — avoids infinite extension.
-   * Returns true when the timer was actually re-armed (so callers can
-   * publish a new deadline), false when the pickup didn't trigger a reset.
+   * Pickup refresh — shrinks the next window to 80% of the current one when
+   * remaining time has dropped below 80% of it. Returns true when the timer
+   * was actually re-armed (so callers can publish a new deadline), false
+   * when the pickup didn't trigger a reset (still plenty of time left).
    */
   refresh(): boolean {
     if (!this.active) return false;
 
-    const remaining  = this.durationMs - (Date.now() - this._startedAt);
-    const threshold  = this.durationMs * 0.8;
+    const remaining = this._currentDurationMs - (Date.now() - this._startedAt);
+    const next      = this._currentDurationMs * 0.8;
 
-    if (remaining < threshold) {
-      this._clear();
-      this._startedAt          = Date.now();
-      this._currentDurationMs  = threshold;
-      this._timer = setTimeout(() => {
-        this._timer = null;
-        this._onExpire();
-      }, threshold);
+    if (remaining < next) {
+      this._arm(next);
       return true;
     }
     return false;
   }
 
+  /**
+   * Strum / re-engagement reset — unconditionally re-arms to the full configured
+   * window, undoing any decay accumulated by previous pickup-refreshes.
+   */
+  reset(): void {
+    this._arm(this.durationMs);
+  }
+
   cancel(): void {
     this._clear();
+  }
+
+  private _arm(ms: number): void {
+    this._clear();
+    this._startedAt          = Date.now();
+    this._currentDurationMs  = ms;
+    this._timer = setTimeout(() => {
+      this._timer = null;
+      this._onExpire();
+    }, ms);
   }
 
   private _clear(): void {

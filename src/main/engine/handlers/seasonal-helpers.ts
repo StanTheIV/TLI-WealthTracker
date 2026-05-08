@@ -152,10 +152,10 @@ export function startLootTimer(
 }
 
 /**
- * Refresh the timer (called on bag pickups). When the refresh actually
- * re-armed the underlying setTimeout (i.e. remaining time was below 80% of
- * the configured window), emit a fresh `loot_window_started` event with the
- * new deadline so the renderer's countdown stays in sync.
+ * Pickup-driven refresh of the timer. Shrinks the next window to 80% of the
+ * current one when remaining time has fallen below that threshold; otherwise
+ * a no-op. When it does re-arm, emit a fresh `loot_window_started` event
+ * with the new (shorter) deadline so the renderer's countdown stays in sync.
  */
 export function refreshLootTimer(
   timer:        LootCollectionTimer,
@@ -166,6 +166,22 @@ export function refreshLootTimer(
     const deadline = timer.deadline ?? Date.now();
     emit({type: 'loot_window_started', seasonalType, deadline, timestamp: Date.now()});
   }
+}
+
+/**
+ * Strum-driven reset of the timer. Unconditionally re-arms to the full
+ * configured window, undoing any decay from prior pickup-refreshes. Used by
+ * Lunaria when a fresh strum lands while a tracker is already active —
+ * pickup decay shouldn't punish the player for re-engaging.
+ */
+export function resetLootTimer(
+  timer:        LootCollectionTimer,
+  seasonalType: SeasonalType,
+  emit:         EmitFn,
+): void {
+  timer.reset();
+  const deadline = timer.deadline ?? Date.now() + timer.durationMs;
+  emit({type: 'loot_window_started', seasonalType, deadline, timestamp: Date.now()});
 }
 
 /**

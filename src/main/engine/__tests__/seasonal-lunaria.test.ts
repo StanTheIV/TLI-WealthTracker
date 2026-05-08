@@ -95,7 +95,7 @@ describe('Lunaria integration', () => {
     expect(ctx(e).seasonals.get('lunaria')?.snapshot().drops[1400]).toBe(5); // 2 + 3
   });
 
-  it('mid-window strum refreshes the timer when remaining is below 80% threshold', () => {
+  it('mid-window strum unconditionally resets the timer to the full window', () => {
     const d = createDispatcher();
     const e = createEngine([]);
 
@@ -103,23 +103,23 @@ describe('Lunaria integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s14Strum);
 
-    // Advance to 4.5s elapsed → remaining = 0.5s, which is below the 80%
-    // threshold (4s of the 5s window). Next refresh re-arms to 4s.
+    // Advance to 4.5s elapsed — would expire in 0.5s without intervention.
     vi.advanceTimersByTime(4_500);
     expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
 
-    feed(d, e, log.s14Strum); // strum triggers refresh
+    feed(d, e, log.s14Strum); // strum resets to full 5s window
 
-    // 3.9s into the refreshed 4s window — would have expired without refresh.
-    vi.advanceTimersByTime(3_900);
+    // 4.9s into the fresh 5s window — still active (was 4.5s + 4.9s = 9.4s
+    // total, well past the original 5s deadline).
+    vi.advanceTimersByTime(4_900);
     expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
 
-    // 0.2s more — refreshed window expires.
+    // 0.2s more — fresh window expires.
     vi.advanceTimersByTime(200);
     expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
   });
 
-  it('bag_update during the loot window refreshes the timer (same 80% rule)', () => {
+  it('bag_update during the loot window refreshes the timer (decaying rule)', () => {
     const d = createDispatcher();
     const e = createEngine([]);
 
@@ -127,11 +127,11 @@ describe('Lunaria integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s14Strum);
 
-    // Advance to 4.5s — remaining 0.5s < 80% threshold.
+    // Advance to 4.5s — remaining 0.5s < 80% of current (4s).
     vi.advanceTimersByTime(4_500);
     expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
 
-    // Pickup during the loot window — same refresh path as Overrealm/Carjack.
+    // Pickup during the loot window — re-arms to 80% of current = 4000ms.
     feed(d, e, log.bagUpdate(1, 1400, 5));
 
     vi.advanceTimersByTime(3_900);
@@ -141,7 +141,7 @@ describe('Lunaria integration', () => {
     expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
   });
 
-  it('strum early in the window does NOT re-arm (above 80% threshold)', () => {
+  it('strum early in the window still resets — pushes deadline out past the original', () => {
     const d = createDispatcher();
     const e = createEngine([]);
 
@@ -149,13 +149,73 @@ describe('Lunaria integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s14Strum);
 
-    // Advance only 500ms — remaining 4.5s is well above the 80% threshold
-    // (4s). Refresh is a no-op; original 5s timer keeps ticking.
+    // 500ms into the 5s window — strum unconditionally resets to a fresh 5s.
     vi.advanceTimersByTime(500);
-    feed(d, e, log.s14Strum); // refresh attempted but ignored
+    feed(d, e, log.s14Strum);
 
-    // 4.5s more from t=500 — total 5s = original deadline → expires.
+    // 4.6s after the strum (t=5100, past the original 5s deadline) — still
+    // alive because the strum reset moved the deadline to t=5500.
     vi.advanceTimersByTime(4_600);
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+
+    // Original would have expired at t=5000; reset window expires at t=5500.
+    vi.advanceTimersByTime(500);
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+  });
+
+  it('consecutive pickups decay the loot window (5s → 4s → 3.2s)', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 1400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s14Strum);
+
+    // Advance to 4.5s — first pickup re-arms to 4000ms.
+    vi.advanceTimersByTime(4_500);
+    feed(d, e, log.bagUpdate(1, 1400, 1));
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+
+    // Advance to 3.5s into the new 4000ms window — remaining = 500 < 0.8 *
+    // 4000 = 3200, so the second pickup re-arms to 3200ms.
+    vi.advanceTimersByTime(3_500);
+    feed(d, e, log.bagUpdate(1, 1400, 2));
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+
+    // 3.1s in — still alive (window is 3200ms now).
+    vi.advanceTimersByTime(3_100);
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+
+    // 0.2s more — the decayed 3200ms window expires.
+    vi.advanceTimersByTime(200);
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+  });
+
+  it('strum after pickup-decay restores the full window', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 1400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s14Strum);
+
+    // First pickup decays the window to 4000ms.
+    vi.advanceTimersByTime(4_500);
+    feed(d, e, log.bagUpdate(1, 1400, 1));
+
+    // Second pickup decays it again to 3200ms.
+    vi.advanceTimersByTime(3_500);
+    feed(d, e, log.bagUpdate(1, 1400, 2));
+
+    // Strum now — fresh 5000ms window, undoing the decay.
+    feed(d, e, log.s14Strum);
+
+    // 4.9s after the strum — still active (would have already expired under
+    // the decayed 3200ms window).
+    vi.advanceTimersByTime(4_900);
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+
+    vi.advanceTimersByTime(200);
     expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
   });
 
