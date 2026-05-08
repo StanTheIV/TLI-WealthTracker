@@ -35,6 +35,10 @@ export interface DbItem {
   type:      string;
   price:     number;
   priceDate: number;
+  /** Local-only flag: when true, automated price scrapes from the worker skip
+   *  this item. Manual edits in the UI still go through. Excluded from
+   *  full_table.json import/export. */
+  locked?:   boolean;
 }
 
 /** Broadcast on every item mutation in the main process so all renderer windows
@@ -183,6 +187,7 @@ interface ElectronAPI {
       setName:    (id: string, name: string) => Promise<void>;
       setType:    (id: string, type: string) => Promise<void>;
       setPrice:   (id: string, price: number) => Promise<void>;
+      setLocked:  (id: string, locked: boolean) => Promise<void>;
       lookupName:  (id: string) => Promise<{name: string | null; type: string | null; lookupsToday: number} | {error: string; lookupsToday: number}>;
       importBatch: (items: DbItem[]) => Promise<number>;
       onChanged:   (cb: (patch: ItemChangedPatch) => void) => () => void;

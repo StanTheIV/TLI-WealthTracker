@@ -40,7 +40,8 @@ function createTables(): void {
       name       TEXT NOT NULL,
       type       TEXT NOT NULL DEFAULT '',
       price      REAL NOT NULL DEFAULT 0,
-      price_date REAL NOT NULL DEFAULT 0
+      price_date REAL NOT NULL DEFAULT 0,
+      locked     INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -169,11 +170,20 @@ export interface DbItem {
   type:      string;
   price:     number;
   priceDate: number;
+  /** Local-only flag: when true, automated price scrapes from the worker skip
+   *  this item. Manual edits in the UI still go through. Excluded from
+   *  full_table.json import/export by design — it's per-installation. */
+  locked?:   boolean;
 }
 
 function migrateItems(): void {
   try {
     db.exec("ALTER TABLE items ADD COLUMN price_date REAL NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists — ignore
+  }
+  try {
+    db.exec("ALTER TABLE items ADD COLUMN locked INTEGER NOT NULL DEFAULT 0");
   } catch {
     // Column already exists — ignore
   }
@@ -191,10 +201,13 @@ export function itemsCount(): number {
 }
 
 export function itemsGetAll(): DbItem[] {
-  const rows = db.prepare('SELECT id, name, type, price, price_date FROM items').all() as {id: string; name: string; type: string; price: number; price_date: number}[];
-  return rows.map(r => ({id: r.id, name: r.name, type: r.type, price: r.price, priceDate: r.price_date}));
+  const rows = db.prepare('SELECT id, name, type, price, price_date, locked FROM items').all() as {id: string; name: string; type: string; price: number; price_date: number; locked: number}[];
+  return rows.map(r => ({id: r.id, name: r.name, type: r.type, price: r.price, priceDate: r.price_date, locked: r.locked === 1}));
 }
 
+/** Upsert an item. Note: the `locked` flag is intentionally NOT touched here —
+ *  it's a local-only setting and full-table import must not overwrite it.
+ *  New rows default to locked=0 via the column default. */
 export function itemsUpsert(item: DbItem): void {
   db.prepare(`
     INSERT INTO items (id, name, type, price, price_date)
@@ -241,6 +254,17 @@ export function itemsSetType(id: string, type: string): void {
 export function itemsSetPrice(id: string, price: number): void {
   db.prepare('UPDATE items SET price = ?, price_date = ? WHERE id = ?').run(price, Date.now(), id);
   log.debug('price', `Price written: item=${id}, price=${price}`);
+}
+
+/** Read just the `locked` flag — used by the worker price-update path to skip
+ *  scraped updates for locked items without fetching the full row. */
+export function itemsGetLocked(id: string): boolean {
+  const row = db.prepare('SELECT locked FROM items WHERE id = ?').get(id) as {locked: number} | undefined;
+  return row?.locked === 1;
+}
+
+export function itemsSetLocked(id: string, locked: boolean): void {
+  db.prepare('UPDATE items SET locked = ? WHERE id = ?').run(locked ? 1 : 0, id);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {Search, Loader2, Check, X} from 'lucide-react';
+import {Search, Loader2, Check, X, Lock, LockOpen} from 'lucide-react';
 import {useItemsStore} from '@/state/itemsStore';
 import type {DbItem} from '@/types/electron';
 import {ITEM_TYPES, type ItemType} from '@/types/itemType';
@@ -81,6 +81,7 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
   const setName       = useItemsStore(s => s.setName);
   const setType       = useItemsStore(s => s.setType);
   const setPrice      = useItemsStore(s => s.setPrice);
+  const setLocked     = useItemsStore(s => s.setLocked);
   const lookupName    = useItemsStore(s => s.lookupName);
   const lookupsToday  = useItemsStore(s => s.lookupsToday);
 
@@ -253,8 +254,8 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
                 </select>
               </div>
 
-              {/* Price — editable */}
-              <div className="w-24 shrink-0 text-right">
+              {/* Price — editable + lock toggle */}
+              <div className="w-24 shrink-0 flex items-center justify-end gap-1">
                 {isEditingPrice ? (
                   <input
                     ref={inputRef}
@@ -264,19 +265,29 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
                     onKeyDown={handleKeyDown}
                     type="number"
                     step="any"
-                    className="w-full bg-surface-elevated border border-accent/50 rounded px-1.5 py-px text-xs text-right font-mono text-text-primary outline-none tabular-nums"
+                    className="flex-1 min-w-0 bg-surface-elevated border border-accent/50 rounded px-1.5 py-px text-xs text-right font-mono text-text-primary outline-none tabular-nums"
                   />
                 ) : (
                   <button
                     onClick={() => startEdit(item, 'price')}
                     className={[
-                      'w-full text-right font-mono text-xs tabular-nums hover:text-accent transition-colors',
+                      'flex-1 min-w-0 text-right font-mono text-xs tabular-nums hover:text-accent transition-colors',
                       item.price === 0 ? 'text-text-disabled' : 'text-text-secondary',
                     ].join(' ')}
                   >
                     {item.price === 0 ? '—' : item.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                   </button>
                 )}
+                <button
+                  onClick={() => setLocked(item.id, !item.locked)}
+                  title={item.locked ? t('lock.unlock') : t('lock.lock')}
+                  className={[
+                    'shrink-0 p-0.5 rounded transition-colors',
+                    item.locked ? 'text-accent hover:text-accent/70' : 'text-text-disabled hover:text-accent',
+                  ].join(' ')}
+                >
+                  {item.locked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+                </button>
               </div>
 
               {/* Price date */}

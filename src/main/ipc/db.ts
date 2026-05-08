@@ -2,7 +2,7 @@ import {ipcMain, BrowserWindow} from 'electron';
 import {log} from '@/main/logger';
 import {
   settingsGetAll, settingsSet,
-  itemsGetAll, itemsUpsert, itemsSetName, itemsSetType, itemsSetPrice, itemsImportBatch,
+  itemsGetAll, itemsUpsert, itemsSetName, itemsSetType, itemsSetPrice, itemsSetLocked, itemsImportBatch,
   sessionsGetAll, sessionsInsert, sessionsUpdate, sessionsDelete, sessionsRename, sessionsGetOne,
   sessionMapsGetForSession,
   seasonalStatsGetAll, seasonalStatsUpsert,
@@ -42,6 +42,10 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:items:set-price',   (_e, id: string, price: number)  => {
     itemsSetPrice(id, price);
     broadcastItemsChanged({id, changes: {price}});
+  });
+  ipcMain.handle('db:items:set-locked',  (_e, id: string, locked: boolean) => {
+    itemsSetLocked(id, locked);
+    broadcastItemsChanged({id, changes: {locked}});
   });
   ipcMain.handle('db:items:lookup-name',  async (_e, id: string) => {
     const result = await lookupName(id);

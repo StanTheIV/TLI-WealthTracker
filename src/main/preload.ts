@@ -87,6 +87,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       setName:    (id: string, name: string)            => ipcRenderer.invoke('db:items:set-name', id, name),
       setType:    (id: string, type: string)            => ipcRenderer.invoke('db:items:set-type', id, type),
       setPrice:   (id: string, price: number)           => ipcRenderer.invoke('db:items:set-price', id, price),
+      setLocked:  (id: string, locked: boolean)         => ipcRenderer.invoke('db:items:set-locked', id, locked),
       lookupName:   (id: string)                          => ipcRenderer.invoke('db:items:lookup-name', id),
       importBatch:  (items: DbItem[])                     => ipcRenderer.invoke('db:items:import-batch', items),
       onChanged: (cb: (patch: ItemChangedPatch) => void) => {

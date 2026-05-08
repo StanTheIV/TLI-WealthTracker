@@ -32,5 +32,9 @@
     "noApiKey":     "Set Google API key in Settings",
     "notFound":     "Name not found",
     "error":        "Lookup failed"
+  },
+  "lock": {
+    "lock":   "Lock price (skip auto-updates)",
+    "unlock": "Unlock price (allow auto-updates)"
   }
 }

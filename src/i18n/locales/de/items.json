@@ -31,5 +31,9 @@
     "noApiKey":     "Google API-Schlüssel in Einstellungen setzen",
     "notFound":     "Name nicht gefunden",
     "error":        "Suche fehlgeschlagen"
+  },
+  "lock": {
+    "lock":   "Preis sperren (Auto-Updates überspringen)",
+    "unlock": "Preis entsperren (Auto-Updates erlauben)"
   }
 }

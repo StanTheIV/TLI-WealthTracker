@@ -1,6 +1,6 @@
 import {ipcMain, BrowserWindow} from 'electron';
 import {log} from '@/main/logger';
-import {itemsGetAll, itemsSetPrice, itemsInsertIfMissing, sessionsGetOne, filtersGetAll, settingsGetAll} from '@/main/db';
+import {itemsGetAll, itemsSetPrice, itemsGetLocked, itemsInsertIfMissing, sessionsGetOne, filtersGetAll, settingsGetAll} from '@/main/db';
 import {broadcastItemsChanged} from '@/main/items-broadcast';
 import {SessionPersistence} from '@/main/session-persistence';
 import {WorkerProcess} from '@/main/worker-process';
@@ -60,11 +60,16 @@ const wealthRecorder = new WealthRecorder({
  */
 function onWorkerEvent(raw: RawEvent): void {
   if (raw.type === 'price_update') {
-    log.info('price', `Price update: item=${raw.itemId} -> ${raw.price} FE`);
-    itemsSetPrice(String(raw.itemId), raw.price);
+    const id = String(raw.itemId);
+    if (itemsGetLocked(id)) {
+      log.debug('price', `Price update skipped (locked): item=${id} -> ${raw.price} FE`);
+      return;
+    }
+    log.info('price', `Price update: item=${id} -> ${raw.price} FE`);
+    itemsSetPrice(id, raw.price);
 
     // Sync renderer itemsStores via the unified items:changed broadcast.
-    broadcastItemsChanged({id: String(raw.itemId), changes: {price: raw.price}});
+    broadcastItemsChanged({id, changes: {price: raw.price}});
 
     // Also emit the engine event so any other engine-event consumers (e.g. a
     // future "price updated" feed entry) keep working. The itemsStore no
