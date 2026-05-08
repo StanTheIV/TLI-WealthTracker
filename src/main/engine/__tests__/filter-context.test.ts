@@ -49,19 +49,19 @@ describe('distributeDrop — no filter', () => {
 
   it('distributes to seasonal tracker when active and no filter', () => {
     const ctx = makeTrackingCtx();
-    ctx.seasonal = new Tracker('seasonal', 'vorex');
+    ctx.seasonals.set('vorex', new Tracker('seasonal', 'vorex'));
     ctx.distributeDrop(200, 2);
-    expect(ctx.seasonal.snapshot().drops[200]).toBe(2);
+    expect(ctx.seasonals.get('vorex')!.snapshot().drops[200]).toBe(2);
   });
 
   it('distributes to all three trackers simultaneously', () => {
-    const ctx    = makeTrackingCtx();
-    ctx.map      = new Tracker('map');
-    ctx.seasonal = new Tracker('seasonal', 'dream');
+    const ctx = makeTrackingCtx();
+    ctx.map   = new Tracker('map');
+    ctx.seasonals.set('dream', new Tracker('seasonal', 'dream'));
     ctx.distributeDrop(50, 7);
     expect(ctx.session!.snapshot().drops[50]).toBe(7);
     expect(ctx.map.snapshot().drops[50]).toBe(7);
-    expect(ctx.seasonal.snapshot().drops[50]).toBe(7);
+    expect(ctx.seasonals.get('dream')!.snapshot().drops[50]).toBe(7);
   });
 });
 
@@ -121,32 +121,32 @@ describe('distributeDrop — filter on map scope', () => {
 describe('distributeDrop — filter on seasonal scope', () => {
   it('blocks drop from vorex seasonal tracker when vorex scope is filtered', () => {
     const ctx = makeTrackingCtx();
-    ctx.seasonal = new Tracker('seasonal', 'vorex');
+    ctx.seasonals.set('vorex', new Tracker('seasonal', 'vorex'));
     const types = new Map([['300', 'equipment' as const]]);
     ctx.filter = new ItemFilterEngine(
       [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['vorex'])],
       types,
     );
     ctx.distributeDrop(300, 2);
-    expect(ctx.session!.snapshot().drops[300]).toBe(2);          // session unaffected
-    expect(ctx.seasonal.snapshot().drops[300]).toBeUndefined();  // vorex blocked
+    expect(ctx.session!.snapshot().drops[300]).toBe(2);                    // session unaffected
+    expect(ctx.seasonals.get('vorex')!.snapshot().drops[300]).toBeUndefined();  // vorex blocked
   });
 
   it('blocks drop from dream seasonal tracker when dream scope is filtered', () => {
     const ctx = makeTrackingCtx();
-    ctx.seasonal = new Tracker('seasonal', 'dream');
+    ctx.seasonals.set('dream', new Tracker('seasonal', 'dream'));
     const types = new Map([['300', 'equipment' as const]]);
     ctx.filter = new ItemFilterEngine(
       [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['dream'])],
       types,
     );
     ctx.distributeDrop(300, 1);
-    expect(ctx.seasonal.snapshot().drops[300]).toBeUndefined();
+    expect(ctx.seasonals.get('dream')!.snapshot().drops[300]).toBeUndefined();
   });
 
   it('does not block vorex drop when only dream scope is filtered', () => {
     const ctx = makeTrackingCtx();
-    ctx.seasonal = new Tracker('seasonal', 'vorex');
+    ctx.seasonals.set('vorex', new Tracker('seasonal', 'vorex'));
     const types = new Map([['300', 'equipment' as const]]);
     ctx.filter = new ItemFilterEngine(
       [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['dream'])],
@@ -154,7 +154,7 @@ describe('distributeDrop — filter on seasonal scope', () => {
     );
     ctx.distributeDrop(300, 3);
     // dream rule does not apply to vorex tracker
-    expect(ctx.seasonal.snapshot().drops[300]).toBe(3);
+    expect(ctx.seasonals.get('vorex')!.snapshot().drops[300]).toBe(3);
   });
 });
 
@@ -167,12 +167,12 @@ describe('distributeDrop — filter on seasonal scope', () => {
 // ---------------------------------------------------------------------------
 
 describe('distributeDrop — return value reflects session-scope acceptance', () => {
-  it('returns true when no filter is set', () => {
+  it('returns sessionAccepted=true when no filter is set', () => {
     const ctx = makeTrackingCtx();
-    expect(ctx.distributeDrop(100, 5)).toBe(true);
+    expect(ctx.distributeDrop(100, 5).sessionAccepted).toBe(true);
   });
 
-  it('returns true when session scope accepts the drop', () => {
+  it('returns sessionAccepted=true when session scope accepts the drop', () => {
     const ctx = makeTrackingCtx();
     const types = new Map([['100', 'equipment' as const]]);
     ctx.filter = new ItemFilterEngine(
@@ -180,17 +180,17 @@ describe('distributeDrop — return value reflects session-scope acceptance', ()
       [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['map'])],
       types,
     );
-    expect(ctx.distributeDrop(100, 5)).toBe(true);
+    expect(ctx.distributeDrop(100, 5).sessionAccepted).toBe(true);
   });
 
-  it('returns false when session scope rejects the drop', () => {
+  it('returns sessionAccepted=false when session scope rejects the drop', () => {
     const ctx = makeTrackingCtx();
     const types = new Map([['100', 'equipment' as const]]);
     ctx.filter = new ItemFilterEngine(
       [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session'])],
       types,
     );
-    expect(ctx.distributeDrop(100, 5)).toBe(false);
+    expect(ctx.distributeDrop(100, 5).sessionAccepted).toBe(false);
   });
 });
 

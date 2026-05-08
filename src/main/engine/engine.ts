@@ -10,6 +10,7 @@ import {MapMaterialHandler} from './handlers/map-material';
 import {OverrealmHandler} from './handlers/overrealm-handler';
 import {CarjackHandler} from './handlers/carjack-handler';
 import {ClockworkHandler} from './handlers/clockwork-handler';
+import {LunariaHandler} from './handlers/lunaria-handler';
 import {log} from '@/main/logger';
 
 /**
@@ -37,6 +38,7 @@ export class Engine {
   private _overrealm:   OverrealmHandler   | null = null;
   private _carjack:     CarjackHandler     | null = null;
   private _clockwork:   ClockworkHandler   | null = null;
+  private _lunaria:     LunariaHandler     | null = null;
 
   constructor(emit: EmitFn) {
     this._emit = emit;
@@ -53,6 +55,7 @@ export class Engine {
     if (handler instanceof OverrealmHandler)   this._overrealm   = handler;
     if (handler instanceof CarjackHandler)     this._carjack     = handler;
     if (handler instanceof ClockworkHandler)   this._clockwork   = handler;
+    if (handler instanceof LunariaHandler)     this._lunaria     = handler;
     return this;
   }
 
@@ -111,10 +114,12 @@ export class Engine {
     // renderer treats that as "session is over → flip phase to idle", which
     // would put the panel into the initializing-placeholder state. Instead we
     // overwrite the session in place via the tracker_started below.
-    if (this._ctx.seasonal) {
-      this._emit({type: 'tracker_finished', tracker: this._ctx.seasonal.snapshot(), timestamp: now});
-      this._ctx.seasonal = null;
+    for (const tracker of this._ctx.seasonals.values()) {
+      this._emit({type: 'tracker_finished', tracker: tracker.snapshot(), timestamp: now});
     }
+    this._ctx.seasonals.clear();
+    this._ctx.seasonalsStartOrder = [];
+    this._ctx.invalidateWriter();
     if (this._ctx.map) {
       this._emit({type: 'tracker_finished', tracker: this._ctx.map.snapshot(), timestamp: now});
       this._ctx.map = null;
@@ -243,6 +248,10 @@ export class Engine {
 
   setClockworkLootDurationMs(ms: number): void {
     this._clockwork?.setLootDurationMs(ms);
+  }
+
+  setLunariaLootDurationMs(ms: number): void {
+    this._lunaria?.setLootDurationMs(ms);
   }
 
   /**

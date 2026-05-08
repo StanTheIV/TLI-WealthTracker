@@ -79,6 +79,10 @@
     "clockwork": {
       "label": "Clockwork Ballet",
       "hint": "Time after a Clockwork voucher turn-in to keep attributing drops."
+    },
+    "lunaria": {
+      "label": "Lunaria",
+      "hint": "Time after the Lunaria encounter ends to keep attributing drops. The tracker pauses on expiry and resumes on the next strum, so this window only needs to cover the post-combat loot of one episode."
     }
   },
   "overlay": {

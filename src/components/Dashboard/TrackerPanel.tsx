@@ -7,7 +7,7 @@ import {useSettingsStore} from '@/state/settingsStore';
 import {useTrackerElapsed} from '@/hooks/useTrackerElapsed';
 import {useLootWindowCountdown} from '@/hooks/useLootWindowCountdown';
 import {useAnimatedPresence} from '@/hooks/useAnimatedPresence';
-import type {TrackerSnapshot} from '@/types/electron';
+import type {SeasonalType, TrackerSnapshot} from '@/types/electron';
 import TrackerRow from './TrackerRow';
 import DropTable from './DropTable';
 import LowStockWarningRow from './LowStockWarningRow';
@@ -43,6 +43,61 @@ function useTotalFE(drops: Record<number, number>): number {
 }
 
 // -----------------------------------------------------------------------
+// Per-seasonal row
+// -----------------------------------------------------------------------
+
+interface SeasonalRowProps {
+  type:         SeasonalType;
+  snapshot:     TrackerSnapshot;
+  receivedAt:   number | null;
+  lootDeadline: number | null;
+  isRunning:    boolean;
+  isPaused:     boolean;
+  rateTimeframe: 'hour' | 'minute';
+}
+
+function SeasonalRow({type, snapshot, receivedAt, lootDeadline, isRunning, isPaused, rateTimeframe}: SeasonalRowProps) {
+  const {t} = useTranslation('tracker');
+
+  // Hooks must be called per-component, not per-iteration in a parent .map().
+  // The stable key={type} on the parent ensures React only remounts when the
+  // seasonal appears or disappears, not on every re-render.
+  const elapsed       = useTrackerElapsed(snapshot.elapsed, receivedAt, isRunning);
+  const fe            = useTotalFE(snapshot.drops);
+  const countdownSec  = useLootWindowCountdown(lootDeadline);
+  const presence      = useAnimatedPresence(true); // mounted ⇒ visible; unmount handles exit
+
+  // Lunaria pauses between strum episodes (others always finish, never pause).
+  // Reuse the existing "no active map" dim treatment to signal the paused state.
+  const dim = snapshot.active === false;
+
+  const label =
+    type === 'dream'     ? t('seasonal.dream')     :
+    type === 'vorex'     ? t('seasonal.vorex')     :
+    type === 'overrealm' ? t('seasonal.overrealm') :
+    type === 'carjack'   ? t('seasonal.carjack')   :
+    type === 'clockwork' ? t('seasonal.clockwork') :
+    type === 'sandlord'  ? t('seasonal.sandlord')  :
+    type === 'lunaria'   ? t('seasonal.lunaria')   :
+    '';
+
+  return (
+    <div className={presence.animClass}>
+      <TrackerRow
+        label={label}
+        valueFE={fe}
+        elapsedMs={elapsed}
+        rateTimeframe={rateTimeframe}
+        accentClass="bg-gold"
+        countdownSec={countdownSec}
+        dim={dim}
+        paused={isPaused}
+      />
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------
 // Main component
 // -----------------------------------------------------------------------
 
@@ -54,15 +109,15 @@ export default function TrackerPanel() {
   const sessionElapsed            = useEngineStore(s => s.sessionElapsed);
   const sessionReceivedAt         = useEngineStore(s => s.sessionReceivedAt);
   const mapTracker                = useEngineStore(s => s.mapTracker);
-  const seasonalTracker           = useEngineStore(s => s.seasonalTracker);
+  const seasonalTrackers          = useEngineStore(s => s.seasonalTrackers);
   const sessionDrops              = useEngineStore(s => s.drops);
   const mapTrackerReceivedAt      = useEngineStore(s => s.mapTrackerReceivedAt);
-  const seasonalTrackerReceivedAt = useEngineStore(s => s.seasonalTrackerReceivedAt);
+  const seasonalTrackersReceivedAt= useEngineStore(s => s.seasonalTrackersReceivedAt);
   const mapCount                  = useEngineStore(s => s.mapCount);
   const accumulatedMapTime        = useEngineStore(s => s.accumulatedMapTime);
   const lowStockWarnings          = useEngineStore(s => s.lowStockWarnings);
   const dismissedMaterials        = useEngineStore(s => s.dismissedMaterials);
-  const lootWindowDeadline        = useEngineStore(s => s.lootWindowDeadline);
+  const lootWindowDeadlines       = useEngineStore(s => s.lootWindowDeadlines);
   const rateTimeframe             = useSettingsStore(s => s.rateTimeframe);
   const pauseTotalTimerInTown     = useSettingsStore(s => s.pauseTotalTimerInTown);
 
@@ -71,38 +126,22 @@ export default function TrackerPanel() {
     [lowStockWarnings, dismissedMaterials],
   );
 
-  // Keep last-seen snapshots alive for exit animations
-  const lastMapRef      = useRef<TrackerSnapshot | null>(null);
-  const lastSeasonalRef = useRef<TrackerSnapshot | null>(null);
-  if (mapTracker)      lastMapRef.current      = mapTracker;
-  if (seasonalTracker) lastSeasonalRef.current = seasonalTracker;
+  // Keep last-seen map snapshot alive for exit animations. Seasonals manage
+  // their own presence via the per-row <SeasonalRow> component.
+  const lastMapRef = useRef<TrackerSnapshot | null>(null);
+  if (mapTracker) lastMapRef.current = mapTracker;
 
   const isRunning = sessionStatus === 'running' && enginePhase === 'tracking';
   const isPaused  = sessionStatus === 'paused'  && enginePhase === 'tracking';
 
-  const mapPresence      = useAnimatedPresence(mapTracker !== null);
-  const seasonalPresence = useAnimatedPresence(seasonalTracker !== null);
-  const warningPresence  = useAnimatedPresence(visibleWarnings.length > 0);
+  const mapPresence     = useAnimatedPresence(mapTracker !== null);
+  const warningPresence = useAnimatedPresence(visibleWarnings.length > 0);
 
-  const elapsedMs      = useTrackerElapsed(sessionElapsed, sessionReceivedAt, isRunning);
-  const mapElapsed     = useTrackerElapsed(lastMapRef.current?.elapsed ?? 0, mapTrackerReceivedAt, isRunning);
-  const seasonalElapsed= useTrackerElapsed(lastSeasonalRef.current?.elapsed ?? 0, seasonalTrackerReceivedAt, isRunning);
+  const elapsedMs  = useTrackerElapsed(sessionElapsed, sessionReceivedAt, isRunning);
+  const mapElapsed = useTrackerElapsed(lastMapRef.current?.elapsed ?? 0, mapTrackerReceivedAt, isRunning);
 
   const sessionFE  = useTotalFE(sessionDrops);
   const mapFE      = useTotalFE(lastMapRef.current?.drops ?? {});
-  const seasonalFE = useTotalFE(lastSeasonalRef.current?.drops ?? {});
-
-  const lootCountdownSec = useLootWindowCountdown(lootWindowDeadline);
-
-  const seasonalType  = lastSeasonalRef.current?.seasonalType;
-  const seasonalLabel =
-    seasonalType === 'dream'     ? t('seasonal.dream')     :
-    seasonalType === 'vorex'     ? t('seasonal.vorex')     :
-    seasonalType === 'overrealm' ? t('seasonal.overrealm') :
-    seasonalType === 'carjack'   ? t('seasonal.carjack')   :
-    seasonalType === 'clockwork' ? t('seasonal.clockwork') :
-    seasonalType === 'sandlord'  ? t('seasonal.sandlord')  :
-    '';
 
   const [tableOpen, setTableOpen] = useState(false);
   const tableDrops = mapTracker ? (lastMapRef.current?.drops ?? {}) : sessionDrops;
@@ -159,20 +198,20 @@ export default function TrackerPanel() {
           paused={isPaused && mapPresence.shouldRender}
         />
 
-        {/* Seasonal — animated enter/exit */}
-        {seasonalPresence.shouldRender && (
-          <div className={seasonalPresence.animClass}>
-            <TrackerRow
-              label={seasonalLabel}
-              valueFE={seasonalFE}
-              elapsedMs={seasonalElapsed}
-              rateTimeframe={rateTimeframe}
-              accentClass="bg-gold"
-              countdownSec={lootCountdownSec}
-              paused={isPaused}
-            />
-          </div>
-        )}
+        {/* Seasonals — one row per active seasonal. Rows can stack when
+            mechanics overlap (e.g. Lunaria-during-Overrealm in Netherrealm). */}
+        {Array.from(seasonalTrackers.entries()).map(([type, snapshot]) => (
+          <SeasonalRow
+            key={type}
+            type={type}
+            snapshot={snapshot}
+            receivedAt={seasonalTrackersReceivedAt.get(type) ?? null}
+            lootDeadline={lootWindowDeadlines.get(type) ?? null}
+            isRunning={isRunning}
+            isPaused={isPaused}
+            rateTimeframe={rateTimeframe}
+          />
+        ))}
 
         {/* Low-stock map-material warning — fourth row, animated enter/exit */}
         {warningPresence.shouldRender && (

@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setOverrealmLootMs:   (ms: number)  => ipcRenderer.send('engine:set-overrealm-loot-ms', ms),
     setCarjackLootMs:     (ms: number)  => ipcRenderer.send('engine:set-carjack-loot-ms', ms),
     setClockworkLootMs:   (ms: number)  => ipcRenderer.send('engine:set-clockwork-loot-ms', ms),
+    setLunariaLootMs:     (ms: number)  => ipcRenderer.send('engine:set-lunaria-loot-ms', ms),
     onEvent: (cb: (event: EngineEvent) => void) => {
       const wrapped = (_e: Electron.IpcRendererEvent, ev: EngineEvent) => cb(ev);
       ipcRenderer.on('engine:event', wrapped);

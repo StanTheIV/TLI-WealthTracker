@@ -11,13 +11,11 @@ import {useItemsStore} from '@/state/itemsStore';
 import {useTracking} from '@/state/TrackingContext';
 import {useTheme} from '@/theme/ThemeContext';
 import {ITEM_TYPES, type ItemType} from '@/types/itemType';
-import type {DbSessionMap, TrackerSnapshot} from '@/types/electron';
+import type {DbSession, DbSessionMap, Source} from '@/types/electron';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
 import {formatDate, formatDuration} from './SessionsTable';
 
-type SeasonalType = NonNullable<TrackerSnapshot['seasonalType']>;
-type Source       = 'map' | SeasonalType;
-const SOURCES: Source[] = ['map', 'overrealm', 'clockwork', 'carjack', 'sandlord', 'vorex', 'dream'];
+const SOURCES: Source[] = ['map', 'overrealm', 'clockwork', 'carjack', 'sandlord', 'lunaria', 'vorex', 'dream'];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -59,6 +57,7 @@ function sourceColors(theme: ReturnType<typeof useTheme>): Record<Source, string
     overrealm: theme.accent,
     clockwork: theme.typeCube,
     carjack:   theme.typeCard,
+    lunaria:   theme.typeFuel,
     vorex:     theme.typeEmber,
     dream:     theme.typeDream,
   };
@@ -333,7 +332,22 @@ function BySourceTooltip({active, payload}: {active?: boolean; payload?: {payloa
   );
 }
 
-function BySourcePieChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<string, number>}) {
+// NOTE: This pie reads `session.dropsBySource` (writer-attribution: each drop
+// counted once, attributed to the newest active tracker at write time). This
+// will NOT match the seasonal row's FE on the dashboard or the per-map
+// chart's stacked seasonal segments — those reflect full fan-out drops
+// ("what fell while this tracker was running"). Both views are intentional:
+// pie answers "who gets credit," tracker rows answer "what fell when."
+//
+// Legacy fallback: pre-refactor sessions saved with empty dropsBySource fall
+// back to the old per-map-row aggregation. That logic is correct for the
+// no-overlap case it was designed for — single-seasonal-slot guarantees
+// each drop appeared in at most one overlap row's drops.
+function BySourcePieChart({session, maps, prices}: {
+  session: DbSession;
+  maps:    DbSessionMap[];
+  prices:  Record<string, number>;
+}) {
   const {t} = useTranslation('sessions');
   const theme  = useTheme();
   const colors = useMemo(() => sourceColors(theme), [theme]);
@@ -341,18 +355,30 @@ function BySourcePieChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<
   const data = useMemo<BySourceDatum[]>(() => {
     const totals: Record<Source, number> = {} as Record<Source, number>;
     for (const s of SOURCES) totals[s] = 0;
-    for (const m of maps) {
-      // Engine fans each drop into BOTH ctx.map and ctx.seasonal when a
-      // seasonal overlaps a map (context.distributeDrop). Result: a parent
-      // map row's drops include the seasonal-window drops too. Counter that
-      // by subtracting the overlap row's income from the 'map' bucket.
-      const source: Source = (m.seasonalType ?? 'map') as Source;
-      let rowIncome = 0;
-      for (const [id, qty] of Object.entries(m.drops)) {
-        if (qty > 0) rowIncome += qty * (prices[id] ?? 0);
+
+    const dbs = session.dropsBySource ?? {};
+    const hasNew = Object.keys(dbs).length > 0;
+
+    if (hasNew) {
+      // New path: each drop already attributed to exactly one source.
+      for (const [source, dropDict] of Object.entries(dbs)) {
+        for (const [id, qty] of Object.entries(dropDict)) {
+          if (qty > 0) totals[source as Source] += qty * (prices[id] ?? 0);
+        }
       }
-      totals[source] += rowIncome;
-      if (m.parentMapIndex != null) totals.map -= rowIncome;
+    } else {
+      // Legacy fallback for sessions saved before the dropsBySource refactor.
+      // Pre-refactor, only one seasonal could run at a time, so this
+      // subtraction is correct (no double-overlap to worry about).
+      for (const m of maps) {
+        const source: Source = (m.seasonalType ?? 'map') as Source;
+        let rowIncome = 0;
+        for (const [id, qty] of Object.entries(m.drops)) {
+          if (qty > 0) rowIncome += qty * (prices[id] ?? 0);
+        }
+        totals[source] += rowIncome;
+        if (m.parentMapIndex != null) totals.map -= rowIncome;
+      }
     }
     const grand = Object.values(totals).reduce((s, v) => s + Math.max(0, v), 0);
     if (grand <= 0) return [];
@@ -365,7 +391,7 @@ function BySourcePieChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<
         pct:   (totals[source] / grand) * 100,
       }))
       .sort((a, b) => b.value - a.value);
-  }, [maps, prices, t]);
+  }, [session, maps, prices, t]);
 
   if (data.length === 0) {
     return (
@@ -603,7 +629,7 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
             {!mapsLoaded ? (
               <div className="h-[300px]" />
             ) : (
-              <BySourcePieChart maps={maps} prices={prices} />
+              <BySourcePieChart session={session} maps={maps} prices={prices} />
             )}
           </div>
         </div>

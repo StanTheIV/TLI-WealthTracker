@@ -16,6 +16,7 @@ import {VorexHandler} from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import {CarjackHandler} from '@/main/engine/handlers/carjack-handler';
 import {ClockworkHandler} from '@/main/engine/handlers/clockwork-handler';
+import {LunariaHandler} from '@/main/engine/handlers/lunaria-handler';
 import {SandlordHandler} from '@/main/engine/handlers/sandlord-handler';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {MapMaterialHandler} from '@/main/engine/handlers/map-material';
@@ -140,6 +141,7 @@ function createEngine(): Engine {
     .register(new OverrealmHandler())
     .register(new CarjackHandler())
     .register(new ClockworkHandler())
+    .register(new LunariaHandler())
     .register(new ItemHandler())
     .register(new MapMaterialHandler())
     .register(new ErrorHandler());
@@ -280,6 +282,9 @@ export function registerEngineHandlers(
   });
   ipcMain.on('engine:set-clockwork-loot-ms', (_e, ms: number) => {
     engine?.setClockworkLootDurationMs(ms);
+  });
+  ipcMain.on('engine:set-lunaria-loot-ms', (_e, ms: number) => {
+    engine?.setLunariaLootDurationMs(ms);
   });
   ipcMain.on('engine:update-filter-rules', (_e, payload: FilterRule[] | null) => {
     if (!engine) return;

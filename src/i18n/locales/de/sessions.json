@@ -33,7 +33,8 @@
       "overrealm": "Overrealm",
       "carjack":   "Carjack",
       "clockwork": "Clockwork",
-      "sandlord":  "Sandlord"
+      "sandlord":  "Sandlord",
+      "lunaria":   "Lunaria"
     },
     "tooltipIncome":         "Einnahmen",
     "tooltipSeasonalIncome": "Saisonal",

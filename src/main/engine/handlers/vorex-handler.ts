@@ -1,7 +1,7 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {startSeasonal, finishSeasonal} from './seasonal-helpers';
+import {startSeasonal, finishSeasonal, pauseSeasonal, resumeSeasonal} from './seasonal-helpers';
 
 const VOREX_REWARD_ZONE = 'DiXiaZhenSuo';
 
@@ -35,21 +35,19 @@ export class VorexHandler implements EventHandler {
     if (ctx.paused) return;
 
     switch (event.type) {
-      case 's13_start':
-        if (ctx.seasonal?.seasonalType === 'vorex' && !ctx.seasonal.active) {
+      case 's13_start': {
+        const existing = ctx.seasonals.get('vorex');
+        if (existing && !existing.active) {
           // Window reopened after being closed — resume the existing tracker.
-          ctx.seasonal.resume();
-          emit({type: 'tracker_update', tracker: ctx.seasonal.snapshot(), timestamp: Date.now()});
+          resumeSeasonal('vorex', ctx, emit);
         } else {
           startSeasonal('vorex', ctx, emit);
         }
         break;
+      }
 
       case 's13_window_close':
-        if (ctx.seasonal?.seasonalType === 'vorex') {
-          ctx.seasonal.pause();
-          emit({type: 'tracker_update', tracker: ctx.seasonal.snapshot(), timestamp: Date.now()});
-        }
+        pauseSeasonal('vorex', ctx, emit);
         break;
 
       case 's13_abandon':
@@ -69,14 +67,14 @@ export class VorexHandler implements EventHandler {
 
     if (toScene.includes(VOREX_REWARD_ZONE)) {
       // Completed — resume so reward-zone loot is attributed to Vorex.
-      if (ctx.seasonal?.seasonalType === 'vorex') {
-        ctx.seasonal.resume();
-        emit({type: 'tracker_update', tracker: ctx.seasonal.snapshot(), timestamp: Date.now()});
+      const existing = ctx.seasonals.get('vorex');
+      if (existing) {
+        resumeSeasonal('vorex', ctx, emit);
       } else {
         startSeasonal('vorex', ctx, emit);
       }
     } else {
-      finishSeasonal(ctx, emit);
+      finishSeasonal('vorex', ctx, emit);
     }
   }
 }

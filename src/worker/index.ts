@@ -15,6 +15,7 @@ import {S13Processor} from './processors/s13';
 import {S12Processor} from './processors/s12';
 import {S11Processor} from './processors/s11';
 import {S7Processor} from './processors/s7';
+import {S14Processor} from './processors/s14';
 import {CurrencyProcessor} from './processors/currency';
 import type {RawEvent} from './processors/types';
 
@@ -31,6 +32,7 @@ dispatcher.register(new S13Processor());
 dispatcher.register(new S12Processor());
 dispatcher.register(new S11Processor());
 dispatcher.register(new S7Processor());
+dispatcher.register(new S14Processor());
 dispatcher.register(new CurrencyProcessor());
 
 const watcher = new Watcher(

@@ -1,4 +1,6 @@
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord';
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria';
+/** A drop's attribution source — 'map' or one of the seasonal types. */
+export type Source = 'map' | SeasonalType;
 export type TrackerKind = 'session' | 'map' | 'seasonal';
 
 export interface TrackerSnapshot {
@@ -6,6 +8,15 @@ export interface TrackerSnapshot {
   drops:         Record<number, number>;
   elapsed:       number;
   seasonalType?: SeasonalType;
+  /** False while the tracker is paused (e.g. Lunaria between strum episodes —
+   *  drops won't accrue but the tracker isn't finished). True for normal
+   *  active seasonals. */
+  active:        boolean;
+  /** Per-source breakdown — populated only on the session tracker's snapshot.
+   *  Each drop is attributed to exactly one source (newest active tracker at
+   *  the moment the drop fired) so summing per-source totals reproduces
+   *  session FE. Omitted on map and seasonal snapshots. */
+  dropsBySource?: Record<Source, Record<number, number>>;
 }
 
 /**
@@ -30,6 +41,11 @@ export class Tracker {
   private _startTime:   number;
   private _accumulated: number = 0;
   private _pausedAt:    number | null = null;
+  // Per-source breakdown for the session tracker only. Each drop is attributed
+  // to exactly one source via the writer rule in EngineContext. Other
+  // trackers (map, seasonal) leave this empty — their `_drops` plays the
+  // analogous role for "what fell while this tracker was running."
+  private _dropsBySource: Map<Source, Map<number, number>> = new Map();
 
   constructor(kind: TrackerKind, seasonalType?: SeasonalType, ownsBubble: boolean = false) {
     this.kind         = kind;
@@ -45,6 +61,23 @@ export class Tracker {
   addDrop(itemId: number, change: number): void {
     if (!this.active) return;
     this._drops.set(itemId, (this._drops.get(itemId) ?? 0) + change);
+  }
+
+  /**
+   * Attribute a drop to a specific source bucket. Only meaningful on the
+   * session tracker (other trackers leave _dropsBySource empty). Short-circuits
+   * on pause for the same reason addDrop does — protects against an in-flight
+   * drop racing with engine.pause() that would otherwise leave _dropsBySource
+   * accumulating drops the session's _drops correctly rejected.
+   */
+  addDropToSource(source: Source, itemId: number, change: number): void {
+    if (!this.active) return;
+    let bucket = this._dropsBySource.get(source);
+    if (!bucket) {
+      bucket = new Map();
+      this._dropsBySource.set(source, bucket);
+    }
+    bucket.set(itemId, (bucket.get(itemId) ?? 0) + change);
   }
 
   /**
@@ -75,11 +108,22 @@ export class Tracker {
   snapshot(): TrackerSnapshot {
     const drops: Record<number, number> = {};
     for (const [k, v] of this._drops) drops[k] = v;
-    return {
+    const snap: TrackerSnapshot = {
       kind:    this.kind,
       drops,
       elapsed: this.elapsed(),
+      active:  this.active,
       ...(this.seasonalType ? {seasonalType: this.seasonalType} : {}),
     };
+    if (this._dropsBySource.size > 0) {
+      const dbs: Record<Source, Record<number, number>> = {} as Record<Source, Record<number, number>>;
+      for (const [source, bucket] of this._dropsBySource) {
+        const entry: Record<number, number> = {};
+        for (const [id, qty] of bucket) entry[id] = qty;
+        dbs[source] = entry;
+      }
+      snap.dropsBySource = dbs;
+    }
+    return snap;
   }
 }

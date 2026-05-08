@@ -6,6 +6,7 @@ import {PriceProcessor} from '@/worker/processors/price';
 import {S13Processor} from '@/worker/processors/s13';
 import {S12Processor} from '@/worker/processors/s12';
 import {S7Processor} from '@/worker/processors/s7';
+import {S14Processor} from '@/worker/processors/s14';
 import {CurrencyProcessor} from '@/worker/processors/currency';
 
 // ---------------------------------------------------------------------------
@@ -557,5 +558,47 @@ describe('S7Processor', () => {
 
   it('ignores heartbeat pings (Start → Start)', () => {
     expect(proc.process(s7Lines.heartbeat)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S14Processor (Lunaria — MingYue)
+// ---------------------------------------------------------------------------
+
+const ts14 = '[2026.05.07-14.29.35:474]';
+
+const s14Lines = {
+  strum:    `${ts14}TLGame: Display: [Game] UECtrlComponent@ DoAction S14GameplayStart`,
+  // Lines that should be ignored — strum is the only signal we listen for:
+  bgmStart:    `${ts14}TLGame: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S14_Gameplay_MusicEvents/Play_Mus_Gameplay_S14_Basic.Play_Mus_Gameplay_S14_Basic id 15995`,
+  bgmStop:     `${ts14}TLGame: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S14_Gameplay_MusicEvents/Stop_Mus_Gameplay_S14_Basic id 18592`,
+  chargeAnim:  `${ts14}TLLua: Display: [Game] 3439_S14HomeBtn ChargeAnim Start`,
+  assetLoad:   `${ts14}TLShipping: Display: [Game] AssetLoad@ AsyncLoadRequest! PathStr = UI_MiniMap_S14Statue1' LoadingNum = 1046`,
+};
+
+describe('S14Processor', () => {
+  const proc = new S14Processor();
+
+  it('has correct name', () => {
+    expect(proc.name).toBe('s14');
+  });
+
+  it('test() matches strum lines', () => {
+    expect(proc.test(s14Lines.strum)).toBe(true);
+  });
+
+  it('test() rejects everything else (BGM start/stop, charge anim, asset loads, unrelated)', () => {
+    // All these contain "S14" but the handler only cares about strum — the
+    // pausing loot timer drives episode boundaries instead.
+    expect(proc.test(s14Lines.bgmStart)).toBe(false);
+    expect(proc.test(s14Lines.bgmStop)).toBe(false);
+    expect(proc.test(s14Lines.chargeAnim)).toBe(false);
+    expect(proc.test(s14Lines.assetLoad)).toBe(false);
+    expect(proc.test(lines.bagInit)).toBe(false);
+    expect(proc.test(lines.unrelated)).toBe(false);
+  });
+
+  it('parses s14_strum from S14GameplayStart action', () => {
+    expect(proc.process(s14Lines.strum)).toEqual({type: 's14_strum'});
   });
 });

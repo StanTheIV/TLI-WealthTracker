@@ -266,8 +266,8 @@ describe('BagInitHandler', () => {
       const ctx = trackingCtx([
         {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
       ]);
-      ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
-      ctx.map = {addDrop: vi.fn(), snapshot: () => ({kind: 'map', drops: {}, elapsed: 0})} as never;
+      ctx.session = {addDrop: vi.fn(), addDropToSource: vi.fn(), active: true, snapshot: () => ({kind: 'session', drops: {}, elapsed: 0, active: true})} as never;
+      ctx.map = {addDrop: vi.fn(), active: true, snapshot: () => ({kind: 'map', drops: {}, elapsed: 0, active: true})} as never;
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -286,8 +286,8 @@ describe('BagInitHandler', () => {
         {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
         {pageId: 0, slotId: 2, itemId: 200, quantity: 3},
       ]);
-      ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
-      ctx.map = {addDrop: vi.fn(), snapshot: () => ({kind: 'map', drops: {}, elapsed: 0})} as never;
+      ctx.session = {addDrop: vi.fn(), addDropToSource: vi.fn(), active: true, snapshot: () => ({kind: 'session', drops: {}, elapsed: 0, active: true})} as never;
+      ctx.map = {addDrop: vi.fn(), active: true, snapshot: () => ({kind: 'map', drops: {}, elapsed: 0, active: true})} as never;
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -305,8 +305,8 @@ describe('BagInitHandler', () => {
       const ctx = trackingCtx([
         {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
       ]);
-      ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
-      // No ctx.map / ctx.seasonal — we're in town
+      ctx.session = {addDrop: vi.fn(), addDropToSource: vi.fn(), active: true, snapshot: () => ({kind: 'session', drops: {}, elapsed: 0, active: true})} as never;
+      // No ctx.map and ctx.seasonals is empty — we're in town
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -340,8 +340,8 @@ describe('BagInitHandler', () => {
       const ctx = trackingCtx([
         {pageId: 0, slotId: 1, itemId: 100, quantity: 5},
       ]);
-      ctx.session = {addDrop: vi.fn(), snapshot: () => ({kind: 'session', drops: {}, elapsed: 0})} as never;
-      ctx.map = {addDrop: vi.fn(), snapshot: () => ({kind: 'map', drops: {}, elapsed: 0})} as never;
+      ctx.session = {addDrop: vi.fn(), addDropToSource: vi.fn(), active: true, snapshot: () => ({kind: 'session', drops: {}, elapsed: 0, active: true})} as never;
+      ctx.map = {addDrop: vi.fn(), active: true, snapshot: () => ({kind: 'map', drops: {}, elapsed: 0, active: true})} as never;
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 

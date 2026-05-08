@@ -1,5 +1,5 @@
 import {create} from 'zustand';
-import type {EngineEvent} from '@/types/electron';
+import type {EngineEvent, SeasonalType} from '@/types/electron';
 import type {TrackerSnapshot} from '@/types/electron';
 import {useItemsStore} from './itemsStore';
 
@@ -22,10 +22,14 @@ interface EngineState {
   drops:                    Record<number, number>; // itemId → net session change
   mapCount:                 number;
   currentZone:              string | null;
-  mapTracker:               TrackerSnapshot | null;
-  seasonalTracker:          TrackerSnapshot | null;
-  mapTrackerReceivedAt:     number | null;
-  seasonalTrackerReceivedAt:number | null;
+  mapTracker:                TrackerSnapshot | null;
+  /** Active seasonal trackers keyed by seasonalType. Multiple can run at
+   *  once (e.g. Lunaria during Overrealm). UI renders one row per entry. */
+  seasonalTrackers:          Map<SeasonalType, TrackerSnapshot>;
+  mapTrackerReceivedAt:      number | null;
+  /** Per-seasonal `Date.now()` of the last tracker_started/tracker_update
+   *  event — used by the elapsed-time hook to interpolate between snapshots. */
+  seasonalTrackersReceivedAt:Map<SeasonalType, number>;
   sessionStatus:            'idle' | 'running' | 'paused';
   sessionElapsed:           number;
   sessionReceivedAt:        number | null;
@@ -39,10 +43,12 @@ interface EngineState {
   lowStockWarnings:         LowStockWarning[];
   /** Item IDs the user has dismissed this session — mirror of main-process set. */
   dismissedMaterials:       Set<number>;
-  /** Deadline (ms epoch) at which the active seasonal's loot collection
-   *  window expires. Null when no loot window is running. Updated on every
-   *  loot_window_started event (initial start AND each refresh). */
-  lootWindowDeadline:       number | null;
+  /** Per-seasonal deadline (ms epoch) at which that seasonal's loot
+   *  collection window expires. Concurrent seasonals can each have their
+   *  own loot timer, so this is keyed by SeasonalType. Updated on every
+   *  loot_window_started event (initial start AND each refresh). Entries
+   *  are deleted on loot_window_ended and on tracker_finished. */
+  lootWindowDeadlines:      Map<SeasonalType, number>;
 }
 
 interface EngineActions {
@@ -62,10 +68,10 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
   drops:                     {},
   mapCount:                  0,
   currentZone:               null,
-  mapTracker:                null,
-  seasonalTracker:           null,
-  mapTrackerReceivedAt:      null,
-  seasonalTrackerReceivedAt: null,
+  mapTracker:                 null,
+  seasonalTrackers:           new Map<SeasonalType, TrackerSnapshot>(),
+  mapTrackerReceivedAt:       null,
+  seasonalTrackersReceivedAt: new Map<SeasonalType, number>(),
   sessionStatus:             'idle',
   sessionElapsed:            0,
   sessionReceivedAt:         null,
@@ -74,7 +80,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
   lastSavedSessionId:        null,
   lowStockWarnings:          [],
   dismissedMaterials:        new Set<number>(),
-  lootWindowDeadline:        null,
+  lootWindowDeadlines:       new Map<SeasonalType, number>(),
 
   init: () => {
     if (_initialized) return;
@@ -91,38 +97,38 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
       let drops                     = s.drops;
       let mapCount                  = s.mapCount;
       let currentZone               = s.currentZone;
-      let mapTracker                = s.mapTracker;
-      let seasonalTracker           = s.seasonalTracker;
-      let mapTrackerReceivedAt      = s.mapTrackerReceivedAt;
-      let seasonalTrackerReceivedAt = s.seasonalTrackerReceivedAt;
-      let sessionStatus             = s.sessionStatus;
-      let sessionElapsed            = s.sessionElapsed;
-      let sessionReceivedAt         = s.sessionReceivedAt;
+      let mapTracker                 = s.mapTracker;
+      let seasonalTrackers           = s.seasonalTrackers;
+      let mapTrackerReceivedAt       = s.mapTrackerReceivedAt;
+      let seasonalTrackersReceivedAt = s.seasonalTrackersReceivedAt;
+      let sessionStatus              = s.sessionStatus;
+      let sessionElapsed             = s.sessionElapsed;
+      let sessionReceivedAt          = s.sessionReceivedAt;
 
       let activeSessionName    = s.activeSessionName;
       let lastSavedSessionId  = s.lastSavedSessionId;
       let lowStockWarnings     = s.lowStockWarnings;
       let dismissedMaterials   = s.dismissedMaterials;
       let accumulatedMapTime   = s.accumulatedMapTime;
-      let lootWindowDeadline   = s.lootWindowDeadline;
+      let lootWindowDeadlines  = s.lootWindowDeadlines;
 
       switch (event.type) {
         case 'init_started':
-          phase                     = 'initializing';
-          drops                     = {};
-          mapCount                  = 0;
-          mapTracker                = null;
-          seasonalTracker           = null;
-          mapTrackerReceivedAt      = null;
-          seasonalTrackerReceivedAt = null;
-          sessionStatus             = 'idle';
-          sessionElapsed            = 0;
-          sessionReceivedAt         = null;
-          accumulatedMapTime        = 0;
-          activeSessionName         = null;
-          lowStockWarnings          = [];
-          dismissedMaterials        = new Set<number>();
-          lootWindowDeadline        = null;
+          phase                      = 'initializing';
+          drops                      = {};
+          mapCount                   = 0;
+          mapTracker                 = null;
+          seasonalTrackers           = new Map();
+          mapTrackerReceivedAt       = null;
+          seasonalTrackersReceivedAt = new Map();
+          sessionStatus              = 'idle';
+          sessionElapsed             = 0;
+          sessionReceivedAt          = null;
+          accumulatedMapTime         = 0;
+          activeSessionName          = null;
+          lowStockWarnings           = [];
+          dismissedMaterials         = new Set<number>();
+          lootWindowDeadlines        = new Map();
           break;
 
         case 'init_complete':
@@ -161,9 +167,10 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           if (event.tracker.kind === 'map') {
             mapTracker           = event.tracker;
             mapTrackerReceivedAt = Date.now();
-          } else if (event.tracker.kind === 'seasonal') {
-            seasonalTracker           = event.tracker;
-            seasonalTrackerReceivedAt = Date.now();
+          } else if (event.tracker.kind === 'seasonal' && event.tracker.seasonalType) {
+            const type = event.tracker.seasonalType;
+            seasonalTrackers           = new Map(seasonalTrackers).set(type, event.tracker);
+            seasonalTrackersReceivedAt = new Map(seasonalTrackersReceivedAt).set(type, Date.now());
           } else if (event.tracker.kind === 'session') {
             sessionStatus     = 'running';
             sessionElapsed    = event.tracker.elapsed;
@@ -184,10 +191,14 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           if (event.tracker.kind === 'map') {
             mapTracker           = null;
             mapTrackerReceivedAt = null;
-          } else if (event.tracker.kind === 'seasonal') {
-            seasonalTracker           = null;
-            seasonalTrackerReceivedAt = null;
-            lootWindowDeadline        = null;
+          } else if (event.tracker.kind === 'seasonal' && event.tracker.seasonalType) {
+            const type = event.tracker.seasonalType;
+            const nextSeasonalTrackers = new Map(seasonalTrackers); nextSeasonalTrackers.delete(type);
+            const nextReceivedAt       = new Map(seasonalTrackersReceivedAt); nextReceivedAt.delete(type);
+            const nextDeadlines        = new Map(lootWindowDeadlines); nextDeadlines.delete(type);
+            seasonalTrackers           = nextSeasonalTrackers;
+            seasonalTrackersReceivedAt = nextReceivedAt;
+            lootWindowDeadlines        = nextDeadlines;
           } else if (event.tracker.kind === 'session') {
             phase              = 'idle';
             drops              = event.tracker.drops;
@@ -224,36 +235,44 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           break;
 
         case 'loot_window_started':
-          lootWindowDeadline = event.deadline;
+          if (event.seasonalType) {
+            lootWindowDeadlines = new Map(lootWindowDeadlines).set(event.seasonalType, event.deadline);
+          }
           break;
 
         case 'loot_window_ended':
-          lootWindowDeadline = null;
+          if (event.seasonalType) {
+            const next = new Map(lootWindowDeadlines);
+            next.delete(event.seasonalType);
+            lootWindowDeadlines = next;
+          }
           break;
       }
 
       return {
         feed, phase, drops, mapCount, currentZone,
-        mapTracker, seasonalTracker,
-        mapTrackerReceivedAt, seasonalTrackerReceivedAt,
+        mapTracker, seasonalTrackers,
+        mapTrackerReceivedAt, seasonalTrackersReceivedAt,
         sessionStatus, sessionElapsed, sessionReceivedAt,
         accumulatedMapTime,
         activeSessionName, lastSavedSessionId,
         lowStockWarnings, dismissedMaterials,
-        lootWindowDeadline,
+        lootWindowDeadlines,
       };
     });
   },
 
   reset: () => set({
     phase: 'idle', feed: [], drops: {}, mapCount: 0,
-    currentZone: null, mapTracker: null, seasonalTracker: null,
-    mapTrackerReceivedAt: null, seasonalTrackerReceivedAt: null,
+    currentZone: null, mapTracker: null,
+    seasonalTrackers: new Map(),
+    mapTrackerReceivedAt: null,
+    seasonalTrackersReceivedAt: new Map(),
     sessionStatus: 'idle', sessionElapsed: 0, sessionReceivedAt: null,
     accumulatedMapTime: 0,
     activeSessionName: null, lastSavedSessionId: null,
     lowStockWarnings: [], dismissedMaterials: new Set<number>(),
-    lootWindowDeadline: null,
+    lootWindowDeadlines: new Map(),
   }),
 
   setActiveSessionName: (name) => set({activeSessionName: name}),

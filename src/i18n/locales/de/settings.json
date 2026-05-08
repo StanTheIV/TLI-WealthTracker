@@ -79,6 +79,10 @@
     "clockwork": {
       "label": "Clockwork Ballet",
       "hint": "Zeit nach einer Clockwork-Voucher-Abgabe, in der Drops weiterhin zugerechnet werden."
+    },
+    "lunaria": {
+      "label": "Lunaria",
+      "hint": "Zeit nach Ende einer Lunaria-Begegnung, in der Drops weiterhin zugerechnet werden. Der Tracker pausiert nach Ablauf und wird beim nächsten Strum fortgesetzt — das Fenster muss nur den Loot einer einzelnen Episode abdecken."
     }
   },
   "overlay": {

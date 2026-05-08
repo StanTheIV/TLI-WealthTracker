@@ -21,6 +21,9 @@ interface SettingsState {
   carjackLootSec:           number;
   /** Post-turn-in Clockwork loot collection window, in seconds. */
   clockworkLootSec:         number;
+  /** Post-encounter Lunaria loot collection window, in seconds. Tracker
+   *  pauses (not finishes) on expiry — next strum resumes it. */
+  lunariaLootSec:           number;
   isLoaded:                 boolean;
 }
 
@@ -39,6 +42,7 @@ interface SettingsActions {
   setOverrealmLootSec:          (v: number) => void;
   setCarjackLootSec:            (v: number) => void;
   setClockworkLootSec:          (v: number) => void;
+  setLunariaLootSec:            (v: number) => void;
 }
 
 const DEFAULT_LOOT_SEC = 5;
@@ -57,6 +61,7 @@ const DEFAULTS: SettingsState = {
   overrealmLootSec:         DEFAULT_LOOT_SEC,
   carjackLootSec:           DEFAULT_LOOT_SEC,
   clockworkLootSec:         DEFAULT_LOOT_SEC,
+  lunariaLootSec:           DEFAULT_LOOT_SEC,
   isLoaded:                 false,
 };
 
@@ -95,6 +100,7 @@ export const useSettingsStore = create<Store>((set, get) => ({
     const overrealmLootSec = parseLootSec(raw.overrealmLootMs ? String(Number(raw.overrealmLootMs) / 1000) : undefined);
     const carjackLootSec   = parseLootSec(raw.carjackLootMs   ? String(Number(raw.carjackLootMs)   / 1000) : undefined);
     const clockworkLootSec = parseLootSec(raw.clockworkLootMs ? String(Number(raw.clockworkLootMs) / 1000) : undefined);
+    const lunariaLootSec   = parseLootSec(raw.lunariaLootMs   ? String(Number(raw.lunariaLootMs)   / 1000) : undefined);
     set({
       torchlightPath,
       overlayOpacity: raw.overlayOpacity ? Number(raw.overlayOpacity) : 0.9,
@@ -109,12 +115,14 @@ export const useSettingsStore = create<Store>((set, get) => ({
       overrealmLootSec,
       carjackLootSec,
       clockworkLootSec,
+      lunariaLootSec,
       isLoaded: true,
     });
     window.electronAPI.engine.setLowStockThreshold(lowStockThreshold);
     window.electronAPI.engine.setOverrealmLootMs(overrealmLootSec * 1000);
     window.electronAPI.engine.setCarjackLootMs(carjackLootSec * 1000);
     window.electronAPI.engine.setClockworkLootMs(clockworkLootSec * 1000);
+    window.electronAPI.engine.setLunariaLootMs(lunariaLootSec * 1000);
   },
 
   setTorchlightPath: (v) => {
@@ -185,6 +193,13 @@ export const useSettingsStore = create<Store>((set, get) => ({
     persist('clockworkLootMs', String(clamped * 1000));
     window.electronAPI.engine.setClockworkLootMs(clamped * 1000);
     set({clockworkLootSec: clamped});
+  },
+
+  setLunariaLootSec: (v) => {
+    const clamped = Number.isFinite(v) && v > 0 ? Math.floor(v) : DEFAULT_LOOT_SEC;
+    persist('lunariaLootMs', String(clamped * 1000));
+    window.electronAPI.engine.setLunariaLootMs(clamped * 1000);
+    set({lunariaLootSec: clamped});
   },
 
   validateLogFile: async () => {

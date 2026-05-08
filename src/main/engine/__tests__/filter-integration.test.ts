@@ -24,6 +24,7 @@ import {ZoneHandler}       from '@/main/engine/handlers/zone';
 import {DreamHandler}      from '@/main/engine/handlers/dream-handler';
 import {VorexHandler}      from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler}  from '@/main/engine/handlers/overrealm-handler';
+import {LunariaHandler}    from '@/main/engine/handlers/lunaria-handler';
 import {ItemHandler}       from '@/main/engine/handlers/item';
 import {ItemFilterEngine}  from '@/main/engine/item-filter';
 import type {EngineEvent}  from '@/main/engine/types';
@@ -44,6 +45,7 @@ function createEngine(events: EngineEvent[]): Engine {
     .register(new DreamHandler())
     .register(new VorexHandler())
     .register(new OverrealmHandler())
+    .register(new LunariaHandler())
     .register(new ItemHandler());
 }
 
@@ -348,11 +350,11 @@ describe('filter-integration — dream seasonal scope', () => {
     enterMap(engine);
     engine.onRawEvent({type: 'level_type', levelType: 11});
 
-    expect(ctx(engine).seasonal?.seasonalType).toBe('dream');
+    expect(ctx(engine).seasonals.get('dream')).toBeDefined();
 
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
 
     expect(ctx(engine).session?.snapshot().drops[100]).toBe(5);          // session unaffected
-    expect(ctx(engine).seasonal?.snapshot().drops[100]).toBeUndefined(); // dream blocked
+    expect(ctx(engine).seasonals.get('dream')?.snapshot().drops[100]).toBeUndefined(); // dream blocked
   });
 });

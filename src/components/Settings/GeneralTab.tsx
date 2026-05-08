@@ -34,6 +34,8 @@ export default function GeneralTab() {
   const setCarjackLootSec   = useSettingsStore(s => s.setCarjackLootSec);
   const clockworkLootSec    = useSettingsStore(s => s.clockworkLootSec);
   const setClockworkLootSec = useSettingsStore(s => s.setClockworkLootSec);
+  const lunariaLootSec      = useSettingsStore(s => s.lunariaLootSec);
+  const setLunariaLootSec   = useSettingsStore(s => s.setLunariaLootSec);
 
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
@@ -186,6 +188,7 @@ export default function GeneralTab() {
           {key: 'overrealm', value: overrealmLootSec, set: setOverrealmLootSec},
           {key: 'carjack',   value: carjackLootSec,   set: setCarjackLootSec},
           {key: 'clockwork', value: clockworkLootSec, set: setClockworkLootSec},
+          {key: 'lunaria',   value: lunariaLootSec,   set: setLunariaLootSec},
         ] as const).map(row => (
           <div key={row.key} className="bg-surface rounded-lg p-4 border border-border mb-3">
             <div className="flex items-center justify-between mb-2 gap-3">

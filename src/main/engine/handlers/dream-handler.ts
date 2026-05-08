@@ -39,7 +39,7 @@ export class DreamHandler implements EventHandler {
     if (oldType === LEVEL_TYPE_MAP && event.levelType === LEVEL_TYPE_DREAM) {
       startSeasonal('dream', ctx, emit);
     } else if (oldType === LEVEL_TYPE_DREAM && event.levelType === LEVEL_TYPE_MAP) {
-      finishSeasonal(ctx, emit);
+      finishSeasonal('dream', ctx, emit);
     }
   }
 }

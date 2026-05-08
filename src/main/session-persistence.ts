@@ -157,6 +157,18 @@ export class SessionPersistence {
     const drops: Record<string, number> = {};
     for (const [k, v] of Object.entries(tracker.drops)) drops[String(k)] = v;
 
+    // Project tracker.dropsBySource (Record<Source, Record<number, number>>)
+    // to JSON-friendly string-keyed shape. Mirror the same number→string
+    // boundary handling we use for `drops` on this same line.
+    const dropsBySource: Record<string, Record<string, number>> = {};
+    if (tracker.dropsBySource) {
+      for (const [source, bucket] of Object.entries(tracker.dropsBySource)) {
+        const entry: Record<string, number> = {};
+        for (const [id, qty] of Object.entries(bucket)) entry[String(id)] = qty;
+        dropsBySource[source] = entry;
+      }
+    }
+
     const record: DbSession = {
       id:        this._meta.sessionId,
       name:      this._meta.sessionName ?? generateSessionName(),
@@ -165,6 +177,7 @@ export class SessionPersistence {
       mapTime:   sessionMeta.mapTime / 1000,
       mapCount:  sessionMeta.mapCount,
       drops,
+      dropsBySource,
     };
 
     if (this._meta.isOverride) sessionsUpdate(record);

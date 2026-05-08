@@ -24,8 +24,8 @@ function shortScene(scene: string): string {
  * updated before those handlers read it on the same zone_transition event.
  *
  * Exception: a bubble-owning seasonal handler (e.g. SandlordHandler) must run
- * BEFORE ZoneHandler so `ctx.seasonal?.ownsBubble` is set when Zone reads it
- * on map-entry to decide whether to create a per-map tracker.
+ * BEFORE ZoneHandler so `ctx.hasSeasonalThatOwnsBubble()` returns true when
+ * Zone reads it on map-entry to decide whether to create a per-map tracker.
  */
 export class ZoneHandler implements EventHandler {
   readonly name    = 'zone';
@@ -46,11 +46,12 @@ export class ZoneHandler implements EventHandler {
       timestamp: now,
     });
 
-    if (entering === 'map' && !ctx.inMap && !ctx.seasonal?.ownsBubble) {
+    if (entering === 'map' && !ctx.inMap && !ctx.hasSeasonalThatOwnsBubble()) {
       ctx.inMap        = true;
       ctx.mapCount    += 1;
       ctx.mapStartTime = now;
       ctx.map          = new Tracker('map');
+      ctx.invalidateWriter();
       if (ctx.phase === 'tracking') {
         log.debug('session', `Map started: count=${ctx.mapCount}`);
         emit({type: 'map_started', mapCount: ctx.mapCount, timestamp: now});
@@ -60,17 +61,23 @@ export class ZoneHandler implements EventHandler {
       const elapsed = now - ctx.mapStartTime;
       ctx.accumulatedMapTime += elapsed;
 
-      // Finish seasonal first (seasonal drops in this map are already attributed)
-      if (ctx.seasonal) {
-        const snap = ctx.seasonal.snapshot();
-        ctx.seasonal = null;
-        emit({type: 'tracker_finished', tracker: snap, timestamp: now});
+      // Finish all active seasonals first — their drops are already attributed
+      // to whichever source was the writer at fan-out time. SessionPersistence
+      // checks `hasActiveMapTracker()` per finish, which stays true here (map
+      // is still alive), so each seasonal becomes an overlap row tied to the
+      // current parent map.
+      for (const tracker of ctx.seasonals.values()) {
+        emit({type: 'tracker_finished', tracker: tracker.snapshot(), timestamp: now});
       }
+      ctx.seasonals.clear();
+      ctx.seasonalsStartOrder = [];
+      ctx.invalidateWriter();
 
       // Finish map tracker
       if (ctx.map) {
         const snap = ctx.map.snapshot();
         ctx.map = null;
+        ctx.invalidateWriter();
         emit({type: 'tracker_finished', tracker: snap, timestamp: now});
       }
 

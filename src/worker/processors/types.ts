@@ -6,6 +6,7 @@ import type {S13Event} from './s13';
 import type {S12Event} from './s12';
 import type {S11Event} from './s11';
 import type {S7Event} from './s7';
+import type {S14Event} from './s14';
 import type {CurrencyEvent} from './currency';
 
 // ---------------------------------------------------------------------------
@@ -23,6 +24,7 @@ export type RawEvent =
   | S12Event
   | S11Event
   | S7Event
+  | S14Event
   | CurrencyEvent
   | {type: 'reader_ready'}
   | {type: 'reader_error'; message: string}

@@ -2,11 +2,25 @@ import type {FilterRule} from './itemFilter';
 
 export {};
 
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria';
+/** A drop's attribution source for the per-source breakdown pie. 'map' covers
+ *  drops where no seasonal was the writer; the SeasonalType variants cover
+ *  drops where that seasonal was the newest active tracker. */
+export type Source = 'map' | SeasonalType;
+
 export interface TrackerSnapshot {
   kind:          'session' | 'map' | 'seasonal';
   drops:         Record<number, number>;
   elapsed:       number;
-  seasonalType?: 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord';
+  seasonalType?: SeasonalType;
+  /** False while the tracker is paused (e.g. Lunaria between strum episodes —
+   *  drops won't accrue but the tracker isn't finished). */
+  active:        boolean;
+  /** Per-source breakdown — populated only on the session tracker's snapshot.
+   *  Each drop is attributed to exactly one source (newest active tracker at
+   *  the moment the drop fired). Slices sum to session FE. Omitted on map and
+   *  seasonal tracker snapshots to keep them small. */
+  dropsBySource?: Record<Source, Record<number, number>>;
 }
 
 export interface UpdateInfo {
@@ -31,13 +45,19 @@ export interface ItemChangedPatch {
 }
 
 export interface DbSession {
-  id:        string;
-  name:      string;
-  savedAt:   string;
-  totalTime: number;
-  mapTime:   number;
-  mapCount:  number;
-  drops:     Record<string, number>;
+  id:            string;
+  name:          string;
+  savedAt:       string;
+  totalTime:     number;
+  mapTime:       number;
+  mapCount:      number;
+  drops:         Record<string, number>;
+  /** Per-source attribution for the source-breakdown pie. Each itemId qty
+   *  appears under exactly one source (newest active tracker at write time),
+   *  so summing per-source totals reproduces session FE. Empty `{}` for
+   *  legacy sessions saved before this column existed — pie falls back to
+   *  per-map-row aggregation in that case. */
+  dropsBySource: Record<Source, Record<string, number>>;
 }
 
 /** Per-run breakdown row for a saved session. Written by the engine on every
@@ -52,7 +72,7 @@ export interface DbSessionMap {
   drops:        Record<string, number>;
   spent:        Record<string, number>;
   /** Non-null for seasonal rows (standalone OR overlap); null for plain map rows. */
-  seasonalType: 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | null;
+  seasonalType: SeasonalType | null;
   /** Non-null only for overlap seasonal rows — points at the `mapIndex` of the
    *  parent map row whose drops also include this seasonal's drops. Null for
    *  primary rows (regular maps and standalone seasonals). Sum-across-rows
@@ -133,6 +153,7 @@ interface ElectronAPI {
     setOverrealmLootMs:   (ms: number) => void;
     setCarjackLootMs:     (ms: number) => void;
     setClockworkLootMs:   (ms: number) => void;
+    setLunariaLootMs:     (ms: number) => void;
     onEvent:         (cb: (event: EngineEvent) => void) => () => void;
   };
 

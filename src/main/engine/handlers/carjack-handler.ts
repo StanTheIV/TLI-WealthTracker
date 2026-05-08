@@ -91,7 +91,7 @@ export class CarjackHandler implements EventHandler {
   }
 
   private _handleZoneTransition(toScene: string, ctx: EngineContext, emit: EmitFn): void {
-    if (finishOnTownEntry(toScene, this._lootTimer, ctx, emit)) {
+    if (finishOnTownEntry(toScene, this._lootTimer, ctx, emit, 'carjack')) {
       this._lootTimer = null;
     }
   }

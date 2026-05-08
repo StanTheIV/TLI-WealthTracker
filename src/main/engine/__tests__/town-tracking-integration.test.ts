@@ -20,6 +20,7 @@ import {ZoneHandler}       from '@/main/engine/handlers/zone';
 import {DreamHandler}      from '@/main/engine/handlers/dream-handler';
 import {VorexHandler}      from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler}  from '@/main/engine/handlers/overrealm-handler';
+import {LunariaHandler}    from '@/main/engine/handlers/lunaria-handler';
 import {ItemHandler}       from '@/main/engine/handlers/item';
 import {MapMaterialHandler} from '@/main/engine/handlers/map-material';
 import type {EngineEvent}   from '@/main/engine/types';
@@ -41,6 +42,7 @@ function createEngine(events: EngineEvent[]): Engine {
     .register(new DreamHandler())
     .register(new VorexHandler())
     .register(new OverrealmHandler())
+    .register(new LunariaHandler())
     .register(new ItemHandler())
     .register(new MapMaterialHandler());
 }

@@ -44,13 +44,14 @@ function createTables(): void {
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
-      id         TEXT PRIMARY KEY,
-      name       TEXT NOT NULL,
-      saved_at   TEXT NOT NULL,
-      total_time REAL NOT NULL DEFAULT 0,
-      map_time   REAL NOT NULL DEFAULT 0,
-      map_count  INTEGER NOT NULL DEFAULT 0,
-      drops      TEXT NOT NULL DEFAULT '{}'
+      id              TEXT PRIMARY KEY,
+      name            TEXT NOT NULL,
+      saved_at        TEXT NOT NULL,
+      total_time      REAL NOT NULL DEFAULT 0,
+      map_time        REAL NOT NULL DEFAULT 0,
+      map_count       INTEGER NOT NULL DEFAULT 0,
+      drops           TEXT NOT NULL DEFAULT '{}',
+      drops_by_source TEXT NOT NULL DEFAULT '{}'
     );
 
     CREATE TABLE IF NOT EXISTS seasonal_stats (
@@ -103,6 +104,7 @@ function createTables(): void {
   migrateFilters();
   migrateSessionMaps();
   migrateSessionMapsParent();
+  migrateSessionsDropsBySource();
   log.debug('database', 'Tables created');
 }
 
@@ -125,6 +127,14 @@ function migrateSessionMaps(): void {
 function migrateSessionMapsParent(): void {
   try {
     db.exec("ALTER TABLE session_maps ADD COLUMN parent_map_index INTEGER");
+  } catch {
+    // Column already exists — ignore
+  }
+}
+
+function migrateSessionsDropsBySource(): void {
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN drops_by_source TEXT NOT NULL DEFAULT '{}'");
   } catch {
     // Column already exists — ignore
   }
@@ -255,34 +265,72 @@ export function recordLookup(itemId: string): void {
 // ---------------------------------------------------------------------------
 
 export interface DbSession {
-  id:        string;
-  name:      string;
-  savedAt:   string;
-  totalTime: number;
-  mapTime:   number;
-  mapCount:  number;
-  drops:     Record<string, number>;
+  id:            string;
+  name:          string;
+  savedAt:       string;
+  totalTime:     number;
+  mapTime:       number;
+  mapCount:      number;
+  drops:         Record<string, number>;
+  /** Per-source attribution for the source-breakdown pie. Each itemId qty
+   *  appears under exactly one source (newest active tracker at write time).
+   *  Empty for legacy sessions saved before this column existed — pie falls
+   *  back to per-map-row aggregation in that case. */
+  dropsBySource: Record<string, Record<string, number>>;
+}
+
+type SessionRow = {
+  id:              string;
+  name:            string;
+  saved_at:        string;
+  total_time:      number;
+  map_time:        number;
+  map_count:       number;
+  drops:           string;
+  drops_by_source: string;
+};
+
+function rowToSession(r: SessionRow): DbSession {
+  return {
+    id:            r.id,
+    name:          r.name,
+    savedAt:       r.saved_at,
+    totalTime:     r.total_time,
+    mapTime:       r.map_time,
+    mapCount:      r.map_count,
+    drops:         JSON.parse(r.drops),
+    dropsBySource: JSON.parse(r.drops_by_source ?? '{}'),
+  };
 }
 
 export function sessionsGetAll(): DbSession[] {
-  const rows = db.prepare('SELECT * FROM sessions ORDER BY saved_at DESC').all() as {id: string; name: string; saved_at: string; total_time: number; map_time: number; map_count: number; drops: string}[];
-  return rows.map(r => ({id: r.id, name: r.name, savedAt: r.saved_at, totalTime: r.total_time, mapTime: r.map_time, mapCount: r.map_count, drops: JSON.parse(r.drops)}));
+  const rows = db.prepare('SELECT * FROM sessions ORDER BY saved_at DESC').all() as SessionRow[];
+  return rows.map(rowToSession);
 }
 
 export function sessionsInsert(session: DbSession): void {
   db.prepare(`
-    INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops)
-    VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops)
-  `).run({...session, drops: JSON.stringify(session.drops)});
+    INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source)
+    VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource)
+  `).run({
+    ...session,
+    drops:         JSON.stringify(session.drops),
+    dropsBySource: JSON.stringify(session.dropsBySource),
+  });
 }
 
 export function sessionsUpdate(session: DbSession): void {
   db.prepare(`
     UPDATE sessions
     SET name = @name, saved_at = @savedAt, total_time = @totalTime,
-        map_time = @mapTime, map_count = @mapCount, drops = @drops
+        map_time = @mapTime, map_count = @mapCount, drops = @drops,
+        drops_by_source = @dropsBySource
     WHERE id = @id
-  `).run({...session, drops: JSON.stringify(session.drops)});
+  `).run({
+    ...session,
+    drops:         JSON.stringify(session.drops),
+    dropsBySource: JSON.stringify(session.dropsBySource),
+  });
 }
 
 export function sessionsDelete(id: string): void {
@@ -297,9 +345,9 @@ export function sessionsRename(id: string, name: string): void {
 }
 
 export function sessionsGetOne(id: string): DbSession | null {
-  const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as {id: string; name: string; saved_at: string; total_time: number; map_time: number; map_count: number; drops: string} | undefined;
+  const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as SessionRow | undefined;
   if (!row) return null;
-  return {id: row.id, name: row.name, savedAt: row.saved_at, totalTime: row.total_time, mapTime: row.map_time, mapCount: row.map_count, drops: JSON.parse(row.drops)};
+  return rowToSession(row);
 }
 
 // ---------------------------------------------------------------------------

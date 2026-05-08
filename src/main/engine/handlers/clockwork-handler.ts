@@ -80,7 +80,7 @@ export class ClockworkHandler implements EventHandler {
   }
 
   private _handleZoneTransition(toScene: string, ctx: EngineContext, emit: EmitFn): void {
-    if (finishOnTownEntry(toScene, this._lootTimer, ctx, emit)) {
+    if (finishOnTownEntry(toScene, this._lootTimer, ctx, emit, 'clockwork')) {
       this._lootTimer = null;
     }
   }

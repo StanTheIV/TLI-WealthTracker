@@ -81,7 +81,7 @@ export class OverrealmHandler implements EventHandler {
         break;
 
       case 'zone_transition':
-        if (finishOnTownEntry(event.toScene, this._lootTimer, ctx, emit)) {
+        if (finishOnTownEntry(event.toScene, this._lootTimer, ctx, emit, 'overrealm')) {
           this._lootTimer = null;
         }
         break;

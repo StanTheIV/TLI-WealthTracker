@@ -32,7 +32,7 @@ function trackerFinished(
   return {
     type:      'tracker_finished',
     timestamp,
-    tracker:   {kind, drops, elapsed, ...(seasonalType ? {seasonalType} : {})},
+    tracker:   {kind, drops, elapsed, active: true, ...(seasonalType ? {seasonalType} : {})},
   };
 }
 

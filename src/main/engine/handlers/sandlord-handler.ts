@@ -15,12 +15,13 @@ const TOWN_MARKER         = 'YuJinZhiXiBiNanSuo';
  * created inside. Returning to real town finishes it.
  *
  * The "no per-map trackers inside" rule is enforced by creating the seasonal
- * Tracker with `ownsBubble: true`. ZoneHandler reads `ctx.seasonal?.ownsBubble`
- * on map-entry zone_transition and skips creating a per-map tracker when it's
- * set. That's the only signal needed — no cross-handler callbacks.
+ * Tracker with `ownsBubble: true`. ZoneHandler calls
+ * `ctx.hasSeasonalThatOwnsBubble()` on map-entry zone_transition and skips
+ * creating a per-map tracker when it returns true. That's the only signal
+ * needed — no cross-handler callbacks.
  *
- * Must be registered BEFORE ZoneHandler so `ctx.seasonal` is created (and
- * `ownsBubble` is readable) before ZoneHandler runs on the same event.
+ * Must be registered BEFORE ZoneHandler so the bubble seasonal is in
+ * `ctx.seasonals` before ZoneHandler runs on the same event.
  */
 export class SandlordHandler implements EventHandler {
   readonly name    = 'sandlord';
@@ -33,7 +34,7 @@ export class SandlordHandler implements EventHandler {
 
     const enteringHub  = event.toScene.includes(SANDLORD_HUB_MARKER);
     const enteringTown = event.toScene.includes(TOWN_MARKER);
-    const inSandlord   = ctx.seasonal?.seasonalType === 'sandlord';
+    const inSandlord   = ctx.seasonals.has('sandlord');
 
     if (enteringHub && !inSandlord) {
       startSeasonal('sandlord', ctx, emit, {ownsBubble: true});
@@ -41,7 +42,7 @@ export class SandlordHandler implements EventHandler {
     }
 
     if (inSandlord && enteringTown) {
-      finishSeasonal(ctx, emit);
+      finishSeasonal('sandlord', ctx, emit);
     }
   }
 }
