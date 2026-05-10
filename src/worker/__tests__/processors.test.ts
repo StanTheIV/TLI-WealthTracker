@@ -422,7 +422,11 @@ const s12Lines = {
 };
 
 describe('S12Processor', () => {
-  const proc = new S12Processor();
+  // Stateful: the processor tracks outside/inside/looting itself so the
+  // handler only ever sees genuine entries. Fresh instance per test so
+  // state from one case doesn't leak into the next.
+  let proc: S12Processor;
+  beforeEach(() => { proc = new S12Processor(); });
 
   it('has correct name', () => {
     expect(proc.name).toBe('s12');
@@ -442,12 +446,42 @@ describe('S12Processor', () => {
     expect(proc.test(s12Lines.notifyOther)).toBe(false);
   });
 
-  it('parses s12_entry', () => {
+  it('emits s12_entry on the first S12SwitchFinish', () => {
     expect(proc.process(s12Lines.entry)).toEqual({type: 's12_entry'});
   });
 
-  it('parses s12_exit on notifyId 101', () => {
+  it('swallows S12SwitchFinish lines for in-Overrealm stage transitions', () => {
+    expect(proc.process(s12Lines.entry)).toEqual({type: 's12_entry'});
+    // Stages 2 and 3 fire S12SwitchFinish without intervening exit signal.
+    expect(proc.process(s12Lines.entry)).toBeNull();
+    expect(proc.process(s12Lines.entry)).toBeNull();
+  });
+
+  it('emits s12_exit only when inside (otherwise the notifyId is noise)', () => {
+    // Outside — defensive: ignore.
+    expect(proc.process(s12Lines.exit)).toBeNull();
+    // Enter Overrealm, then exit fires legitimately.
+    proc.process(s12Lines.entry);
     expect(proc.process(s12Lines.exit)).toEqual({type: 's12_exit'});
+  });
+
+  it('swallows the post-exit S12SwitchFinish (Netherrealm scene switch-back)', () => {
+    // Realistic stream: entry → entry → entry → exit → entry. The 4th
+    // S12SwitchFinish is the engine swapping the scene back to the
+    // Netherrealm map and must NOT be reported as a re-entry.
+    proc.process(s12Lines.entry);            // initial entry
+    proc.process(s12Lines.entry);            // stage transition
+    proc.process(s12Lines.entry);            // stage transition
+    expect(proc.process(s12Lines.exit)).toEqual({type: 's12_exit'});
+    expect(proc.process(s12Lines.entry)).toBeNull(); // post-exit map switch
+  });
+
+  it('emits s12_entry again when the player takes a fresh portal after looting', () => {
+    proc.process(s12Lines.entry);
+    proc.process(s12Lines.exit);
+    proc.process(s12Lines.entry);            // post-exit switch — swallowed
+    // Now back in Netherrealm; a real new portal entry is the next event.
+    expect(proc.process(s12Lines.entry)).toEqual({type: 's12_entry'});
   });
 });
 

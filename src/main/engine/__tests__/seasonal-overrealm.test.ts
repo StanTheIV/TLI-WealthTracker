@@ -20,19 +20,21 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
 
     expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
-    expect(overrealm(e).isInOverrealm()).toBe(true);
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm')).toBe(true);
   });
 
-  it('subsequent s12_entry events (stage 2/3) do not restart the tracker', () => {
+  it('subsequent S12SwitchFinish lines (stage 2/3) do not restart the tracker', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
 
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s12Entry); // stage 1
-    feed(d, e, log.s12Entry); // stage 2 — should be ignored
+    // The processor's state machine swallows stage-transition S12SwitchFinish
+    // lines, so only the first one should produce a tracker_started event.
+    feed(d, e, log.s12Entry); // stage 1 — emits s12_entry
+    feed(d, e, log.s12Entry); // stage 2 — swallowed by processor
+    feed(d, e, log.s12Entry); // stage 3 — swallowed by processor
 
     const started = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm');
     expect(started).toHaveLength(1);
@@ -48,7 +50,6 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
     feed(d, e, log.s12Exit);
 
-    expect(overrealm(e).isInOverrealm()).toBe(false);
     expect(overrealm(e).isLootCollecting()).toBe(true);
     expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
@@ -145,11 +146,13 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
     feed(d, e, log.s12Exit);
 
-    // Re-enter before timer expires (player took another Overrealm portal in
-    // the same map).
-    feed(d, e, log.s12Entry);
+    // Realistic in-game stream: after s12_exit, the game emits a
+    // post-exit S12SwitchFinish (Netherrealm scene swap-back) which the
+    // processor swallows. Only the *next* S12SwitchFinish, when the player
+    // takes a fresh portal, surfaces as a re-entry.
+    feed(d, e, log.s12Entry); // post-exit map switch — swallowed by processor
+    feed(d, e, log.s12Entry); // real re-entry — handler cancels loot timer
 
-    expect(overrealm(e).isInOverrealm()).toBe(true);
     expect(overrealm(e).isLootCollecting()).toBe(false);
     expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
 
@@ -158,20 +161,54 @@ describe('Overrealm integration', () => {
     expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
   });
 
-  it('s12_exit while NOT in Overrealm is ignored (defensive)', () => {
+  it('post-exit S12SwitchFinish does NOT cancel the loot timer (regression)', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s12Entry);
+    feed(d, e, log.s12Exit);
+    expect(overrealm(e).isLootCollecting()).toBe(true);
+
+    // The post-exit S12SwitchFinish that swaps the scene back to the
+    // Netherrealm map must not reach the handler, otherwise it would
+    // cancel the just-armed loot timer.
+    feed(d, e, log.s12Entry);
+    expect(overrealm(e).isLootCollecting()).toBe(true);
+
+    // Timer expires naturally → tracker finishes.
+    vi.advanceTimersByTime(5_100);
+    expect(ctx(e).seasonals.size).toBe(0);
+  });
+
+  it('next map after a completed Overrealm starts a fresh tracker (regression)', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
 
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
-    feed(d, e, log.zoneTransition(TOWN, MAP));
 
-    // Spurious s12_exit with no preceding s12_entry — engine is fresh, no
-    // tracker, no loot window. Must be a no-op.
-    feed(d, e, log.s12Exit);
+    // --- Map 1: full Overrealm + post-exit map switch + town entry ---
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s12Entry);                    // initial entry
+    feed(d, e, log.s12Entry);                    // stage 2 — swallowed
+    feed(d, e, log.s12Entry);                    // stage 3 — swallowed
+    feed(d, e, log.s12Exit);                     // exit signal
+    feed(d, e, log.s12Entry);                    // post-exit map switch — swallowed
+    feed(d, e, log.zoneTransition(MAP, TOWN));   // town finishes the tracker
 
     expect(ctx(e).seasonals.size).toBe(0);
-    expect(overrealm(e).isLootCollecting()).toBe(false);
-    expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm')).toBe(false);
+
+    const startedFirst = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm');
+    expect(startedFirst).toHaveLength(1);
+
+    // --- Map 2: a fresh portal must produce a brand-new tracker ---
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s12Entry);
+
+    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    const startedAll = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm');
+    expect(startedAll).toHaveLength(2);
   });
 });
