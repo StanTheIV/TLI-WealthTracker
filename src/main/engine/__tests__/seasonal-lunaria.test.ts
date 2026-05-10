@@ -191,6 +191,62 @@ describe('Lunaria integration', () => {
     expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
   });
 
+  it('decaying pickup-refresh floors at 1000ms — pickups inside the floored window keep extending it', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 1400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s14Strum);
+
+    // Walk down through the geometric decay until we hit the 1000ms floor.
+    // Each pickup fires when remaining < 0.8 * current — advance to the very
+    // tail of each window so the next pickup actually re-arms.
+    // 5000 → 4000 (advance 4500, remaining 500 < 4000)
+    vi.advanceTimersByTime(4_500);
+    feed(d, e, log.bagUpdate(1, 1400, 1));
+    // 4000 → 3200 (advance 3500, remaining 500 < 3200)
+    vi.advanceTimersByTime(3_500);
+    feed(d, e, log.bagUpdate(1, 1400, 2));
+    // 3200 → 2560 (advance 2700, remaining 500 < 2560)
+    vi.advanceTimersByTime(2_700);
+    feed(d, e, log.bagUpdate(1, 1400, 3));
+    // 2560 → 2048 (advance 2060, remaining 500 < 2048)
+    vi.advanceTimersByTime(2_060);
+    feed(d, e, log.bagUpdate(1, 1400, 4));
+    // 2048 → 1638 (advance 1548, remaining 500 < 1638)
+    vi.advanceTimersByTime(1_548);
+    feed(d, e, log.bagUpdate(1, 1400, 5));
+    // 1638 → 1310 (advance 1138, remaining 500 < 1310)
+    vi.advanceTimersByTime(1_138);
+    feed(d, e, log.bagUpdate(1, 1400, 6));
+    // 1310 → 1048 (advance 810, remaining 500 < 1048)
+    vi.advanceTimersByTime(810);
+    feed(d, e, log.bagUpdate(1, 1400, 7));
+    // 1048 → floor=1000 (advance 548, remaining 500 < 1000)
+    vi.advanceTimersByTime(548);
+    feed(d, e, log.bagUpdate(1, 1400, 8));
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+
+    // At the floor. A pickup inside the 1000ms window re-arms back to a
+    // fresh 1000ms — a steady stream of pickups can extend the floored
+    // window indefinitely. Verify by chaining three pickups separated by
+    // 800ms each: total elapsed at the floor = 800 * 3 = 2400ms, which is
+    // well past one floored window, but the timer must still be active.
+    vi.advanceTimersByTime(800);
+    feed(d, e, log.bagUpdate(1, 1400, 9));
+    vi.advanceTimersByTime(800);
+    feed(d, e, log.bagUpdate(1, 1400, 10));
+    vi.advanceTimersByTime(800);
+    feed(d, e, log.bagUpdate(1, 1400, 11));
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+
+    // Stop picking up — the next floored 1000ms window runs out without a
+    // refresh and the tracker pauses.
+    vi.advanceTimersByTime(1_100);
+    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+  });
+
   it('strum after pickup-decay restores the full window', () => {
     const d = createDispatcher();
     const e = createEngine([]);

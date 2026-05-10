@@ -1,3 +1,7 @@
+/** Floor for the decaying pickup-refresh — the geometric shrinkage stops here
+ *  so the loot window never collapses to a sliver that's effectively useless. */
+const MIN_REFRESH_MS = 1_000;
+
 /**
  * LootCollectionTimer — keeps a seasonal tracker alive during post-exit looting.
  *
@@ -7,11 +11,11 @@
  *
  * Two refresh modes:
  *  - `refresh()` (pickups): re-arms the timer to 80% of the *current* window
- *    when the remaining time has fallen below that 80% threshold. Because the
- *    new window itself becomes the next basis, the window shrinks geometrically
- *    on each successive pickup (5000ms → 4000ms → 3200ms → ...). This makes
- *    long camp sessions wind down naturally instead of getting infinitely
- *    extended one pickup at a time.
+ *    when the remaining time has fallen below that 80% threshold, with a
+ *    `MIN_REFRESH_MS` floor. The window shrinks geometrically on each
+ *    successive pickup (5000ms → 4000ms → 3200ms → ...) but stops decaying
+ *    at the floor. This makes long camp sessions wind down naturally without
+ *    collapsing to an unusable sliver.
  *  - `reset()` (strums / encounter re-engagement): unconditionally re-arms back
  *    to the full configured `durationMs`, undoing any decay so the player gets
  *    a fresh full window when they re-engage the mechanic.
@@ -60,8 +64,14 @@ export class LootCollectionTimer {
     if (!this.active) return false;
 
     const remaining = this._currentDurationMs - (Date.now() - this._startedAt);
-    const next      = this._currentDurationMs * 0.8;
+    const next      = Math.max(this._currentDurationMs * 0.8, MIN_REFRESH_MS);
 
+    // Re-arm when remaining has fallen below the next step. At the floor
+    // (current = next = MIN_REFRESH_MS), `remaining < next` reduces to
+    // `remaining < current`, which is true any time after t=0 — so a player
+    // picking up loot continuously inside the 1s floored window keeps
+    // extending it. That's the intent: the floor is the smallest window,
+    // not the end of the timer.
     if (remaining < next) {
       this._arm(next);
       return true;
