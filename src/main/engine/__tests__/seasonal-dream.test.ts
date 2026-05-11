@@ -23,16 +23,16 @@ describe('Dream integration', () => {
 
     // Enter Dream
     feed(d, e, log.levelType(11));
-    expect(ctx(e).seasonals.get('dream')).toBeDefined();
+    expect(ctx(e).registry.seasonal('dream')).toBeDefined();
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'dream')).toBe(true);
 
     // Drop inside Dream reaches seasonal tracker
     feed(d, e, log.bagUpdate(1, 100, 5));
-    expect(ctx(e).seasonals.get('dream')?.snapshot().drops[100]).toBe(5);
+    expect(ctx(e).registry.seasonal('dream')?.snapshot().drops[100]).toBe(5);
 
     // Exit Dream
     feed(d, e, log.levelType(3));
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'dream')).toBe(true);
   });
 
@@ -47,8 +47,8 @@ describe('Dream integration', () => {
 
     feed(d, e, log.bagUpdate(1, 100, 3));
 
-    expect(ctx(e).session?.snapshot().drops[100]).toBe(3);
-    expect(ctx(e).map?.snapshot().drops[100]).toBe(3);
-    expect(ctx(e).seasonals.get('dream')?.snapshot().drops[100]).toBe(3);
+    expect(ctx(e).registry.session?.snapshot().drops[100]).toBe(3);
+    expect(ctx(e).registry.map?.snapshot().drops[100]).toBe(3);
+    expect(ctx(e).registry.seasonal('dream')?.snapshot().drops[100]).toBe(3);
   });
 });

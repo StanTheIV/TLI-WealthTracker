@@ -1,80 +1,56 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {startSeasonal, finishSeasonal, pauseSeasonal, resumeSeasonal} from './seasonal-helpers';
 
 const VOREX_REWARD_ZONE = 'DiXiaZhenSuo';
 
 /**
- * VorexHandler — manages the Vorex (S13) seasonal tracker lifecycle.
+ * VorexHandler — Vorex (S13) translator.
  *
- * Event flow:
- *   s13_start        : window opened — start (or resume) tracker
- *   s13_window_close : window closed without exiting — pause tracker
- *   s13_abandon      : full exit detected — set flag, wait for zone_transition
- *   zone_transition  : resolves the abandon (completed vs abandoned)
- *     → toScene contains DiXiaZhenSuo : completed, resume for reward-zone loot
- *     → otherwise                     : abandoned, finish tracker
- *
- * Must be registered AFTER ZoneHandler and BEFORE ItemHandler.
+ *   s13_start        : start (or resume if paused) tracker
+ *   s13_window_close : pause tracker
+ *   s13_abandon      : flag; resolved on next zone_transition
+ *   zone_transition  : if abandoning, finish (or resume + reward zone)
  */
 export class VorexHandler implements EventHandler {
   readonly name    = 'vorex';
   readonly handles = ['s13_start', 's13_window_close', 's13_abandon', 'zone_transition'] as const;
 
-  // s13_abandon seen; waiting for zone_transition to resolve. Handler-local
-  // because no other handler reads it.
+  // s13_abandon seen; waiting for zone_transition to resolve.
   private _abandoning = false;
 
-  onStop(_ctx: EngineContext): void {
+  onStop(): void {
     this._abandoning = false;
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
-    if (ctx.phase !== 'tracking') return;
-    if (ctx.paused) return;
+    if (ctx.phase !== 'tracking' || ctx.paused) return;
 
     switch (event.type) {
       case 's13_start': {
-        const existing = ctx.seasonals.get('vorex');
-        if (existing && !existing.active) {
-          // Window reopened after being closed — resume the existing tracker.
-          resumeSeasonal('vorex', ctx, emit);
-        } else {
-          startSeasonal('vorex', ctx, emit);
-        }
+        const existing = ctx.registry.seasonal('vorex');
+        if (existing && !existing.active) existing.resumeTracker();
+        else                              ctx.registry.startSeasonal({type: 'vorex'}, emit);
         break;
       }
-
       case 's13_window_close':
-        pauseSeasonal('vorex', ctx, emit);
+        ctx.registry.seasonal('vorex')?.pauseTracker();
         break;
-
       case 's13_abandon':
         this._abandoning = true;
         break;
-
       case 'zone_transition':
         if (this._abandoning) {
-          this._resolveAbandon(event.toScene, ctx, emit);
+          this._abandoning = false;
+          if (event.toScene.includes(VOREX_REWARD_ZONE)) {
+            const existing = ctx.registry.seasonal('vorex');
+            if (existing) existing.resumeTracker();
+            else          ctx.registry.startSeasonal({type: 'vorex'}, emit);
+          } else {
+            ctx.registry.seasonal('vorex')?.finish();
+          }
         }
         break;
-    }
-  }
-
-  private _resolveAbandon(toScene: string, ctx: EngineContext, emit: EmitFn): void {
-    this._abandoning = false;
-
-    if (toScene.includes(VOREX_REWARD_ZONE)) {
-      // Completed — resume so reward-zone loot is attributed to Vorex.
-      const existing = ctx.seasonals.get('vorex');
-      if (existing) {
-        resumeSeasonal('vorex', ctx, emit);
-      } else {
-        startSeasonal('vorex', ctx, emit);
-      }
-    } else {
-      finishSeasonal('vorex', ctx, emit);
     }
   }
 }

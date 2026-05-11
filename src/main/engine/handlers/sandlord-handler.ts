@@ -1,27 +1,19 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {startSeasonal, finishSeasonal} from './seasonal-helpers';
 
 const SANDLORD_HUB_MARKER = 'YunDuanLvZhou';
 const TOWN_MARKER         = 'YuJinZhiXiBiNanSuo';
 
 /**
- * SandlordHandler — manages the Sandlord (S10) seasonal tracker lifecycle.
+ * SandlordHandler — Sandlord (S10) translator.
  *
- * Trigger: pure zone transition, no log-line event. Entering the seasonal hub
- * (`YunDuanLvZhou`) starts the tracker; the entire bubble — hub plus its
- * sub-maps — runs as a single seasonal tracker with no per-map trackers
- * created inside. Returning to real town finishes it.
+ * Pure zone-transition trigger. Entering the seasonal hub starts a bubble
+ * seasonal that absorbs hub + sub-maps into one tracker (no per-map trackers
+ * are created inside; ZoneHandler reads `registry.hasBubble()` and skips).
  *
- * The "no per-map trackers inside" rule is enforced by creating the seasonal
- * Tracker with `ownsBubble: true`. ZoneHandler calls
- * `ctx.hasSeasonalThatOwnsBubble()` on map-entry zone_transition and skips
- * creating a per-map tracker when it returns true. That's the only signal
- * needed — no cross-handler callbacks.
- *
- * Must be registered BEFORE ZoneHandler so the bubble seasonal is in
- * `ctx.seasonals` before ZoneHandler runs on the same event.
+ * Must be registered BEFORE ZoneHandler so the bubble is in the registry by
+ * the time Zone runs on the same event.
  */
 export class SandlordHandler implements EventHandler {
   readonly name    = 'sandlord';
@@ -29,20 +21,19 @@ export class SandlordHandler implements EventHandler {
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
     if (event.type !== 'zone_transition') return;
-    if (ctx.phase !== 'tracking') return;
-    if (ctx.paused) return;
+    if (ctx.phase !== 'tracking' || ctx.paused) return;
 
     const enteringHub  = event.toScene.includes(SANDLORD_HUB_MARKER);
     const enteringTown = event.toScene.includes(TOWN_MARKER);
-    const inSandlord   = ctx.seasonals.has('sandlord');
+    const inSandlord   = ctx.registry.seasonal('sandlord') !== null;
 
     if (enteringHub && !inSandlord) {
-      startSeasonal('sandlord', ctx, emit, {ownsBubble: true});
+      ctx.registry.startSeasonal({type: 'sandlord', ownsBubble: true}, emit);
       return;
     }
 
     if (inSandlord && enteringTown) {
-      finishSeasonal('sandlord', ctx, emit);
+      ctx.registry.seasonal('sandlord')?.finish();
     }
   }
 }

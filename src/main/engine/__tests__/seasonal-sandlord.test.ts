@@ -27,10 +27,10 @@ describe('Sandlord integration', () => {
     boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
 
-    expect(ctx(e).seasonals.get('sandlord')).toBeDefined();
-    expect(ctx(e).seasonals.get('sandlord')?.ownsBubble).toBe(true);
+    expect(ctx(e).registry.seasonal('sandlord')).toBeDefined();
+    expect(ctx(e).registry.seasonal('sandlord')?.ownsBubble).toBe(true);
     expect(ctx(e).inMap).toBe(false);
-    expect(ctx(e).map).toBeNull();
+    expect(ctx(e).registry.map).toBeNull();
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'sandlord')).toBe(true);
     expect(events.some(ev => ev.type === 'map_started')).toBe(false);
   });
@@ -46,9 +46,9 @@ describe('Sandlord integration', () => {
 
     feed(d, e, log.zoneTransition(SANDLORD_HUB, SANDLORD_SUB_MAP));
 
-    expect(ctx(e).seasonals.get('sandlord')).toBeDefined();
+    expect(ctx(e).registry.seasonal('sandlord')).toBeDefined();
     expect(ctx(e).inMap).toBe(false);
-    expect(ctx(e).map).toBeNull();
+    expect(ctx(e).registry.map).toBeNull();
     expect(events.some(ev => ev.type === 'map_started')).toBe(false);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'sandlord')).toBe(false);
   });
@@ -64,8 +64,8 @@ describe('Sandlord integration', () => {
     feed(d, e, log.bagUpdate(1, 800, 10));  // delta +7
     vi.advanceTimersByTime(2_000);          // flush ItemHandler town-debounce
 
-    expect(ctx(e).seasonals.get('sandlord')?.snapshot().drops[800]).toBe(10);
-    expect(ctx(e).map).toBeNull();
+    expect(ctx(e).registry.seasonal('sandlord')?.snapshot().drops[800]).toBe(10);
+    expect(ctx(e).registry.map).toBeNull();
   });
 
   it('returning to town finishes the sandlord tracker and clears the bubble flag', () => {
@@ -81,7 +81,7 @@ describe('Sandlord integration', () => {
 
     feed(d, e, log.zoneTransition(SANDLORD_HUB, TOWN));
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'sandlord')).toBe(true);
     expect(events.some(ev => ev.type === 'map_ended')).toBe(false);
   });
@@ -99,7 +99,7 @@ describe('Sandlord integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
 
     expect(ctx(e).inMap).toBe(true);
-    expect(ctx(e).map).not.toBeNull();
+    expect(ctx(e).registry.map).not.toBeNull();
     expect(events.some(ev => ev.type === 'map_started')).toBe(true);
   });
 

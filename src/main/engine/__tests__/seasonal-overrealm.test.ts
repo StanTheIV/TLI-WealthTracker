@@ -19,7 +19,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
 
-    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm')).toBe(true);
   });
 
@@ -51,7 +51,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Exit);
 
     expect(overrealm(e).isLootCollecting()).toBe(true);
-    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
   });
 
@@ -66,7 +66,7 @@ describe('Overrealm integration', () => {
 
     // Still in loot window — bag update should reach overrealm tracker
     feed(d, e, log.bagUpdate(1, 300, 7));
-    expect(ctx(e).seasonals.get('overrealm')?.snapshot().drops[300]).toBe(7);
+    expect(ctx(e).registry.seasonal('overrealm')?.snapshot().drops[300]).toBe(7);
   });
 
   it('loot timer expires and finishes overrealm tracker', () => {
@@ -79,12 +79,12 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
     feed(d, e, log.s12Exit);
 
-    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
 
     // Advance past the 5-second loot window
     vi.advanceTimersByTime(5_100);
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'overrealm')).toBe(true);
   });
 
@@ -100,17 +100,17 @@ describe('Overrealm integration', () => {
 
     // Advance to 4.5s (remaining=0.5s < 0.8 * 5000 = 4s → refresh re-arms to 4s)
     vi.advanceTimersByTime(4_500);
-    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
 
     feed(d, e, log.bagUpdate(1, 300, 2)); // triggers refresh → timer reset to 4s
 
     // 3.9s later — still within the refreshed 4s window
     vi.advanceTimersByTime(3_900);
-    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
 
     // Let it expire (0.1s + buffer)
     vi.advanceTimersByTime(200);
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
   });
 
   it('entering town during loot window cancels timer and finishes tracker immediately', () => {
@@ -123,12 +123,12 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
     feed(d, e, log.s12Exit);
 
-    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
 
     // Enter town — should cancel timer and finish immediately
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'overrealm')).toBe(true);
 
     // Timer should be gone — no double-finish after original timeout
@@ -154,11 +154,11 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry); // real re-entry — handler cancels loot timer
 
     expect(overrealm(e).isLootCollecting()).toBe(false);
-    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
 
     // Timer cancelled — advancing time should not finish the tracker
     vi.advanceTimersByTime(6_000);
-    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
   });
 
   it('post-exit S12SwitchFinish does NOT cancel the loot timer (regression)', () => {
@@ -179,7 +179,7 @@ describe('Overrealm integration', () => {
 
     // Timer expires naturally → tracker finishes.
     vi.advanceTimersByTime(5_100);
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
   });
 
   it('next map after a completed Overrealm starts a fresh tracker (regression)', () => {
@@ -198,7 +198,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);                    // post-exit map switch — swallowed
     feed(d, e, log.zoneTransition(MAP, TOWN));   // town finishes the tracker
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
 
     const startedFirst = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm');
     expect(startedFirst).toHaveLength(1);
@@ -207,7 +207,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
 
-    expect(ctx(e).seasonals.get('overrealm')).toBeDefined();
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
     const startedAll = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm');
     expect(startedAll).toHaveLength(2);
   });

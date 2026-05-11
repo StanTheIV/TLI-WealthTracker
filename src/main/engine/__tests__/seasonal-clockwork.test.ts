@@ -19,13 +19,13 @@ describe('Clockwork integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
 
     feed(d, e, log.s7Start);
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'clockwork')).toBe(false);
 
     feed(d, e, log.bagUpdate(1, 700, 4));
-    expect(ctx(e).session?.snapshot().drops[700]).toBe(4);
-    expect(ctx(e).map?.snapshot().drops[700]).toBe(4);
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.session?.snapshot().drops[700]).toBe(4);
+    expect(ctx(e).registry.map?.snapshot().drops[700]).toBe(4);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
   });
 
   it('s7_success (voucher turn-in) starts tracker + loot timer', () => {
@@ -38,13 +38,13 @@ describe('Clockwork integration', () => {
     feed(d, e, log.s7Start);
     feed(d, e, log.s7Success);
 
-    expect(ctx(e).seasonals.get('clockwork')).toBeDefined();
+    expect(ctx(e).registry.seasonal('clockwork')).toBeDefined();
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'clockwork')).toBe(true);
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
 
     vi.advanceTimersByTime(5_100);
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'clockwork')).toBe(true);
   });
 
@@ -58,11 +58,11 @@ describe('Clockwork integration', () => {
     feed(d, e, log.s7Start);
     feed(d, e, log.s7Fail);
 
-    expect(ctx(e).seasonals.get('clockwork')).toBeDefined();
+    expect(ctx(e).registry.seasonal('clockwork')).toBeDefined();
 
     vi.advanceTimersByTime(5_100);
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'clockwork')).toBe(true);
   });
 
@@ -76,9 +76,9 @@ describe('Clockwork integration', () => {
     feed(d, e, log.s7Success);
 
     feed(d, e, log.bagUpdate(1, 700, 7));
-    expect(ctx(e).seasonals.get('clockwork')?.snapshot().drops[700]).toBe(7);
-    expect(ctx(e).session?.snapshot().drops[700]).toBe(7);
-    expect(ctx(e).map?.snapshot().drops[700]).toBe(7);
+    expect(ctx(e).registry.seasonal('clockwork')?.snapshot().drops[700]).toBe(7);
+    expect(ctx(e).registry.session?.snapshot().drops[700]).toBe(7);
+    expect(ctx(e).registry.map?.snapshot().drops[700]).toBe(7);
   });
 
   it('entering town during loot window cancels timer and finishes immediately', () => {
@@ -93,7 +93,7 @@ describe('Clockwork integration', () => {
 
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'clockwork')).toBe(true);
 
     // No double-finish after the original timer would have expired.

@@ -1,7 +1,6 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {Tracker} from '@/main/engine/tracker';
 import {log} from '@/main/logger';
 
 const TOWN_MARKER = 'YuJinZhiXiBiNanSuo';
@@ -20,12 +19,12 @@ function shortScene(scene: string): string {
 /**
  * ZoneHandler — tracks scene transitions and map lifecycle.
  *
- * Must be registered BEFORE SeasonalHandler and ItemHandler so ctx.inMap is
+ * Must be registered BEFORE seasonal handlers and ItemHandler so ctx.inMap is
  * updated before those handlers read it on the same zone_transition event.
  *
- * Exception: a bubble-owning seasonal handler (e.g. SandlordHandler) must run
- * BEFORE ZoneHandler so `ctx.hasSeasonalThatOwnsBubble()` returns true when
- * Zone reads it on map-entry to decide whether to create a per-map tracker.
+ * Exception: bubble-owning seasonal handlers (e.g. SandlordHandler) must run
+ * BEFORE ZoneHandler so the bubble seasonal is in the registry by the time
+ * Zone reads it on map-entry.
  */
 export class ZoneHandler implements EventHandler {
   readonly name    = 'zone';
@@ -46,42 +45,27 @@ export class ZoneHandler implements EventHandler {
       timestamp: now,
     });
 
-    if (entering === 'map' && !ctx.inMap && !ctx.hasSeasonalThatOwnsBubble()) {
+    if (entering === 'map' && !ctx.inMap && !ctx.registry.hasBubble()) {
       ctx.inMap        = true;
       ctx.mapCount    += 1;
       ctx.mapStartTime = now;
-      ctx.map          = new Tracker('map');
-      ctx.invalidateWriter();
-      if (ctx.phase === 'tracking') {
+      const map = ctx.registry.startMap();
+      if (map && ctx.phase === 'tracking') {
         log.debug('session', `Map started: count=${ctx.mapCount}`);
         emit({type: 'map_started', mapCount: ctx.mapCount, timestamp: now});
-        emit({type: 'tracker_started', tracker: ctx.map.snapshot(), timestamp: now});
+        emit({type: 'tracker_started', tracker: map.snapshot(), timestamp: now});
       }
     } else if (entering === 'town' && ctx.inMap) {
       const elapsed = now - ctx.mapStartTime;
       ctx.accumulatedMapTime += elapsed;
 
-      // Finish all active seasonals first — their drops are already attributed
-      // to whichever source was the writer at fan-out time. SessionPersistence
-      // checks `hasActiveMapTracker()` per finish, which stays true here (map
-      // is still alive), so each seasonal becomes an overlap row tied to the
-      // current parent map.
-      for (const tracker of ctx.seasonals.values()) {
-        emit({type: 'tracker_finished', tracker: tracker.snapshot(), timestamp: now});
-      }
-      ctx.seasonals.clear();
-      ctx.seasonalsStartOrder = [];
-      ctx.invalidateWriter();
+      // Finish all seasonals (each cancels its loot timer + emits tracker_finished)
+      // then the map tracker. SessionPersistence sees the seasonals first while
+      // the map tracker is still alive, so each becomes an overlap row tied to
+      // the current parent map.
+      ctx.registry.finishAll(emit);
 
-      // Finish map tracker
-      if (ctx.map) {
-        const snap = ctx.map.snapshot();
-        ctx.map = null;
-        ctx.invalidateWriter();
-        emit({type: 'tracker_finished', tracker: snap, timestamp: now});
-      }
-
-      ctx.inMap = false; // ItemHandler reads this on the same event
+      ctx.inMap = false;
       if (ctx.phase === 'tracking') {
         log.debug('session', `Map ended: elapsed=${elapsed}ms`);
         emit({type: 'map_ended', elapsed, timestamp: now});

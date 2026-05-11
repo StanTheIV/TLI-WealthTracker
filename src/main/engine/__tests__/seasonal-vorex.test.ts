@@ -19,7 +19,7 @@ describe('Vorex integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s13Start);
 
-    expect(ctx(e).seasonals.get('vorex')).toBeDefined();
+    expect(ctx(e).registry.seasonal('vorex')).toBeDefined();
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'vorex')).toBe(true);
   });
 
@@ -34,8 +34,8 @@ describe('Vorex integration', () => {
 
     feed(d, e, log.s13WindowClose);
 
-    expect(ctx(e).seasonals.get('vorex')).toBeDefined();
-    expect(ctx(e).seasonals.get('vorex')?.active).toBe(false); // paused
+    expect(ctx(e).registry.seasonal('vorex')).toBeDefined();
+    expect(ctx(e).registry.seasonal('vorex')?.active).toBe(false); // paused
     expect(events.some(ev => ev.type === 'tracker_update' && ev.tracker.seasonalType === 'vorex')).toBe(true);
   });
 
@@ -49,10 +49,10 @@ describe('Vorex integration', () => {
     feed(d, e, log.s13Start);
     feed(d, e, log.s13WindowClose);
 
-    expect(ctx(e).seasonals.get('vorex')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('vorex')?.active).toBe(false);
 
     feed(d, e, log.s13Start); // reopen
-    expect(ctx(e).seasonals.get('vorex')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('vorex')?.active).toBe(true);
   });
 
   it('s13_abandon → zone to reward zone completes Vorex, tracker stays alive', () => {
@@ -68,8 +68,8 @@ describe('Vorex integration', () => {
     // Zone to reward zone = completed
     feed(d, e, log.zoneTransition(MAP, VOREX_REWARD));
 
-    expect(ctx(e).seasonals.get('vorex')).toBeDefined(); // still alive for loot
-    expect(ctx(e).seasonals.get('vorex')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('vorex')).toBeDefined(); // still alive for loot
+    expect(ctx(e).registry.seasonal('vorex')?.active).toBe(true);
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false); // not finished yet
   });
 
@@ -86,7 +86,7 @@ describe('Vorex integration', () => {
     // Zone to some other area = abandoned
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'vorex')).toBe(true);
   });
 
@@ -101,8 +101,8 @@ describe('Vorex integration', () => {
 
     feed(d, e, log.bagUpdate(1, 200, 4));
 
-    expect(ctx(e).session?.snapshot().drops[200]).toBe(4);
-    expect(ctx(e).map?.snapshot().drops[200]).toBe(4);
-    expect(ctx(e).seasonals.get('vorex')?.snapshot().drops[200]).toBe(4);
+    expect(ctx(e).registry.session?.snapshot().drops[200]).toBe(4);
+    expect(ctx(e).registry.map?.snapshot().drops[200]).toBe(4);
+    expect(ctx(e).registry.seasonal('vorex')?.snapshot().drops[200]).toBe(4);
   });
 });

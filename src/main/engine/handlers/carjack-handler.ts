@@ -1,105 +1,43 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import type {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
-import {
-  startSeasonal,
-  finishOnTownEntry,
-  createLootTimer,
-  startLootTimer,
-  refreshLootTimer,
-} from './seasonal-helpers';
 
 const DEFAULT_LOOT_COLLECTION_MS = 5_000;
 
 /**
- * CarjackHandler — manages the Carjack (S11) seasonal tracker lifecycle.
+ * CarjackHandler — Carjack (S11) translator.
  *
- * Event flow:
- *   s11_start       : Play_Mus_Gameplay_S11_Robbery_Full — combat music starts
- *                     Fires for both regular and bounty carjack variants.
- *   s11_end         : Stop_Mus_Gameplay_S11_Robbery_Full — timer expired, combat ends
- *   bag_update      : refreshes the loot timer on each item pickup
- *   zone_transition : entering town cancels loot timer and finishes immediately
- *
- * After the combat timer expires, a LootCollectionTimer keeps the tracker alive
- * for post-combat loot attribution (same pattern as Overrealm).
- *
- * Must be registered AFTER ZoneHandler and BEFORE ItemHandler.
+ *   s11_start  : start tracker (idempotent — registry.startSeasonal handles dup).
+ *   s11_end    : arm post-combat loot timer if a tracker exists and isn't
+ *                already in a loot window (defensive against duplicate end lines).
+ *   bag_update : decaying refresh while a loot window is active.
+ *   zone_transition (town): handled centrally by ZoneHandler.finishAll.
  */
 export class CarjackHandler implements EventHandler {
   readonly name    = 'carjack';
-  readonly handles = ['s11_start', 's11_end', 'zone_transition', 'bag_update'] as const;
+  readonly handles = ['s11_start', 's11_end', 'bag_update'] as const;
 
-  private _lootTimer:      LootCollectionTimer | null = null;
-  private _lootDurationMs: number                     = DEFAULT_LOOT_COLLECTION_MS;
-  // Private de-dup guard for repeated s11_start lines — handler-local on
-  // purpose. Unlike OverrealmHandler's flags on EngineContext (read across
-  // event types), this is only consulted inside this handler.
-  private _inCarjack: boolean = false;
+  private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
 
-  /** Update the post-combat loot window in milliseconds. Takes effect on
-   *  the next end (the in-flight timer, if any, keeps its original duration). */
   setLootDurationMs(ms: number): void {
-    const next = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
-    this._lootDurationMs = next;
-  }
-
-  onStop(_ctx: EngineContext): void {
-    this._lootTimer?.cancel();
-    this._lootTimer = null;
-    this._inCarjack = false;
+    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
-    if (ctx.phase !== 'tracking') return;
-    if (ctx.paused) return;
+    if (ctx.phase !== 'tracking' || ctx.paused) return;
 
     switch (event.type) {
       case 's11_start':
-        this._handleStart(ctx, emit);
+        ctx.registry.startSeasonal({type: 'carjack', lootDurationMs: this._lootMs}, emit);
         break;
-
-      case 's11_end':
-        this._handleEnd(ctx, emit);
+      case 's11_end': {
+        const t = ctx.registry.seasonal('carjack');
+        if (t && !t.isLootCollecting()) t.armLootTimer();
         break;
-
-      case 'zone_transition':
-        this._handleZoneTransition(event.toScene, ctx, emit);
-        break;
-
+      }
       case 'bag_update':
-        if (this._lootTimer) refreshLootTimer(this._lootTimer, 'carjack', emit);
+        ctx.registry.seasonal('carjack')?.refreshLootTimer();
         break;
     }
-  }
-
-  private _handleStart(ctx: EngineContext, emit: EmitFn): void {
-    // Duplicate log line or already active — ignore.
-    if (this._inCarjack) return;
-
-    this._inCarjack = true;
-    startSeasonal('carjack', ctx, emit);
-  }
-
-  private _handleEnd(ctx: EngineContext, emit: EmitFn): void {
-    // Duplicate log line or not in carjack — ignore.
-    if (!this._inCarjack) return;
-
-    this._inCarjack = false;
-    this._startLootTimer(ctx, emit);
-  }
-
-  private _handleZoneTransition(toScene: string, ctx: EngineContext, emit: EmitFn): void {
-    if (finishOnTownEntry(toScene, this._lootTimer, ctx, emit, 'carjack')) {
-      this._lootTimer = null;
-    }
-  }
-
-  private _startLootTimer(ctx: EngineContext, emit: EmitFn): void {
-    this._lootTimer = createLootTimer(this._lootDurationMs, 'carjack', ctx, emit, () => {
-      this._lootTimer = null;
-    });
-    startLootTimer(this._lootTimer, 'carjack', emit);
   }
 }

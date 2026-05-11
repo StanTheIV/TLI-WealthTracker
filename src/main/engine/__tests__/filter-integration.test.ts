@@ -102,8 +102,8 @@ describe('filter-integration — no filter', () => {
     enterMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 15});
 
-    expect(ctx(engine).session?.snapshot().drops[100]).toBe(5);
-    expect(ctx(engine).map?.snapshot().drops[100]).toBe(5);
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(5);
+    expect(ctx(engine).registry.map?.snapshot().drops[100]).toBe(5);
   });
 });
 
@@ -127,8 +127,8 @@ describe('filter-integration — session scope only', () => {
     enterMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 14});
 
-    expect(ctx(engine).session?.snapshot().drops[100]).toBeUndefined();
-    expect(ctx(engine).map?.snapshot().drops[100]).toBe(4);
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBeUndefined();
+    expect(ctx(engine).registry.map?.snapshot().drops[100]).toBe(4);
   });
 });
 
@@ -159,8 +159,8 @@ describe('filter-integration — hide by type, all scopes', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: 200, quantity: 3});
 
-    expect(ctx(engine).session?.snapshot().drops[100]).toBeUndefined(); // filtered
-    expect(ctx(engine).session?.snapshot().drops[200]).toBe(3);         // passes
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBeUndefined(); // filtered
+    expect(ctx(engine).registry.session?.snapshot().drops[200]).toBe(3);         // passes
   });
 
   it('drop events to the renderer are gated on the session filter so the dashboard aggregate matches the session tracker', () => {
@@ -209,8 +209,8 @@ describe('filter-integration — hide by type, all scopes', () => {
     const dropEvents = events.filter((e): e is Extract<EngineEvent, {type: 'drop'}> => e.type === 'drop');
     expect(dropEvents).toHaveLength(1);
     expect(dropEvents[0].itemId).toBe(100);
-    expect(ctx(engine).session?.snapshot().drops[100]).toBe(5);
-    expect(ctx(engine).map?.snapshot().drops[100]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(5);
+    expect(ctx(engine).registry.map?.snapshot().drops[100]).toBeUndefined();
   });
 });
 
@@ -244,8 +244,8 @@ describe('filter-integration — whitelist pattern', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 4});
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: 200, quantity: 7});
 
-    expect(ctx(engine).session?.snapshot().drops[100]).toBe(4);         // whitelisted
-    expect(ctx(engine).session?.snapshot().drops[200]).toBeUndefined(); // blocked
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(4);         // whitelisted
+    expect(ctx(engine).registry.session?.snapshot().drops[200]).toBeUndefined(); // blocked
   });
 });
 
@@ -267,7 +267,7 @@ describe('filter-integration — live rule update', () => {
 
     // Drop before filter update — should be tracked
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 3});
-    expect(ctx(engine).session?.snapshot().drops[100]).toBe(3);
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(3);
 
     // Push a hide rule
     engine.updateFilterRules([
@@ -276,7 +276,7 @@ describe('filter-integration — live rule update', () => {
 
     // Drop after rule update — accumulator stays at 3, new drop blocked
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 6});
-    expect(ctx(engine).session?.snapshot().drops[100]).toBe(3);
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(3);
   });
 
   it('passing null to updateFilterRules disables all filtering', () => {
@@ -295,14 +295,14 @@ describe('filter-integration — live rule update', () => {
 
     // Filter active — blocked
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 3});
-    expect(ctx(engine).session?.snapshot().drops[100]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBeUndefined();
 
     // Disable filter entirely
     engine.updateFilterRules(null);
 
     // Now passes through
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 6});
-    expect(ctx(engine).session?.snapshot().drops[100]).toBe(3); // +3 from qty 3→6
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(3); // +3 from qty 3→6
   });
 });
 
@@ -320,11 +320,11 @@ describe('filter-integration — town drops never reach trackers', () => {
     // No filter set — even unfiltered, town deltas must not credit the session.
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
 
-    expect(ctx(engine).session?.snapshot().drops[100]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBeUndefined();
 
     vi.advanceTimersByTime(1600);
 
-    expect(ctx(engine).session?.snapshot().drops[100]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBeUndefined();
     expect(events.some(e => e.type === 'drop')).toBe(false);
   });
 });
@@ -350,11 +350,11 @@ describe('filter-integration — dream seasonal scope', () => {
     enterMap(engine);
     engine.onRawEvent({type: 'level_type', levelType: 11});
 
-    expect(ctx(engine).seasonals.get('dream')).toBeDefined();
+    expect(ctx(engine).registry.seasonal('dream')).toBeDefined();
 
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
 
-    expect(ctx(engine).session?.snapshot().drops[100]).toBe(5);          // session unaffected
-    expect(ctx(engine).seasonals.get('dream')?.snapshot().drops[100]).toBeUndefined(); // dream blocked
+    expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(5);          // session unaffected
+    expect(ctx(engine).registry.seasonal('dream')?.snapshot().drops[100]).toBeUndefined(); // dream blocked
   });
 });

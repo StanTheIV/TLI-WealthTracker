@@ -19,7 +19,7 @@ describe('Carjack integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s11Start);
 
-    expect(ctx(e).seasonals.get('carjack')).toBeDefined();
+    expect(ctx(e).registry.seasonal('carjack')).toBeDefined();
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'carjack')).toBe(true);
   });
 
@@ -47,7 +47,7 @@ describe('Carjack integration', () => {
     feed(d, e, log.s11Start);
     feed(d, e, log.s11End);
 
-    expect(ctx(e).seasonals.get('carjack')).toBeDefined(); // still alive during loot window
+    expect(ctx(e).registry.seasonal('carjack')).toBeDefined(); // still alive during loot window
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
   });
 
@@ -61,11 +61,11 @@ describe('Carjack integration', () => {
     feed(d, e, log.s11Start);
     feed(d, e, log.s11End);
 
-    expect(ctx(e).seasonals.get('carjack')).toBeDefined();
+    expect(ctx(e).registry.seasonal('carjack')).toBeDefined();
 
     vi.advanceTimersByTime(5_100);
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'carjack')).toBe(true);
   });
 
@@ -81,17 +81,17 @@ describe('Carjack integration', () => {
 
     // Advance to 4.5s (remaining=0.5s < 0.8 * 5000 = 4s → refresh re-arms to 4s)
     vi.advanceTimersByTime(4_500);
-    expect(ctx(e).seasonals.get('carjack')).toBeDefined();
+    expect(ctx(e).registry.seasonal('carjack')).toBeDefined();
 
     feed(d, e, log.bagUpdate(1, 400, 2)); // triggers refresh
 
     // 3.9s later — still within the refreshed 4s window
     vi.advanceTimersByTime(3_900);
-    expect(ctx(e).seasonals.get('carjack')).toBeDefined();
+    expect(ctx(e).registry.seasonal('carjack')).toBeDefined();
 
     // Let it expire
     vi.advanceTimersByTime(200);
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
   });
 
   it('entering town during loot window cancels timer and finishes tracker immediately', () => {
@@ -104,11 +104,11 @@ describe('Carjack integration', () => {
     feed(d, e, log.s11Start);
     feed(d, e, log.s11End);
 
-    expect(ctx(e).seasonals.get('carjack')).toBeDefined();
+    expect(ctx(e).registry.seasonal('carjack')).toBeDefined();
 
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'carjack')).toBe(true);
 
     // Timer should be gone — no double-finish after original timeout
@@ -128,9 +128,9 @@ describe('Carjack integration', () => {
 
     feed(d, e, log.bagUpdate(1, 400, 6));
 
-    expect(ctx(e).session?.snapshot().drops[400]).toBe(6);
-    expect(ctx(e).map?.snapshot().drops[400]).toBe(6);
-    expect(ctx(e).seasonals.get('carjack')?.snapshot().drops[400]).toBe(6);
+    expect(ctx(e).registry.session?.snapshot().drops[400]).toBe(6);
+    expect(ctx(e).registry.map?.snapshot().drops[400]).toBe(6);
+    expect(ctx(e).registry.seasonal('carjack')?.snapshot().drops[400]).toBe(6);
   });
 
   it('drops during loot window are attributed to carjack tracker', () => {
@@ -143,6 +143,6 @@ describe('Carjack integration', () => {
     feed(d, e, log.s11End);
 
     feed(d, e, log.bagUpdate(1, 400, 3));
-    expect(ctx(e).seasonals.get('carjack')?.snapshot().drops[400]).toBe(3);
+    expect(ctx(e).registry.seasonal('carjack')?.snapshot().drops[400]).toBe(3);
   });
 });

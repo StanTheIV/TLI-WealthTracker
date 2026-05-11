@@ -92,12 +92,12 @@ export class ItemHandler implements EventHandler {
       // holds town-buffered deltas, flush them now — into the freshly-created
       // tracker if we're now in a loot context, otherwise discard.
       if (this._buffer.size === 0) return;
-      this._flush(ctx, emit, /*recordPreMap*/ ctx.isLootContext());
+      this._flush(ctx, emit, /*recordPreMap*/ ctx.registry.isLootContext());
     }
   }
 
   private _scheduleFlush(ctx: EngineContext, emit: EmitFn): void {
-    if (ctx.isLootContext()) {
+    if (ctx.registry.isLootContext()) {
       this._flush(ctx, emit, /*recordPreMap*/ false); // immediate in-map flush
       return;
     }
@@ -125,7 +125,7 @@ export class ItemHandler implements EventHandler {
       this._lastPreMapFlush = new Map(this._buffer);
     }
 
-    publishDrops(ctx, emit, this._buffer, {lootContext: ctx.isLootContext()});
+    publishDrops(ctx, emit, this._buffer, {lootContext: ctx.registry.isLootContext()});
     this._buffer.clear();
   }
 

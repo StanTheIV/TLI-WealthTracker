@@ -2,7 +2,6 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import type {SlotSnapshotEntry} from '@/main/engine/bag-state';
-import {Tracker} from '@/main/engine/tracker';
 import {publishDrops} from '@/main/engine/drop-publisher';
 import {log} from '@/main/logger';
 
@@ -74,7 +73,7 @@ export class BagInitHandler implements EventHandler {
   private _finalizeInit(ctx: EngineContext, emit: EmitFn): void {
     ctx.bag.finishInit();
     ctx.phase   = 'tracking';
-    ctx.session = new Tracker('session');
+    const session = ctx.registry.startSession();
 
     const now = Date.now();
     for (const itemId of ctx.bag.getInventory().keys()) {
@@ -92,25 +91,21 @@ export class BagInitHandler implements EventHandler {
       ctx.mapCount           = loaded.mapCount;
       ctx.accumulatedMapTime = loaded.mapTime * 1000;
 
-      if (ctx.session) {
-        for (const [idStr, qty] of Object.entries(loaded.drops)) {
-          ctx.session.addDrop(Number(idStr), qty);
-        }
-        ctx.session.addTimeOffset(loaded.totalTime * 1000);
+      for (const [idStr, qty] of Object.entries(loaded.drops)) {
+        session.addDrop(Number(idStr), qty);
       }
+      session.addTimeOffset(loaded.totalTime * 1000);
       ctx.loadedSession = null;
     }
 
     log.info('engine', `Phase: initializing -> tracking (${ctx.bag.itemCount} items)`);
     emit({type: 'init_complete', itemCount: ctx.bag.itemCount});
-    if (ctx.session) {
-      emit({
-        type:        'tracker_started',
-        tracker:     ctx.session.snapshot(),
-        timestamp:   Date.now(),
-        sessionMeta: {mapTime: ctx.accumulatedMapTime, mapCount: ctx.mapCount},
-      });
-    }
+    emit({
+      type:        'tracker_started',
+      tracker:     session.snapshot(),
+      timestamp:   Date.now(),
+      sessionMeta: {mapTime: ctx.accumulatedMapTime, mapCount: ctx.mapCount},
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -146,7 +141,7 @@ export class BagInitHandler implements EventHandler {
     // When paused, keep bag state in sync but do not credit/debit trackers.
     if (ctx.paused) return;
 
-    publishDrops(ctx, emit, changes.map(c => [c.itemId, c.change] as const), {lootContext: ctx.isLootContext()});
+    publishDrops(ctx, emit, changes.map(c => [c.itemId, c.change] as const), {lootContext: ctx.registry.isLootContext()});
   }
 
   // ---------------------------------------------------------------------

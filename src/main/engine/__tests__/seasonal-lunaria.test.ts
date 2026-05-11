@@ -19,8 +19,8 @@ describe('Lunaria integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s14Strum);
 
-    expect(ctx(e).seasonals.get('lunaria')).toBeDefined();
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')).toBeDefined();
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'lunaria')).toBe(true);
     expect(events.some(ev => ev.type === 'loot_window_started' && ev.seasonalType === 'lunaria')).toBe(true);
   });
@@ -34,9 +34,9 @@ describe('Lunaria integration', () => {
     feed(d, e, log.s14Strum);
     feed(d, e, log.bagUpdate(1, 1400, 4));
 
-    expect(ctx(e).seasonals.get('lunaria')?.snapshot().drops[1400]).toBe(4);
-    expect(ctx(e).map?.snapshot().drops[1400]).toBe(4);
-    expect(ctx(e).session?.snapshot().drops[1400]).toBe(4);
+    expect(ctx(e).registry.seasonal('lunaria')?.snapshot().drops[1400]).toBe(4);
+    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBe(4);
+    expect(ctx(e).registry.session?.snapshot().drops[1400]).toBe(4);
   });
 
   it('loot timer expiry pauses the tracker (does NOT finish it)', () => {
@@ -51,8 +51,8 @@ describe('Lunaria integration', () => {
     vi.advanceTimersByTime(5_100);
 
     // Tracker still in ctx.seasonals — just paused.
-    expect(ctx(e).seasonals.get('lunaria')).toBeDefined();
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('lunaria')).toBeDefined();
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(false);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'lunaria')).toBe(false);
     expect(events.some(ev => ev.type === 'loot_window_ended' && ev.seasonalType === 'lunaria')).toBe(true);
   });
@@ -69,10 +69,10 @@ describe('Lunaria integration', () => {
 
     feed(d, e, log.bagUpdate(1, 1400, 7)); // +4 while paused — must NOT count for lunaria
 
-    expect(ctx(e).seasonals.get('lunaria')?.snapshot().drops[1400]).toBe(3);
+    expect(ctx(e).registry.seasonal('lunaria')?.snapshot().drops[1400]).toBe(3);
     // session/map still see the drop
-    expect(ctx(e).map?.snapshot().drops[1400]).toBe(7);
-    expect(ctx(e).session?.snapshot().drops[1400]).toBe(7);
+    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBe(7);
+    expect(ctx(e).registry.session?.snapshot().drops[1400]).toBe(7);
   });
 
   it('next s14_strum resumes the paused tracker AND re-arms the loot timer', () => {
@@ -86,13 +86,13 @@ describe('Lunaria integration', () => {
     feed(d, e, log.bagUpdate(1, 1400, 2));
     vi.advanceTimersByTime(5_100); // pause
 
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(false);
 
     feed(d, e, log.s14Strum); // resume + re-arm
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     feed(d, e, log.bagUpdate(1, 1400, 5)); // +3 (within new loot window)
-    expect(ctx(e).seasonals.get('lunaria')?.snapshot().drops[1400]).toBe(5); // 2 + 3
+    expect(ctx(e).registry.seasonal('lunaria')?.snapshot().drops[1400]).toBe(5); // 2 + 3
   });
 
   it('mid-window strum unconditionally resets the timer to the full window', () => {
@@ -105,18 +105,18 @@ describe('Lunaria integration', () => {
 
     // Advance to 4.5s elapsed — would expire in 0.5s without intervention.
     vi.advanceTimersByTime(4_500);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     feed(d, e, log.s14Strum); // strum resets to full 5s window
 
     // 4.9s into the fresh 5s window — still active (was 4.5s + 4.9s = 9.4s
     // total, well past the original 5s deadline).
     vi.advanceTimersByTime(4_900);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     // 0.2s more — fresh window expires.
     vi.advanceTimersByTime(200);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(false);
   });
 
   it('bag_update during the loot window refreshes the timer (decaying rule)', () => {
@@ -129,16 +129,16 @@ describe('Lunaria integration', () => {
 
     // Advance to 4.5s — remaining 0.5s < 80% of current (4s).
     vi.advanceTimersByTime(4_500);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     // Pickup during the loot window — re-arms to 80% of current = 4000ms.
     feed(d, e, log.bagUpdate(1, 1400, 5));
 
     vi.advanceTimersByTime(3_900);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     vi.advanceTimersByTime(200);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(false);
   });
 
   it('strum early in the window still resets — pushes deadline out past the original', () => {
@@ -156,11 +156,11 @@ describe('Lunaria integration', () => {
     // 4.6s after the strum (t=5100, past the original 5s deadline) — still
     // alive because the strum reset moved the deadline to t=5500.
     vi.advanceTimersByTime(4_600);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     // Original would have expired at t=5000; reset window expires at t=5500.
     vi.advanceTimersByTime(500);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(false);
   });
 
   it('consecutive pickups decay the loot window (5s → 4s → 3.2s)', () => {
@@ -174,21 +174,21 @@ describe('Lunaria integration', () => {
     // Advance to 4.5s — first pickup re-arms to 4000ms.
     vi.advanceTimersByTime(4_500);
     feed(d, e, log.bagUpdate(1, 1400, 1));
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     // Advance to 3.5s into the new 4000ms window — remaining = 500 < 0.8 *
     // 4000 = 3200, so the second pickup re-arms to 3200ms.
     vi.advanceTimersByTime(3_500);
     feed(d, e, log.bagUpdate(1, 1400, 2));
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     // 3.1s in — still alive (window is 3200ms now).
     vi.advanceTimersByTime(3_100);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     // 0.2s more — the decayed 3200ms window expires.
     vi.advanceTimersByTime(200);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(false);
   });
 
   it('decaying pickup-refresh floors at 1000ms — pickups inside the floored window keep extending it', () => {
@@ -226,7 +226,7 @@ describe('Lunaria integration', () => {
     // 1048 → floor=1000 (advance 548, remaining 500 < 1000)
     vi.advanceTimersByTime(548);
     feed(d, e, log.bagUpdate(1, 1400, 8));
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     // At the floor. A pickup inside the 1000ms window re-arms back to a
     // fresh 1000ms — a steady stream of pickups can extend the floored
@@ -239,12 +239,12 @@ describe('Lunaria integration', () => {
     feed(d, e, log.bagUpdate(1, 1400, 10));
     vi.advanceTimersByTime(800);
     feed(d, e, log.bagUpdate(1, 1400, 11));
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     // Stop picking up — the next floored 1000ms window runs out without a
     // refresh and the tracker pauses.
     vi.advanceTimersByTime(1_100);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(false);
   });
 
   it('strum after pickup-decay restores the full window', () => {
@@ -269,10 +269,10 @@ describe('Lunaria integration', () => {
     // 4.9s after the strum — still active (would have already expired under
     // the decayed 3200ms window).
     vi.advanceTimersByTime(4_900);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(true);
 
     vi.advanceTimersByTime(200);
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(false);
   });
 
   it('town entry finishes the (paused) lunaria tracker via ZoneHandler', () => {
@@ -287,7 +287,7 @@ describe('Lunaria integration', () => {
 
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'lunaria')).toBe(true);
   });
 
@@ -314,7 +314,7 @@ describe('Lunaria integration', () => {
     // Final town entry — ZoneHandler finishes the tracker
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
-    expect(ctx(e).seasonals.size).toBe(0);
-    expect(ctx(e).map).toBeNull();
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
+    expect(ctx(e).registry.map).toBeNull();
   });
 });

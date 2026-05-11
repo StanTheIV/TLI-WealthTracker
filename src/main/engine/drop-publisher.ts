@@ -10,19 +10,10 @@ import type {SeasonalType} from './tracker';
  * town (vendor purchase, etc.) should still register so future price lookups
  * have a row to update.
  *
- * When `lootContext` is true (in a regular map, a bubble seasonal, or
- * flushing a town buffer into a freshly-entered loot context):
- *   - fans out the change to active trackers via ctx.distributeDrop, which
- *     returns the set of trackers that actually accumulated the drop
- *   - emits a `drop` event per change that the session scope accepted
- *   - emits `tracker_update` snapshots ONLY for trackers that changed
- *
- * When `lootContext` is false (town activity that settled with no loot
- * context active):
- *   - skips tracker fan-out and the `drop` event entirely
- *   - skips `tracker_update` (no tracker changed)
- *
- * Zero-change entries are skipped. Pass an empty map to no-op.
+ * When `lootContext` is true, the change is fanned out via the registry
+ * (which applies per-scope filter rules), and `tracker_update` is emitted only
+ * for trackers that actually accumulated the drop. When false, fan-out is
+ * skipped entirely (town activity).
  */
 export function publishDrops(
   ctx:   EngineContext,
@@ -33,9 +24,6 @@ export function publishDrops(
   const now            = Date.now();
   const {lootContext}  = opts;
 
-  // Aggregate which trackers changed across the whole batch so we emit at
-  // most one `tracker_update` per affected tracker even if the batch contains
-  // many drops.
   let mapChanged              = false;
   let sessionChanged          = false;
   const seasonalsChanged: Set<SeasonalType> = new Set();
@@ -51,7 +39,7 @@ export function publishDrops(
 
     if (!lootContext) continue;
 
-    const result = ctx.distributeDrop(itemId, change);
+    const result = ctx.registry.distributeDrop(itemId, change, ctx.filter);
     if (result.sessionAccepted) {
       emit({type: 'drop', itemId, change, timestamp: now});
       sessionChanged = true;
@@ -60,14 +48,14 @@ export function publishDrops(
     for (const t of result.seasonalsChanged) seasonalsChanged.add(t);
   }
 
-  if (mapChanged && ctx.map) {
-    emit({type: 'tracker_update', tracker: ctx.map.snapshot(), timestamp: now});
+  if (mapChanged && ctx.registry.map) {
+    emit({type: 'tracker_update', tracker: ctx.registry.map.snapshot(), timestamp: now});
   }
   for (const type of seasonalsChanged) {
-    const t = ctx.seasonals.get(type);
+    const t = ctx.registry.seasonal(type);
     if (t) emit({type: 'tracker_update', tracker: t.snapshot(), timestamp: now});
   }
-  if (sessionChanged && ctx.session) {
-    emit({type: 'tracker_update', tracker: ctx.session.snapshot(), timestamp: now});
+  if (sessionChanged && ctx.registry.session) {
+    emit({type: 'tracker_update', tracker: ctx.registry.session.snapshot(), timestamp: now});
   }
 }

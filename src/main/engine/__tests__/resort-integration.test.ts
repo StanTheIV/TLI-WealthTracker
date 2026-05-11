@@ -92,8 +92,8 @@ describe('resort-integration — init → drops → resort → drops', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 3, itemId: 300, quantity: 4});
 
     // Sanity check before resort
-    expect(ctx(engine).session?.snapshot().drops).toEqual({100: 5, 300: 4});
-    expect(ctx(engine).map?.snapshot().drops).toEqual({100: 5, 300: 4});
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({100: 5, 300: 4});
+    expect(ctx(engine).registry.map?.snapshot().drops).toEqual({100: 5, 300: 4});
     expect(dropEvents(events)).toEqual([
       {itemId: 100, change: 5},
       {itemId: 300, change: 1},
@@ -116,7 +116,7 @@ describe('resort-integration — init → drops → resort → drops', () => {
     expect(ctx(engine).bag.getTotalForItem(300)).toBe(4);
 
     // Tracker drops unchanged by the resort
-    expect(ctx(engine).session?.snapshot().drops).toEqual({100: 5, 300: 4});
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({100: 5, 300: 4});
 
     // --- Phase 3: drops after the resort ---
     // Pick up 2 more of item 100 at its new slot 10 (10 → 12)
@@ -129,12 +129,12 @@ describe('resort-integration — init → drops → resort → drops', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 20, itemId: 400, quantity: 1});
 
     // All post-resort drops tracked correctly
-    expect(ctx(engine).session?.snapshot().drops).toEqual({
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({
       100: 7,   // 5 (pre-resort) + 2 (post-resort)
       300: 7,   // 4 (pre-resort) + 3 (post-resort)
       400: 1,   // fresh
     });
-    expect(ctx(engine).map?.snapshot().drops).toEqual({
+    expect(ctx(engine).registry.map?.snapshot().drops).toEqual({
       100: 7,
       300: 7,
       400: 1,
@@ -168,7 +168,7 @@ describe('resort-integration — init → drops → resort → drops', () => {
 
     expect(dropEvents(events)).toEqual([]);
     expect(ctx(engine).bag.getTotalForItem(100)).toBe(8);
-    expect(ctx(engine).session?.snapshot().drops).toEqual({});
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({});
   });
 
   it('stack overflow pickup: 950 + 100 → 999 + 51, then resort moves the overflow', () => {
@@ -194,7 +194,7 @@ describe('resort-integration — init → drops → resort → drops', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: 100, quantity: 51});
 
     expect(ctx(engine).bag.getTotalForItem(100)).toBe(1050);
-    expect(ctx(engine).session?.snapshot().drops).toEqual({100: 100});
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({100: 100});
     expect(dropEvents(events)).toEqual([
       {itemId: 100, change: 49},
       {itemId: 100, change: 51},
@@ -216,7 +216,7 @@ describe('resort-integration — init → drops → resort → drops', () => {
     expect(dropEvents(events).length).toBe(dropsBeforeResort);
     expect(ctx(engine).bag.getTotalForItem(100)).toBe(1050);
     expect(ctx(engine).bag.getTotalForItem(200)).toBe(1);
-    expect(ctx(engine).session?.snapshot().drops).toEqual({100: 100});
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({100: 100});
 
     // --- Phase 3: more pickups at the new slot layout ---
     // Pick up 10 more of item 100 — fills into overflow at new slot 1 (51 → 61)
@@ -232,11 +232,11 @@ describe('resort-integration — init → drops → resort → drops', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 100});
 
     expect(ctx(engine).bag.getTotalForItem(100)).toBe(1099);
-    expect(ctx(engine).session?.snapshot().drops).toEqual({
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({
       100: 149, // original 100 + 10 + 39
       300: 1,
     });
-    expect(ctx(engine).map?.snapshot().drops).toEqual({
+    expect(ctx(engine).registry.map?.snapshot().drops).toEqual({
       100: 149,
       300: 1,
     });
@@ -270,6 +270,6 @@ describe('resort-integration — init → drops → resort → drops', () => {
 
     const drops = dropEvents(events);
     expect(drops).toEqual([{itemId: 100, change: 2}]);
-    expect(ctx(engine).session?.snapshot().drops).toEqual({100: 2});
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({100: 2});
   });
 });

@@ -47,10 +47,10 @@ describe('Concurrent seasonals (Overrealm + Lunaria)', () => {
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
     // Both seasonals gone, map gone, session has the totals + per-source breakdown.
-    expect(ctx(e).seasonals.size).toBe(0);
-    expect(ctx(e).map).toBeNull();
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
+    expect(ctx(e).registry.map).toBeNull();
 
-    const session = ctx(e).session!;
+    const session = ctx(e).registry.session!;
     const snap    = session.snapshot();
 
     // Total drops: every drop counted once into session._drops.
@@ -79,11 +79,11 @@ describe('Concurrent seasonals (Overrealm + Lunaria)', () => {
     feed(d, e, log.s14Strum);
     vi.advanceTimersByTime(5_100); // lunaria pauses
 
-    expect(ctx(e).seasonals.get('lunaria')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('lunaria')?.active).toBe(false);
 
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
-    expect(ctx(e).seasonals.size).toBe(0);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'lunaria')).toBe(true);
   });
 });

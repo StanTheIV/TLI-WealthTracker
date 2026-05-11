@@ -84,7 +84,7 @@ describe('town-tracking integration', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: ITEM_MATERIAL, quantity: 7});
 
     // Buffered, not yet flushed — neither session nor anything sees it
-    expect(ctx(engine).session?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
 
     // ---------------------------------------------------------------------
     // 2. Town → map: pre-map buffer flushes into BOTH session and map
@@ -94,8 +94,8 @@ describe('town-tracking integration', () => {
     // ---------------------------------------------------------------------
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
 
-    expect(ctx(engine).map?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
-    expect(ctx(engine).session?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
     expect(engine.getLastMapSpends()).toEqual({[String(ITEM_MATERIAL)]: 3});
 
     // ---------------------------------------------------------------------
@@ -103,18 +103,18 @@ describe('town-tracking integration', () => {
     // ---------------------------------------------------------------------
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 4, itemId: ITEM_LOOT, quantity: 5});
 
-    expect(ctx(engine).map?.snapshot().drops[ITEM_LOOT]).toBe(5);
-    expect(ctx(engine).session?.snapshot().drops[ITEM_LOOT]).toBe(5);
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_LOOT]).toBe(5);
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_LOOT]).toBe(5);
 
     // ---------------------------------------------------------------------
     // 4. Map → town: ends map tracker
     // ---------------------------------------------------------------------
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
-    expect(ctx(engine).map).toBeNull();
+    expect(ctx(engine).registry.map).toBeNull();
 
     // Snapshot session state right after the first map ends
-    const sessionAfterMap1 = {...(ctx(engine).session?.snapshot().drops ?? {})};
+    const sessionAfterMap1 = {...(ctx(engine).registry.session?.snapshot().drops ?? {})};
 
     // ---------------------------------------------------------------------
     // 5. In town: assorted item changes that must NOT touch the session
@@ -130,8 +130,8 @@ describe('town-tracking integration', () => {
     // (no map, no seasonal). Session must NOT pick up these town deltas.
     vi.advanceTimersByTime(1600);
 
-    expect(ctx(engine).session?.snapshot().drops[ITEM_JUNK]).toBeUndefined();
-    expect(ctx(engine).session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_JUNK]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
 
     // No `drop` events should have been emitted for town shuffle either.
     const dropsForJunk   = events.filter(e => e.type === 'drop' && e.itemId === ITEM_JUNK);
@@ -149,13 +149,13 @@ describe('town-tracking integration', () => {
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
 
     // Pre-map spend lives in BOTH the new map tracker AND engine.getLastMapSpends().
-    expect(ctx(engine).map?.snapshot().drops[ITEM_MATERIAL]).toBe(-1);
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBe(-1);
     expect(engine.getLastMapSpends()).toEqual({[String(ITEM_MATERIAL)]: 1});
     // Session should reflect both material spends (-3 + -1 = -4).
-    expect(ctx(engine).session?.snapshot().drops[ITEM_MATERIAL]).toBe(-4);
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBe(-4);
     // And the new map tracker should NOT have been polluted by the town junk/vendor activity.
-    expect(ctx(engine).map?.snapshot().drops[ITEM_JUNK]).toBeUndefined();
-    expect(ctx(engine).map?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_JUNK]).toBeUndefined();
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
 
     // ---------------------------------------------------------------------
     // 7. In second map: pick up more loot (5 → 12): +7
@@ -174,7 +174,7 @@ describe('town-tracking integration', () => {
     //
     // The session totals must include ONLY items 100 and 200, NOT 300 or 400.
     // ---------------------------------------------------------------------
-    const finalSession = ctx(engine).session?.snapshot().drops ?? {};
+    const finalSession = ctx(engine).registry.session?.snapshot().drops ?? {};
 
     expect(finalSession[ITEM_MATERIAL]).toBe(-4);
     expect(finalSession[ITEM_LOOT]).toBe(12);
@@ -198,12 +198,12 @@ describe('town-tracking integration', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: ITEM_VENDOR, quantity: 3}); // -7
 
     // Before debounce: no session change yet
-    expect(ctx(engine).session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
 
     // After debounce: still no session change (lootContext = false at flush)
     vi.advanceTimersByTime(1600);
 
-    expect(ctx(engine).session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
     expect(events.some(e => e.type === 'drop')).toBe(false);
   });
 
@@ -217,7 +217,7 @@ describe('town-tracking integration', () => {
     ]);
 
     // Sanity: nothing in the session at start (no continued session loaded).
-    expect(Object.keys(ctx(engine).session?.snapshot().drops ?? {})).toHaveLength(0);
+    expect(Object.keys(ctx(engine).registry.session?.snapshot().drops ?? {})).toHaveLength(0);
 
     // 1. AH deposit: item removed from stash in town.
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: ITEM_VENDOR, quantity: 0}); // -50
@@ -227,28 +227,28 @@ describe('town-tracking integration', () => {
     vi.advanceTimersByTime(10_000);
 
     // After the debounce expires, both session and map should be untouched.
-    expect(ctx(engine).session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
-    expect(ctx(engine).map).toBeNull();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.map).toBeNull();
     expect(events.filter(e => e.type === 'drop' && e.itemId === ITEM_VENDOR)).toHaveLength(0);
 
     // 3. Enter a map.
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
 
     // Map tracker just got created — must NOT have the AH deduction.
-    expect(ctx(engine).map?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
     // Session tracker also clean.
-    expect(ctx(engine).session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
 
     // 4. Drop something legitimate in the map.
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: ITEM_LOOT, quantity: 5});
 
-    expect(ctx(engine).session?.snapshot().drops[ITEM_LOOT]).toBe(5);
-    expect(ctx(engine).session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_LOOT]).toBe(5);
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
 
     // 5. End the map.
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
-    const finalSession = ctx(engine).session?.snapshot().drops ?? {};
+    const finalSession = ctx(engine).registry.session?.snapshot().drops ?? {};
     expect(finalSession[ITEM_LOOT]).toBe(5);
     expect(finalSession[ITEM_VENDOR]).toBeUndefined();
     expect(Object.keys(finalSession)).toEqual([String(ITEM_LOOT)]);
@@ -281,7 +281,7 @@ describe('town-tracking integration', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 3, itemId: ITEM_LOOT, quantity: 5}); // +5 in map
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
-    const finalSession = ctx(engine).session?.snapshot().drops ?? {};
+    const finalSession = ctx(engine).registry.session?.snapshot().drops ?? {};
     expect(finalSession[ITEM_LOOT]).toBe(5);
     expect(finalSession[ITEM_VENDOR]).toBeUndefined(); // 30 seconds of town shopping must not leak
   });
@@ -305,7 +305,7 @@ describe('town-tracking integration', () => {
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
     // Snapshot session state — only ITEM_LOOT +5 should be present.
-    const sessionAfterMap1 = {...(ctx(engine).session?.snapshot().drops ?? {})};
+    const sessionAfterMap1 = {...(ctx(engine).registry.session?.snapshot().drops ?? {})};
     expect(sessionAfterMap1[ITEM_LOOT]).toBe(5);
     expect(Object.keys(sessionAfterMap1)).toEqual([String(ITEM_LOOT)]);
 
@@ -342,7 +342,7 @@ describe('town-tracking integration', () => {
     // Final session assertions — town shuffle MUST NOT have leaked.
     // Expected: ITEM_LOOT = +5 (map1) + +7 (map2) = +12, nothing else.
     // -------------------------------------------------------------------
-    const finalSession = ctx(engine).session?.snapshot().drops ?? {};
+    const finalSession = ctx(engine).registry.session?.snapshot().drops ?? {};
 
     expect(finalSession[ITEM_LOOT]).toBe(12);
     expect(finalSession[ITEM_JUNK]).toBeUndefined();
@@ -391,7 +391,7 @@ describe('town-tracking integration', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: ITEM_LOOT, quantity: 5});
 
     // 5. End map. m.drops snapshot is the map tracker's drops.
-    const mapSnapshot = ctx(engine).map?.snapshot();
+    const mapSnapshot = ctx(engine).registry.map?.snapshot();
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
     // m.drops only has loot. m.spent is empty. No AH leak anywhere.
@@ -399,7 +399,7 @@ describe('town-tracking integration', () => {
     expect(mapSnapshot?.drops[ITEM_VENDOR]).toBeUndefined();
 
     // Session also clean.
-    const session = ctx(engine).session?.snapshot().drops ?? {};
+    const session = ctx(engine).registry.session?.snapshot().drops ?? {};
     expect(session[ITEM_LOOT]).toBe(5);
     expect(session[ITEM_VENDOR]).toBeUndefined();
   });
@@ -425,17 +425,17 @@ describe('town-tracking integration', () => {
     // SessionDetail.tsx is responsible for not double-counting the negative
     // in m.drops with the positive magnitude in m.spent (income line filters
     // for positive entries only).
-    expect(ctx(engine).map?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
 
     // Session DOES have the spend (it's a real session-level deduction).
-    expect(ctx(engine).session?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
 
     // In-map loot.
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: ITEM_LOOT, quantity: 5});
-    expect(ctx(engine).map?.snapshot().drops[ITEM_LOOT]).toBe(5);
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_LOOT]).toBe(5);
 
     // End the map and verify the snapshot that would write to DB.
-    const mapAtExit = ctx(engine).map?.snapshot();
+    const mapAtExit = ctx(engine).registry.map?.snapshot();
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
     // m.drops carries both the negative spend and the positive loot.
@@ -465,12 +465,12 @@ describe('town-tracking integration', () => {
     expect(engine.getLastMapSpends()).toEqual({[String(ITEM_MATERIAL)]: 3});
 
     // m.drops (map tracker) has the material spend (-3); AH listing is gone.
-    expect(ctx(engine).map?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
-    expect(ctx(engine).map?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
 
     // Session has only the material spend (AH discarded, never reached session).
-    expect(ctx(engine).session?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
-    expect(ctx(engine).session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
   });
 
   it('chart sanity: per-map net (positive m.drops − m.spent) reproduces session totals exactly', () => {
@@ -494,7 +494,7 @@ describe('town-tracking integration', () => {
     const mapRows: MapRow[] = [];
 
     const captureMapEnd = () => {
-      const snap  = ctx(engine).map?.snapshot();
+      const snap  = ctx(engine).registry.map?.snapshot();
       const spent = engine.getLastMapSpends();
       if (snap) mapRows.push({drops: snap.drops, spent});
     };
@@ -531,7 +531,7 @@ describe('town-tracking integration', () => {
       }
     }
 
-    const session = ctx(engine).session?.snapshot().drops ?? {};
+    const session = ctx(engine).registry.session?.snapshot().drops ?? {};
 
     for (const [id, qty] of Object.entries(session)) {
       expect(chartTotalQtyByItem.get(Number(id))).toBe(qty);

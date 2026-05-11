@@ -45,7 +45,7 @@ describe('Engine.reset() — in-town', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 15});
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
-    expect(ctx(engine).session?.snapshot().drops).toEqual({100: 5});
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({100: 5});
     expect(ctx(engine).mapCount).toBe(1);
     expect(ctx(engine).bag.getTotalForItem(100)).toBe(15);
 
@@ -54,8 +54,8 @@ describe('Engine.reset() — in-town', () => {
     engine.reset();
 
     // Session tracker exists, totally empty.
-    expect(ctx(engine).session).not.toBeNull();
-    expect(ctx(engine).session?.snapshot().drops).toEqual({});
+    expect(ctx(engine).registry.session).not.toBeNull();
+    expect(ctx(engine).registry.session?.snapshot().drops).toEqual({});
     expect(ctx(engine).mapCount).toBe(0);
     expect(ctx(engine).accumulatedMapTime).toBe(0);
 
@@ -91,7 +91,7 @@ describe('Engine.reset() — in-map', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 12});
     expect(ctx(engine).mapCount).toBe(3);
     expect(ctx(engine).inMap).toBe(true);
-    expect(ctx(engine).map?.snapshot().drops).toEqual({100: 2});
+    expect(ctx(engine).registry.map?.snapshot().drops).toEqual({100: 2});
 
     const eventsBefore = events.length;
     engine.reset();
@@ -99,8 +99,8 @@ describe('Engine.reset() — in-map', () => {
     // We were in a map → mapCount becomes 1, fresh map tracker exists.
     expect(ctx(engine).mapCount).toBe(1);
     expect(ctx(engine).inMap).toBe(true);
-    expect(ctx(engine).map).not.toBeNull();
-    expect(ctx(engine).map?.snapshot().drops).toEqual({});
+    expect(ctx(engine).registry.map).not.toBeNull();
+    expect(ctx(engine).registry.map?.snapshot().drops).toEqual({});
 
     // Reset emits: finished(map), started(session), map_started, started(map), session_status.
     // No finished(session) on purpose — see in-town test.
@@ -124,7 +124,7 @@ describe('Engine.reset() — paused', () => {
     engine.reset();
 
     expect(ctx(engine).paused).toBe(true);
-    expect(ctx(engine).session?.active).toBe(false); // tracker is paused
+    expect(ctx(engine).registry.session?.active).toBe(false); // tracker is paused
     const status = events.filter(e => e.type === 'session_status').pop() as Extract<EngineEvent, {type: 'session_status'}>;
     expect(status.status).toBe('paused');
   });

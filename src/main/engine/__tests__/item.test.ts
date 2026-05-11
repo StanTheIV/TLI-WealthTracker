@@ -1,15 +1,14 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {EngineContext} from '@/main/engine/context';
-import {Tracker} from '@/main/engine/tracker';
 import type {EmitFn} from '@/main/engine/types';
 
 function makeCtx(inMap = false): EngineContext {
   const ctx = new EngineContext();
   ctx.phase   = 'tracking';
   ctx.inMap   = inMap;
-  ctx.session = new Tracker('session');
-  if (inMap) ctx.map = new Tracker('map');
+  ctx.registry.startSession();
+  if (inMap) ctx.registry.startMap();
   // Pre-init the bag with one slot so processUpdate works
   ctx.bag.processInit(0, 1, 111, 10);
   ctx.bag.finishInit();
@@ -50,7 +49,7 @@ describe('ItemHandler', () => {
     expect(events.some(e => e.type === 'drop')).toBe(false);
     expect(events.some(e => e.type === 'tracker_update')).toBe(false);
     expect(events.filter(e => e.type === 'new_item')).toHaveLength(1);
-    expect(ctx.session?.snapshot().drops[111]).toBeUndefined();
+    expect(ctx.registry.session?.snapshot().drops[111]).toBeUndefined();
   });
 
   it('does not credit session tracker for town deltas after debounce', () => {
@@ -68,17 +67,17 @@ describe('ItemHandler', () => {
     vi.advanceTimersByTime(1600);
 
     expect(events.some(e => e.type === 'drop')).toBe(false);
-    expect(ctx.session?.snapshot().drops[111]).toBeUndefined();
+    expect(ctx.registry.session?.snapshot().drops[111]).toBeUndefined();
   });
 
   it('map→town zone_transition does not surface a drop (buffer is empty in steady state)', () => {
     const handler = new ItemHandler();
-    const ctx = makeCtx(false); // ZoneHandler already cleared ctx.map and set inMap=false
+    const ctx = makeCtx(false); // ZoneHandler already cleared ctx.registry.map and set inMap=false
     const events: Parameters<EmitFn>[0][] = [];
     const emit: EmitFn = (e) => events.push(e);
 
     // Zone transition with empty buffer (the in-map flush already happened
-    // synchronously on the bag event before ZoneHandler nullified ctx.map).
+    // synchronously on the bag event before ZoneHandler nullified ctx.registry.map).
     handler.handle({type: 'zone_transition', fromScene: '/Game/Art/Maps/X', toScene: 'Town'}, ctx, emit);
 
     expect(events.some(e => e.type === 'drop')).toBe(false);
@@ -95,10 +94,10 @@ describe('ItemHandler', () => {
     handler.handle({type: 'bag_update', pageId: 0, slotId: 1, itemId: 111, quantity: 7}, ctx, emit); // -3
     expect(events.some(e => e.type === 'drop')).toBe(false);
 
-    // Simulate ZoneHandler having just run on town→map: it created ctx.map
+    // Simulate ZoneHandler having just run on town→map: it created ctx.registry.map
     // and set inMap=true before ItemHandler sees the same zone_transition event.
     ctx.inMap = true;
-    ctx.map   = new Tracker('map');
+    ctx.registry.startMap();
 
     handler.handle({type: 'zone_transition', fromScene: 'Town', toScene: '/Game/Art/Maps/X'}, ctx, emit);
 
@@ -112,8 +111,8 @@ describe('ItemHandler', () => {
     // m.spent for the per-map chart's cost line. The chart math is
     // responsible for not double-counting the negative-in-m.drops with
     // the positive-magnitude in m.spent — see SessionDetail.tsx.
-    expect(ctx.map?.snapshot().drops[111]).toBe(-3);
-    expect(ctx.session?.snapshot().drops[111]).toBe(-3);
+    expect(ctx.registry.map?.snapshot().drops[111]).toBe(-3);
+    expect(ctx.registry.session?.snapshot().drops[111]).toBe(-3);
     expect(handler.getLastPreMapFlush().get(111)).toBe(-3);
   });
 
@@ -136,7 +135,7 @@ describe('ItemHandler', () => {
 
     handler.handle({type: 'bag_update', pageId: 0, slotId: 1, itemId: 111, quantity: 20}, ctx, emit);
 
-    expect(ctx.session?.snapshot().drops[111]).toBe(10);
+    expect(ctx.registry.session?.snapshot().drops[111]).toBe(10);
   });
 
   it('clears buffer and timer on onStop', () => {

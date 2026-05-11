@@ -1,94 +1,42 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import type {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
-import {
-  startSeasonal,
-  finishOnTownEntry,
-  createLootTimer,
-  startLootTimer,
-  refreshLootTimer,
-} from './seasonal-helpers';
 
 const DEFAULT_LOOT_COLLECTION_MS = 5_000;
 
 /**
- * ClockworkHandler — manages the Clockwork Ballet (S7) seasonal tracker lifecycle.
+ * ClockworkHandler — Clockwork Ballet (S7) translator.
  *
- * Drops are credited only after the voucher turn-in (marked in the log by the
- * Start → Success / FailStateItem transition). Monsters killed while collecting
- * vouchers do not count — those belong to session/map only.
- *
- * Event flow:
- *   s7_success      : HandleS7PushData Start -> Success — turn-in completed, start tracker
- *   s7_fail         : S7GamePlayFailStateItem page opens — turn-in failed, start tracker
- *   bag_update      : refreshes the loot timer on each item pickup
- *   zone_transition : entering town cancels loot timer and finishes immediately
- *
- * Tracker starts with the loot timer so post-turn-in pickups are credited
- * (same pattern as Carjack/Overrealm's post-combat loot window).
- *
- * Must be registered AFTER ZoneHandler and BEFORE ItemHandler.
+ *   s7_success / s7_fail : voucher turn-in concluded; start tracker + arm loot
+ *                          window. Ignored if a loot window is already active
+ *                          (duplicate end signals).
+ *   bag_update           : decaying refresh while the loot window is active.
+ *   zone_transition (town): handled centrally by ZoneHandler.finishAll.
  */
 export class ClockworkHandler implements EventHandler {
   readonly name    = 'clockwork';
-  readonly handles = ['s7_success', 's7_fail', 'zone_transition', 'bag_update'] as const;
+  readonly handles = ['s7_success', 's7_fail', 'bag_update'] as const;
 
-  private _lootTimer:      LootCollectionTimer | null = null;
-  private _lootDurationMs: number                     = DEFAULT_LOOT_COLLECTION_MS;
+  private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
 
-  /** Update the post-turn-in loot window in milliseconds. Takes effect on
-   *  the next turn-in (the in-flight timer, if any, keeps its original duration). */
   setLootDurationMs(ms: number): void {
-    const next = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
-    this._lootDurationMs = next;
-  }
-
-  onStop(_ctx: EngineContext): void {
-    this._lootTimer?.cancel();
-    this._lootTimer = null;
+    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
-    if (ctx.phase !== 'tracking') return;
-    if (ctx.paused) return;
+    if (ctx.phase !== 'tracking' || ctx.paused) return;
 
     switch (event.type) {
       case 's7_success':
-      case 's7_fail':
-        this._handleTurnIn(ctx, emit);
+      case 's7_fail': {
+        if (ctx.registry.seasonal('clockwork')?.isLootCollecting()) return;
+        const t = ctx.registry.startSeasonal({type: 'clockwork', lootDurationMs: this._lootMs}, emit);
+        t?.armLootTimer();
         break;
-
-      case 'zone_transition':
-        this._handleZoneTransition(event.toScene, ctx, emit);
-        break;
-
+      }
       case 'bag_update':
-        if (this._lootTimer) refreshLootTimer(this._lootTimer, 'clockwork', emit);
+        ctx.registry.seasonal('clockwork')?.refreshLootTimer();
         break;
     }
-  }
-
-  private _handleTurnIn(ctx: EngineContext, emit: EmitFn): void {
-    // Already in a loot window — ignore duplicate end signals. Also protects
-    // against Success and FailStateItem firing in the same game (shouldn't,
-    // but cheap safety).
-    if (this._lootTimer?.active) return;
-
-    startSeasonal('clockwork', ctx, emit);
-    this._startLootTimer(ctx, emit);
-  }
-
-  private _handleZoneTransition(toScene: string, ctx: EngineContext, emit: EmitFn): void {
-    if (finishOnTownEntry(toScene, this._lootTimer, ctx, emit, 'clockwork')) {
-      this._lootTimer = null;
-    }
-  }
-
-  private _startLootTimer(ctx: EngineContext, emit: EmitFn): void {
-    this._lootTimer = createLootTimer(this._lootDurationMs, 'clockwork', ctx, emit, () => {
-      this._lootTimer = null;
-    });
-    startLootTimer(this._lootTimer, 'clockwork', emit);
   }
 }

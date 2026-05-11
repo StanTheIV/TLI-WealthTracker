@@ -1,114 +1,58 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import type {LootCollectionTimer} from '@/main/engine/loot-collection-timer';
-import {
-  startSeasonal,
-  createPausingLootTimer,
-  startLootTimer,
-  refreshLootTimer,
-  resetLootTimer,
-  resumeSeasonal,
-} from './seasonal-helpers';
 
 const DEFAULT_LOOT_COLLECTION_MS = 5_000;
 
 /**
- * LunariaHandler — manages the Lunaria (S14 "MingYue") seasonal tracker
- * lifecycle inside Netherrealm maps.
+ * LunariaHandler — Lunaria (S14 "MingYue") translator.
  *
- * Lunaria is unique among seasonals in that it can re-trigger several times
- * within a single regular map: each cluster of petrified statues is its own
- * encounter. Drops from all episodes in the same map should accumulate into
- * ONE seasonal tracker that ZoneHandler finishes on town entry.
- *
- * Lifecycle:
- *   s14_strum (UECtrlComponent@ DoAction S14GameplayStart):
- *     - First ever              → startSeasonal('lunaria') + arm pausing timer.
- *     - Tracker exists, paused  → resume() + arm a fresh pausing timer.
- *     - Tracker exists, active  → resetLootTimer — strum is re-engagement,
- *                                 always re-arms the full window so any decay
- *                                 from previous pickups is undone.
- *   bag_update (during the loot window):
- *     - Pickup-refresh the existing timer (decaying 80%-of-current rule).
- *
- *   When the pausing loot timer expires, the tracker pauses in place. The
- *   next strum resumes it. ZoneHandler finishes on town entry.
- *
- * No `s14_end` / encounter-end signal: the loot timer is the sole "end of
- * episode" mechanism, driven by the absence of further strums or pickups.
- *
- * Must be registered AFTER ZoneHandler and BEFORE ItemHandler.
+ * Multiple strums in one map fold into the same tracker; the loot timer pauses
+ * the tracker on expiry instead of finishing it (`pauseOnLootExpiry: true`).
+ *   s14_strum (first)        : start tracker + arm loot timer
+ *   s14_strum (paused tracker): resume + arm fresh loot timer
+ *   s14_strum (active)       : reset loot timer (full window, undoes decay)
+ *   bag_update               : decaying refresh of the loot timer
  */
 export class LunariaHandler implements EventHandler {
   readonly name    = 'lunaria';
   readonly handles = ['s14_strum', 'bag_update'] as const;
 
-  private _lootTimer:      LootCollectionTimer | null = null;
-  private _lootDurationMs: number                     = DEFAULT_LOOT_COLLECTION_MS;
+  private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
 
-  /** Update the post-strum loot window in milliseconds. Takes effect on the
-   *  next strum (the in-flight timer, if any, keeps its original duration). */
   setLootDurationMs(ms: number): void {
-    const next = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
-    this._lootDurationMs = next;
-  }
-
-  onStop(_ctx: EngineContext): void {
-    this._lootTimer?.cancel();
-    this._lootTimer = null;
+    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
-    if (ctx.phase !== 'tracking') return;
-    if (ctx.paused) return;
+    if (ctx.phase !== 'tracking' || ctx.paused) return;
 
-    if (event.type === 's14_strum') {
-      this._handleStrum(ctx, emit);
-    } else if (event.type === 'bag_update' && this._lootTimer) {
-      // Pickup during the loot window — decaying refresh: each successive
-      // pickup that triggers a re-arm shrinks the window to 80% of the
-      // current one (same rule as Overrealm/Carjack/Clockwork).
-      refreshLootTimer(this._lootTimer, 'lunaria', emit);
+    if (event.type === 'bag_update') {
+      ctx.registry.seasonal('lunaria')?.refreshLootTimer();
+      return;
     }
-  }
 
-  private _handleStrum(ctx: EngineContext, emit: EmitFn): void {
-    const existing = ctx.seasonals.get('lunaria');
+    if (event.type !== 's14_strum') return;
 
+    const existing = ctx.registry.seasonal('lunaria');
     if (!existing) {
-      // First strum of the map. startSeasonal silently no-ops if a bubble
-      // seasonal is active (defensive — shouldn't happen for Lunaria since
-      // Sandlord runs in its own hub).
-      startSeasonal('lunaria', ctx, emit);
-      if (!ctx.seasonals.has('lunaria')) return; // bubble blocked us
-      this._armLootTimer(ctx, emit);
+      const t = ctx.registry.startSeasonal({
+        type:              'lunaria',
+        lootDurationMs:    this._lootMs,
+        pauseOnLootExpiry: true,
+      }, emit);
+      t?.armLootTimer();
       return;
     }
 
     if (!existing.active) {
-      // Paused between episodes — resume and arm a fresh full-window timer.
-      resumeSeasonal('lunaria', ctx, emit);
-      this._armLootTimer(ctx, emit);
+      existing.resumeTracker();
+      existing.armLootTimer();
       return;
     }
 
-    // Active tracker, in-flight timer — strum is re-engagement, unconditionally
-    // re-arm the full window so any decay from prior pickups is undone.
-    if (this._lootTimer) {
-      resetLootTimer(this._lootTimer, 'lunaria', emit);
-    } else {
-      // Defensive: tracker active but no timer (shouldn't happen — _arm runs
-      // on tracker creation/resume). Arm a fresh one.
-      this._armLootTimer(ctx, emit);
-    }
-  }
-
-  private _armLootTimer(ctx: EngineContext, emit: EmitFn): void {
-    this._lootTimer?.cancel();
-    this._lootTimer = createPausingLootTimer(this._lootDurationMs, 'lunaria', ctx, emit, () => {
-      this._lootTimer = null;
-    });
-    startLootTimer(this._lootTimer, 'lunaria', emit);
+    // Active tracker, in-flight timer — strum is re-engagement; full reset
+    // undoes any pickup-decay so the player gets a fresh full window.
+    existing.resetLootTimer();
   }
 }

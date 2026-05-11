@@ -4,7 +4,6 @@ import {EngineContext} from './context';
 import type {LoadedSessionData} from './context';
 import type {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/types/itemFilter';
-import {Tracker} from './tracker';
 import {ItemHandler} from './handlers/item';
 import {MapMaterialHandler} from './handlers/map-material';
 import {OverrealmHandler} from './handlers/overrealm-handler';
@@ -29,12 +28,8 @@ export class Engine {
   // Deduplicated registry — used for cross-cutting iteration that should
   // visit each handler exactly once (onStop).
   private _handlers: EventHandler[] = [];
-  // Typed reference to the map-material handler so the IPC layer can mutate
-  // its state through Engine methods rather than reaching across the boundary.
   private _mapMaterial: MapMaterialHandler | null = null;
-  // Typed reference to the item handler for derived queries (pre-map spends).
   private _item:        ItemHandler        | null = null;
-  // Typed references to seasonal handlers with configurable loot windows.
   private _overrealm:   OverrealmHandler   | null = null;
   private _carjack:     CarjackHandler     | null = null;
   private _clockwork:   ClockworkHandler   | null = null;
@@ -60,7 +55,6 @@ export class Engine {
   }
 
   start(): void {
-    // Preserve loadedSession across reset — loadSession() is called before start().
     const preserved = this._ctx.loadedSession;
     this._ctx.reset();
     this._ctx.loadedSession = preserved;
@@ -68,20 +62,18 @@ export class Engine {
     for (const h of this._handlers) h.onStart?.(this._ctx, this._emit);
   }
 
-  /**
-   * Load a previous session's data so it can be merged after bag initialization.
-   * Must be called before engine.start().
-   */
   loadSession(data: LoadedSessionData): void {
     this._ctx.loadedSession = data;
   }
 
   stop(): void {
-    // Emit final session snapshot before resetting, including map/session metadata for auto-save
-    if (this._ctx.session) {
+    // Emit final session snapshot before tearing down, including map/session
+    // metadata for auto-save. Active map / seasonals are silently dropped —
+    // session-level finish is the renderer's signal that the run is over.
+    if (this._ctx.registry.session) {
       this._emit({
         type:        'tracker_finished',
-        tracker:     this._ctx.session.snapshot(),
+        tracker:     this._ctx.registry.session.snapshot(),
         timestamp:   Date.now(),
         sessionMeta: {
           mapTime:  this._ctx.accumulatedMapTime,
@@ -98,10 +90,7 @@ export class Engine {
    * Reset the in-flight session WITHOUT touching bag state, filters, or known
    * items. Drops and elapsed for session/map/seasonal go to zero. Map count
    * resets to 0 (or 1 if currently in a map — that map becomes "map #1" of the
-   * new run). The current run is discarded; nothing is auto-saved.
-   *
-   * Pause/run state is preserved: a paused session stays paused, a running
-   * one stays running.
+   * new run). Pause/run state preserved.
    */
   reset(): void {
     if (this._ctx.phase !== 'tracking') return;
@@ -110,23 +99,17 @@ export class Engine {
     const wasPaused = this._ctx.paused;
 
     // Tear down map/seasonal trackers so the renderer drops their UI state.
-    // We deliberately do NOT emit tracker_finished for the session: the
-    // renderer treats that as "session is over → flip phase to idle", which
-    // would put the panel into the initializing-placeholder state. Instead we
-    // overwrite the session in place via the tracker_started below.
-    for (const tracker of this._ctx.seasonals.values()) {
-      this._emit({type: 'tracker_finished', tracker: tracker.snapshot(), timestamp: now});
+    // Deliberately do NOT emit tracker_finished for the session — that would
+    // flip the renderer's phase to 'idle'. Each seasonal's finish() emits
+    // its own tracker_finished; the registry handles map separately below.
+    this._ctx.registry.finishAllSeasonals();
+    if (this._ctx.registry.map) {
+      this._emit({type: 'tracker_finished', tracker: this._ctx.registry.map.snapshot(), timestamp: now});
+      this._ctx.registry.map = null;
     }
-    this._ctx.seasonals.clear();
-    this._ctx.seasonalsStartOrder = [];
-    this._ctx.invalidateWriter();
-    if (this._ctx.map) {
-      this._emit({type: 'tracker_finished', tracker: this._ctx.map.snapshot(), timestamp: now});
-      this._ctx.map = null;
-    }
-    this._ctx.session = null;
+    this._ctx.registry.invalidateWriter();
+    this._ctx.registry.session = null;
 
-    // Wipe map / session counters but preserve scene + bag + filter.
     this._ctx.mapCount           = 0;
     this._ctx.accumulatedMapTime = 0;
     this._ctx.mapStartTime       = 0;
@@ -134,28 +117,26 @@ export class Engine {
     this._ctx.activeSessionName  = null;
     this._ctx.loadedSession      = null;
 
-    // Fresh session tracker. Match pause state.
-    this._ctx.session = new Tracker('session');
-    if (wasPaused) this._ctx.session.pause();
+    const session = this._ctx.registry.startSession();
+    if (wasPaused) session.pause();
     this._emit({
       type:        'tracker_started',
-      tracker:     this._ctx.session.snapshot(),
+      tracker:     session.snapshot(),
       timestamp:   now,
       sessionMeta: {mapTime: 0, mapCount: 0},
     });
 
-    // If we're currently in a map, recreate that map's tracker as map #1.
     if (this._ctx.inMap) {
-      this._ctx.mapCount    = 1;
+      this._ctx.mapCount     = 1;
       this._ctx.mapStartTime = now;
-      this._ctx.map         = new Tracker('map');
-      if (wasPaused) this._ctx.map.pause();
-      this._emit({type: 'map_started', mapCount: 1, timestamp: now});
-      this._emit({type: 'tracker_started', tracker: this._ctx.map.snapshot(), timestamp: now});
+      const map = this._ctx.registry.startMap();
+      if (map) {
+        if (wasPaused) map.pause();
+        this._emit({type: 'map_started', mapCount: 1, timestamp: now});
+        this._emit({type: 'tracker_started', tracker: map.snapshot(), timestamp: now});
+      }
     }
 
-    // Mirror current pause state to the renderer so its session_status line
-    // matches what we just rebuilt.
     this._emit({
       type:      'session_status',
       status:    wasPaused ? 'paused' : 'running',
@@ -168,17 +149,17 @@ export class Engine {
 
   pause(): void {
     this._ctx.paused = true;
-    this._ctx.session?.pause();
-    if (this._ctx.session) {
-      this._emit({type: 'session_status', status: 'paused', elapsed: this._ctx.session.elapsed(), timestamp: Date.now()});
+    this._ctx.registry.session?.pause();
+    if (this._ctx.registry.session) {
+      this._emit({type: 'session_status', status: 'paused', elapsed: this._ctx.registry.session.elapsed(), timestamp: Date.now()});
     }
   }
 
   resume(): void {
     this._ctx.paused = false;
-    this._ctx.session?.resume();
-    if (this._ctx.session) {
-      this._emit({type: 'session_status', status: 'running', elapsed: this._ctx.session.elapsed(), timestamp: Date.now()});
+    this._ctx.registry.session?.resume();
+    if (this._ctx.registry.session) {
+      this._emit({type: 'session_status', status: 'running', elapsed: this._ctx.registry.session.elapsed(), timestamp: Date.now()});
     }
   }
 
@@ -210,22 +191,18 @@ export class Engine {
     return this._ctx.bag.getInventory();
   }
 
-  /** True iff a map tracker is currently active. The IPC layer checks this
-   *  when a seasonal tracker finishes to tell whether the seasonal was running
-   *  inside a map (Vorex / Dream / etc.) or standalone (Sandlord). */
+  /** True iff a map tracker is currently active. */
   hasActiveMapTracker(): boolean {
-    return this._ctx.map !== null;
+    return this._ctx.registry.map !== null;
   }
 
   /** Look up a registered handler by its `name` field — primarily a test
-   *  affordance for asserting handler-local state. Returns null if unknown. */
+   *  affordance. Returns null if unknown. */
   getHandler(name: string): EventHandler | null {
     return this._handlers.find(h => h.name === name) ?? null;
   }
 
   // --- Map material delegation -------------------------------------------------
-  // Thin pass-throughs to the registered MapMaterialHandler so the IPC layer
-  // never reaches into a handler instance directly.
 
   dismissMaterial(itemId: number): void {
     this._mapMaterial?.dismiss(itemId);
@@ -236,7 +213,6 @@ export class Engine {
   }
 
   // --- Seasonal loot timer durations (ms) ----------------------------------
-  // Pass-throughs so the IPC layer never reaches into a handler instance.
 
   setOverrealmLootDurationMs(ms: number): void {
     this._overrealm?.setLootDurationMs(ms);
@@ -255,12 +231,8 @@ export class Engine {
   }
 
   /**
-   * Per-map spend record for the most recently entered map: { itemId →
-   * positive quantity consumed }. Sourced from ItemHandler's pre-map buffer
-   * flush — i.e. the bag deltas that landed in the freshly-created map
-   * tracker from a town buffer. Only negative entries (actual spends) are
-   * exported; positive entries (e.g. last-second vendor purchase) are
-   * filtered out. Returns `{}` when there's nothing to attribute.
+   * Per-map spend record for the most recently entered map. Sourced from
+   * ItemHandler's pre-map buffer flush.
    */
   getLastMapSpends(): Record<string, number> {
     const out: Record<string, number> = {};
