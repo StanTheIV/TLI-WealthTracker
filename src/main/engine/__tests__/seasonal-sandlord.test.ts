@@ -187,3 +187,33 @@ describe('Sandlord integration', () => {
     expect(activeMapAtSeasonalFinish).toBe(true);
   });
 });
+
+describe('Direct map → Sandlord hub transition', () => {
+  it('pauses the running map; town return finishes it with Sandlord time excluded', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    vi.advanceTimersByTime(10_000); // 10s of real mapping
+
+    // Straight from the map into the hub — the map freezes for the whole run.
+    feed(d, e, log.zoneTransition(MAP, SANDLORD_HUB));
+    expect(ctx(e).registry.seasonal('sandlord')?.ownsBubble).toBe(true);
+    expect(ctx(e).registry.map?.active).toBe(false);
+
+    vi.advanceTimersByTime(60_000); // hub + sub-maps
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, SANDLORD_SUB_MAP));
+    feed(d, e, log.zoneTransition(SANDLORD_SUB_MAP, SANDLORD_HUB));
+    expect(ctx(e).registry.map?.active).toBe(false); // still frozen throughout
+
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, TOWN));
+
+    // Map finished counting only the pre-hub mapping time.
+    expect(ctx(e).registry.map).toBeNull();
+    expect(ctx(e).accumulatedMapTime).toBe(10_000);
+    expect(ctx(e).registry.seasonalsSize()).toBe(0);
+    expect(ctx(e).mapPausedForInterludeAt).toBeNull();
+  });
+});
