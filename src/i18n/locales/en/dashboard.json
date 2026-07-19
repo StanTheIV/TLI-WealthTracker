@@ -24,5 +24,37 @@
     "grandTotal": "Grand Total",
     "empty": "No breakdown data available",
     "openInItems": "Open in Items"
+  },
+  "feed": {
+    "title": "Live Event Feed",
+    "empty": "Start tracking to see events",
+    "item": "Item #{{id}}",
+    "label": {
+      "init_started": "INIT",
+      "init_complete": "READY",
+      "drop": "DROP",
+      "new_item": "NEW",
+      "zone_change": "ZONE",
+      "map_started": "MAP",
+      "map_ended": "END",
+      "tracker_started": "START",
+      "tracker_finished": "DONE",
+      "loot_window_started": "LOOT",
+      "loot_window_ended": "LOOT",
+      "map_material_warning": "WARN",
+      "error": "ERR"
+    },
+    "desc": {
+      "initStarted": "Bag initialization started…",
+      "initComplete": "Bag ready — {{count}} item types tracked",
+      "newItem": "New item — {{label}}",
+      "mapStarted": "Map #{{count}} started",
+      "mapEnded": "Map ended — {{seconds}}s",
+      "trackerStarted": "{{kind}} tracker started",
+      "trackerFinished": "{{kind}} tracker finished",
+      "lootWindowStarted": "{{kind}} loot window open",
+      "lootWindowEnded": "{{kind}} loot window closed",
+      "mapMaterialWarning": "Low on {{count}} map material(s)"
+    }
   }
 }

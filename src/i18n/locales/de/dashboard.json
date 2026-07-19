@@ -24,5 +24,37 @@
     "grandTotal": "Gesamtsumme",
     "empty": "Keine Aufschlüsselungsdaten verfügbar",
     "openInItems": "In Gegenständen öffnen"
+  },
+  "feed": {
+    "title": "Live-Ereignisprotokoll",
+    "empty": "Starte das Tracking, um Ereignisse zu sehen",
+    "item": "Gegenstand #{{id}}",
+    "label": {
+      "init_started": "INIT",
+      "init_complete": "BEREIT",
+      "drop": "DROP",
+      "new_item": "NEU",
+      "zone_change": "ZONE",
+      "map_started": "MAP",
+      "map_ended": "ENDE",
+      "tracker_started": "START",
+      "tracker_finished": "FERTIG",
+      "loot_window_started": "LOOT",
+      "loot_window_ended": "LOOT",
+      "map_material_warning": "WARN",
+      "error": "FEHLER"
+    },
+    "desc": {
+      "initStarted": "Inventar-Initialisierung gestartet…",
+      "initComplete": "Inventar bereit — {{count}} Gegenstandstypen erfasst",
+      "newItem": "Neuer Gegenstand — {{label}}",
+      "mapStarted": "Map #{{count}} gestartet",
+      "mapEnded": "Map beendet — {{seconds}}s",
+      "trackerStarted": "{{kind}}-Tracker gestartet",
+      "trackerFinished": "{{kind}}-Tracker beendet",
+      "lootWindowStarted": "{{kind}}-Lootfenster offen",
+      "lootWindowEnded": "{{kind}}-Lootfenster geschlossen",
+      "mapMaterialWarning": "{{count}} Map-Material(ien) knapp"
+    }
   }
 }

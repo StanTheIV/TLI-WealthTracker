@@ -9,6 +9,8 @@ interface SettingsState {
   overlayOpacity:           number;
   clickThroughWhileRunning: boolean;
   pauseTotalTimerInTown:    boolean;
+  /** Dashboard live event feed — hidden unless explicitly enabled. */
+  showEventFeed:            boolean;
   language:                 string;
   logFileValid:             boolean;
   serperApiKey:             string;
@@ -33,6 +35,7 @@ interface SettingsActions {
   setOverlayOpacity:            (v: number) => void;
   setClickThroughWhileRunning:  (v: boolean) => void;
   setPauseTotalTimerInTown:     (v: boolean) => void;
+  setShowEventFeed:             (v: boolean) => void;
   setLanguage:                  (v: string) => void;
   validateLogFile:              () => Promise<boolean>;
   setSerperApiKey:              (v: string) => void;
@@ -52,6 +55,7 @@ const DEFAULTS: SettingsState = {
   overlayOpacity:           0.9,
   clickThroughWhileRunning: false,
   pauseTotalTimerInTown:    false,
+  showEventFeed:            false,
   language:                 'en',
   logFileValid:             false,
   serperApiKey:             '',
@@ -106,6 +110,7 @@ export const useSettingsStore = create<Store>((set, get) => ({
       overlayOpacity: raw.overlayOpacity ? Number(raw.overlayOpacity) : 0.9,
       clickThroughWhileRunning: raw.clickThroughWhileRunning === 'true',
       pauseTotalTimerInTown:    raw.pauseTotalTimerInTown === 'true',
+      showEventFeed:            raw.showEventFeed === 'true',
       language,
       logFileValid,
       serperApiKey: raw.serper_api_key ?? '',
@@ -144,6 +149,11 @@ export const useSettingsStore = create<Store>((set, get) => ({
   setPauseTotalTimerInTown: (v) => {
     persist('pauseTotalTimerInTown', v ? 'true' : 'false');
     set({pauseTotalTimerInTown: v});
+  },
+
+  setShowEventFeed: (v) => {
+    persist('showEventFeed', v ? 'true' : 'false');
+    set({showEventFeed: v});
   },
 
   setLanguage: (v) => {
