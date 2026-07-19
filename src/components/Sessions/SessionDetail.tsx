@@ -121,16 +121,33 @@ function PerMapTooltip({active, payload}: {active?: boolean; payload?: PerMapToo
   );
 }
 
-function PerMapBarChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<string, number>}) {
+function PerMapBarChart({maps, prices, legacy}: {maps: DbSessionMap[]; prices: Record<string, number>; legacy: boolean}) {
   const {t}   = useTranslation('sessions');
   const theme = useTheme();
 
   const data = useMemo<PerMapDatum[]>(() => {
-    // Overlap seasonal rows live inside their parent map's drops already
-    // (engine fans drops into both trackers — see context.distributeDrop).
-    // Aggregating across all rows would double-count, so primary rows only.
     const primary = maps.filter(m => m.parentMapIndex == null);
     if (primary.length === 0) return [];
+
+    // Overlap seasonal rows (parentMapIndex set): under exclusive attribution
+    // the parent map row does NOT contain the seasonal's drops, so each
+    // overlap row's income is folded into its parent bucket as seasonalIncome.
+    // Legacy sessions (old fan-out engine — detected by the caller via empty
+    // dropsBySource) double-store those drops inside the parent map row, so
+    // folding would double-count: for them, primary rows already tell the
+    // whole story and overlap rows stay ignored.
+    const overlapIncome = new Map<number, number>();
+    if (!legacy) {
+      for (const m of maps) {
+        if (m.parentMapIndex == null) continue;
+        let income = 0;
+        for (const [id, qty] of Object.entries(m.drops)) {
+          if (qty > 0) income += qty * (prices[id] ?? 0);
+        }
+        overlapIncome.set(m.parentMapIndex, (overlapIncome.get(m.parentMapIndex) ?? 0) + income);
+      }
+    }
+
     const bucketSize = Math.max(1, Math.ceil(primary.length / MAX_BARS));
     const out: PerMapDatum[] = [];
     let runningNet = 0;
@@ -152,6 +169,7 @@ function PerMapBarChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<st
         for (const [id, qty] of Object.entries(m.spent)) cost += qty * (prices[id] ?? 0);
         if (m.seasonalType !== null) seasonalIncome += rowIncome;
         else                         mapIncome      += rowIncome;
+        seasonalIncome += overlapIncome.get(m.mapIndex) ?? 0;
       }
       const firstIndex = slice[0].mapIndex;
       const lastIndex  = slice[slice.length - 1].mapIndex;
@@ -167,7 +185,7 @@ function PerMapBarChart({maps, prices}: {maps: DbSessionMap[]; prices: Record<st
       });
     }
     return out;
-  }, [maps, prices]);
+  }, [maps, prices, legacy]);
 
   if (data.length === 0) {
     return (
@@ -334,11 +352,9 @@ function BySourceTooltip({active, payload}: {active?: boolean; payload?: {payloa
 }
 
 // NOTE: This pie reads `session.dropsBySource` (writer-attribution: each drop
-// counted once, attributed to the newest active tracker at write time). This
-// will NOT match the seasonal row's FE on the dashboard or the per-map
-// chart's stacked seasonal segments — those reflect full fan-out drops
-// ("what fell while this tracker was running"). Both views are intentional:
-// pie answers "who gets credit," tracker rows answer "what fell when."
+// counted once, attributed to the newest active tracker at write time). Since
+// the exclusive-attribution change, tracker rows use the SAME single-owner
+// rule, so pie slices and tracker/chart segments agree for new sessions.
 //
 // Legacy fallback: pre-refactor sessions saved with empty dropsBySource fall
 // back to the old per-map-row aggregation. That logic is correct for the
@@ -614,7 +630,11 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
             {!mapsLoaded ? (
               <div className="h-[300px]" />
             ) : (
-              <PerMapBarChart maps={maps} prices={prices} />
+              <PerMapBarChart
+                maps={maps}
+                prices={prices}
+                legacy={Object.keys(session.dropsBySource ?? {}).length === 0}
+              />
             )}
           </div>
           <div className="flex flex-col gap-2">

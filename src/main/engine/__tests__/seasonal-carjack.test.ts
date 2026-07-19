@@ -117,7 +117,7 @@ describe('Carjack integration', () => {
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
   });
 
-  it('drops during carjack reach session, map and carjack trackers', () => {
+  it('drops during carjack credit session and carjack only — carjack owns them, not the map', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
@@ -129,7 +129,7 @@ describe('Carjack integration', () => {
     feed(d, e, log.bagUpdate(1, 400, 6));
 
     expect(ctx(e).registry.session?.snapshot().drops[400]).toBe(6);
-    expect(ctx(e).registry.map?.snapshot().drops[400]).toBe(6);
+    expect(ctx(e).registry.map?.snapshot().drops[400]).toBeUndefined(); // carjack owns the window
     expect(ctx(e).registry.seasonal('carjack')?.snapshot().drops[400]).toBe(6);
   });
 

@@ -78,7 +78,7 @@ describe('Clockwork integration', () => {
     feed(d, e, log.bagUpdate(1, 700, 7));
     expect(ctx(e).registry.seasonal('clockwork')?.snapshot().drops[700]).toBe(7);
     expect(ctx(e).registry.session?.snapshot().drops[700]).toBe(7);
-    expect(ctx(e).registry.map?.snapshot().drops[700]).toBe(7);
+    expect(ctx(e).registry.map?.snapshot().drops[700]).toBeUndefined(); // clockwork owns the window
   });
 
   it('entering town during loot window cancels timer and finishes immediately', () => {
