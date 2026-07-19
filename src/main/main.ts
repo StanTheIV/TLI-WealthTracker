@@ -12,6 +12,13 @@ import {registerLoggingHandlers} from './ipc/logging';
 
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER = 'http://localhost:5173';
+
+// Dev-only: expose Chrome DevTools Protocol so tooling (e.g. the Electron MCP
+// server) can attach to inspect the DOM, run renderer JS, and take screenshots.
+// Gated to DEV so a debugging port never ships in packaged builds.
+if (DEV) {
+  app.commandLine.appendSwitch('remote-debugging-port', '9222');
+}
 const LOG_SUBPATH = join('TorchLight', 'Saved', 'Logs', 'UE_game.log');
 
 let mainWindow: BrowserWindow | null = null;

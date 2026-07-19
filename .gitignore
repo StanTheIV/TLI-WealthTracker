@@ -41,3 +41,6 @@ CLAUDE.md
 
 # Electron builder cache
 .electron-builder-cache/
+
+# Local MCP server config (developer tooling, not shared)
+.mcp.json
