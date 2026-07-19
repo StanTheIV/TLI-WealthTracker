@@ -44,3 +44,6 @@ CLAUDE.md
 
 # Local MCP server config (developer tooling, not shared)
 .mcp.json
+
+# Local docs (developer notes, not shared)
+docs/

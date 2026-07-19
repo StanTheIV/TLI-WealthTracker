@@ -62,6 +62,10 @@
     "pauseInTown": {
       "label": "Total-Timer in der Stadt pausieren",
       "hint": "Wenn aktiviert, friert der Total-Timer in der Stadt ein, damit die FE/h-Rate die tatsächliche Map-Performance widerspiegelt. Map- und Seasonal-Tracker bleiben unverändert. Gespeicherte Sitzungen behalten weiterhin die volle Echtzeit."
+    },
+    "eventFeed": {
+      "label": "Live-Ereignisprotokoll im Dashboard anzeigen",
+      "hint": "Zeigt unter der Gegenstandsaufschlüsselung ein Echtzeitprotokoll von Drops, Zonenwechseln und Tracker-Ereignissen."
     }
   },
   "lootTimers": {

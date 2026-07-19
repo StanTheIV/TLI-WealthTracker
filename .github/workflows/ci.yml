@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      # --ignore-scripts skips the electron-rebuild postinstall: every
+      # better-sqlite3 reference in the test suite is type-only, so no native
+      # ABI build is needed to typecheck/lint/test.
+      - name: Install dependencies
+        run: bun install --ignore-scripts
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Test
+        run: bun run test
