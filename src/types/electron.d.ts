@@ -2,7 +2,7 @@ import type {FilterRule} from './itemFilter';
 
 export {};
 
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria';
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana';
 /** A drop's attribution source for the per-source breakdown pie. 'map' covers
  *  drops where no seasonal was the writer; the SeasonalType variants cover
  *  drops where that seasonal was the newest active tracker. */

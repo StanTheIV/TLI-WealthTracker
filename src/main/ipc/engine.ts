@@ -17,6 +17,7 @@ import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import {CarjackHandler} from '@/main/engine/handlers/carjack-handler';
 import {ClockworkHandler} from '@/main/engine/handlers/clockwork-handler';
 import {LunariaHandler} from '@/main/engine/handlers/lunaria-handler';
+import {ArcanaHandler} from '@/main/engine/handlers/arcana-handler';
 import {SandlordHandler} from '@/main/engine/handlers/sandlord-handler';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {MapMaterialHandler} from '@/main/engine/handlers/map-material';
@@ -147,6 +148,7 @@ function createEngine(): Engine {
     .register(new CarjackHandler())
     .register(new ClockworkHandler())
     .register(new LunariaHandler())
+    .register(new ArcanaHandler())
     .register(new ItemHandler())
     .register(new MapMaterialHandler())
     .register(new ErrorHandler());

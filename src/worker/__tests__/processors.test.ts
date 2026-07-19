@@ -5,6 +5,7 @@ import {LevelTypeProcessor} from '@/worker/processors/level-type';
 import {PriceProcessor} from '@/worker/processors/price';
 import {S13Processor} from '@/worker/processors/s13';
 import {S12Processor} from '@/worker/processors/s12';
+import {S9Processor} from '@/worker/processors/s9';
 import {S7Processor} from '@/worker/processors/s7';
 import {S14Processor} from '@/worker/processors/s14';
 import {CurrencyProcessor} from '@/worker/processors/currency';
@@ -407,6 +408,61 @@ describe('S13Processor', () => {
 
   it('returns null for unrecognised S13GamePlay line', () => {
     expect(proc.process(s13Lines.unrelated)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S9Processor (Arcana — Tarot / Fateful Contest)
+// ---------------------------------------------------------------------------
+
+const ts9 = '[2026.01.25-12.34.56:789]';
+
+const s9Lines = {
+  minigame:  `${ts9}TLLua: Display: [Game] S9Taro Run`,
+  fight:     `${ts9}TLLua: Display: [Game] S9Challenge Run`,
+  hide:      `${ts9}TLLua: Display: [Game] S9Taro Hide`,
+  destroy:   `${ts9}TLLua: Display: [Game] S9Taro Destory`,
+  chalEnd:   `${ts9}TLLua: Display: [Game] S9Challenge Destory`,
+};
+
+describe('S9Processor', () => {
+  const proc = new S9Processor();
+
+  it('has correct name', () => {
+    expect(proc.name).toBe('s9');
+  });
+
+  it('test() matches S9Taro and S9Challenge lines', () => {
+    expect(proc.test(s9Lines.minigame)).toBe(true);
+    expect(proc.test(s9Lines.fight)).toBe(true);
+    expect(proc.test(s9Lines.hide)).toBe(true);
+    expect(proc.test(s9Lines.chalEnd)).toBe(true);
+  });
+
+  it('test() rejects unrelated lines', () => {
+    expect(proc.test(lines.bagInit)).toBe(false);
+    expect(proc.test(lines.zoneToMap)).toBe(false);
+    expect(proc.test(lines.unrelated)).toBe(false);
+  });
+
+  it('parses s9_minigame from S9Taro Run', () => {
+    expect(proc.process(s9Lines.minigame)).toEqual({type: 's9_minigame'});
+  });
+
+  it('parses s9_fight from S9Challenge Run', () => {
+    expect(proc.process(s9Lines.fight)).toEqual({type: 's9_fight'});
+  });
+
+  it('ignores S9Taro Hide (teardown)', () => {
+    expect(proc.process(s9Lines.hide)).toBeNull();
+  });
+
+  it('ignores S9Taro Destory (teardown, both commit & abandon)', () => {
+    expect(proc.process(s9Lines.destroy)).toBeNull();
+  });
+
+  it('ignores S9Challenge Destory (scene-load teardown)', () => {
+    expect(proc.process(s9Lines.chalEnd)).toBeNull();
   });
 });
 

@@ -15,7 +15,7 @@ import type {DbSession, DbSessionMap, Source} from '@/types/electron';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
 import {formatDate, formatDuration} from './SessionsTable';
 
-const SOURCES: Source[] = ['map', 'overrealm', 'clockwork', 'carjack', 'sandlord', 'lunaria', 'vorex', 'dream'];
+const SOURCES: Source[] = ['map', 'overrealm', 'clockwork', 'carjack', 'sandlord', 'lunaria', 'vorex', 'arcana', 'dream'];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -59,6 +59,7 @@ function sourceColors(theme: ReturnType<typeof useTheme>): Record<Source, string
     carjack:   theme.typeCard,
     lunaria:   theme.typeFuel,
     vorex:     theme.typeEmber,
+    arcana:    theme.typeSkill,
     dream:     theme.typeDream,
   };
 }

@@ -79,6 +79,7 @@ function SeasonalRow({type, snapshot, receivedAt, lootDeadline, isRunning, isPau
     type === 'clockwork' ? t('seasonal.clockwork') :
     type === 'sandlord'  ? t('seasonal.sandlord')  :
     type === 'lunaria'   ? t('seasonal.lunaria')   :
+    type === 'arcana'    ? t('seasonal.arcana')    :
     '';
 
   return (

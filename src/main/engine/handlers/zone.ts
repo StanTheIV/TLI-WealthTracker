@@ -5,8 +5,15 @@ import {log} from '@/main/logger';
 
 const TOWN_MARKER = 'YuJinZhiXiBiNanSuo';
 
+// Seasonal scenes that live under /Game/Art/Season/ but are owned by a
+// seasonal handler, not a generic map tracker. Classifying them as 'map'
+// would spin up a map tracker on top of the seasonal one and double-count
+// drops. Arcana's Fateful Contest scene (SuMingTaLuo) is one such scene.
+const SEASONAL_SCENE_MARKERS = ['SuMingTaLuo'];
+
 function classifyScene(scene: string): 'map' | 'town' | 'unknown' {
   if (scene.includes(TOWN_MARKER)) return 'town';
+  if (SEASONAL_SCENE_MARKERS.some((m) => scene.includes(m))) return 'unknown';
   if (scene.includes('/Game/Art/Maps/') || scene.includes('/Game/Art/Season/')) return 'map';
   return 'unknown';
 }

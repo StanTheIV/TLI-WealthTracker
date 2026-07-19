@@ -4,6 +4,7 @@ import type {LevelTypeEvent} from './level-type';
 import type {PriceEvent} from './price';
 import type {S13Event} from './s13';
 import type {S12Event} from './s12';
+import type {S9Event} from './s9';
 import type {S11Event} from './s11';
 import type {S7Event} from './s7';
 import type {S14Event} from './s14';
@@ -22,6 +23,7 @@ export type RawEvent =
   | PriceEvent
   | S13Event
   | S12Event
+  | S9Event
   | S11Event
   | S7Event
   | S14Event
