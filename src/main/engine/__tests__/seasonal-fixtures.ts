@@ -57,7 +57,8 @@ export const log = {
   s13WindowClose: `${ts} S13GamePlayMain::Destory`,
   s13Abandon:     `${ts} S13GamePlay Destory`,
 
-  s12Entry:       `${ts}TLGame: Display: [Game] USceneEffectMgr::S12SwitchFinish success.`,
+  // Overrealm entry = LevelType 25 transition; exit = notifyId 101 success.
+  s12Entry:       `${ts}TLShipping: Display: [Game] LevelMgr@ LevelUid, LevelType, LevelId = 1121406 25 5354`,
   s12Exit:        `${ts}TLGame: Display: [Game] gameplay type 8001 received notifyId 101 NotifyData `,
 
   s11Start: `${ts}GameLog: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Play_Mus_Gameplay_S11_Robbery_Full.Play_Mus_Gameplay_S11_Robbery_Full id 3808`,

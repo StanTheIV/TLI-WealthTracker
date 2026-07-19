@@ -23,18 +23,16 @@ describe('Overrealm integration', () => {
     expect(events.some(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm')).toBe(true);
   });
 
-  it('subsequent S12SwitchFinish lines (stage 2/3) do not restart the tracker', () => {
+  it('repeated s12_entry events do not duplicate the tracker (idempotent)', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
 
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    // The processor's state machine swallows stage-transition S12SwitchFinish
-    // lines, so only the first one should produce a tracker_started event.
-    feed(d, e, log.s12Entry); // stage 1 — emits s12_entry
-    feed(d, e, log.s12Entry); // stage 2 — swallowed by processor
-    feed(d, e, log.s12Entry); // stage 3 — swallowed by processor
+    feed(d, e, log.s12Entry);
+    feed(d, e, log.s12Entry);
+    feed(d, e, log.s12Entry);
 
     const started = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'overrealm');
     expect(started).toHaveLength(1);
@@ -146,12 +144,10 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
     feed(d, e, log.s12Exit);
 
-    // Realistic in-game stream: after s12_exit, the game emits a
-    // post-exit S12SwitchFinish (Netherrealm scene swap-back) which the
-    // processor swallows. Only the *next* S12SwitchFinish, when the player
-    // takes a fresh portal, surfaces as a re-entry.
-    feed(d, e, log.s12Entry); // post-exit map switch — swallowed by processor
-    feed(d, e, log.s12Entry); // real re-entry — handler cancels loot timer
+    // Player walks into another Overrealm portal in the same map while their
+    // loot window is still ticking — handler cancels the timer and keeps the
+    // existing tracker.
+    feed(d, e, log.s12Entry);
 
     expect(overrealm(e).isLootCollecting()).toBe(false);
     expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
@@ -161,42 +157,36 @@ describe('Overrealm integration', () => {
     expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
   });
 
-  it('post-exit S12SwitchFinish does NOT cancel the loot timer (regression)', () => {
+  it('death/abandon (no s12_exit) keeps the tracker alive until town entry', () => {
+    const events: EngineEvent[] = [];
     const d = createDispatcher();
-    const e = createEngine([]);
+    const e = createEngine(events);
 
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
-    feed(d, e, log.s12Exit);
-    expect(overrealm(e).isLootCollecting()).toBe(true);
+    // No s12_exit — player died or abandoned. Tracker stays alive.
+    expect(overrealm(e).isLootCollecting()).toBe(false);
+    expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
 
-    // The post-exit S12SwitchFinish that swaps the scene back to the
-    // Netherrealm map must not reach the handler, otherwise it would
-    // cancel the just-armed loot timer.
-    feed(d, e, log.s12Entry);
-    expect(overrealm(e).isLootCollecting()).toBe(true);
-
-    // Timer expires naturally → tracker finishes.
-    vi.advanceTimersByTime(5_100);
+    // Town entry finishes the tracker through ZoneHandler's centralised path.
+    feed(d, e, log.zoneTransition(MAP, TOWN));
     expect(ctx(e).registry.seasonalsSize()).toBe(0);
+    expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'overrealm')).toBe(true);
   });
 
-  it('next map after a completed Overrealm starts a fresh tracker (regression)', () => {
+  it('next map after a completed Overrealm starts a fresh tracker', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
 
     boot(d, e, [{slotId: 1, itemId: 300, quantity: 0}]);
 
-    // --- Map 1: full Overrealm + post-exit map switch + town entry ---
+    // --- Map 1: full Overrealm + town entry ---
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s12Entry);                    // initial entry
-    feed(d, e, log.s12Entry);                    // stage 2 — swallowed
-    feed(d, e, log.s12Entry);                    // stage 3 — swallowed
-    feed(d, e, log.s12Exit);                     // exit signal
-    feed(d, e, log.s12Entry);                    // post-exit map switch — swallowed
-    feed(d, e, log.zoneTransition(MAP, TOWN));   // town finishes the tracker
+    feed(d, e, log.s12Entry);
+    feed(d, e, log.s12Exit);
+    feed(d, e, log.zoneTransition(MAP, TOWN));
 
     expect(ctx(e).registry.seasonalsSize()).toBe(0);
 

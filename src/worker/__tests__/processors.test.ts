@@ -415,24 +415,29 @@ describe('S13Processor', () => {
 // ---------------------------------------------------------------------------
 
 const s12Lines = {
-  entry: '[2026.01.25-12.34.56:789]TLGame: Display: [Game] USceneEffectMgr::S12SwitchFinish success.',
-  exit:  '[2026.01.25-12.34.56:789]TLGame: Display: [Game] gameplay type 8001 received notifyId 101 NotifyData ',
-  // notifyId 102/103/104 fire during a run but are not the exit signal
-  notifyOther: '[2026.01.25-12.34.56:789]TLGame: Display: [Game] gameplay type 8001 received notifyId 104 NotifyData ',
+  // LevelType 25 = Overrealm pact. The LevelMgr@ line fires when the player
+  // loads into it (real entry signal).
+  entry:        '[2026.01.25-12.34.56:789]TLShipping: Display: [Game] LevelMgr@ LevelUid, LevelType, LevelId = 1121406 25 5354',
+  // LevelType 3 = regular Netherrealm map. Fires on exit from Overrealm too —
+  // but we don't act on it (death/abandon handled via town entry).
+  levelTypeMap: '[2026.01.25-12.34.56:789]TLShipping: Display: [Game] LevelMgr@ LevelUid, LevelType, LevelId = 1121406 3 5354',
+  // notifyId 101 = Overrealm completed successfully, arm the loot timer.
+  exit:         '[2026.01.25-12.34.56:789]TLGame: Display: [Game] gameplay type 8001 received notifyId 101 NotifyData ',
+  // notifyId 102/103/104 fire during a run but are not the exit signal.
+  notifyOther:  '[2026.01.25-12.34.56:789]TLGame: Display: [Game] gameplay type 8001 received notifyId 104 NotifyData ',
+  // The S12SwitchFinish line is no longer trusted — fires on both directions
+  // of the visual switch. The processor must NOT react to it.
+  legacySwitch: '[2026.01.25-12.34.56:789]TLGame: Display: [Game] USceneEffectMgr::S12SwitchFinish success.',
 };
 
 describe('S12Processor', () => {
-  // Stateful: the processor tracks outside/inside/looting itself so the
-  // handler only ever sees genuine entries. Fresh instance per test so
-  // state from one case doesn't leak into the next.
-  let proc: S12Processor;
-  beforeEach(() => { proc = new S12Processor(); });
+  const proc = new S12Processor();
 
   it('has correct name', () => {
     expect(proc.name).toBe('s12');
   });
 
-  it('test() matches S12SwitchFinish lines', () => {
+  it('test() matches LevelType-25 entry lines', () => {
     expect(proc.test(s12Lines.entry)).toBe(true);
   });
 
@@ -444,44 +449,31 @@ describe('S12Processor', () => {
     expect(proc.test(lines.bagInit)).toBe(false);
     expect(proc.test(lines.unrelated)).toBe(false);
     expect(proc.test(s12Lines.notifyOther)).toBe(false);
+    expect(proc.test(s12Lines.legacySwitch)).toBe(false);
+    expect(proc.test(s12Lines.levelTypeMap)).toBe(false); // regular-map LevelType 3
   });
 
-  it('emits s12_entry on the first S12SwitchFinish', () => {
+  it('emits s12_entry when LevelType 25 is loaded', () => {
     expect(proc.process(s12Lines.entry)).toEqual({type: 's12_entry'});
   });
 
-  it('swallows S12SwitchFinish lines for in-Overrealm stage transitions', () => {
-    expect(proc.process(s12Lines.entry)).toEqual({type: 's12_entry'});
-    // Stages 2 and 3 fire S12SwitchFinish without intervening exit signal.
-    expect(proc.process(s12Lines.entry)).toBeNull();
-    expect(proc.process(s12Lines.entry)).toBeNull();
-  });
-
-  it('emits s12_exit only when inside (otherwise the notifyId is noise)', () => {
-    // Outside — defensive: ignore.
-    expect(proc.process(s12Lines.exit)).toBeNull();
-    // Enter Overrealm, then exit fires legitimately.
-    proc.process(s12Lines.entry);
+  it('emits s12_exit on the notifyId 101 completion signal', () => {
     expect(proc.process(s12Lines.exit)).toEqual({type: 's12_exit'});
   });
 
-  it('swallows the post-exit S12SwitchFinish (Netherrealm scene switch-back)', () => {
-    // Realistic stream: entry → entry → entry → exit → entry. The 4th
-    // S12SwitchFinish is the engine swapping the scene back to the
-    // Netherrealm map and must NOT be reported as a re-entry.
-    proc.process(s12Lines.entry);            // initial entry
-    proc.process(s12Lines.entry);            // stage transition
-    proc.process(s12Lines.entry);            // stage transition
-    expect(proc.process(s12Lines.exit)).toEqual({type: 's12_exit'});
-    expect(proc.process(s12Lines.entry)).toBeNull(); // post-exit map switch
+  it('ignores LevelType-3 transitions back to the regular map', () => {
+    // Death/abandon AND successful exit both produce a LevelType 3 line.
+    // The processor must not act on it — successful exits surface via
+    // notifyId 101; death/abandon flows through town entry.
+    expect(proc.process(s12Lines.levelTypeMap)).toBeNull();
   });
 
-  it('emits s12_entry again when the player takes a fresh portal after looting', () => {
-    proc.process(s12Lines.entry);
-    proc.process(s12Lines.exit);
-    proc.process(s12Lines.entry);            // post-exit switch — swallowed
-    // Now back in Netherrealm; a real new portal entry is the next event.
-    expect(proc.process(s12Lines.entry)).toEqual({type: 's12_entry'});
+  it('ignores legacy USceneEffectMgr::S12SwitchFinish lines (fires on both directions)', () => {
+    expect(proc.process(s12Lines.legacySwitch)).toBeNull();
+  });
+
+  it('ignores other notifyId values that fire during a run', () => {
+    expect(proc.process(s12Lines.notifyOther)).toBeNull();
   });
 });
 
