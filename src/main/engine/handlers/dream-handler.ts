@@ -24,7 +24,7 @@ export class DreamHandler implements EventHandler {
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
-    if (ctx.phase !== 'tracking' || ctx.paused) return;
+    if (ctx.phase !== 'tracking') return;
     if (event.type !== 'level_type') return;
 
     const oldType = this._levelType;
@@ -32,8 +32,15 @@ export class DreamHandler implements EventHandler {
     if (oldType === event.levelType) return;
 
     if (oldType === LEVEL_TYPE_MAP && event.levelType === LEVEL_TYPE_DREAM) {
+      // Entering Dream is a crediting start — inert while paused (don't spin up
+      // a new tracker that would accrue during the pause). We still tracked the
+      // level_type above so state stays coherent on resume.
+      if (ctx.paused) return;
       ctx.registry.startSeasonal({type: 'dream'}, emit);
     } else if (oldType === LEVEL_TYPE_DREAM && event.levelType === LEVEL_TYPE_MAP) {
+      // Exiting Dream is structural teardown of an active run — must finish even
+      // while paused so the seasonal doesn't hang paused indefinitely. finish()
+      // is idempotent; the tracker is paused so no elapsed accrues either way.
       ctx.registry.seasonal('dream')?.finish();
     }
   }

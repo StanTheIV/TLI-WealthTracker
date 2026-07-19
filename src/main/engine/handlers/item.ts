@@ -66,7 +66,18 @@ export class ItemHandler implements EventHandler {
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
     if (ctx.phase !== 'tracking') return;
-    if (ctx.paused) return;
+
+    // Paused = crediting frozen. bag_update / bag_remove are pure crediting →
+    // skip. A zone_transition is structural, but its buffer holds town deltas
+    // that must not be credited across a pause-time transition, so discard
+    // (not flush) so they can't leak into the next map on resume.
+    if (ctx.paused) {
+      if (event.type === 'zone_transition') {
+        this._clearTimer();
+        this._buffer.clear();
+      }
+      return;
+    }
 
     if (event.type === 'bag_update') {
       const changes = ctx.bag.processUpdate(event.pageId, event.slotId, event.itemId, event.quantity);

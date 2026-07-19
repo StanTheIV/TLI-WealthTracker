@@ -25,6 +25,11 @@ export class LunariaHandler implements EventHandler {
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
+    // Fully paused-guarded: strum starts/resumes/resets and loot-timer refreshes
+    // are all crediting. Lunaria's OWN self-pause (loot expiry between strums)
+    // must survive a session resume — the engine only resumes seasonals IT
+    // paused, so a Lunaria that was self-paused stays paused. Teardown is via
+    // ZoneHandler.finishAll on town entry (runs while paused).
     if (ctx.phase !== 'tracking' || ctx.paused) return;
 
     if (event.type === 'bag_update') {

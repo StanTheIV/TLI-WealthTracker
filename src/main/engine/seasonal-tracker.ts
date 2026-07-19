@@ -81,6 +81,20 @@ export class SeasonalTracker extends Tracker {
     return this._lootTimer?.active ?? false;
   }
 
+  /** Session pause: freeze an in-flight loot window (remaining time kept). */
+  freezeLootTimer(): void {
+    this._lootTimer?.freeze();
+  }
+
+  /** Session resume: continue a frozen loot window with its remaining time,
+   *  republishing the new deadline for the overlay countdown. */
+  unfreezeLootTimer(): void {
+    if (this._lootTimer?.unfreeze()) {
+      const deadline = this._lootTimer.deadline ?? Date.now();
+      this._emit({type: 'loot_window_started', seasonalType: this.seasonalType, deadline, timestamp: Date.now()});
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Lifecycle — Tracker base augmented
   // -------------------------------------------------------------------------
@@ -99,10 +113,15 @@ export class SeasonalTracker extends Tracker {
     this._registry._onSeasonalStateChanged(this, this._emit);
   }
 
-  resumeTracker(): void {
+  /** Resume the tracker. Gameplay reactivation (default) bumps this seasonal
+   *  to newest in the activation order so it becomes the drop owner; a
+   *  mechanical resume (session un-pause) passes reactivate: false to restore
+   *  the pre-pause ownership order untouched. */
+  resumeTracker(opts?: {reactivate?: boolean}): void {
     if (this.active) return;
     this.resume();
-    this._registry._onSeasonalStateChanged(this, this._emit);
+    if (opts?.reactivate === false) this._registry._onSeasonalStateChanged(this, this._emit);
+    else                            this._registry._onSeasonalReactivated(this, this._emit);
   }
 
   private _onLootExpire(): void {
