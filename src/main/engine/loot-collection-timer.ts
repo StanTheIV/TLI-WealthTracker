@@ -28,6 +28,9 @@ export class LootCollectionTimer {
   // The currently scheduled wait — equals durationMs after start()/reset(),
   // shrinks to 80% of itself on each refresh() that actually re-arms.
   private _currentDurationMs: number = 0;
+  // Non-null while frozen by a session pause — holds the remaining window ms
+  // to re-arm with on unfreeze. A frozen window is still a live window.
+  private _frozenRemainingMs: number | null = null;
   private _onExpire:  () => void;
 
   readonly durationMs: number;
@@ -38,7 +41,11 @@ export class LootCollectionTimer {
   }
 
   get active(): boolean {
-    return this._timer !== null;
+    return this._timer !== null || this._frozenRemainingMs !== null;
+  }
+
+  get frozen(): boolean {
+    return this._frozenRemainingMs !== null;
   }
 
   start(): void {
@@ -50,7 +57,7 @@ export class LootCollectionTimer {
    * or null when not active. Useful for surfacing a live countdown.
    */
   get deadline(): number | null {
-    if (!this.active) return null;
+    if (!this.active || this.frozen) return null; // frozen: no meaningful deadline
     return this._startedAt + this._currentDurationMs;
   }
 
@@ -89,6 +96,25 @@ export class LootCollectionTimer {
 
   cancel(): void {
     this._clear();
+    this._frozenRemainingMs = null;
+  }
+
+  /** Session pause: stop the countdown, remembering the remaining window. */
+  freeze(): void {
+    if (this._timer === null || this.frozen) return;
+    const remaining = Math.max(0, this._currentDurationMs - (Date.now() - this._startedAt));
+    this._clear();
+    this._frozenRemainingMs = remaining;
+  }
+
+  /** Session resume: re-arm with the remaining window from freeze().
+   *  Returns true when re-armed (caller can publish the new deadline). */
+  unfreeze(): boolean {
+    if (!this.frozen) return false;
+    const ms = Math.max(this._frozenRemainingMs!, 1);
+    this._frozenRemainingMs = null;
+    this._arm(ms);
+    return true;
   }
 
   private _arm(ms: number): void {

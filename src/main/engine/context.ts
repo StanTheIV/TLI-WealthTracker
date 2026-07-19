@@ -24,11 +24,16 @@ export interface LoadedSessionData {
 export class EngineContext {
   phase:        Phase    = 'idle';
   paused:       boolean  = false;
+  /** Wall-clock ms when a seasonal interlude (Arcana tarot/fight, Vorex
+   *  window/fight zone, map→Sandlord hub) paused the map tracker; null when
+   *  none is in flight. Cross-cutting: Engine.resume() reads it to leave a map
+   *  frozen across a session resume while its interlude is still ongoing.
+   *  See map-interlude.ts. */
+  mapPausedForInterludeAt: number | null = null;
   bag:          BagState = new BagState();
   inMap:        boolean  = false;
   currentScene: string   = '';
   mapCount:     number   = 0;
-  mapStartTime: number   = 0;
 
   /** Cumulative elapsed ms of all completed maps in this session. */
   accumulatedMapTime: number = 0;
@@ -51,11 +56,11 @@ export class EngineContext {
   reset(): void {
     this.phase             = 'idle';
     this.paused            = false;
+    this.mapPausedForInterludeAt = null;
     this.bag.reset();
     this.inMap             = false;
     this.currentScene      = '';
     this.mapCount          = 0;
-    this.mapStartTime      = 0;
     this.accumulatedMapTime = 0;
     this.loadedSession     = null;
     this.activeSessionId   = null;

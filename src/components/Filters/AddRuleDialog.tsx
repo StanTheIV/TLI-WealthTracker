@@ -1,7 +1,7 @@
 import {useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {X} from 'lucide-react';
-import {ITEM_TYPE_CONFIG, ITEM_TYPES} from '@/types/itemType';
+import {ITEM_TYPES} from '@/types/itemType';
 import {FILTER_SCOPES} from '@/types/itemFilter';
 import type {FilterRule, FilterScope, RuleAction, RuleKind} from '@/types/itemFilter';
 import {useItemsStore} from '@/state/itemsStore';
@@ -78,7 +78,7 @@ export default function AddRuleDialog({onConfirm, onClose}: Props) {
   const [matchType, setMatchType] = useState<'by-type' | 'by-item'>('by-type');
   const [itemType,  setItemType]  = useState<string>(ITEM_TYPES[0]);
   const [itemId,    setItemId]    = useState<string>('');
-  const [itemName,  setItemName]  = useState<string>('');
+  const [_itemName, setItemName]  = useState<string>('');
   const [scopes,    setScopes]    = useState<FilterScope[]>([...FILTER_SCOPES]);
 
   const toggleScope = (s: FilterScope) => {

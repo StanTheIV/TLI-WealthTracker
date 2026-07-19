@@ -64,6 +64,9 @@ export class MapMaterialHandler implements EventHandler {
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
+    // Fully paused-guarded: this is analytical spend-tracking, not run lifecycle.
+    // No paused spends should count toward the low-stock watchlist, and there is
+    // no seasonal/map structure to tear down here.
     if (ctx.phase !== 'tracking' || ctx.paused) return;
 
     if (event.type === 'bag_update' || event.type === 'bag_remove') {

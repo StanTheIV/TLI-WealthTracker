@@ -33,6 +33,10 @@ export class OverrealmHandler implements EventHandler {
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
+    // Fully paused-guarded: every event here is crediting or loot-timer
+    // management (start, arm/refresh). Teardown is not structural to THIS
+    // handler — town entry finishes overrealm via ZoneHandler.finishAll, which
+    // runs while paused. Loot timers deliberately keep running through a pause.
     if (ctx.phase !== 'tracking' || ctx.paused) return;
 
     switch (event.type) {

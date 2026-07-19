@@ -15,8 +15,9 @@ beforeEach(() => {
 
 describe('Concurrent seasonals (Overrealm + Lunaria)', () => {
   it('writer attribution + per-tracker FE divergence over a full Netherrealm map', () => {
+    const events: EngineEvent[] = [];
     const d = createDispatcher();
-    const e = createEngine([]);
+    const e = createEngine(events);
 
     boot(d, e, [{slotId: 1, itemId: 9000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP)); // map starts; map is writer
@@ -67,6 +68,17 @@ describe('Concurrent seasonals (Overrealm + Lunaria)', () => {
                       + (snap.dropsBySource!.lunaria?.[9000]   ?? 0)
                       + (snap.dropsBySource!.map?.[9000]       ?? 0);
     expect(sourceTotal).toBe(snap.drops[9000]);
+
+    // Exclusive attribution: each TRACKER's own drops mirror its per-source
+    // bucket exactly — no fan-out. Inspect the finished snapshots.
+    const finished = (kind: string, seasonalType?: string) => events.filter(
+      (ev): ev is Extract<EngineEvent, {type: 'tracker_finished'}> =>
+        ev.type === 'tracker_finished' && ev.tracker.kind === kind
+        && (seasonalType === undefined || ev.tracker.seasonalType === seasonalType),
+    );
+    expect(finished('seasonal', 'overrealm')[0].tracker.drops[9000]).toBe(3); // A + D + E
+    expect(finished('seasonal', 'lunaria')[0].tracker.drops[9000]).toBe(4);   // B + C
+    expect(finished('map')[0].tracker.drops[9000]).toBe(2);                    // F
   });
 
   it('Lunaria tracker finishes via ZoneHandler on town entry while paused', () => {
@@ -85,5 +97,39 @@ describe('Concurrent seasonals (Overrealm + Lunaria)', () => {
 
     expect(ctx(e).registry.seasonalsSize()).toBe(0);
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'lunaria')).toBe(true);
+  });
+});
+
+describe('Ownership follows activation recency, not creation order', () => {
+  it('a re-activated older seasonal takes ownership over a later-created one', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 9000, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+
+    // Lunaria first (created BEFORE overrealm), then goes dormant.
+    feed(d, e, log.s14Strum);
+    vi.advanceTimersByTime(5_100); // loot window expires → lunaria self-pauses
+
+    // Overrealm starts — created later, currently the only active seasonal.
+    feed(d, e, log.s12Entry);
+    feed(d, e, log.bagUpdate(1, 9000, 1)); // +1 → overrealm
+
+    // Fresh strum RE-ACTIVATES lunaria — despite being created first, it is
+    // now the most recently activated and must own the drops.
+    feed(d, e, log.s14Strum);
+    feed(d, e, log.bagUpdate(1, 9000, 3)); // +2 → lunaria (NOT overrealm)
+
+    // Lunaria dormant again → ownership falls back to overrealm.
+    vi.advanceTimersByTime(5_100);
+    feed(d, e, log.bagUpdate(1, 9000, 4)); // +1 → overrealm
+
+    expect(ctx(e).registry.seasonal('overrealm')?.snapshot().drops[9000]).toBe(2);
+    expect(ctx(e).registry.seasonal('lunaria')?.snapshot().drops[9000]).toBe(2);
+
+    const dbs = ctx(e).registry.session!.snapshot().dropsBySource!;
+    expect(dbs.overrealm?.[9000]).toBe(2);
+    expect(dbs.lunaria?.[9000]).toBe(2);
   });
 });

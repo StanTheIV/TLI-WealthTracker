@@ -24,6 +24,8 @@ export class ClockworkHandler implements EventHandler {
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
+    // Fully paused-guarded: all crediting / loot-timer events. Teardown is via
+    // ZoneHandler.finishAll on town entry (runs while paused).
     if (ctx.phase !== 'tracking' || ctx.paused) return;
 
     switch (event.type) {

@@ -62,6 +62,10 @@
     "pauseInTown": {
       "label": "Pause Total timer in town",
       "hint": "When enabled, the Total timer freezes while you're in town so the FE/h rate reflects in-map farming throughput. Map and Seasonal trackers are unaffected. Saved sessions still record full wall-clock time."
+    },
+    "eventFeed": {
+      "label": "Show live event feed on dashboard",
+      "hint": "Adds a real-time log of drops, zone changes and tracker events below the item breakdown."
     }
   },
   "lootTimers": {

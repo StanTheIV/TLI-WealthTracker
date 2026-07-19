@@ -49,14 +49,23 @@ describe('distributeDrop — no filter', () => {
     expect(r.seasonal('vorex')!.snapshot().drops[200]).toBe(2);
   });
 
-  it('distributes to all three trackers simultaneously', () => {
+  it('credits session + the writer only (newest active seasonal owns the drop)', () => {
     const r = makeRegistry();
     r.startMap();
     r.startSeasonal({type: 'dream'}, noEmit);
     r.distributeDrop(50, 7, null);
     expect(r.session!.snapshot().drops[50]).toBe(7);
-    expect(r.map!.snapshot().drops[50]).toBe(7);
+    // Exclusive attribution: dream (the writer) owns it; the map shows nothing.
+    expect(r.map!.snapshot().drops[50]).toBeUndefined();
     expect(r.seasonal('dream')!.snapshot().drops[50]).toBe(7);
+  });
+
+  it('credits the map when no seasonal is active', () => {
+    const r = makeRegistry();
+    r.startMap();
+    r.distributeDrop(50, 7, null);
+    expect(r.session!.snapshot().drops[50]).toBe(7);
+    expect(r.map!.snapshot().drops[50]).toBe(7);
   });
 });
 

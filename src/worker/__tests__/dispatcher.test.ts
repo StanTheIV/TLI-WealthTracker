@@ -54,7 +54,7 @@ describe('Dispatcher', () => {
     d.register({
       name: 'catch-all',
       test: () => true,
-      process: (line) => ({type: 'reader_ready'} as const),
+      process: (_line) => ({type: 'reader_ready'} as const),
     });
     d.register(new BagProcessor());
 

@@ -129,7 +129,16 @@ function createEngine(): Engine {
 
     broadcastToRenderers('engine:event', event);
 
-    if (event.type === 'init_complete' || event.type === 'map_ended') {
+    // Wealth snapshots: session start, each map end, and the end of a
+    // town-started seasonal run (last seasonal finished with no map alive —
+    // such runs emit no map_ended, so without this their income wouldn't hit
+    // the chart until the next map ends). During a normal map+seasonal town
+    // return the map is still alive when seasonals finish, so only map_ended
+    // snapshots — no double datapoint.
+    const seasonalRunEnded =
+      event.type === 'tracker_finished' && event.tracker.kind === 'seasonal'
+      && engine !== null && !engine.hasActiveMapTracker() && !engine.hasActiveSeasonals();
+    if (event.type === 'init_complete' || event.type === 'map_ended' || seasonalRunEnded) {
       wealthRecorder.snapshot();
       const recorded: EngineEvent = {type: 'wealth_recorded', timestamp: Date.now()};
       broadcastToRenderers('engine:event', recorded);

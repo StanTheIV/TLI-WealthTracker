@@ -28,6 +28,8 @@ export default function GeneralTab() {
   const setLowStockThreshold = useSettingsStore(s => s.setLowStockThreshold);
   const pauseTotalTimerInTown    = useSettingsStore(s => s.pauseTotalTimerInTown);
   const setPauseTotalTimerInTown = useSettingsStore(s => s.setPauseTotalTimerInTown);
+  const showEventFeed            = useSettingsStore(s => s.showEventFeed);
+  const setShowEventFeed         = useSettingsStore(s => s.setShowEventFeed);
   const overrealmLootSec    = useSettingsStore(s => s.overrealmLootSec);
   const setOverrealmLootSec = useSettingsStore(s => s.setOverrealmLootSec);
   const carjackLootSec      = useSettingsStore(s => s.carjackLootSec);
@@ -162,6 +164,18 @@ export default function GeneralTab() {
             />
           </label>
           <p className="text-xs text-text-secondary mt-2">{t('tracker.pauseInTown.hint')}</p>
+        </div>
+        <div className="bg-surface rounded-lg p-4 border border-border mb-3">
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <span className="text-sm text-text-primary">{t('tracker.eventFeed.label')}</span>
+            <input
+              type="checkbox"
+              checked={showEventFeed}
+              onChange={e => setShowEventFeed(e.target.checked)}
+              className="w-4 h-4 accent-accent cursor-pointer"
+            />
+          </label>
+          <p className="text-xs text-text-secondary mt-2">{t('tracker.eventFeed.hint')}</p>
         </div>
         <div className="bg-surface rounded-lg p-4 border border-border">
           <div className="flex items-center justify-between mb-2">

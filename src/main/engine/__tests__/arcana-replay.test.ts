@@ -58,4 +58,27 @@ describe('Arcana real-log replay', () => {
     const started = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'arcana');
     expect(started.length).toBe(1);
   });
+
+  it('backed-out mid-minigame: OnPageBackEvent pauses, later Run resumes', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+    boot(d, e, [{slotId: 1, itemId: 200, quantity: 0}]);
+
+    // Exact sequence from run @09.36 (opened, backed out mid-progress, reopened,
+    // then committed to the fight). The back-out is the only genuine close
+    // signal — S9Taro Destory fires on both abandon and commit and is ignored.
+    feed(d, e, T('S9Taro Run'));
+    expect(ctx(e).registry.seasonal('arcana')?.active).toBe(true);
+
+    feed(d, e, T('PageApplyBase@ OnPageBackEvent FuncId = 41700_S9TaroCtrl'));
+    feed(d, e, T('S9Taro Destory')); // still ignored
+    expect(ctx(e).registry.seasonal('arcana')?.active).toBe(false); // paused by the back-out
+
+    feed(d, e, T('S9Taro Run'));      // reopen — resumes
+    feed(d, e, T('S9Challenge Run')); // commit
+    expect(ctx(e).registry.seasonal('arcana')?.active).toBe(true);
+    const started = events.filter(ev => ev.type === 'tracker_started' && ev.tracker.seasonalType === 'arcana');
+    expect(started.length).toBe(1); // one tracker throughout
+  });
 });

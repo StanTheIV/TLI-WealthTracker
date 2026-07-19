@@ -62,7 +62,11 @@ function SeasonalRow({type, snapshot, receivedAt, lootDeadline, isRunning, isPau
   // Hooks must be called per-component, not per-iteration in a parent .map().
   // The stable key={type} on the parent ensures React only remounts when the
   // seasonal appears or disappears, not on every re-render.
-  const elapsed       = useTrackerElapsed(snapshot.elapsed, receivedAt, isRunning);
+  // A paused tracker (active === false, e.g. Lunaria between strums or a
+  // backed-out Arcana minigame) must not extrapolate — its snapshot elapsed is
+  // frozen at the pause point.
+  const running       = isRunning && snapshot.active !== false;
+  const elapsed       = useTrackerElapsed(snapshot.elapsed, receivedAt, running);
   const fe            = useTotalFE(snapshot.drops);
   const countdownSec  = useLootWindowCountdown(lootDeadline);
   const presence      = useAnimatedPresence(true); // mounted ⇒ visible; unmount handles exit
@@ -138,8 +142,14 @@ export default function TrackerPanel() {
   const mapPresence     = useAnimatedPresence(mapTracker !== null);
   const warningPresence = useAnimatedPresence(visibleWarnings.length > 0);
 
+  // The map tracker can be paused independently of the session (e.g. while an
+  // Arcana fight interrupts a map run) — engine emits tracker_update with
+  // active: false. Extrapolating the frozen snapshot would keep the row's
+  // timer ticking through the pause.
+  const mapIsPaused = mapTracker !== null && mapTracker.active === false;
+
   const elapsedMs  = useTrackerElapsed(sessionElapsed, sessionReceivedAt, isRunning);
-  const mapElapsed = useTrackerElapsed(lastMapRef.current?.elapsed ?? 0, mapTrackerReceivedAt, isRunning);
+  const mapElapsed = useTrackerElapsed(lastMapRef.current?.elapsed ?? 0, mapTrackerReceivedAt, isRunning && !mapIsPaused);
 
   const sessionFE  = useTotalFE(sessionDrops);
   const mapFE      = useTotalFE(lastMapRef.current?.drops ?? {});
@@ -196,7 +206,7 @@ export default function TrackerPanel() {
           rateTimeframe={rateTimeframe}
           accentClass="bg-success"
           dim={!mapPresence.shouldRender}
-          paused={isPaused && mapPresence.shouldRender}
+          paused={(isPaused || mapIsPaused) && mapPresence.shouldRender}
         />
 
         {/* Seasonals — one row per active seasonal. Rows can stack when

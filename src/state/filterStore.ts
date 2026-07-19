@@ -38,7 +38,7 @@ function pushToEngine(filters: ItemFilter[]): void {
 // Store
 // ---------------------------------------------------------------------------
 
-export const useFilterStore = create<FilterState & FilterActions>((set, get) => ({
+export const useFilterStore = create<FilterState & FilterActions>((set, _get) => ({
   filters:  [],
   isLoaded: false,
 

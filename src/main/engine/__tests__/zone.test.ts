@@ -1,4 +1,4 @@
-import {describe, it, expect, beforeEach} from 'vitest';
+import {describe, it, expect, beforeEach, vi} from 'vitest';
 import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {EngineContext} from '@/main/engine/context';
 import type {EmitFn} from '@/main/engine/types';
@@ -9,13 +9,12 @@ function makeCtx(): EngineContext {
   return ctx;
 }
 
-const ts = '[2026.01.25-12.34.56:789]';
-
 describe('ZoneHandler', () => {
   let handler: ZoneHandler;
   let ctx: EngineContext;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     handler = new ZoneHandler();
     ctx = makeCtx();
   });
@@ -50,8 +49,10 @@ describe('ZoneHandler', () => {
     const events: Parameters<EmitFn>[0][] = [];
     const emit: EmitFn = (e) => events.push(e);
 
+    // inMap ⇒ a map tracker exists — its elapsed is the authoritative map time.
     ctx.inMap = true;
-    ctx.mapStartTime = Date.now() - 60_000;
+    ctx.registry.startMap();
+    vi.advanceTimersByTime(60_000);
 
     handler.handle(
       {type: 'zone_transition', fromScene: '/Game/Art/Maps/S5_Boss', toScene: 'XZ_YuJinZhiXiBiNanSuo200'},

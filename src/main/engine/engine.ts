@@ -35,6 +35,13 @@ export class Engine {
   private _clockwork:   ClockworkHandler   | null = null;
   private _lunaria:     LunariaHandler     | null = null;
 
+  // Seasonals paused BY the session pause (not those already self-paused for
+  // their own reason — Lunaria between strums, Arcana backed-out minigame).
+  // Only these are resumed on session resume; a self-paused seasonal stays
+  // paused. Maps need no equivalent set — the sole "stay paused" reason is an
+  // ongoing seasonal interlude, captured by ctx.mapPausedForInterludeAt.
+  private _pausedSeasonals = new Set<import('./tracker').SeasonalType>();
+
   constructor(emit: EmitFn) {
     this._emit = emit;
   }
@@ -84,6 +91,7 @@ export class Engine {
 
     for (const h of this._handlers) h.onStop?.(this._ctx);
     this._ctx.reset();
+    this._pausedSeasonals.clear();
   }
 
   /**
@@ -97,6 +105,10 @@ export class Engine {
 
     const now = Date.now();
     const wasPaused = this._ctx.paused;
+
+    // Fresh trackers below — clear pause bookkeeping tied to the torn-down ones.
+    this._pausedSeasonals.clear();
+    this._ctx.mapPausedForInterludeAt = null;
 
     // Tear down map/seasonal trackers so the renderer drops their UI state.
     // Deliberately do NOT emit tracker_finished for the session — that would
@@ -112,7 +124,6 @@ export class Engine {
 
     this._ctx.mapCount           = 0;
     this._ctx.accumulatedMapTime = 0;
-    this._ctx.mapStartTime       = 0;
     this._ctx.activeSessionId    = null;
     this._ctx.activeSessionName  = null;
     this._ctx.loadedSession      = null;
@@ -128,7 +139,6 @@ export class Engine {
 
     if (this._ctx.inMap) {
       this._ctx.mapCount     = 1;
-      this._ctx.mapStartTime = now;
       const map = this._ctx.registry.startMap();
       if (map) {
         if (wasPaused) map.pause();
@@ -147,19 +157,90 @@ export class Engine {
     log.info('engine', `Session reset (inMap=${this._ctx.inMap}, paused=${wasPaused})`);
   }
 
+  /**
+   * Pause the whole run. Freezes ALL live trackers — session, map, and every
+   * active seasonal — plus every in-flight loot window (remaining time kept).
+   * Records exactly which trackers WE paused so resume() only unfreezes those:
+   * a seasonal already self-paused (Lunaria between strums, Arcana backed-out
+   * minigame) or a map paused for a seasonal interlude must NOT be resumed by
+   * a session resume — whoever paused a thing resumes it.
+   */
   pause(): void {
+    if (this._ctx.paused) return;
+    const now = Date.now();
     this._ctx.paused = true;
+
     this._ctx.registry.session?.pause();
+
+    // Pause the map only if WE find it running (it may already be paused for a
+    // seasonal interlude — leave that alone). pauseMap emits tracker_update.
+    if (this._ctx.registry.map?.active) {
+      this._ctx.registry.pauseMap(this._emit);
+    }
+
+    // Pause every currently-active seasonal; remember which so resume() only
+    // resumes these. Self-paused seasonals are skipped (active === false).
+    // Freeze every in-flight loot window regardless — a pause must not eat
+    // the player's collection time.
+    this._pausedSeasonals.clear();
+    for (const t of this._ctx.registry.seasonals()) {
+      if (t.active) {
+        t.pauseTracker();
+        this._pausedSeasonals.add(t.seasonalType);
+      }
+      t.freezeLootTimer();
+    }
+
     if (this._ctx.registry.session) {
-      this._emit({type: 'session_status', status: 'paused', elapsed: this._ctx.registry.session.elapsed(), timestamp: Date.now()});
+      this._emit({type: 'session_status', status: 'paused', elapsed: this._ctx.registry.session.elapsed(), timestamp: now});
     }
   }
 
+  /**
+   * Resume the run. Unfreezes the map (unless it's paused for an ongoing
+   * seasonal interlude) and only the seasonals pause() itself froze — a
+   * self-paused seasonal stays paused. Map-time accounting needs no correction:
+   * the map tracker's own elapsed() is the authority and already excludes
+   * every paused span.
+   */
   resume(): void {
+    if (!this._ctx.paused) return;
+    const now = Date.now();
+
     this._ctx.paused = false;
+
     this._ctx.registry.session?.resume();
+
+    // Map resume policy. A map is left paused across resume ONLY if it's paused
+    // for an ONGOING seasonal interlude (ctx.mapPausedForInterludeAt !== null) —
+    // the interlude owns that pause and resolves it itself. Any other paused map
+    // (paused by us at pause() time, started during the pause, or handed over by
+    // an interlude that ENDED during the pause) is resumed here.
+    //
+    // Map-time accounting no longer depends on mapStartTime shifting — ZoneHandler
+    // reads the map tracker's own elapsed() at town entry, which already excludes
+    // every paused span. We only need to unfreeze the tracker so it accrues again.
+    if (this._ctx.inMap && this._ctx.registry.map && !this._ctx.registry.map.active
+        && this._ctx.mapPausedForInterludeAt === null) {
+      this._ctx.registry.resumeMap(this._emit);
+    }
+
+    // Unfreeze every frozen loot window (remaining time continues), then
+    // resume only the seasonals we paused. Frozen windows can't expire during
+    // a pause, so a self-paused seasonal at pause time is still self-paused
+    // here and correctly stays out of _pausedSeasonals.
+    for (const t of this._ctx.registry.seasonals()) {
+      t.unfreezeLootTimer();
+    }
+    for (const type of this._pausedSeasonals) {
+      // Mechanical resume — restores the pre-pause state without bumping the
+      // seasonal in the activation (ownership) order.
+      this._ctx.registry.seasonal(type)?.resumeTracker({reactivate: false});
+    }
+    this._pausedSeasonals.clear();
+
     if (this._ctx.registry.session) {
-      this._emit({type: 'session_status', status: 'running', elapsed: this._ctx.registry.session.elapsed(), timestamp: Date.now()});
+      this._emit({type: 'session_status', status: 'running', elapsed: this._ctx.registry.session.elapsed(), timestamp: now});
     }
   }
 
@@ -194,6 +275,11 @@ export class Engine {
   /** True iff a map tracker is currently active. */
   hasActiveMapTracker(): boolean {
     return this._ctx.registry.map !== null;
+  }
+
+  /** True iff any seasonal tracker is currently live. */
+  hasActiveSeasonals(): boolean {
+    return this._ctx.registry.seasonalsSize() > 0;
   }
 
   /** Look up a registered handler by its `name` field — primarily a test

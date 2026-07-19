@@ -25,7 +25,7 @@ describe('Lunaria integration', () => {
     expect(events.some(ev => ev.type === 'loot_window_started' && ev.seasonalType === 'lunaria')).toBe(true);
   });
 
-  it('drops after first strum (within loot window) attribute to lunaria', () => {
+  it('drops after first strum credit lunaria only — it owns the window, not the map', () => {
     const d = createDispatcher();
     const e = createEngine([]);
 
@@ -35,8 +35,20 @@ describe('Lunaria integration', () => {
     feed(d, e, log.bagUpdate(1, 1400, 4));
 
     expect(ctx(e).registry.seasonal('lunaria')?.snapshot().drops[1400]).toBe(4);
-    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBe(4);
+    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBeUndefined(); // lunaria owns the window
     expect(ctx(e).registry.session?.snapshot().drops[1400]).toBe(4);
+  });
+
+  it('a strum does NOT pause the map — lunaria is an in-map mechanic', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 1400, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s14Strum);
+
+    expect(ctx(e).registry.map?.active).toBe(true);
+    expect(ctx(e).mapPausedForInterludeAt).toBeNull();
   });
 
   it('loot timer expiry pauses the tracker (does NOT finish it)', () => {
@@ -70,8 +82,9 @@ describe('Lunaria integration', () => {
     feed(d, e, log.bagUpdate(1, 1400, 7)); // +4 while paused — must NOT count for lunaria
 
     expect(ctx(e).registry.seasonal('lunaria')?.snapshot().drops[1400]).toBe(3);
-    // session/map still see the drop
-    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBe(7);
+    // With lunaria self-paused it's no longer the writer — ownership falls
+    // back to the map, so the +4 lands there. Session (umbrella) sees both.
+    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBe(4);
     expect(ctx(e).registry.session?.snapshot().drops[1400]).toBe(7);
   });
 

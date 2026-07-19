@@ -3,7 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {Search, Loader2, Check, X, Lock, LockOpen} from 'lucide-react';
 import {useItemsStore} from '@/state/itemsStore';
 import type {DbItem} from '@/types/electron';
-import {ITEM_TYPES, type ItemType} from '@/types/itemType';
+import {ITEM_TYPES} from '@/types/itemType';
 
 // ---------------------------------------------------------------------------
 // Types

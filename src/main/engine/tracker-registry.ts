@@ -21,6 +21,8 @@ export class TrackerRegistry {
   map:     Tracker | null = null;
 
   private _seasonals:  Map<SeasonalType, SeasonalTracker> = new Map();
+  // ACTIVATION order — start pushes, gameplay reactivation bumps to the end.
+  // writer() scans it from the end for the drop owner.
   private _startOrder: SeasonalType[]                     = [];
   // Writer cache. `undefined` = needs recompute, `null` = no writer.
   private _currentWriter: Source | null | undefined = undefined;
@@ -61,6 +63,25 @@ export class TrackerRegistry {
     this.map = new Tracker('map');
     this._currentWriter = undefined;
     return this.map;
+  }
+
+  /**
+   * Activate a seasonal from a gameplay trigger: start it if absent, wake it
+   * if self-paused (a reactivation — bumps it to newest in the ownership
+   * order). The single entry point for seasonal trigger events.
+   */
+  activateSeasonal(opts: {
+    type:               SeasonalType;
+    ownsBubble?:        boolean;
+    lootDurationMs?:    number;
+    pauseOnLootExpiry?: boolean;
+  }, emit: EmitFn): SeasonalTracker | null {
+    const existing = this._seasonals.get(opts.type);
+    if (existing) {
+      if (!existing.active) existing.resumeTracker();
+      return existing;
+    }
+    return this.startSeasonal(opts, emit);
   }
 
   /**
@@ -127,12 +148,48 @@ export class TrackerRegistry {
     emit({type: 'tracker_update', tracker: tracker.snapshot(), timestamp: Date.now()});
   }
 
+  /** Internal: a seasonal was re-activated by gameplay (e.g. a fresh Lunaria
+   *  strum while an Overrealm run is live). Ownership follows recency of
+   *  ACTIVATION, not creation — bump it to newest in the activation order so
+   *  writer() picks it. Session-resume restores state without calling this. */
+  _onSeasonalReactivated(tracker: SeasonalTracker, emit: EmitFn): void {
+    const type = tracker.seasonalType;
+    const idx = this._startOrder.indexOf(type);
+    if (idx >= 0) {
+      this._startOrder.splice(idx, 1);
+      this._startOrder.push(type);
+    }
+    this._currentWriter = undefined;
+    emit({type: 'tracker_update', tracker: tracker.snapshot(), timestamp: Date.now()});
+  }
+
   // -----------------------------------------------------------------------
   // Fan-out
   // -----------------------------------------------------------------------
 
   isLootContext(): boolean {
     return this.map !== null || this._seasonals.size > 0;
+  }
+
+  /** Pause the active map tracker (e.g. while an Arcana fight interrupts a map
+   *  run). No-op if there's no map or it's already paused. Invalidates the
+   *  writer cache since a paused map can't be the drop writer. Emits a
+   *  tracker_update so the renderer freezes the map row's timer — mirrors
+   *  _onSeasonalStateChanged for seasonal pause/resume. */
+  pauseMap(emit: EmitFn): void {
+    if (!this.map || !this.map.active) return;
+    this.map.pause();
+    this._currentWriter = undefined;
+    emit({type: 'tracker_update', tracker: this.map.snapshot(), timestamp: Date.now()});
+  }
+
+  /** Resume a paused map tracker (e.g. returning to the map after an Arcana
+   *  fight). No-op if there's no map or it's already running. */
+  resumeMap(emit: EmitFn): void {
+    if (!this.map || this.map.active) return;
+    this.map.resume();
+    this._currentWriter = undefined;
+    emit({type: 'tracker_update', tracker: this.map.snapshot(), timestamp: Date.now()});
   }
 
   writer(): Source | null {
@@ -151,6 +208,14 @@ export class TrackerRegistry {
     this._currentWriter = undefined;
   }
 
+  /**
+   * Exclusive single-owner attribution (product decision): a drop belongs to
+   * the writer only — the most recently ACTIVATED live seasonal (start or
+   * gameplay resume, not mere creation order), else the map. Map and other
+   * seasonals show nothing for that window; the session umbrella always
+   * counts it. No filter fall-through: a drop the owner's scope filter
+   * excludes goes to nobody (but the session) — ownership is structural.
+   */
   distributeDrop(itemId: number, change: number, filter: ItemFilterEngine | null): DistributeResult {
     const result: DistributeResult = {
       sessionAccepted:  false,
@@ -163,19 +228,23 @@ export class TrackerRegistry {
       this.session.addDrop(itemId, change);
       result.sessionAccepted = true;
     }
-    if (this.map && (!filter || filter.shouldInclude(itemId, 'map' as FilterScope))) {
-      this.map.addDrop(itemId, change);
-      result.mapChanged = true;
+
+    const w = this.writer();
+    if (w === 'map') {
+      if (this.map && (!filter || filter.shouldInclude(itemId, 'map' as FilterScope))) {
+        this.map.addDrop(itemId, change);
+        result.mapChanged = true;
+      }
+    } else if (w !== null) {
+      const tracker = this._seasonals.get(w);
+      if (tracker && tracker.active && (!filter || filter.shouldInclude(itemId, w as FilterScope))) {
+        tracker.addDrop(itemId, change);
+        result.seasonalsChanged.add(w);
+      }
     }
-    for (const [type, tracker] of this._seasonals) {
-      if (!tracker.active) continue;
-      if (filter && !filter.shouldInclude(itemId, type as FilterScope)) continue;
-      tracker.addDrop(itemId, change);
-      result.seasonalsChanged.add(type);
-    }
-    if (sessionIncluded && this.session) {
-      const w = this.writer();
-      if (w !== null) this.session.addDropToSource(w, itemId, change);
+
+    if (sessionIncluded && this.session && w !== null) {
+      this.session.addDropToSource(w, itemId, change);
     }
     return result;
   }

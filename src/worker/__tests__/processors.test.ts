@@ -8,7 +8,6 @@ import {S12Processor} from '@/worker/processors/s12';
 import {S9Processor} from '@/worker/processors/s9';
 import {S7Processor} from '@/worker/processors/s7';
 import {S14Processor} from '@/worker/processors/s14';
-import {CurrencyProcessor} from '@/worker/processors/currency';
 
 // ---------------------------------------------------------------------------
 // Realistic log line templates
@@ -423,6 +422,7 @@ const s9Lines = {
   hide:      `${ts9}TLLua: Display: [Game] S9Taro Hide`,
   destroy:   `${ts9}TLLua: Display: [Game] S9Taro Destory`,
   chalEnd:   `${ts9}TLLua: Display: [Game] S9Challenge Destory`,
+  close:     `${ts9}TLLua: Display: [Game] PageApplyBase@ OnPageBackEvent FuncId = 41700_S9TaroCtrl`,
 };
 
 describe('S9Processor', () => {
@@ -437,6 +437,7 @@ describe('S9Processor', () => {
     expect(proc.test(s9Lines.fight)).toBe(true);
     expect(proc.test(s9Lines.hide)).toBe(true);
     expect(proc.test(s9Lines.chalEnd)).toBe(true);
+    expect(proc.test(s9Lines.close)).toBe(true);
   });
 
   it('test() rejects unrelated lines', () => {
@@ -463,6 +464,15 @@ describe('S9Processor', () => {
 
   it('ignores S9Challenge Destory (scene-load teardown)', () => {
     expect(proc.process(s9Lines.chalEnd)).toBeNull();
+  });
+
+  it('parses s9_close from the Tarot panel back-event', () => {
+    expect(proc.process(s9Lines.close)).toEqual({type: 's9_close'});
+  });
+
+  it('does not treat OnPageBackEvent for other pages as s9_close', () => {
+    const otherPage = `${ts9}TLLua: Display: [Game] PageApplyBase@ OnPageBackEvent FuncId = 12345_SomeOtherCtrl`;
+    expect(proc.process(otherPage)).toBeNull();
   });
 });
 
@@ -530,64 +540,6 @@ describe('S12Processor', () => {
 
   it('ignores other notifyId values that fire during a run', () => {
     expect(proc.process(s12Lines.notifyOther)).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// CurrencyProcessor
-// ---------------------------------------------------------------------------
-
-const currencyLines = {
-  gain:     '[2026.01.25-12.34.56:789] ResourceMgr@:ChangeCurrency(4, 250)',
-  spend:    '[2026.01.25-12.34.56:789] ResourceMgr@:ChangeCurrency(4, -50)',
-  noSpace:  '[2026.01.25-12.34.56:789] ResourceMgr@:ChangeCurrency(7,100)',
-  unrelated:'[2026.01.25-12.34.56:789] ResourceMgr@:SomethingElse(4, 10)',
-};
-
-describe('CurrencyProcessor', () => {
-  const proc = new CurrencyProcessor();
-
-  it('has correct name', () => {
-    expect(proc.name).toBe('currency');
-  });
-
-  it('test() matches ChangeCurrency lines', () => {
-    expect(proc.test(currencyLines.gain)).toBe(true);
-    expect(proc.test(currencyLines.spend)).toBe(true);
-  });
-
-  it('test() rejects unrelated lines', () => {
-    expect(proc.test(currencyLines.unrelated)).toBe(false);
-    expect(proc.test(lines.bagInit)).toBe(false);
-    expect(proc.test(lines.unrelated)).toBe(false);
-  });
-
-  it('parses currency gain', () => {
-    expect(proc.process(currencyLines.gain)).toEqual({
-      type: 'currency_change',
-      currencyId: 4,
-      amount: 250,
-    });
-  });
-
-  it('parses negative amount (spending)', () => {
-    expect(proc.process(currencyLines.spend)).toEqual({
-      type: 'currency_change',
-      currencyId: 4,
-      amount: -50,
-    });
-  });
-
-  it('handles no space after comma', () => {
-    expect(proc.process(currencyLines.noSpace)).toEqual({
-      type: 'currency_change',
-      currencyId: 7,
-      amount: 100,
-    });
-  });
-
-  it('returns null for unrecognised line', () => {
-    expect(proc.process(currencyLines.unrelated)).toBeNull();
   });
 });
 

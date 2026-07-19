@@ -1,7 +1,7 @@
-import {app, BrowserWindow, ipcMain, dialog, Menu} from 'electron';
+import {app, BrowserWindow, ipcMain, dialog, Menu, screen} from 'electron';
 import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
-import {initDb, itemsCount, itemsImportBatch, settingsGetAll} from './db';
+import {initDb, itemsCount, itemsImportBatch, settingsGetAll, settingsSet} from './db';
 import {initLogger, log} from './logger';
 import type {DbItem} from './db';
 import {registerDbHandlers} from './ipc/db';
@@ -28,12 +28,42 @@ let trackerWindow: BrowserWindow | null = null;
 // Main window
 // ---------------------------------------------------------------------------
 
+const MAIN_MIN_WIDTH  = 800;
+const MAIN_MIN_HEIGHT = 560;
+
+/** True when the rect overlaps at least one display's work area — a saved
+ *  position on a since-disconnected monitor fails this and falls back. */
+function boundsVisibleOnSomeDisplay(x: number, y: number, width: number, height: number): boolean {
+  return screen.getAllDisplays().some(({workArea}) =>
+    x < workArea.x + workArea.width &&
+    x + width > workArea.x &&
+    y < workArea.y + workArea.height &&
+    y + height > workArea.y,
+  );
+}
+
+/** Last-closed main-window bounds from settings, or null when unset/off-screen. */
+function readSavedMainBounds(settings: Record<string, string>) {
+  const x      = parseInt(settings['main_window_x']      ?? '', 10);
+  const y      = parseInt(settings['main_window_y']      ?? '', 10);
+  const width  = parseInt(settings['main_window_width']  ?? '', 10);
+  const height = parseInt(settings['main_window_height'] ?? '', 10);
+  if ([x, y, width, height].some(Number.isNaN)) return null;
+  if (!boundsVisibleOnSomeDisplay(x, y, width, height)) return null;
+  return {x, y, width: Math.max(width, MAIN_MIN_WIDTH), height: Math.max(height, MAIN_MIN_HEIGHT)};
+}
+
 function createMainWindow() {
+  const settings = settingsGetAll();
+  const saved    = readSavedMainBounds(settings);
+
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 720,
-    minWidth: 800,
-    minHeight: 560,
+    width:  saved?.width  ?? 1100,
+    height: saved?.height ?? 720,
+    // Omitting x/y lets Electron center the window (first run / monitor gone).
+    ...(saved ? {x: saved.x, y: saved.y} : {}),
+    minWidth: MAIN_MIN_WIDTH,
+    minHeight: MAIN_MIN_HEIGHT,
     title: 'TLI Tracker',
     backgroundColor: '#0d1117',
     autoHideMenuBar: true,
@@ -44,14 +74,26 @@ function createMainWindow() {
     },
   });
 
+  if (settings['main_window_maximized'] === 'true') mainWindow.maximize();
+
   if (DEV) {
     mainWindow.loadURL(VITE_DEV_SERVER);
   } else {
     mainWindow.loadFile(join(__dirname, '../dist/index.html'));
   }
 
-  // Stop the engine before the window is destroyed so any active session auto-saves.
+  // Stop the engine before the window is destroyed so any active session
+  // auto-saves; persist bounds so the next launch reopens in the same spot
+  // (normal bounds even when closing maximized).
   mainWindow.on('close', () => {
+    if (mainWindow) {
+      const b = mainWindow.getNormalBounds();
+      settingsSet('main_window_x',         String(b.x));
+      settingsSet('main_window_y',         String(b.y));
+      settingsSet('main_window_width',     String(b.width));
+      settingsSet('main_window_height',    String(b.height));
+      settingsSet('main_window_maximized', mainWindow.isMaximized() ? 'true' : 'false');
+    }
     stopEngineForShutdown();
   });
 
@@ -76,14 +118,17 @@ function createTrackerWindow() {
   const settings = settingsGetAll();
   const x = parseInt(settings['tracker_window_x'] ?? '', 10);
   const y = parseInt(settings['tracker_window_y'] ?? '', 10);
+  // Same monitor-gone fallback as the main window: a saved overlay position on
+  // a disconnected display reverts to the default corner.
+  const savedPosValid = !isNaN(x) && !isNaN(y) && boundsVisibleOnSomeDisplay(x, y, 360, 200);
 
   trackerWindow = new BrowserWindow({
     width:     360,
     height:    200,
     minWidth:  TRACKER_MIN_WIDTH,
     minHeight: TRACKER_MIN_HEIGHT,
-    x: isNaN(x) ? TRACKER_DEFAULT_X : x,
-    y: isNaN(y) ? TRACKER_DEFAULT_Y : y,
+    x: savedPosValid ? x : TRACKER_DEFAULT_X,
+    y: savedPosValid ? y : TRACKER_DEFAULT_Y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,

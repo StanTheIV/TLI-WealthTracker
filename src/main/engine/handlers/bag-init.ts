@@ -138,7 +138,9 @@ export class BagInitHandler implements EventHandler {
     const changes = ctx.bag.processResort(entries);
     log.debug('engine', `Resort applied: ${entries.length} slots, ${changes.length} aggregate deltas`);
 
-    // When paused, keep bag state in sync but do not credit/debit trackers.
+    // Structural vs crediting: processResort above (bag-state sync) always runs
+    // so absolute quantities stay correct — but the resulting deltas are
+    // crediting, so while paused we stop here and publish nothing.
     if (ctx.paused) return;
 
     publishDrops(ctx, emit, changes.map(c => [c.itemId, c.change] as const), {lootContext: ctx.registry.isLootContext()});
