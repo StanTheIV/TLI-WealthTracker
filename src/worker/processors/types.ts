@@ -8,7 +8,6 @@ import type {S9Event} from './s9';
 import type {S11Event} from './s11';
 import type {S7Event} from './s7';
 import type {S14Event} from './s14';
-import type {CurrencyEvent} from './currency';
 
 // ---------------------------------------------------------------------------
 // RawEvent — assembled union of all processor event types.
@@ -27,7 +26,6 @@ export type RawEvent =
   | S11Event
   | S7Event
   | S14Event
-  | CurrencyEvent
   | {type: 'reader_ready'}
   | {type: 'reader_error'; message: string}
   | {type: 'worker_log'; logType: 'info' | 'warn' | 'error' | 'debug'; message: string};

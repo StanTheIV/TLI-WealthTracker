@@ -19,7 +19,6 @@ import {S9Processor}       from '@/worker/processors/s9';
 import {S11Processor}      from '@/worker/processors/s11';
 import {S7Processor}       from '@/worker/processors/s7';
 import {S14Processor}      from '@/worker/processors/s14';
-import {CurrencyProcessor} from '@/worker/processors/currency';
 import {Engine}            from '@/main/engine/engine';
 import {BagInitHandler}    from '@/main/engine/handlers/bag-init';
 import {ZoneHandler}       from '@/main/engine/handlers/zone';
@@ -32,9 +31,8 @@ import {LunariaHandler}    from '@/main/engine/handlers/lunaria-handler';
 import {ArcanaHandler}     from '@/main/engine/handlers/arcana-handler';
 import {SandlordHandler}   from '@/main/engine/handlers/sandlord-handler';
 import {ItemHandler}       from '@/main/engine/handlers/item';
-import type {EngineEvent}  from '@/main/engine/types';
+import type {EngineEvent, EmitFn}  from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import type {EmitFn}       from '@/main/engine/types';
 
 // ---------------------------------------------------------------------------
 // Realistic log line fixtures — copied from actual game log format
@@ -74,9 +72,8 @@ export const log = {
 
   s9Minigame: `${ts}TLLua: Display: [Game] S9Taro Run`,
   s9Fight:    `${ts}TLLua: Display: [Game] S9Challenge Run`,
-
-  currency: (id: number, amount: number) =>
-    `${ts} ResourceMgr@:ChangeCurrency(${id}, ${amount})`,
+  // Player backed out of the Tarot Path panel without fighting (real-log marker).
+  s9Close:    `${ts}TLLua: Display: [Game] PageApplyBase@ OnPageBackEvent FuncId = 41700_S9TaroCtrl`,
 };
 
 // ---------------------------------------------------------------------------
@@ -85,7 +82,7 @@ export const log = {
 
 export const TOWN = 'XZ_YuJinZhiXiBiNanSuo200';
 export const MAP  = '/Game/Art/Maps/S5_Boss';
-export const VOREX_REWARD     = '/Game/Art/Season/S13/DiXiaZhenSuo_Reward';
+export const VOREX_REWARD     = '/Game/Art/Season/S13/Maps/DiXiaZhenSuo/DiXiaZhenSuo.DiXiaZhenSuo';
 export const SANDLORD_HUB     = '/Game/Art/Season/S10/Maps/YunDuanLvZhou/YunDuanLvZhou.YunDuanLvZhou';
 export const SANDLORD_SUB_MAP = '/Game/Art/Maps/06SQ/SQ_NvShenQunBai100/SQ_NvShenQunBai100.SQ_NvShenQunBai100';
 export const ARCANA_FIGHT      = '/Game/Art/Season/S9/Maps/SuMingTaLuo/SuMingTaLuo000.SuMingTaLuo000';
@@ -107,7 +104,6 @@ export function createDispatcher(): Dispatcher {
   d.register(new S11Processor());
   d.register(new S7Processor());
   d.register(new S14Processor());
-  d.register(new CurrencyProcessor());
   return d;
 }
 
