@@ -37,8 +37,7 @@
       "lunaria": "Lunaria",
       "arcana": "Arcana"
     },
-    "tooltipIncome": "Einnahmen",
-    "tooltipSeasonalIncome": "Saisonal",
+    "tooltipIncome": "Karte",
     "tooltipCost": "Kosten",
     "tooltipNet": "Netto",
     "tooltipCumulative": "Kumuliert",

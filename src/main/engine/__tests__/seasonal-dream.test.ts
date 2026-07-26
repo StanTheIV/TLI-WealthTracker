@@ -36,7 +36,7 @@ describe('Dream integration', () => {
     expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'dream')).toBe(true);
   });
 
-  it('drops inside Dream credit session and dream only — dream owns them, not the map', () => {
+  it('drops inside Dream credit dream AND the map — dream is in-map', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
@@ -48,7 +48,7 @@ describe('Dream integration', () => {
     feed(d, e, log.bagUpdate(1, 100, 3));
 
     expect(ctx(e).registry.session?.snapshot().drops[100]).toBe(3);
-    expect(ctx(e).registry.map?.snapshot().drops[100]).toBeUndefined(); // dream owns the window
+    expect(ctx(e).registry.map?.snapshot().drops[100]).toBe(3); // drops through
     expect(ctx(e).registry.seasonal('dream')?.snapshot().drops[100]).toBe(3);
   });
 });

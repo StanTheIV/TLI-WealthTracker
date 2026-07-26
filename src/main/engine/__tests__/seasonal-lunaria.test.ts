@@ -25,7 +25,7 @@ describe('Lunaria integration', () => {
     expect(events.some(ev => ev.type === 'loot_window_started' && ev.seasonalType === 'lunaria')).toBe(true);
   });
 
-  it('drops after first strum credit lunaria only — it owns the window, not the map', () => {
+  it('drops after first strum credit lunaria AND the map — lunaria is in-map', () => {
     const d = createDispatcher();
     const e = createEngine([]);
 
@@ -35,8 +35,11 @@ describe('Lunaria integration', () => {
     feed(d, e, log.bagUpdate(1, 1400, 4));
 
     expect(ctx(e).registry.seasonal('lunaria')?.snapshot().drops[1400]).toBe(4);
-    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBeUndefined(); // lunaria owns the window
+    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBe(4); // drops through
     expect(ctx(e).registry.session?.snapshot().drops[1400]).toBe(4);
+    // Breakdown still credits lunaria alone, so slices sum to session FE.
+    expect(ctx(e).registry.session?.snapshot().dropsBySource!.lunaria?.[1400]).toBe(4);
+    expect(ctx(e).registry.session?.snapshot().dropsBySource!.map?.[1400]).toBeUndefined();
   });
 
   it('a strum does NOT pause the map — lunaria is an in-map mechanic', () => {
@@ -82,10 +85,14 @@ describe('Lunaria integration', () => {
     feed(d, e, log.bagUpdate(1, 1400, 7)); // +4 while paused — must NOT count for lunaria
 
     expect(ctx(e).registry.seasonal('lunaria')?.snapshot().drops[1400]).toBe(3);
-    // With lunaria self-paused it's no longer the writer — ownership falls
-    // back to the map, so the +4 lands there. Session (umbrella) sees both.
-    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBe(4);
+    // The map never paused, so it accrued both: the +3 dropped through while
+    // lunaria owned it, and the +4 after lunaria went dormant.
+    expect(ctx(e).registry.map?.snapshot().drops[1400]).toBe(7);
     expect(ctx(e).registry.session?.snapshot().drops[1400]).toBe(7);
+    // Ownership moved to the map when lunaria self-paused.
+    const dbs = ctx(e).registry.session!.snapshot().dropsBySource!;
+    expect(dbs.lunaria?.[1400]).toBe(3);
+    expect(dbs.map?.[1400]).toBe(4);
   });
 
   it('next s14_strum resumes the paused tracker AND re-arms the loot timer', () => {

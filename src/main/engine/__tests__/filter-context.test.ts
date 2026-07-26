@@ -49,15 +49,31 @@ describe('distributeDrop — no filter', () => {
     expect(r.seasonal('vorex')!.snapshot().drops[200]).toBe(2);
   });
 
-  it('credits session + the writer only (newest active seasonal owns the drop)', () => {
+  it('drops through to every live tier (owner seasonal + running map + session)', () => {
     const r = makeRegistry();
     r.startMap();
     r.startSeasonal({type: 'dream'}, noEmit);
     r.distributeDrop(50, 7, null);
     expect(r.session!.snapshot().drops[50]).toBe(7);
-    // Exclusive attribution: dream (the writer) owns it; the map shows nothing.
-    expect(r.map!.snapshot().drops[50]).toBeUndefined();
+    // Dream is an in-map mechanic: the map keeps running, so it also accrues.
+    expect(r.map!.snapshot().drops[50]).toBe(7);
     expect(r.seasonal('dream')!.snapshot().drops[50]).toBe(7);
+    // dropsBySource stays single-owner so the pie still sums to session FE.
+    expect(r.session!.snapshot().dropsBySource!.dream?.[50]).toBe(7);
+    expect(r.session!.snapshot().dropsBySource!.map?.[50]).toBeUndefined();
+  });
+
+  it('does NOT drop through to a map frozen for an interlude', () => {
+    const r = makeRegistry();
+    r.startMap();
+    r.pauseMap(noEmit); // Arcana/Vorex panel, or map→Sandlord hub
+    r.startSeasonal({type: 'arcana'}, noEmit);
+    r.distributeDrop(50, 7, null);
+    expect(r.session!.snapshot().drops[50]).toBe(7);
+    expect(r.map!.snapshot().drops[50]).toBeUndefined();
+    expect(r.seasonal('arcana')!.snapshot().drops[50]).toBe(7);
+    // A frozen map is never the owner either — it would book qty no map saw.
+    expect(r.session!.snapshot().dropsBySource!.map?.[50]).toBeUndefined();
   });
 
   it('credits the map when no seasonal is active', () => {
@@ -158,6 +174,41 @@ describe('distributeDrop — filter on seasonal scope', () => {
     );
     r.distributeDrop(300, 3, filter);
     expect(r.seasonal('vorex')!.snapshot().drops[300]).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scope independence under drop-through
+// ---------------------------------------------------------------------------
+
+describe('distributeDrop — each tier gates on its own scope', () => {
+  it('hiding the seasonal scope still lets the drop through to the map', () => {
+    const r = makeRegistry();
+    r.startMap();
+    r.startSeasonal({type: 'lunaria'}, noEmit);
+    const types = new Map([['300', 'equipment' as const]]);
+    const filter = new ItemFilterEngine(
+      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['lunaria'])],
+      types,
+    );
+    r.distributeDrop(300, 3, filter);
+    expect(r.seasonal('lunaria')!.snapshot().drops[300]).toBeUndefined();
+    expect(r.map!.snapshot().drops[300]).toBe(3);
+    expect(r.session!.snapshot().drops[300]).toBe(3);
+  });
+
+  it('hiding the map scope still credits the owning seasonal', () => {
+    const r = makeRegistry();
+    r.startMap();
+    r.startSeasonal({type: 'lunaria'}, noEmit);
+    const types = new Map([['300', 'equipment' as const]]);
+    const filter = new ItemFilterEngine(
+      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['map'])],
+      types,
+    );
+    r.distributeDrop(300, 3, filter);
+    expect(r.seasonal('lunaria')!.snapshot().drops[300]).toBe(3);
+    expect(r.map!.snapshot().drops[300]).toBeUndefined();
   });
 });
 

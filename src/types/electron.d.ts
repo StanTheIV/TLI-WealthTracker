@@ -3,9 +3,11 @@ import type {FilterRule} from './itemFilter';
 export {};
 
 export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana';
-/** A drop's attribution source for the per-source breakdown pie. 'map' covers
- *  drops where no seasonal was the writer; the SeasonalType variants cover
- *  drops where that seasonal was the newest active tracker. */
+/** A drop's owner for the per-source breakdown pie. 'map' covers drops where
+ *  no seasonal owned the window; the SeasonalType variants cover drops where
+ *  that seasonal was the most recently activated one. Note this is the
+ *  breakdown owner only — under drop-through the map tracker also accrues
+ *  drops owned by an in-map seasonal. */
 export type Source = 'map' | SeasonalType;
 
 export interface TrackerSnapshot {
@@ -57,12 +59,27 @@ export interface DbSession {
   mapCount:      number;
   drops:         Record<string, number>;
   /** Per-source attribution for the source-breakdown pie. Each itemId qty
-   *  appears under exactly one source (newest active tracker at write time),
-   *  so summing per-source totals reproduces session FE. Empty `{}` for
-   *  legacy sessions saved before this column existed — pie falls back to
-   *  per-map-row aggregation in that case. */
+   *  appears under exactly one source (the owner tracker at write time), so
+   *  summing per-source totals reproduces session FE in every attribution era.
+   *  Empty `{}` for legacy sessions saved before this column existed — pie
+   *  falls back to per-map-row aggregation in that case. */
   dropsBySource: Record<Source, Record<string, number>>;
+  /** Which attribution era wrote this session's per-map rows — decides whether
+   *  a parent map row already contains its overlap seasonals' drops. */
+  attribution:   SessionAttribution;
 }
+
+/**
+ * Attribution era of a saved session. Governs how `session_maps` rows combine:
+ *   legacy       — old fan-out engine: parent map rows CONTAIN overlap drops.
+ *   exclusive    — single-owner: parent map rows EXCLUDE overlap drops, so
+ *                  overlap income must be folded back into the parent.
+ *   drop-through — current: parent map rows CONTAIN overlap drops again, and
+ *                  overlap rows are a pure per-seasonal breakdown of them.
+ * Legacy and drop-through share the same sum-across-rows maths (primary rows
+ * only); exclusive is the era needing the fold.
+ */
+export type SessionAttribution = 'legacy' | 'exclusive' | 'drop-through';
 
 /** Per-run breakdown row for a saved session. Written by the engine on every
  *  map exit, on standalone seasonal runs (e.g. Sandlord) that have no
@@ -78,9 +95,10 @@ export interface DbSessionMap {
   /** Non-null for seasonal rows (standalone OR overlap); null for plain map rows. */
   seasonalType: SeasonalType | null;
   /** Non-null only for overlap seasonal rows — points at the `mapIndex` of the
-   *  parent map row whose drops also include this seasonal's drops. Null for
-   *  primary rows (regular maps and standalone seasonals). Sum-across-rows
-   *  aggregations must filter by `parentMapIndex == null` to avoid double-counting. */
+   *  parent map row. Null for primary rows (regular maps and standalone
+   *  seasonals). Whether the parent row also contains these drops depends on
+   *  the session's `attribution` era, so sum-across-rows aggregations must
+   *  branch on it — see SessionAttribution. */
   parentMapIndex: number | null;
 }
 

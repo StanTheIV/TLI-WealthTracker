@@ -192,6 +192,12 @@ export class TrackerRegistry {
     emit({type: 'tracker_update', tracker: this.map.snapshot(), timestamp: Date.now()});
   }
 
+  /**
+   * The drop OWNER — the source label for the session's per-source breakdown.
+   * Most recently ACTIVATED live seasonal (not creation order), else the map.
+   * The map must be `active`: a map frozen for an interlude rejects drops at
+   * Tracker.addDrop, so crediting 'map' would book qty no map row ever saw.
+   */
   writer(): Source | null {
     if (this._currentWriter !== undefined) return this._currentWriter;
     let writer: Source | null = null;
@@ -199,7 +205,7 @@ export class TrackerRegistry {
       const t = this._seasonals.get(this._startOrder[i]);
       if (t && t.active) { writer = this._startOrder[i]; break; }
     }
-    if (writer === null && this.map !== null) writer = 'map';
+    if (writer === null && this.map !== null && this.map.active) writer = 'map';
     this._currentWriter = writer;
     return writer;
   }
@@ -209,12 +215,15 @@ export class TrackerRegistry {
   }
 
   /**
-   * Exclusive single-owner attribution (product decision): a drop belongs to
-   * the writer only — the most recently ACTIVATED live seasonal (start or
-   * gameplay resume, not mere creation order), else the map. Map and other
-   * seasonals show nothing for that window; the session umbrella always
-   * counts it. No filter fall-through: a drop the owner's scope filter
-   * excludes goes to nobody (but the session) — ownership is structural.
+   * Drop-through attribution: a drop credits EVERY live tier it happened
+   * inside, so the map row is a superset of the in-map seasonals running
+   * inside it. `this.map.active` is the whole gate — interludes that aren't
+   * part of playing the map already freeze it (Arcana/Vorex panel+fight,
+   * map→Sandlord hub) and Sandlord's bubble suppresses the map tracker
+   * outright, so their loot never drops through.
+   *
+   * Each tier gates on its own scope filter independently. `dropsBySource`
+   * stays single-owner so the by-source pie still sums to exactly session FE.
    */
   distributeDrop(itemId: number, change: number, filter: ItemFilterEngine | null): DistributeResult {
     const result: DistributeResult = {
@@ -229,22 +238,23 @@ export class TrackerRegistry {
       result.sessionAccepted = true;
     }
 
-    const w = this.writer();
-    if (w === 'map') {
-      if (this.map && (!filter || filter.shouldInclude(itemId, 'map' as FilterScope))) {
-        this.map.addDrop(itemId, change);
-        result.mapChanged = true;
-      }
-    } else if (w !== null) {
-      const tracker = this._seasonals.get(w);
-      if (tracker && tracker.active && (!filter || filter.shouldInclude(itemId, w as FilterScope))) {
+    const owner = this.writer();
+
+    if (owner !== null && owner !== 'map') {
+      const tracker = this._seasonals.get(owner);
+      if (tracker && tracker.active && (!filter || filter.shouldInclude(itemId, owner as FilterScope))) {
         tracker.addDrop(itemId, change);
-        result.seasonalsChanged.add(w);
+        result.seasonalsChanged.add(owner);
       }
     }
 
-    if (sessionIncluded && this.session && w !== null) {
-      this.session.addDropToSource(w, itemId, change);
+    if (this.map && this.map.active && (!filter || filter.shouldInclude(itemId, 'map' as FilterScope))) {
+      this.map.addDrop(itemId, change);
+      result.mapChanged = true;
+    }
+
+    if (sessionIncluded && this.session && owner !== null) {
+      this.session.addDropToSource(owner, itemId, change);
     }
     return result;
   }

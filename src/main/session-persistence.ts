@@ -63,11 +63,11 @@ export class SessionPersistence {
    * Consume a `tracker_finished` event from the engine. Routes by tracker kind:
    *   map      -> buffer a primary map row (seasonalType=null), bumps map index.
    *   seasonal -> standalone (no active map): primary row, bumps map index.
-   *               overlap (active map):       buffer with parentMapIndex set so
-   *                                           aggregations can avoid the
-   *                                           double-counting that would
-   *                                           otherwise occur (drops also live
-   *                                           in the parent map row).
+   *               overlap (active map):       buffer with parentMapIndex set —
+   *                                           under drop-through those drops
+   *                                           also live in the parent map row,
+   *                                           so the overlap row is a per-
+   *                                           seasonal breakdown of it.
    *   session  -> commit (autoSave) and return whether anything was saved.
    *
    * For non-`tracker_finished` events this is a no-op; callers can pipe every
@@ -86,7 +86,8 @@ export class SessionPersistence {
 
     if (tracker.kind === 'seasonal') {
       if (engine.hasActiveMapTracker() && this._lastPrimaryMapIndex > 0) {
-        // Overlap row — drops also live in the parent map row's tracker.
+        // Overlap row — a breakdown of the parent map row, which already
+        // includes these drops (drop-through attribution).
         this._pendingRows.push(this._buildRow(tracker, timestamp, {}, tracker.seasonalType ?? null, this._lastPrimaryMapIndex, this._lastPrimaryMapIndex));
       } else {
         // Standalone seasonal (Sandlord, etc.) — primary row.
@@ -178,6 +179,7 @@ export class SessionPersistence {
       mapCount:  sessionMeta.mapCount,
       drops,
       dropsBySource,
+      attribution: 'drop-through',
     };
 
     if (this._meta.isOverride) sessionsUpdate(record);

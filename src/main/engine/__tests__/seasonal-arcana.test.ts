@@ -89,6 +89,31 @@ describe('Arcana integration', () => {
     expect(ctx(e).registry.map).toBeNull();
   });
 
+  it('map-started arcana does NOT drop through to the frozen map', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 200, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.bagUpdate(1, 200, 2)); // pre-minigame: map loot
+
+    // Opening the panel freezes the map for the whole interlude.
+    feed(d, e, log.s9Minigame);
+    expect(ctx(e).registry.map?.active).toBe(false);
+
+    feed(d, e, log.bagUpdate(1, 200, 6)); // +4 inside the interlude
+
+    expect(ctx(e).registry.seasonal('arcana')?.snapshot().drops[200]).toBe(4);
+    // Frozen map keeps only its own pre-interlude loot — the tarot/fight
+    // reward is not map yield.
+    expect(ctx(e).registry.map?.snapshot().drops[200]).toBe(2);
+    expect(ctx(e).registry.session?.snapshot().drops[200]).toBe(6);
+
+    const dbs = ctx(e).registry.session!.snapshot().dropsBySource!;
+    expect(dbs.map?.[200]).toBe(2);
+    expect(dbs.arcana?.[200]).toBe(4);
+  });
+
   // --- Issue 1: closing the minigame mid-progress pauses the timer ----------
 
   it('s9_close pauses the arcana tracker (kept alive, not finished)', () => {

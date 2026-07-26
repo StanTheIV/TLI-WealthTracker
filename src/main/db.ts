@@ -52,7 +52,8 @@ function createTables(): void {
       map_time        REAL NOT NULL DEFAULT 0,
       map_count       INTEGER NOT NULL DEFAULT 0,
       drops           TEXT NOT NULL DEFAULT '{}',
-      drops_by_source TEXT NOT NULL DEFAULT '{}'
+      drops_by_source TEXT NOT NULL DEFAULT '{}',
+      attribution     TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS seasonal_stats (
@@ -106,6 +107,7 @@ function createTables(): void {
   migrateSessionMaps();
   migrateSessionMapsParent();
   migrateSessionsDropsBySource();
+  migrateSessionsAttribution();
   log.debug('database', 'Tables created');
 }
 
@@ -136,6 +138,17 @@ function migrateSessionMapsParent(): void {
 function migrateSessionsDropsBySource(): void {
   try {
     db.exec("ALTER TABLE sessions ADD COLUMN drops_by_source TEXT NOT NULL DEFAULT '{}'");
+  } catch {
+    // Column already exists — ignore
+  }
+}
+
+/** Existing rows keep attribution='' and are classified at read time from
+ *  drops_by_source (see rowToSession) — backfilling would be a lie, since the
+ *  engine era that wrote them can't be recovered from the row itself. */
+function migrateSessionsAttribution(): void {
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN attribution TEXT NOT NULL DEFAULT ''");
   } catch {
     // Column already exists — ignore
   }
@@ -297,11 +310,28 @@ export interface DbSession {
   mapCount:      number;
   drops:         Record<string, number>;
   /** Per-source attribution for the source-breakdown pie. Each itemId qty
-   *  appears under exactly one source (newest active tracker at write time).
-   *  Empty for legacy sessions saved before this column existed — pie falls
-   *  back to per-map-row aggregation in that case. */
+   *  appears under exactly one source (the owner tracker at write time), so
+   *  slices sum to exactly session FE regardless of attribution era. Empty for
+   *  legacy sessions saved before this column existed — pie falls back to
+   *  per-map-row aggregation in that case. */
   dropsBySource: Record<string, Record<string, number>>;
+  /** Which attribution era wrote this session's per-map rows. Decides whether
+   *  a parent map row already contains its overlap seasonals' drops — see
+   *  SessionAttribution. Never '' after rowToSession normalises it. */
+  attribution:   SessionAttribution;
 }
+
+/**
+ * Attribution era of a saved session. Governs how `session_maps` rows combine:
+ *   legacy       — old fan-out engine: parent map rows CONTAIN overlap drops.
+ *   exclusive    — single-owner: parent map rows EXCLUDE overlap drops, so
+ *                  overlap income must be folded back into the parent.
+ *   drop-through — current: parent map rows CONTAIN overlap drops again, and
+ *                  overlap rows are a pure per-seasonal breakdown of them.
+ * Legacy and drop-through share the same sum-across-rows maths (primary rows
+ * only); exclusive is the era needing the fold.
+ */
+export type SessionAttribution = 'legacy' | 'exclusive' | 'drop-through';
 
 type SessionRow = {
   id:              string;
@@ -312,9 +342,15 @@ type SessionRow = {
   map_count:       number;
   drops:           string;
   drops_by_source: string;
+  attribution:     string;
 };
 
 function rowToSession(r: SessionRow): DbSession {
+  const dropsBySource = JSON.parse(r.drops_by_source ?? '{}');
+  // Rows written before the attribution column: dropsBySource was introduced
+  // together with exclusive attribution, so its presence dates the row.
+  const attribution = (r.attribution || null) as SessionAttribution | null
+    ?? (Object.keys(dropsBySource).length === 0 ? 'legacy' : 'exclusive');
   return {
     id:            r.id,
     name:          r.name,
@@ -323,7 +359,8 @@ function rowToSession(r: SessionRow): DbSession {
     mapTime:       r.map_time,
     mapCount:      r.map_count,
     drops:         JSON.parse(r.drops),
-    dropsBySource: JSON.parse(r.drops_by_source ?? '{}'),
+    dropsBySource,
+    attribution,
   };
 }
 
@@ -334,8 +371,8 @@ export function sessionsGetAll(): DbSession[] {
 
 export function sessionsInsert(session: DbSession): void {
   db.prepare(`
-    INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source)
-    VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource)
+    INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source, attribution)
+    VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource, @attribution)
   `).run({
     ...session,
     drops:         JSON.stringify(session.drops),
@@ -348,7 +385,7 @@ export function sessionsUpdate(session: DbSession): void {
     UPDATE sessions
     SET name = @name, saved_at = @savedAt, total_time = @totalTime,
         map_time = @mapTime, map_count = @mapCount, drops = @drops,
-        drops_by_source = @dropsBySource
+        drops_by_source = @dropsBySource, attribution = @attribution
     WHERE id = @id
   `).run({
     ...session,
@@ -390,10 +427,9 @@ export interface DbSessionMap {
   seasonalType: SeasonalType | null;
   /** Non-null only for "overlap" seasonal rows that ran inside a regular map —
    *  points at the `mapIndex` of the parent map row. Null for primary rows
-   *  (regular maps and standalone seasonals). Drops in an overlap row are
-   *  ALSO present in the parent map row's drops (engine fans drops into both
-   *  trackers); aggregations that sum across rows must filter by parentMapIndex
-   *  to avoid double-counting. */
+   *  (regular maps and standalone seasonals). Whether those drops are ALSO in
+   *  the parent row depends on the session's `attribution` era, so aggregations
+   *  that sum across rows must branch on it — see SessionAttribution. */
   parentMapIndex: number | null;
 }
 

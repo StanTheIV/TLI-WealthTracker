@@ -1,9 +1,10 @@
 /**
  * Concurrent seasonals — Lunaria-during-Overrealm in a Netherrealm map.
  *
- * Load-bearing test for the multi-seasonal refactor: verifies the writer rule
- * attributes each drop to exactly one source, with Lunaria pause/resume
- * transferring writer status correctly to the next-newest active seasonal.
+ * Load-bearing test for the multi-seasonal refactor: verifies drop-through
+ * (both in-map mechanics AND the map accrue) while `dropsBySource` still
+ * attributes each drop to exactly one owner, with Lunaria pause/resume
+ * transferring ownership correctly to the next-newest active seasonal.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent} from '@/main/engine/types';
@@ -69,8 +70,9 @@ describe('Concurrent seasonals (Overrealm + Lunaria)', () => {
                       + (snap.dropsBySource!.map?.[9000]       ?? 0);
     expect(sourceTotal).toBe(snap.drops[9000]);
 
-    // Exclusive attribution: each TRACKER's own drops mirror its per-source
-    // bucket exactly — no fan-out. Inspect the finished snapshots.
+    // Each seasonal TRACKER mirrors its per-source bucket, but the map is a
+    // superset: it never paused (both mechanics are in-map), so it accrued
+    // every drop A–F that dropped through it.
     const finished = (kind: string, seasonalType?: string) => events.filter(
       (ev): ev is Extract<EngineEvent, {type: 'tracker_finished'}> =>
         ev.type === 'tracker_finished' && ev.tracker.kind === kind
@@ -78,7 +80,7 @@ describe('Concurrent seasonals (Overrealm + Lunaria)', () => {
     );
     expect(finished('seasonal', 'overrealm')[0].tracker.drops[9000]).toBe(3); // A + D + E
     expect(finished('seasonal', 'lunaria')[0].tracker.drops[9000]).toBe(4);   // B + C
-    expect(finished('map')[0].tracker.drops[9000]).toBe(2);                    // F
+    expect(finished('map')[0].tracker.drops[9000]).toBe(9);                    // A–F
   });
 
   it('Lunaria tracker finishes via ZoneHandler on town entry while paused', () => {

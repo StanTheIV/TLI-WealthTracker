@@ -193,7 +193,7 @@ describe('Vorex integration', () => {
     expect(ctx(e).mapPausedForInterludeAt).toBeNull();
   });
 
-  it('drops inside Vorex credit session and vorex only — vorex owns them, not the map', () => {
+  it('drops inside Vorex do NOT drop through — the minigame freezes the map', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
@@ -205,7 +205,8 @@ describe('Vorex integration', () => {
     feed(d, e, log.bagUpdate(1, 200, 4));
 
     expect(ctx(e).registry.session?.snapshot().drops[200]).toBe(4);
-    expect(ctx(e).registry.map?.snapshot().drops[200]).toBeUndefined(); // vorex owns the window
+    expect(ctx(e).registry.map?.active).toBe(false);
+    expect(ctx(e).registry.map?.snapshot().drops[200]).toBeUndefined(); // frozen → no drop-through
     expect(ctx(e).registry.seasonal('vorex')?.snapshot().drops[200]).toBe(4);
   });
 });

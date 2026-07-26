@@ -40,6 +40,12 @@ describe('Bubble exclusivity', () => {
     const snap = ctx(e).registry.session!.snapshot();
     expect(snap.dropsBySource?.sandlord?.[9100]).toBe(5);
     expect(snap.dropsBySource?.overrealm?.[9100]).toBeUndefined();
+
+    // Sandlord is own-area: the map→hub transition froze the map, so hub loot
+    // does NOT drop through to it.
+    expect(ctx(e).registry.map?.active).toBe(false);
+    expect(ctx(e).registry.map?.snapshot().drops[9100]).toBeUndefined();
+    expect(snap.dropsBySource?.map?.[9100]).toBeUndefined();
   });
 
   it('non-bubble seasonal start while a bubble is active is silently ignored', () => {

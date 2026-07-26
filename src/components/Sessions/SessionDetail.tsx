@@ -11,7 +11,7 @@ import {useItemsStore} from '@/state/itemsStore';
 import {useTracking} from '@/state/TrackingContext';
 import {useTheme} from '@/theme/ThemeContext';
 import {ITEM_TYPES, type ItemType} from '@/types/itemType';
-import type {DbSession, DbSessionMap, Source} from '@/types/electron';
+import type {DbSession, DbSessionMap, SeasonalType, SessionAttribution, Source} from '@/types/electron';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
 import {formatDate, formatDuration} from './SessionsTable';
 
@@ -78,10 +78,15 @@ interface PerMapDatum {
   lastIndex:      number;
   /** Display label for the X axis: "42" or "41–50". */
   xLabel:         string;
-  /** Income from regular map runs in this bucket (positive). */
+  /** Income from regular map runs in this bucket, EXCLUDING any in-map seasonal
+   *  income split out below (positive). */
   mapIncome:      number;
-  /** Income from standalone seasonal runs (e.g. Sandlord) in this bucket (positive). */
+  /** Income from seasonal runs in this bucket — standalone (e.g. Sandlord) plus
+   *  in-map seasonals split out of their parent map row (positive). */
   seasonalIncome: number;
+  /** seasonalIncome broken down by mechanic, for the tooltip. Only types that
+   *  actually contributed appear. */
+  bySeasonal:     Partial<Record<SeasonalType, number>>;
   /** Map-material cost across all runs in the bucket — negated so it stacks below 0. */
   cost:           number;
   /** Running cumulative net (income − cost summed up to and including this bucket). */
@@ -107,9 +112,13 @@ function PerMapTooltip({active, payload}: {active?: boolean; payload?: PerMapToo
       {d.mapIncome > 0 && (
         <p className="font-mono text-success">{t('details.tooltipIncome')}: +{formatFEFull(d.mapIncome)}</p>
       )}
-      {d.seasonalIncome > 0 && (
-        <p className="font-mono text-gold">{t('details.tooltipSeasonalIncome')}: +{formatFEFull(d.seasonalIncome)}</p>
-      )}
+      {Object.entries(d.bySeasonal)
+        .sort((a, b) => b[1] - a[1])
+        .map(([type, income]) => (
+          <p key={type} className="font-mono text-gold">
+            {t(`details.source.${type}` as never)}: +{formatFEFull(income)}
+          </p>
+        ))}
       <p className="font-mono text-danger">{t('details.tooltipCost')}: {formatFEFull(d.cost)}</p>
       <p className={`font-mono font-semibold ${net >= 0 ? 'text-gold' : 'text-danger'}`}>
         {t('details.tooltipNet')}: {net >= 0 ? '+' : ''}{formatFEFull(net)}
@@ -121,7 +130,11 @@ function PerMapTooltip({active, payload}: {active?: boolean; payload?: PerMapToo
   );
 }
 
-function PerMapBarChart({maps, prices, legacy}: {maps: DbSessionMap[]; prices: Record<string, number>; legacy: boolean}) {
+function PerMapBarChart({maps, prices, attribution}: {
+  maps:        DbSessionMap[];
+  prices:      Record<string, number>;
+  attribution: SessionAttribution;
+}) {
   const {t}   = useTranslation('sessions');
   const theme = useTheme();
 
@@ -129,23 +142,25 @@ function PerMapBarChart({maps, prices, legacy}: {maps: DbSessionMap[]; prices: R
     const primary = maps.filter(m => m.parentMapIndex == null);
     if (primary.length === 0) return [];
 
-    // Overlap seasonal rows (parentMapIndex set): under exclusive attribution
-    // the parent map row does NOT contain the seasonal's drops, so each
-    // overlap row's income is folded into its parent bucket as seasonalIncome.
-    // Legacy sessions (old fan-out engine — detected by the caller via empty
-    // dropsBySource) double-store those drops inside the parent map row, so
-    // folding would double-count: for them, primary rows already tell the
-    // whole story and overlap rows stay ignored.
-    const overlapIncome = new Map<number, number>();
-    if (!legacy) {
-      for (const m of maps) {
-        if (m.parentMapIndex == null) continue;
-        let income = 0;
-        for (const [id, qty] of Object.entries(m.drops)) {
-          if (qty > 0) income += qty * (prices[id] ?? 0);
-        }
-        overlapIncome.set(m.parentMapIndex, (overlapIncome.get(m.parentMapIndex) ?? 0) + income);
+    // Overlap rows (parentMapIndex set) hold an in-map seasonal's income. How
+    // they combine with the parent map row depends on the era:
+    //   drop-through / legacy — parent row ALREADY includes them, so the
+    //     overlap income is SUBTRACTED from the parent's mapIncome and shown as
+    //     its own seasonal segment. Bar total is unchanged; the split is new.
+    //   exclusive — parent row EXCLUDES them, so overlap income is ADDED on top.
+    const parentContainsOverlap = attribution !== 'exclusive';
+    const overlapBySeasonal = new Map<number, Partial<Record<SeasonalType, number>>>();
+    for (const m of maps) {
+      if (m.parentMapIndex == null) continue;
+      let income = 0;
+      for (const [id, qty] of Object.entries(m.drops)) {
+        if (qty > 0) income += qty * (prices[id] ?? 0);
       }
+      if (income <= 0) continue;
+      const type   = (m.seasonalType ?? 'overrealm') as SeasonalType;
+      const bucket = overlapBySeasonal.get(m.parentMapIndex) ?? {};
+      bucket[type] = (bucket[type] ?? 0) + income;
+      overlapBySeasonal.set(m.parentMapIndex, bucket);
     }
 
     const bucketSize = Math.max(1, Math.ceil(primary.length / MAX_BARS));
@@ -156,6 +171,7 @@ function PerMapBarChart({maps, prices, legacy}: {maps: DbSessionMap[]; prices: R
       let mapIncome      = 0;
       let seasonalIncome = 0;
       let cost           = 0;
+      const bySeasonal: Partial<Record<SeasonalType, number>> = {};
       for (const m of slice) {
         // Income = positive entries in m.drops only. Negative entries are
         // pre-map material spends that ItemHandler flushed into the map
@@ -167,9 +183,26 @@ function PerMapBarChart({maps, prices, legacy}: {maps: DbSessionMap[]; prices: R
           if (qty > 0) rowIncome += qty * (prices[id] ?? 0);
         }
         for (const [id, qty] of Object.entries(m.spent)) cost += qty * (prices[id] ?? 0);
-        if (m.seasonalType !== null) seasonalIncome += rowIncome;
-        else                         mapIncome      += rowIncome;
-        seasonalIncome += overlapIncome.get(m.mapIndex) ?? 0;
+
+        const overlap = overlapBySeasonal.get(m.mapIndex);
+        let overlapTotal = 0;
+        for (const [type, income] of Object.entries(overlap ?? {})) {
+          bySeasonal[type as SeasonalType] = (bySeasonal[type as SeasonalType] ?? 0) + income;
+          overlapTotal += income;
+        }
+        seasonalIncome += overlapTotal;
+
+        if (m.seasonalType !== null) {
+          // Standalone seasonal run (Sandlord, town-started) — the whole row.
+          seasonalIncome += rowIncome;
+          bySeasonal[m.seasonalType] = (bySeasonal[m.seasonalType] ?? 0) + rowIncome;
+        } else if (parentContainsOverlap) {
+          // Clamp: overlap rows are a subset of the parent, but the two were
+          // valued at different times, so float drift could push this negative.
+          mapIncome += Math.max(0, rowIncome - overlapTotal);
+        } else {
+          mapIncome += rowIncome;
+        }
       }
       const firstIndex = slice[0].mapIndex;
       const lastIndex  = slice[slice.length - 1].mapIndex;
@@ -180,12 +213,13 @@ function PerMapBarChart({maps, prices, legacy}: {maps: DbSessionMap[]; prices: R
         xLabel: firstIndex === lastIndex ? `${firstIndex}` : `${firstIndex}–${lastIndex}`,
         mapIncome,
         seasonalIncome,
+        bySeasonal,
         cost: -cost,
         cumulative: runningNet,
       });
     }
     return out;
-  }, [maps, prices, legacy]);
+  }, [maps, prices, attribution]);
 
   if (data.length === 0) {
     return (
@@ -351,10 +385,11 @@ function BySourceTooltip({active, payload}: {active?: boolean; payload?: {payloa
   );
 }
 
-// NOTE: This pie reads `session.dropsBySource` (writer-attribution: each drop
-// counted once, attributed to the newest active tracker at write time). Since
-// the exclusive-attribution change, tracker rows use the SAME single-owner
-// rule, so pie slices and tracker/chart segments agree for new sessions.
+// NOTE: This pie reads `session.dropsBySource` — each drop counted ONCE under
+// its owner, in every attribution era, so slices always sum to session FE. It
+// is deliberately a breakdown of the SESSION, not of the map: under
+// drop-through the map tracker also accrues in-map seasonal drops, so the
+// per-map chart's segments split differently from these slices.
 //
 // Legacy fallback: pre-refactor sessions saved with empty dropsBySource fall
 // back to the old per-map-row aggregation. That logic is correct for the
@@ -633,7 +668,7 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
               <PerMapBarChart
                 maps={maps}
                 prices={prices}
-                legacy={Object.keys(session.dropsBySource ?? {}).length === 0}
+                attribution={session.attribution}
               />
             )}
           </div>

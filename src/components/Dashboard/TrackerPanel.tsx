@@ -54,9 +54,11 @@ interface SeasonalRowProps {
   isRunning:    boolean;
   isPaused:     boolean;
   rateTimeframe: 'hour' | 'minute';
+  /** True when a running map tracker is also accruing this seasonal's drops. */
+  nested:       boolean;
 }
 
-function SeasonalRow({type, snapshot, receivedAt, lootDeadline, isRunning, isPaused, rateTimeframe}: SeasonalRowProps) {
+function SeasonalRow({type, snapshot, receivedAt, lootDeadline, isRunning, isPaused, rateTimeframe, nested}: SeasonalRowProps) {
   const {t} = useTranslation('tracker');
 
   // Hooks must be called per-component, not per-iteration in a parent .map().
@@ -97,6 +99,7 @@ function SeasonalRow({type, snapshot, receivedAt, lootDeadline, isRunning, isPau
         countdownSec={countdownSec}
         dim={dim}
         paused={isPaused}
+        nested={nested}
       />
     </div>
   );
@@ -210,7 +213,9 @@ export default function TrackerPanel() {
         />
 
         {/* Seasonals — one row per active seasonal. Rows can stack when
-            mechanics overlap (e.g. Lunaria-during-Overrealm in Netherrealm). */}
+            mechanics overlap (e.g. Lunaria-during-Overrealm in Netherrealm).
+            Indented while a running map is also accruing their drops, so the
+            Map row reads as the total and these as its "of which" split. */}
         {Array.from(seasonalTrackers.entries()).map(([type, snapshot]) => (
           <SeasonalRow
             key={type}
@@ -221,6 +226,7 @@ export default function TrackerPanel() {
             isRunning={isRunning}
             isPaused={isPaused}
             rateTimeframe={rateTimeframe}
+            nested={mapTracker !== null && !mapIsPaused}
           />
         ))}
 
