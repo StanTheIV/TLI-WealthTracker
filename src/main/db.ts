@@ -53,7 +53,8 @@ function createTables(): void {
       map_count       INTEGER NOT NULL DEFAULT 0,
       drops           TEXT NOT NULL DEFAULT '{}',
       drops_by_source TEXT NOT NULL DEFAULT '{}',
-      attribution     TEXT NOT NULL DEFAULT ''
+      attribution     TEXT NOT NULL DEFAULT '',
+      price_snapshot  TEXT NOT NULL DEFAULT '{}'
     );
 
     CREATE TABLE IF NOT EXISTS seasonal_stats (
@@ -108,6 +109,7 @@ function createTables(): void {
   migrateSessionMapsParent();
   migrateSessionsDropsBySource();
   migrateSessionsAttribution();
+  migrateSessionsPriceSnapshot();
   log.debug('database', 'Tables created');
 }
 
@@ -149,6 +151,18 @@ function migrateSessionsDropsBySource(): void {
 function migrateSessionsAttribution(): void {
   try {
     db.exec("ALTER TABLE sessions ADD COLUMN attribution TEXT NOT NULL DEFAULT ''");
+  } catch {
+    // Column already exists — ignore
+  }
+}
+
+/** Existing rows keep price_snapshot='{}', which readers treat as "no snapshot"
+ *  and fall back to live prices for. Backfilling from today's prices would be a
+ *  lie — it would claim the session was worth at save time what it is worth now,
+ *  which is the exact drift the snapshot exists to expose. */
+function migrateSessionsPriceSnapshot(): void {
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN price_snapshot TEXT NOT NULL DEFAULT '{}'");
   } catch {
     // Column already exists — ignore
   }
@@ -319,6 +333,11 @@ export interface DbSession {
    *  a parent map row already contains its overlap seasonals' drops — see
    *  SessionAttribution. Never '' after rowToSession normalises it. */
   attribution:   SessionAttribution;
+  /** Item prices captured at save time, keyed by itemId. Lets the detail page
+   *  show what the haul was worth *then* alongside what it is worth now.
+   *  Empty for sessions saved before this column existed — readers must treat
+   *  `{}` as "no snapshot" and fall back to live prices rather than 0. */
+  priceSnapshot: Record<string, number>;
 }
 
 /**
@@ -343,6 +362,7 @@ type SessionRow = {
   drops:           string;
   drops_by_source: string;
   attribution:     string;
+  price_snapshot:  string;
 };
 
 function rowToSession(r: SessionRow): DbSession {
@@ -361,6 +381,7 @@ function rowToSession(r: SessionRow): DbSession {
     drops:         JSON.parse(r.drops),
     dropsBySource,
     attribution,
+    priceSnapshot: JSON.parse(r.price_snapshot ?? '{}'),
   };
 }
 
@@ -371,12 +392,13 @@ export function sessionsGetAll(): DbSession[] {
 
 export function sessionsInsert(session: DbSession): void {
   db.prepare(`
-    INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source, attribution)
-    VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource, @attribution)
+    INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source, attribution, price_snapshot)
+    VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource, @attribution, @priceSnapshot)
   `).run({
     ...session,
     drops:         JSON.stringify(session.drops),
     dropsBySource: JSON.stringify(session.dropsBySource),
+    priceSnapshot: JSON.stringify(session.priceSnapshot ?? {}),
   });
 }
 
@@ -385,12 +407,14 @@ export function sessionsUpdate(session: DbSession): void {
     UPDATE sessions
     SET name = @name, saved_at = @savedAt, total_time = @totalTime,
         map_time = @mapTime, map_count = @mapCount, drops = @drops,
-        drops_by_source = @dropsBySource, attribution = @attribution
+        drops_by_source = @dropsBySource, attribution = @attribution,
+        price_snapshot = @priceSnapshot
     WHERE id = @id
   `).run({
     ...session,
     drops:         JSON.stringify(session.drops),
     dropsBySource: JSON.stringify(session.dropsBySource),
+    priceSnapshot: JSON.stringify(session.priceSnapshot ?? {}),
   });
 }
 

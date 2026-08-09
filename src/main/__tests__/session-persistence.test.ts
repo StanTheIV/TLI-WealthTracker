@@ -77,6 +77,27 @@ describe('SessionPersistence.onTrackerFinished', () => {
     });
   });
 
+  it('a standalone seasonal keeps its entry cost (no map row exists to carry it)', () => {
+    const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
+    const engine = makeEngine({hasMap: false, spends: {'42': 2}});
+
+    p.onTrackerFinished(trackerFinished('seasonal', {200: 1}, 30_000, 'sandlord'), engine);
+
+    expect(pendingRows(p)[0].spent).toEqual({'42': 2});
+  });
+
+  it('an overlap seasonal records no spend — its parent map row owns the cost', () => {
+    const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
+    const engine = makeEngine({hasMap: true, spends: {'42': 2}});
+
+    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), engine);
+    p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), engine);
+
+    const rows = pendingRows(p);
+    expect(rows[0].spent).toEqual({'42': 2});
+    expect(rows[1].spent).toEqual({});
+  });
+
   it('buffers an overlap seasonal (active map) pointing at the parent mapIndex', () => {
     const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
 

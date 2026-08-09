@@ -67,6 +67,10 @@ export interface DbSession {
   /** Which attribution era wrote this session's per-map rows — decides whether
    *  a parent map row already contains its overlap seasonals' drops. */
   attribution:   SessionAttribution;
+  /** Item prices frozen at save time, keyed by itemId. Empty `{}` for sessions
+   *  saved before this column existed — readers must treat that as "no
+   *  snapshot" and fall back to live prices, never to 0. */
+  priceSnapshot: Record<string, number>;
 }
 
 /**

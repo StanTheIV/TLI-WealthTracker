@@ -1,4 +1,4 @@
-import {sessionsInsert, sessionsUpdate, sessionMapsInsert} from './db';
+import {sessionsInsert, sessionsUpdate, sessionMapsInsert, itemsGetAll} from './db';
 import type {DbSession, DbSessionMap} from './db';
 import type {EngineEvent} from '@/types/electron';
 import type {Engine} from './engine/engine';
@@ -90,9 +90,12 @@ export class SessionPersistence {
         // includes these drops (drop-through attribution).
         this._pendingRows.push(this._buildRow(tracker, timestamp, {}, tracker.seasonalType ?? null, this._lastPrimaryMapIndex, this._lastPrimaryMapIndex));
       } else {
-        // Standalone seasonal (Sandlord, etc.) — primary row.
+        // Standalone seasonal (Sandlord, etc.) — primary row. It owns its entry
+        // cost: ItemHandler records the pre-map flush on any transition into a
+        // loot context, and a town -> hub entry is one, so no map row exists to
+        // carry the spend.
         const mapIndex = ++this._lastPrimaryMapIndex;
-        this._pendingRows.push(this._buildRow(tracker, timestamp, {}, tracker.seasonalType ?? null, mapIndex, null));
+        this._pendingRows.push(this._buildRow(tracker, timestamp, engine.getLastMapSpends(), tracker.seasonalType ?? null, mapIndex, null));
       }
       return null;
     }
@@ -142,6 +145,26 @@ export class SessionPersistence {
   }
 
   /**
+   * Freeze current prices for every item this session touched. Consumed
+   * materials live in the rows' `spent` and are often disjoint from `drops`.
+   * Zero-priced items are skipped — indistinguishable from absent to a reader,
+   * and both degrade to the live price.
+   */
+  private _capturePrices(drops: Record<string, number>): Record<string, number> {
+    const needed = new Set(Object.keys(drops));
+    for (const row of this._pendingRows) {
+      for (const id of Object.keys(row.spent)) needed.add(id);
+    }
+    if (needed.size === 0) return {};
+
+    const out: Record<string, number> = {};
+    for (const item of itemsGetAll()) {
+      if (needed.has(item.id) && item.price > 0) out[item.id] = item.price;
+    }
+    return out;
+  }
+
+  /**
    * Persist the just-finished session and any buffered per-run rows.
    * Returns the saved id, or null if the run was below MIN_SAVE_DURATION_MS
    * with no drops (a discarded short run).
@@ -180,6 +203,7 @@ export class SessionPersistence {
       drops,
       dropsBySource,
       attribution: 'drop-through',
+      priceSnapshot: this._capturePrices(drops),
     };
 
     if (this._meta.isOverride) sessionsUpdate(record);
