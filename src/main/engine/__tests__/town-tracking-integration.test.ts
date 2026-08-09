@@ -28,6 +28,8 @@ import type {EngineContext} from '@/main/engine/context';
 
 const TOWN_SCENE = 'XZ_YuJinZhiXiBiNanSuo200';
 const MAP_SCENE  = '/Game/Art/Maps/S5_Boss';
+/** Matches SANDLORD_HUB_MARKER in sandlord-handler.ts. */
+const SANDLORD_HUB_SCENE = '/Game/Art/Maps/YunDuanLvZhou';
 
 const ITEM_MATERIAL = 100; // map-creation material
 const ITEM_LOOT     = 200; // generic in-map drop
@@ -440,6 +442,47 @@ describe('town-tracking integration', () => {
 
     // m.drops carries both the negative spend and the positive loot.
     expect(mapAtExit?.drops).toEqual({[ITEM_MATERIAL]: -3, [ITEM_LOOT]: 5});
+  });
+
+  it('a second map entered with nothing bought records no spend (no stale basket)', () => {
+    const events: EngineEvent[] = [];
+    const engine = createEngine(events);
+
+    boot(engine, [
+      {slotId: 1, itemId: ITEM_MATERIAL, quantity: 10},
+      {slotId: 2, itemId: ITEM_LOOT,     quantity: 0},
+    ]);
+
+    // Map 1 consumes 3 material.
+    engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: ITEM_MATERIAL, quantity: 7});
+    engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
+    expect(engine.getLastMapSpends()).toEqual({[String(ITEM_MATERIAL)]: 3});
+    engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
+
+    // Straight back into a map having bought nothing. The snapshot must reset —
+    // inheriting map 1's basket would book the same materials on both rows.
+    engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
+    expect(engine.getLastMapSpends()).toEqual({});
+  });
+
+  it('a town-started seasonal records no spend from the preceding map', () => {
+    const events: EngineEvent[] = [];
+    const engine = createEngine(events);
+
+    boot(engine, [
+      {slotId: 1, itemId: ITEM_MATERIAL, quantity: 10},
+      {slotId: 2, itemId: ITEM_LOOT,     quantity: 0},
+    ]);
+
+    // A map consumes 3 material, then ends.
+    engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: ITEM_MATERIAL, quantity: 7});
+    engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
+    engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
+
+    // Town -> Sandlord hub with an empty bag buffer. The hub run consumed
+    // nothing, so persisting the map's basket against it would double-count.
+    engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: SANDLORD_HUB_SCENE});
+    expect(engine.getLastMapSpends()).toEqual({});
   });
 
   it('mixed town activity: AH listing earlier + map material right before map → only the material attributes', () => {

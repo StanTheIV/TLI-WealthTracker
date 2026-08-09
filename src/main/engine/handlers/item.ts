@@ -102,8 +102,14 @@ export class ItemHandler implements EventHandler {
       // ctx.seasonal / ctx.map / ctx.inMap are already updated. If the buffer
       // holds town-buffered deltas, flush them now — into the freshly-created
       // tracker if we're now in a loot context, otherwise discard.
-      if (this._buffer.size === 0) return;
-      this._flush(ctx, emit, /*recordPreMap*/ ctx.registry.isLootContext());
+      const recordPreMap = ctx.registry.isLootContext();
+      // Nothing buffered means nothing was consumed for THIS run — reset, or the
+      // run inherits its predecessor's basket and double-books the materials.
+      if (this._buffer.size === 0) {
+        if (recordPreMap) this._lastPreMapFlush = new Map();
+        return;
+      }
+      this._flush(ctx, emit, recordPreMap);
     }
   }
 
@@ -127,6 +133,8 @@ export class ItemHandler implements EventHandler {
    *   Snapshots the buffer into `_lastPreMapFlush` so the engine can expose
    *   it as `m.spent`. Immediate in-map flushes (steady-state map looting)
    *   and town-timer flushes (settled activity, discarded) do not record.
+   *   The empty-buffer case is handled by the caller, which clears the
+   *   snapshot so a run that consumed nothing records nothing.
    */
   private _flush(ctx: EngineContext, emit: EmitFn, recordPreMap: boolean): void {
     this._clearTimer();
