@@ -11,7 +11,7 @@
  */
 import {describe, it, expect} from 'vitest';
 import {SessionPersistence} from '@/main/session-persistence';
-import type {EngineEvent} from '@/types/electron';
+import type {EngineEvent, SeasonalPhase, SeasonalType} from '@/types/electron';
 import type {Engine} from '@/main/engine/engine';
 import type {DbSessionMap} from '@/main/db';
 
@@ -26,13 +26,14 @@ function trackerFinished(
   kind: 'session' | 'map' | 'seasonal',
   drops: Record<number, number>,
   elapsed: number,
-  seasonalType?: 'overrealm' | 'sandlord' | 'clockwork' | 'carjack' | 'vorex' | 'dream',
+  seasonalType?: SeasonalType,
   timestamp = 1_000_000,
+  phase?: SeasonalPhase,
 ): Extract<EngineEvent, {type: 'tracker_finished'}> {
   return {
     type:      'tracker_finished',
     timestamp,
-    tracker:   {kind, drops, elapsed, active: true, ...(seasonalType ? {seasonalType} : {})},
+    tracker:   {kind, drops, elapsed, active: true, ...(seasonalType ? {seasonalType} : {}), ...(phase ? {phase} : {})},
   };
 }
 
@@ -134,6 +135,51 @@ describe('SessionPersistence.onTrackerFinished', () => {
       {mi: 2, st: null,        p: null},
       {mi: 3, st: 'sandlord',  p: null},
     ]);
+  });
+
+  it("carries a snapshot's phase onto the buffered row (in-map sandlord)", () => {
+    const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
+
+    // Map runs first, then the in-map sandlord coin tile finishes inside it.
+    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    p.onTrackerFinished(
+      trackerFinished('seasonal', {200: 4}, 15_000, 'sandlord', 1_000_000, 'map'),
+      makeEngine({hasMap: true}),
+    );
+
+    const rows = pendingRows(p);
+    expect(rows[0].phase).toBe(null);
+    expect(rows[1]).toMatchObject({
+      mapIndex:       1,
+      seasonalType:   'sandlord',
+      parentMapIndex: 1,
+      phase:          'map',
+    });
+  });
+
+  it("carries phase 'hub' onto a standalone sandlord row", () => {
+    const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
+
+    p.onTrackerFinished(
+      trackerFinished('seasonal', {200: 1}, 30_000, 'sandlord', 1_000_000, 'hub'),
+      makeEngine({hasMap: false}),
+    );
+
+    expect(pendingRows(p)[0]).toMatchObject({
+      mapIndex:       1,
+      seasonalType:   'sandlord',
+      parentMapIndex: null,
+      phase:          'hub',
+    });
+  });
+
+  it('a snapshot without phase buffers phase null (non-sandlord seasonals, map rows)', () => {
+    const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
+
+    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
+
+    expect(pendingRows(p).map(r => r.phase)).toEqual([null, null]);
   });
 
   it('discard() resets pending rows and primary-index counter', () => {

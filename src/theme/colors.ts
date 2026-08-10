@@ -14,6 +14,9 @@ export interface Theme {
   buttonText:      string;
   danger:          string;
   success:         string;
+  // Hunting mechanic accent — olive, deliberately distinct from danger so a
+  // hunting bar never reads as an error state.
+  hunt:            string;
   // Per-item-type accent palette used by the Sessions chart breakdown.
   typeEmber:       string;
   typeFuel:        string;
@@ -40,6 +43,7 @@ export const darkTheme: Theme = {
   buttonText:      '#ffffff',
   danger:          '#d94f4f',
   success:         '#3dbf7a',
+  hunt:            '#a4b83c',
   typeEmber:       '#e85a8b',
   typeFuel:        '#e8a23a',
   typeDream:       '#8a6dff',
@@ -65,6 +69,7 @@ export const lightTheme: Theme = {
   buttonText:      '#ffffff',
   danger:          '#b83030',
   success:         '#2a9a5e',
+  hunt:            '#6f8414',
   // Light-mode equivalents — slightly darker so they read on parchment.
   typeEmber:       '#c43d70',
   typeFuel:        '#b87410',

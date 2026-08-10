@@ -8,6 +8,8 @@ import {S12Processor} from '@/worker/processors/s12';
 import {S9Processor} from '@/worker/processors/s9';
 import {S7Processor} from '@/worker/processors/s7';
 import {S14Processor} from '@/worker/processors/s14';
+import {S10Processor} from '@/worker/processors/s10';
+import {HuntingProcessor} from '@/worker/processors/hunting';
 
 // ---------------------------------------------------------------------------
 // Realistic log line templates
@@ -634,5 +636,139 @@ describe('S14Processor', () => {
 
   it('parses s14_strum from S14GameplayStart action', () => {
     expect(proc.process(s14Lines.strum)).toEqual({type: 's14_strum'});
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S10Processor (Sandlord — in-map coin tile)
+// ---------------------------------------------------------------------------
+
+const ts10 = '[2026.08.09-08.33.32:619][249]';
+
+/** Every S10 tile marker surfaces as the same missing-DataTable warning. */
+function s10Line(marker: string): string {
+  return `${ts10}LogDataTable: Warning: UDataTable::FindRow : '${marker}' requested row '${marker}' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`;
+}
+
+const s10Lines = {
+  tile:           s10Line('Play_Obj_Season_S10_Machine_Normal_Lp'),
+  wavePaLu:       s10Line('Play_Obj_Season_S10_Machine_PaLu_Active_Lp'),
+  waveResource:   s10Line('Play_Obj_Season_S10_Machine_Resource_Active_Lp'),
+  quenchPaLu:     s10Line('Play_Obj_Season_S10_Machine_PaLu_Quench'),
+  quenchResource: s10Line('Play_Obj_Season_S10_Machine_Resource_Quench'),
+  // Mob-landing markers — the per-round wave signal (a Machine_*_Active fires
+  // only once per machine, so landings are what attest further rounds).
+  landWuZhuangZhe: s10Line('Play_Obj_Season_S10_WuZhuangZhe_Land'),
+  landLieRen:      s10Line('Play_Obj_Season_S10_LieRen_Land'),
+  // Coin-drop FX under the same prefix — matched by test() but not an event.
+  dropBall: s10Line('Play_Obj_Season_S10_DropBall_Shoot'),
+};
+
+describe('S10Processor', () => {
+  const proc = new S10Processor();
+
+  it('has correct name', () => {
+    expect(proc.name).toBe('s10');
+  });
+
+  it('test() matches every Machine and mob-landing marker', () => {
+    expect(proc.test(s10Lines.tile)).toBe(true);
+    expect(proc.test(s10Lines.wavePaLu)).toBe(true);
+    expect(proc.test(s10Lines.waveResource)).toBe(true);
+    expect(proc.test(s10Lines.quenchPaLu)).toBe(true);
+    expect(proc.test(s10Lines.quenchResource)).toBe(true);
+    expect(proc.test(s10Lines.landWuZhuangZhe)).toBe(true);
+    expect(proc.test(s10Lines.landLieRen)).toBe(true);
+  });
+
+  it('test() rejects unrelated lines', () => {
+    expect(proc.test(lines.bagInit)).toBe(false);
+    expect(proc.test(lines.zoneToMap)).toBe(false);
+    expect(proc.test(lines.unrelated)).toBe(false);
+  });
+
+  it('parses s10_tile from the Normal_Lp marker', () => {
+    expect(proc.process(s10Lines.tile)).toEqual({type: 's10_tile'});
+  });
+
+  it('parses s10_wave from both Active_Lp variants', () => {
+    expect(proc.process(s10Lines.wavePaLu)).toEqual({type: 's10_wave'});
+    expect(proc.process(s10Lines.waveResource)).toEqual({type: 's10_wave'});
+  });
+
+  it('parses s10_wave from mob-landing markers', () => {
+    expect(proc.process(s10Lines.landWuZhuangZhe)).toEqual({type: 's10_wave'});
+    expect(proc.process(s10Lines.landLieRen)).toEqual({type: 's10_wave'});
+  });
+
+  it('returns null for non-marker S10 audio under the same prefix', () => {
+    expect(proc.process(s10Lines.dropBall)).toBeNull();
+  });
+
+  it('parses s10_quench from both Quench variants', () => {
+    // The variant mirrors whichever Active marker fired last — not a
+    // success/fail distinction, so both map to the same event.
+    expect(proc.process(s10Lines.quenchPaLu)).toEqual({type: 's10_quench'});
+    expect(proc.process(s10Lines.quenchResource)).toEqual({type: 's10_quench'});
+  });
+
+  it('returns null for an unrecognised Machine marker', () => {
+    expect(proc.process(s10Line('Play_Obj_Season_S10_Machine_Something_Else'))).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HuntingProcessor (SixGod — statue + boss arena)
+// ---------------------------------------------------------------------------
+
+const tsHunt = '[2026.08.09-08.33.32:619]';
+
+const huntingLines = {
+  statue:    `${tsHunt}TLLua: Display: [Game] FightMgr:OnGatherEnd logicEtyId 11 cfgId 20004 altlasId -1`,
+  bossStart: `${tsHunt}TLLua: Display: [Game] FightHunting BossStatus1`,
+  bossEnd:   `${tsHunt}TLLua: Display: [Game] FightHunting BossStatus0`,
+  // A different gatherable — same marker, wrong cfgId.
+  otherGather: `${tsHunt}TLLua: Display: [Game] FightMgr:OnGatherEnd logicEtyId 22561 cfgId 22201 altlasId 0`,
+  // Same "SixGod" family, deliberately not keyed on: audio-enum lines.
+  huntAudio: `${tsHunt}TLLua: Display: [Game] AudioMgr@PlayAudio  AudioEnum  == SixGod_Hunt_GameStart`,
+  warAudio:  `${tsHunt}TLLua: Display: [Game] AudioMgr@PlayAudio  AudioEnum  == SixGod_War_GameStart`,
+};
+
+describe('HuntingProcessor', () => {
+  const proc = new HuntingProcessor();
+
+  it('has correct name', () => {
+    expect(proc.name).toBe('hunting');
+  });
+
+  it('test() matches statue and boss-status lines', () => {
+    expect(proc.test(huntingLines.statue)).toBe(true);
+    expect(proc.test(huntingLines.bossStart)).toBe(true);
+    expect(proc.test(huntingLines.bossEnd)).toBe(true);
+  });
+
+  it('test() rejects the SixGod audio-enum lines outright', () => {
+    // The mechanic is keyed on FightHunting/cfgId; SixGod_War is a different
+    // mechanic in the same family and must never reach process().
+    expect(proc.test(huntingLines.huntAudio)).toBe(false);
+    expect(proc.test(huntingLines.warAudio)).toBe(false);
+    expect(proc.test(lines.bagInit)).toBe(false);
+    expect(proc.test(lines.unrelated)).toBe(false);
+  });
+
+  it('parses hunting_statue from the cfgId 20004 gather', () => {
+    expect(proc.process(huntingLines.statue)).toEqual({type: 'hunting_statue'});
+  });
+
+  it('parses hunting_boss_start from BossStatus1', () => {
+    expect(proc.process(huntingLines.bossStart)).toEqual({type: 'hunting_boss_start'});
+  });
+
+  it('parses hunting_boss_end from BossStatus0', () => {
+    expect(proc.process(huntingLines.bossEnd)).toEqual({type: 'hunting_boss_end'});
+  });
+
+  it('ignores gathers of other interactables (different cfgId)', () => {
+    expect(proc.process(huntingLines.otherGather)).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import {useTheme} from '@/theme/ThemeContext';
 import type {SessionAnalytics, TimelineSegment} from '../analytics';
 import {mechanicColors} from './colors';
 import {Swatch} from './primitives';
-import {formatFEFull, formatSeconds, pick, type ValueMode} from './format';
+import {formatFEFull, formatSeconds, mechanicLabel, pick, type ValueMode} from './format';
 
 const COLLAPSED_RUNS = 12;
 
@@ -60,7 +60,7 @@ export default function RunLog({analytics, mode}: {analytics: SessionAnalytics; 
                   <td className={`py-2 px-2.5 text-left whitespace-nowrap ${child ? 'pl-7' : ''}`}>
                     <span className={`inline-flex items-center gap-2 ${child ? 'text-text-secondary' : 'font-semibold'}`}>
                       <Swatch color={colors[seg.mechanic]} />
-                      {child && '↳ '}{t(`details.source.${seg.mechanic}` as never)}
+                      {child && '↳ '}{mechanicLabel(t, seg.mechanic, seg.phase)}
                     </span>
                     {!child && seg.mapIndex === bestIndex && (
                       <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider text-gold border border-gold/40 bg-gold/10 rounded px-1.5 py-px">

@@ -3,9 +3,10 @@
  *
  * The load-bearing rule under test: a seasonal's time is carved out of PLAIN-MAP
  * time only when it ran concurrently with a live map clock. Arcana, Vorex and
- * Sandlord freeze the map, so their time was never inside session.mapTime and
- * must come out of TOWN instead — even though the engine writes them as overlap
- * rows exactly like the concurrent mechanics.
+ * the Sandlord hub freeze the map, so their time was never inside
+ * session.mapTime and must come out of TOWN instead — even though the engine
+ * writes them as overlap rows exactly like the concurrent mechanics. Sandlord's
+ * other phase, the in-map coin tile, IS concurrent while sharing its bucket.
  */
 import {beforeEach, describe, expect, it} from 'vitest';
 import {classifyRows} from '../attribution';
@@ -62,12 +63,66 @@ describe('time attribution by map-concurrency', () => {
   it('treats a map -> hub Sandlord overlap as exclusive, not concurrent', () => {
     const {seconds} = run(
       makeSession({totalTime: 600, mapTime: 300}),
+      [mapRow(300), overlapRow('sandlord', 120, 1, {}, 'hub')],
+    );
+
+    expect(seconds('map')).toBe(300);
+    expect(seconds('sandlord')).toBe(120);
+    expect(seconds('town')).toBe(180);
+  });
+
+  it('treats a phase-null Sandlord overlap as the legacy hub, not the coin tile', () => {
+    // Rows written before in-map tracking existed carry no phase. Reading null
+    // as 'map' would carve hub time out of map time it never occupied.
+    const {seconds} = run(
+      makeSession({totalTime: 600, mapTime: 300}),
       [mapRow(300), overlapRow('sandlord', 120, 1)],
     );
 
     expect(seconds('map')).toBe(300);
     expect(seconds('sandlord')).toBe(120);
     expect(seconds('town')).toBe(180);
+  });
+
+  it('carves the in-map Sandlord coin tile out of plain-map time', () => {
+    const {seconds, pctSum} = run(
+      makeSession({totalTime: 600, mapTime: 300}),
+      [mapRow(300), overlapRow('sandlord', 60, 1, {}, 'map')],
+    );
+
+    expect(seconds('map')).toBe(240);
+    expect(seconds('sandlord')).toBe(60);
+    expect(seconds('town')).toBe(300);
+    expect(pctSum).toBeCloseTo(100, 6);
+  });
+
+  it('sums both Sandlord phases into one bucket while splitting their time', () => {
+    // The point of the feature: the hub's rate can no longer look good by
+    // hiding the coin-farming time that fed it.
+    const {seconds} = run(
+      makeSession({totalTime: 900, mapTime: 300}),
+      [
+        mapRow(300),
+        overlapRow('sandlord', 60, 1, {}, 'map'),
+        overlapRow('sandlord', 120, 1, {}, 'hub'),
+      ],
+    );
+
+    expect(seconds('map')).toBe(240);         // only the coin tile carves here
+    expect(seconds('sandlord')).toBe(180);    // both phases, one bucket
+    expect(seconds('town')).toBe(480);        // 900 - 300 - 120 hub
+  });
+
+  it('carves an in-map Hunting overlap out of plain-map time', () => {
+    const {seconds, pctSum} = run(
+      makeSession({totalTime: 600, mapTime: 300}),
+      [mapRow(300), overlapRow('hunting', 90, 1)],
+    );
+
+    expect(seconds('map')).toBe(210);
+    expect(seconds('hunting')).toBe(90);
+    expect(seconds('town')).toBe(300);
+    expect(pctSum).toBeCloseTo(100, 6);
   });
 
   it('carves a standalone seasonal out of town time', () => {
@@ -219,6 +274,23 @@ describe('value attribution across eras', () => {
     expect(live('map')).toBe(70);
     expect(live('lunaria')).toBe(30);
     expect(result.mechanics.find(m => m.key === 'lunaria')!.runs).toBe(2);
+  });
+
+  it('folds the in-map Sandlord tile out of its parent, but never the hub', () => {
+    // Drop-through only reaches an ACTIVE map: the coin tile's loot landed in
+    // the parent row, the hub's did not.
+    const {live} = run(
+      makeSession(),
+      [
+        mapRow(300, {'1': 100}),
+        overlapRow('sandlord', 60, 1, {'1': 30}, 'map'),
+        mapRow(300, {'1': 100}),
+        overlapRow('sandlord', 60, 3, {'1': 40}, 'hub'),
+      ],
+    );
+
+    expect(live('map')).toBe(170);       // 100 - 30 folded, plus an untouched 100
+    expect(live('sandlord')).toBe(70);
   });
 
   it('assigns town no income, since town drops are discarded upstream', () => {

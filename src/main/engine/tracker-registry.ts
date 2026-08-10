@@ -1,6 +1,6 @@
 import {Tracker} from './tracker';
 import {SeasonalTracker} from './seasonal-tracker';
-import type {SeasonalType, Source} from './tracker';
+import type {SeasonalPhase, SeasonalType, Source} from './tracker';
 import type {EmitFn} from './types';
 import type {ItemFilterEngine} from './item-filter';
 import type {FilterScope} from '@/types/itemFilter';
@@ -73,6 +73,7 @@ export class TrackerRegistry {
   activateSeasonal(opts: {
     type:               SeasonalType;
     ownsBubble?:        boolean;
+    phase?:             SeasonalPhase;
     lootDurationMs?:    number;
     pauseOnLootExpiry?: boolean;
   }, emit: EmitFn): SeasonalTracker | null {
@@ -92,6 +93,7 @@ export class TrackerRegistry {
   startSeasonal(opts: {
     type:               SeasonalType;
     ownsBubble?:        boolean;
+    phase?:             SeasonalPhase;
     lootDurationMs?:    number;
     pauseOnLootExpiry?: boolean;
   }, emit: EmitFn): SeasonalTracker | null {
@@ -115,6 +117,7 @@ export class TrackerRegistry {
       emit,
       type,
       ownsBubble,
+      phase:             opts.phase,
       lootDurationMs:    opts.lootDurationMs,
       pauseOnLootExpiry: opts.pauseOnLootExpiry,
     });

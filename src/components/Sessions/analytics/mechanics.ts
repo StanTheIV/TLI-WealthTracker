@@ -5,7 +5,7 @@ import {ZERO_VAL, addVal, clampVal, perHour, scaleVal, sharePct, subVal} from '.
 
 /** Display order. Town last — it is a residual, not a mechanic. */
 const ORDER: MechanicKey[] = [
-  'map', 'lunaria', 'overrealm', 'carjack', 'clockwork', 'dream',
+  'map', 'lunaria', 'overrealm', 'carjack', 'clockwork', 'dream', 'hunting',
   'sandlord', 'vorex', 'arcana', 'unknown', 'town',
 ];
 

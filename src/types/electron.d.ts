@@ -2,7 +2,11 @@ import type {FilterRule} from './itemFilter';
 
 export {};
 
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana';
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting';
+/** Sandlord runs in two phases sharing one seasonal type: 'map' — the in-map
+ *  coin tile (in-map category, drop-through), 'hub' — the own-area hub bubble.
+ *  Other seasonals leave this unset. */
+export type SeasonalPhase = 'map' | 'hub';
 /** A drop's owner for the per-source breakdown pie. 'map' covers drops where
  *  no seasonal owned the window; the SeasonalType variants cover drops where
  *  that seasonal was the most recently activated one. Note this is the
@@ -15,6 +19,8 @@ export interface TrackerSnapshot {
   drops:         Record<number, number>;
   elapsed:       number;
   seasonalType?: SeasonalType;
+  /** Which Sandlord phase this tracker covers — see SeasonalPhase. */
+  phase?:        SeasonalPhase;
   /** False while the tracker is paused (e.g. Lunaria between strum episodes —
    *  drops won't accrue but the tracker isn't finished). */
   active:        boolean;
@@ -104,6 +110,12 @@ export interface DbSessionMap {
    *  the session's `attribution` era, so sum-across-rows aggregations must
    *  branch on it — see SessionAttribution. */
   parentMapIndex: number | null;
+  /** Sandlord phase for seasonal_type='sandlord' rows: 'map' (in-map coin
+   *  tile — concurrent with the map clock) or 'hub' (own-area hub bubble).
+   *  Null for other rows AND for sandlord rows saved before this column
+   *  existed — readers must treat null as 'hub' (in-map tracking didn't exist
+   *  back then). */
+  phase: SeasonalPhase | null;
 }
 
 export interface DbSeasonalStat {
@@ -180,6 +192,8 @@ interface ElectronAPI {
     setCarjackLootMs:     (ms: number) => void;
     setClockworkLootMs:   (ms: number) => void;
     setLunariaLootMs:     (ms: number) => void;
+    setSandlordWaveMs:    (ms: number) => void;
+    setHuntingLootMs:     (ms: number) => void;
     onEvent:         (cb: (event: EngineEvent) => void) => () => void;
   };
 

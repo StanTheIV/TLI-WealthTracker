@@ -77,16 +77,11 @@ function SeasonalRow({type, snapshot, receivedAt, lootDeadline, isRunning, isPau
   // Reuse the existing "no active map" dim treatment to signal the paused state.
   const dim = snapshot.active === false;
 
-  const label =
-    type === 'dream'     ? t('seasonal.dream')     :
-    type === 'vorex'     ? t('seasonal.vorex')     :
-    type === 'overrealm' ? t('seasonal.overrealm') :
-    type === 'carjack'   ? t('seasonal.carjack')   :
-    type === 'clockwork' ? t('seasonal.clockwork') :
-    type === 'sandlord'  ? t('seasonal.sandlord')  :
-    type === 'lunaria'   ? t('seasonal.lunaria')   :
-    type === 'arcana'    ? t('seasonal.arcana')    :
-    '';
+  // Sandlord's two phases share one seasonal type; only the in-map coin tile is
+  // qualified, so the hub (and a legacy unset phase) reads plain "Sandlord".
+  const label = type === 'sandlord' && snapshot.phase === 'map'
+    ? t('seasonal.sandlordMap')
+    : t(`seasonal.${type}` as never);
 
   return (
     <div className={presence.animClass}>

@@ -1,4 +1,4 @@
-import type {DbItem, DbSession, DbSessionMap, SeasonalType} from '@/types/electron';
+import type {DbItem, DbSession, DbSessionMap, SeasonalPhase, SeasonalType} from '@/types/electron';
 
 export function makeSession(over: Partial<DbSession> = {}): DbSession {
   return {
@@ -32,6 +32,7 @@ export function makeRow(over: Partial<DbSessionMap> = {}): DbSessionMap {
     spent:          {},
     seasonalType:   null,
     parentMapIndex: null,
+    phase:          null,
     ...over,
   };
   const mapIndex = merged.mapIndex ?? nextIndex++;
@@ -47,14 +48,16 @@ export function mapRow(seconds: number, drops: Record<string, number> = {}, spen
   return makeRow({duration: seconds * 1000, drops, spent, mapIndex});
 }
 
-/** An overlap seasonal nested inside `parent`. */
-export function overlapRow(type: SeasonalType, seconds: number, parent: number, drops: Record<string, number> = {}): DbSessionMap {
+/** An overlap seasonal nested inside `parent`. `phase` only applies to
+ *  sandlord; null there means the legacy hub row. */
+export function overlapRow(type: SeasonalType, seconds: number, parent: number, drops: Record<string, number> = {}, phase: SeasonalPhase | null = null): DbSessionMap {
   return makeRow({
     mapIndex:       parent,
     parentMapIndex: parent,
     seasonalType:   type,
     duration:       seconds * 1000,
     drops,
+    phase,
   });
 }
 

@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import {app} from 'electron';
 import {join} from 'path';
 import {log} from './logger';
-import type {SeasonalType} from './engine/tracker';
+import type {SeasonalType, SeasonalPhase} from './engine/tracker';
 
 let db: Database.Database;
 
@@ -97,7 +97,8 @@ function createTables(): void {
       drops            TEXT NOT NULL DEFAULT '{}',
       spent            TEXT NOT NULL DEFAULT '{}',
       seasonal_type    TEXT,
-      parent_map_index INTEGER
+      parent_map_index INTEGER,
+      phase            TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_session_maps_session ON session_maps (session_id);
@@ -107,6 +108,7 @@ function createTables(): void {
   migrateFilters();
   migrateSessionMaps();
   migrateSessionMapsParent();
+  migrateSessionMapsPhase();
   migrateSessionsDropsBySource();
   migrateSessionsAttribution();
   migrateSessionsPriceSnapshot();
@@ -132,6 +134,16 @@ function migrateSessionMaps(): void {
 function migrateSessionMapsParent(): void {
   try {
     db.exec("ALTER TABLE session_maps ADD COLUMN parent_map_index INTEGER");
+  } catch {
+    // Column already exists — ignore
+  }
+}
+
+/** Existing sandlord rows keep phase=NULL, which readers must treat as 'hub':
+ *  in-map sandlord tracking didn't exist when they were written. */
+function migrateSessionMapsPhase(): void {
+  try {
+    db.exec("ALTER TABLE session_maps ADD COLUMN phase TEXT");
   } catch {
     // Column already exists — ignore
   }
@@ -455,13 +467,18 @@ export interface DbSessionMap {
    *  the parent row depends on the session's `attribution` era, so aggregations
    *  that sum across rows must branch on it — see SessionAttribution. */
   parentMapIndex: number | null;
+  /** Sandlord phase for seasonal_type='sandlord' rows: 'map' (in-map coin tile)
+   *  or 'hub' (own-area hub bubble). Null for other rows AND for sandlord rows
+   *  written before this column existed — readers must treat null as 'hub',
+   *  since in-map tracking didn't exist back then. */
+  phase: SeasonalPhase | null;
 }
 
 export function sessionMapsInsert(rows: DbSessionMap[]): void {
   if (rows.length === 0) return;
   const stmt = db.prepare(`
-    INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index)
-    VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType, @parentMapIndex)
+    INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase)
+    VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType, @parentMapIndex, @phase)
   `);
   const tx = db.transaction((rs: DbSessionMap[]) => {
     for (const r of rs) {
@@ -471,6 +488,7 @@ export function sessionMapsInsert(rows: DbSessionMap[]): void {
         spent:          JSON.stringify(r.spent),
         seasonalType:   r.seasonalType,
         parentMapIndex: r.parentMapIndex,
+        phase:          r.phase,
       });
     }
   });
@@ -479,8 +497,8 @@ export function sessionMapsInsert(rows: DbSessionMap[]): void {
 
 export function sessionMapsGetForSession(sessionId: string): DbSessionMap[] {
   const rows = db.prepare(
-    'SELECT session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index FROM session_maps WHERE session_id = ? ORDER BY id ASC'
-  ).all(sessionId) as {session_id: string; map_index: number; started_at: number; duration: number; drops: string; spent: string; seasonal_type: string | null; parent_map_index: number | null}[];
+    'SELECT session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase FROM session_maps WHERE session_id = ? ORDER BY id ASC'
+  ).all(sessionId) as {session_id: string; map_index: number; started_at: number; duration: number; drops: string; spent: string; seasonal_type: string | null; parent_map_index: number | null; phase: string | null}[];
   return rows.map(r => ({
     sessionId:      r.session_id,
     mapIndex:       r.map_index,
@@ -490,6 +508,7 @@ export function sessionMapsGetForSession(sessionId: string): DbSessionMap[] {
     spent:          JSON.parse(r.spent),
     seasonalType:   r.seasonal_type as SeasonalType | null,
     parentMapIndex: r.parent_map_index,
+    phase:          r.phase as SeasonalPhase | null,
   }));
 }
 

@@ -136,8 +136,10 @@
       "carjack": "Carjack",
       "clockwork": "Uhrwerk",
       "sandlord": "Sandlord",
+      "sandlordMap": "Sandlord (Karte)",
       "lunaria": "Lunaria",
-      "arcana": "Arcana"
+      "arcana": "Arcana",
+      "hunting": "Hunting"
     },
     "tooltipIncome": "Karte",
     "tooltipCost": "Kosten",

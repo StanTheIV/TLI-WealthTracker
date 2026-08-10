@@ -1,4 +1,4 @@
-import type {DbSession, DbSessionMap, SeasonalType, Source} from '@/types/electron';
+import type {DbSession, DbSessionMap, SeasonalPhase, SeasonalType, Source} from '@/types/electron';
 import type {ItemType} from '@/types/itemType';
 
 // ---------------------------------------------------------------------------
@@ -156,6 +156,9 @@ export interface TimelineSegment {
   key:      string;
   mapIndex: number;
   mechanic: MechanicKey;
+  /** Sandlord's phase, so a row can be labelled "Sandlord (Map)" while both
+   *  phases still sum into the one 'sandlord' bucket. Null everywhere else. */
+  phase:    SeasonalPhase | null;
   kind:     RowKind;
   seconds:  number;
   income:   Valuation;

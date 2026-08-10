@@ -19,6 +19,8 @@ import {S9Processor}       from '@/worker/processors/s9';
 import {S11Processor}      from '@/worker/processors/s11';
 import {S7Processor}       from '@/worker/processors/s7';
 import {S14Processor}      from '@/worker/processors/s14';
+import {S10Processor}      from '@/worker/processors/s10';
+import {HuntingProcessor}  from '@/worker/processors/hunting';
 import {Engine}            from '@/main/engine/engine';
 import {BagInitHandler}    from '@/main/engine/handlers/bag-init';
 import {ZoneHandler}       from '@/main/engine/handlers/zone';
@@ -30,6 +32,8 @@ import {ClockworkHandler}  from '@/main/engine/handlers/clockwork-handler';
 import {LunariaHandler}    from '@/main/engine/handlers/lunaria-handler';
 import {ArcanaHandler}     from '@/main/engine/handlers/arcana-handler';
 import {SandlordHandler}   from '@/main/engine/handlers/sandlord-handler';
+import {SandlordMapHandler} from '@/main/engine/handlers/sandlord-map-handler';
+import {HuntingHandler}    from '@/main/engine/handlers/hunting-handler';
 import {ItemHandler}       from '@/main/engine/handlers/item';
 import type {EngineEvent, EmitFn}  from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
@@ -70,6 +74,18 @@ export const log = {
 
   s14Strum: `${ts}TLGame: Display: [Game] UECtrlComponent@ DoAction S14GameplayStart`,
 
+  // In-map Sandlord coin tile. The markers are genuinely-missing Wwise audio
+  // rows, so each surfaces as a LogDataTable FindRow warning.
+  s10Tile:         `${ts}[249]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_Machine_Normal_Lp' requested row 'Play_Obj_Season_S10_Machine_Normal_Lp' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+  s10Wave:         `${ts}[249]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_Machine_PaLu_Active_Lp' requested row 'Play_Obj_Season_S10_Machine_PaLu_Active_Lp' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+  s10WaveResource: `${ts}[249]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_Machine_Resource_Active_Lp' requested row 'Play_Obj_Season_S10_Machine_Resource_Active_Lp' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+  s10Quench:       `${ts}[249]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_Machine_PaLu_Quench' requested row 'Play_Obj_Season_S10_Machine_PaLu_Quench' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+  s10Land:         `${ts}[249]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+
+  huntingStatue:    `${ts}TLLua: Display: [Game] FightMgr:OnGatherEnd logicEtyId 11 cfgId 20004 altlasId -1`,
+  huntingBossStart: `${ts}TLLua: Display: [Game] FightHunting BossStatus1`,
+  huntingBossEnd:   `${ts}TLLua: Display: [Game] FightHunting BossStatus0`,
+
   s9Minigame: `${ts}TLLua: Display: [Game] S9Taro Run`,
   s9Fight:    `${ts}TLLua: Display: [Game] S9Challenge Run`,
   // Player backed out of the Tarot Path panel without fighting (real-log marker).
@@ -104,6 +120,8 @@ export function createDispatcher(): Dispatcher {
   d.register(new S11Processor());
   d.register(new S7Processor());
   d.register(new S14Processor());
+  d.register(new S10Processor());
+  d.register(new HuntingProcessor());
   return d;
 }
 
@@ -133,6 +151,8 @@ function registerHandlers(engine: Engine): Engine {
     .register(new ClockworkHandler())
     .register(new LunariaHandler())
     .register(new ArcanaHandler())
+    .register(new SandlordMapHandler())
+    .register(new HuntingHandler())
     .register(new ItemHandler());
 }
 

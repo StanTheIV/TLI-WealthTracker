@@ -38,6 +38,10 @@ export default function GeneralTab() {
   const setClockworkLootSec = useSettingsStore(s => s.setClockworkLootSec);
   const lunariaLootSec      = useSettingsStore(s => s.lunariaLootSec);
   const setLunariaLootSec   = useSettingsStore(s => s.setLunariaLootSec);
+  const sandlordWaveSec     = useSettingsStore(s => s.sandlordWaveSec);
+  const setSandlordWaveSec  = useSettingsStore(s => s.setSandlordWaveSec);
+  const huntingLootSec      = useSettingsStore(s => s.huntingLootSec);
+  const setHuntingLootSec   = useSettingsStore(s => s.setHuntingLootSec);
 
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
@@ -203,6 +207,8 @@ export default function GeneralTab() {
           {key: 'carjack',   value: carjackLootSec,   set: setCarjackLootSec},
           {key: 'clockwork', value: clockworkLootSec, set: setClockworkLootSec},
           {key: 'lunaria',   value: lunariaLootSec,   set: setLunariaLootSec},
+          {key: 'sandlord',  value: sandlordWaveSec,  set: setSandlordWaveSec},
+          {key: 'hunting',   value: huntingLootSec,   set: setHuntingLootSec},
         ] as const).map(row => (
           <div key={row.key} className="bg-surface rounded-lg p-4 border border-border mb-3">
             <div className="flex items-center justify-between mb-2 gap-3">

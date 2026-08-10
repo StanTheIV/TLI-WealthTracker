@@ -1,13 +1,19 @@
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana';
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting';
 /** A drop's attribution source — 'map' or one of the seasonal types. */
 export type Source = 'map' | SeasonalType;
 export type TrackerKind = 'session' | 'map' | 'seasonal';
+/** Sandlord runs in two phases sharing one seasonal type: 'map' — the in-map
+ *  coin tile (in-map category, drop-through), 'hub' — the own-area hub bubble.
+ *  Other seasonals leave this unset. */
+export type SeasonalPhase = 'map' | 'hub';
 
 export interface TrackerSnapshot {
   kind:          TrackerKind;
   drops:         Record<number, number>;
   elapsed:       number;
   seasonalType?: SeasonalType;
+  /** Which Sandlord phase this tracker covers — see SeasonalPhase. */
+  phase?:        SeasonalPhase;
   /** False while the tracker is paused (e.g. Lunaria between strum episodes —
    *  drops won't accrue but the tracker isn't finished). True for normal
    *  active seasonals. */

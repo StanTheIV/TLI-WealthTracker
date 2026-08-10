@@ -1,4 +1,17 @@
-import type {Valuation} from '../analytics';
+import type {TFunction} from 'i18next';
+import type {SeasonalPhase} from '@/types/electron';
+import type {MechanicKey, Valuation} from '../analytics';
+
+/** Row label for a mechanic. Sandlord's two phases share one bucket, so only
+ *  the in-map coin tile is qualified — 'hub' and legacy null both read plain. */
+export function mechanicLabel(
+  t: TFunction<'sessions'>,
+  mechanic: MechanicKey,
+  phase: SeasonalPhase | null = null,
+): string {
+  if (mechanic === 'sandlord' && phase === 'map') return t('details.source.sandlordMap');
+  return t(`details.source.${mechanic}` as never);
+}
 
 /** Compact FE for axis ticks and dense cells: 1.2M / 84.2k / 640. */
 export function formatFE(value: number): string {

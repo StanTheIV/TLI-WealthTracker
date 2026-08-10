@@ -26,6 +26,11 @@ interface SettingsState {
   /** Post-encounter Lunaria loot collection window, in seconds. Tracker
    *  pauses (not finishes) on expiry — next strum resumes it. */
   lunariaLootSec:           number;
+  /** In-map Sandlord wave-activity window, in seconds. Refreshed by waves
+   *  only, never by pickups; the tracker pauses on expiry. */
+  sandlordWaveSec:          number;
+  /** Post-boss Hunting loot collection window, in seconds. */
+  huntingLootSec:           number;
   isLoaded:                 boolean;
 }
 
@@ -46,9 +51,12 @@ interface SettingsActions {
   setCarjackLootSec:            (v: number) => void;
   setClockworkLootSec:          (v: number) => void;
   setLunariaLootSec:            (v: number) => void;
+  setSandlordWaveSec:           (v: number) => void;
+  setHuntingLootSec:            (v: number) => void;
 }
 
 const DEFAULT_LOOT_SEC = 5;
+const DEFAULT_SANDLORD_WAVE_SEC = 10;
 
 const DEFAULTS: SettingsState = {
   torchlightPath:           '',
@@ -66,13 +74,15 @@ const DEFAULTS: SettingsState = {
   carjackLootSec:           DEFAULT_LOOT_SEC,
   clockworkLootSec:         DEFAULT_LOOT_SEC,
   lunariaLootSec:           DEFAULT_LOOT_SEC,
+  sandlordWaveSec:          DEFAULT_SANDLORD_WAVE_SEC,
+  huntingLootSec:           DEFAULT_LOOT_SEC,
   isLoaded:                 false,
 };
 
-function parseLootSec(raw: string | undefined): number {
-  if (raw === undefined) return DEFAULT_LOOT_SEC;
+function parseLootSec(raw: string | undefined, fallback: number = DEFAULT_LOOT_SEC): number {
+  if (raw === undefined) return fallback;
   const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return DEFAULT_LOOT_SEC;
+  if (!Number.isFinite(n) || n <= 0) return fallback;
   return Math.floor(n);
 }
 
@@ -105,6 +115,11 @@ export const useSettingsStore = create<Store>((set, get) => ({
     const carjackLootSec   = parseLootSec(raw.carjackLootMs   ? String(Number(raw.carjackLootMs)   / 1000) : undefined);
     const clockworkLootSec = parseLootSec(raw.clockworkLootMs ? String(Number(raw.clockworkLootMs) / 1000) : undefined);
     const lunariaLootSec   = parseLootSec(raw.lunariaLootMs   ? String(Number(raw.lunariaLootMs)   / 1000) : undefined);
+    const huntingLootSec   = parseLootSec(raw.huntingLootMs   ? String(Number(raw.huntingLootMs)   / 1000) : undefined);
+    const sandlordWaveSec  = parseLootSec(
+      raw.sandlordWaveMs ? String(Number(raw.sandlordWaveMs) / 1000) : undefined,
+      DEFAULT_SANDLORD_WAVE_SEC,
+    );
     set({
       torchlightPath,
       overlayOpacity: raw.overlayOpacity ? Number(raw.overlayOpacity) : 0.9,
@@ -121,6 +136,8 @@ export const useSettingsStore = create<Store>((set, get) => ({
       carjackLootSec,
       clockworkLootSec,
       lunariaLootSec,
+      sandlordWaveSec,
+      huntingLootSec,
       isLoaded: true,
     });
     window.electronAPI.engine.setLowStockThreshold(lowStockThreshold);
@@ -128,6 +145,8 @@ export const useSettingsStore = create<Store>((set, get) => ({
     window.electronAPI.engine.setCarjackLootMs(carjackLootSec * 1000);
     window.electronAPI.engine.setClockworkLootMs(clockworkLootSec * 1000);
     window.electronAPI.engine.setLunariaLootMs(lunariaLootSec * 1000);
+    window.electronAPI.engine.setSandlordWaveMs(sandlordWaveSec * 1000);
+    window.electronAPI.engine.setHuntingLootMs(huntingLootSec * 1000);
   },
 
   setTorchlightPath: (v) => {
@@ -210,6 +229,20 @@ export const useSettingsStore = create<Store>((set, get) => ({
     persist('lunariaLootMs', String(clamped * 1000));
     window.electronAPI.engine.setLunariaLootMs(clamped * 1000);
     set({lunariaLootSec: clamped});
+  },
+
+  setSandlordWaveSec: (v) => {
+    const clamped = Number.isFinite(v) && v > 0 ? Math.floor(v) : DEFAULT_SANDLORD_WAVE_SEC;
+    persist('sandlordWaveMs', String(clamped * 1000));
+    window.electronAPI.engine.setSandlordWaveMs(clamped * 1000);
+    set({sandlordWaveSec: clamped});
+  },
+
+  setHuntingLootSec: (v) => {
+    const clamped = Number.isFinite(v) && v > 0 ? Math.floor(v) : DEFAULT_LOOT_SEC;
+    persist('huntingLootMs', String(clamped * 1000));
+    window.electronAPI.engine.setHuntingLootMs(clamped * 1000);
+    set({huntingLootSec: clamped});
   },
 
   validateLogFile: async () => {

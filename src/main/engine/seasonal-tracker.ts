@@ -1,5 +1,5 @@
 import {Tracker} from './tracker';
-import type {SeasonalType} from './tracker';
+import type {SeasonalPhase, SeasonalType, TrackerSnapshot} from './tracker';
 import type {EmitFn} from './types';
 import {LootCollectionTimer} from './loot-collection-timer';
 import type {TrackerRegistry} from './tracker-registry';
@@ -13,6 +13,8 @@ import type {TrackerRegistry} from './tracker-registry';
 export class SeasonalTracker extends Tracker {
   readonly seasonalType: SeasonalType;
   readonly ownsBubble:   boolean;
+  /** Sandlord only — 'map' coin tile vs 'hub' bubble. See SeasonalPhase. */
+  readonly phase?:       SeasonalPhase;
 
   private _registry:          TrackerRegistry;
   private _emit:              EmitFn;
@@ -25,12 +27,14 @@ export class SeasonalTracker extends Tracker {
     emit:               EmitFn;
     type:               SeasonalType;
     ownsBubble?:        boolean;
+    phase?:             SeasonalPhase;
     lootDurationMs?:    number;
     pauseOnLootExpiry?: boolean;
   }) {
     super('seasonal', opts.type, opts.ownsBubble ?? false);
     this.seasonalType       = opts.type;
     this.ownsBubble         = opts.ownsBubble ?? false;
+    this.phase              = opts.phase;
     this._registry          = opts.registry;
     this._emit              = opts.emit;
     this._lootDurationMs    = opts.lootDurationMs ?? 5_000;
@@ -98,6 +102,12 @@ export class SeasonalTracker extends Tracker {
   // -------------------------------------------------------------------------
   // Lifecycle — Tracker base augmented
   // -------------------------------------------------------------------------
+
+  snapshot(): TrackerSnapshot {
+    const s = super.snapshot();
+    if (this.phase) s.phase = this.phase;
+    return s;
+  }
 
   /** Finish the seasonal: cancel timer, remove from registry, emit
    *  tracker_finished. Idempotent — safe to call multiple times. */

@@ -87,6 +87,14 @@
     "lunaria": {
       "label": "Lunaria",
       "hint": "Time after the Lunaria encounter ends to keep attributing drops. The tracker pauses on expiry and resumes on the next strum, so this window only needs to cover the post-combat loot of one episode."
+    },
+    "sandlord": {
+      "label": "Sandlord wave timer",
+      "hint": "How long the in-map Sandlord tile tracker keeps running after a wave spawns. Each new wave restarts it; loot pickups do not. The tracker pauses on expiry and resumes on the next tile."
+    },
+    "hunting": {
+      "label": "Hunting",
+      "hint": "Loot collection window after the Hunting boss dies."
     }
   },
   "overlay": {

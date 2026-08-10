@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setCarjackLootMs:     (ms: number)  => ipcRenderer.send('engine:set-carjack-loot-ms', ms),
     setClockworkLootMs:   (ms: number)  => ipcRenderer.send('engine:set-clockwork-loot-ms', ms),
     setLunariaLootMs:     (ms: number)  => ipcRenderer.send('engine:set-lunaria-loot-ms', ms),
+    setSandlordWaveMs:    (ms: number)  => ipcRenderer.send('engine:set-sandlord-wave-ms', ms),
+    setHuntingLootMs:     (ms: number)  => ipcRenderer.send('engine:set-hunting-loot-ms', ms),
     onEvent: (cb: (event: EngineEvent) => void) => {
       const wrapped = (_e: Electron.IpcRendererEvent, ev: EngineEvent) => cb(ev);
       ipcRenderer.on('engine:event', wrapped);

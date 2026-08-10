@@ -19,6 +19,7 @@ export function mechanicColors(theme: Theme): Record<MechanicKey, string> {
     vorex:     theme.typeEmber,
     arcana:    theme.typeSkill,
     dream:     theme.typeDream,
+    hunting:   theme.hunt,
   };
 }
 

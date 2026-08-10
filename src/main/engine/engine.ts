@@ -10,6 +10,8 @@ import {OverrealmHandler} from './handlers/overrealm-handler';
 import {CarjackHandler} from './handlers/carjack-handler';
 import {ClockworkHandler} from './handlers/clockwork-handler';
 import {LunariaHandler} from './handlers/lunaria-handler';
+import {SandlordMapHandler} from './handlers/sandlord-map-handler';
+import {HuntingHandler} from './handlers/hunting-handler';
 import {log} from '@/main/logger';
 
 /**
@@ -34,6 +36,8 @@ export class Engine {
   private _carjack:     CarjackHandler     | null = null;
   private _clockwork:   ClockworkHandler   | null = null;
   private _lunaria:     LunariaHandler     | null = null;
+  private _sandlordMap: SandlordMapHandler | null = null;
+  private _hunting:     HuntingHandler     | null = null;
 
   // Seasonals paused BY the session pause (not those already self-paused for
   // their own reason — Lunaria between strums, Arcana backed-out minigame).
@@ -58,6 +62,8 @@ export class Engine {
     if (handler instanceof CarjackHandler)     this._carjack     = handler;
     if (handler instanceof ClockworkHandler)   this._clockwork   = handler;
     if (handler instanceof LunariaHandler)     this._lunaria     = handler;
+    if (handler instanceof SandlordMapHandler) this._sandlordMap = handler;
+    if (handler instanceof HuntingHandler)     this._hunting     = handler;
     return this;
   }
 
@@ -314,6 +320,15 @@ export class Engine {
 
   setLunariaLootDurationMs(ms: number): void {
     this._lunaria?.setLootDurationMs(ms);
+  }
+
+  /** In-map Sandlord wave-activity window (not a loot window — see the handler). */
+  setSandlordWaveDurationMs(ms: number): void {
+    this._sandlordMap?.setWaveDurationMs(ms);
+  }
+
+  setHuntingLootDurationMs(ms: number): void {
+    this._hunting?.setLootDurationMs(ms);
   }
 
   /**

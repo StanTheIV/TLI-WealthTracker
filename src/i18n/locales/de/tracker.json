@@ -9,8 +9,10 @@
     "carjack": "Carjack",
     "clockwork": "Uhrwerk",
     "sandlord": "Sandlord",
+    "sandlordMap": "Sandlord (Karte)",
     "lunaria": "Lunaria",
-    "arcana": "Arcana"
+    "arcana": "Arcana",
+    "hunting": "Hunting"
   },
   "table": {
     "name": "Name",
@@ -19,5 +21,13 @@
     "total": "Gesamt"
   },
   "noDrops": "Noch keine Drops",
-  "initializing": "Sortiere dein Inventar im Spiel zur Initialisierung"
+  "initializing": "Sortiere dein Inventar im Spiel zur Initialisierung",
+  "lowStock": {
+    "singular": "Nur noch wenig von 1 Material",
+    "plural":   "Nur noch wenig von {{count}} Materialien",
+    "dismiss":  "Ausblenden",
+    "expand":   "Details anzeigen",
+    "collapse": "Details ausblenden",
+    "remaining": "{{count}} übrig"
+  }
 }

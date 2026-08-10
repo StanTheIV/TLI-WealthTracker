@@ -1,4 +1,4 @@
-import type {DbSession, DbSessionMap, SeasonalType} from '@/types/electron';
+import type {DbSession, DbSessionMap, SeasonalPhase, SeasonalType} from '@/types/electron';
 import type {AnalyticsWarning, ClassifiedRow, MechanicKey, Valuator} from './types';
 
 /** Seasonals that FREEZE the map clock, so their time is NOT inside
@@ -6,12 +6,22 @@ import type {AnalyticsWarning, ClassifiedRow, MechanicKey, Valuator} from './typ
  *  (hasActiveMapTracker() tests `map !== null`, true while merely paused).
  *  Mirrors the callers of `pauseMapForInterlude`; add a mechanic here when it
  *  starts calling that, or its time is subtracted from map time it never
- *  belonged to. */
+ *  belonged to. Sandlord's entry covers its HUB phase only — its in-map coin
+ *  tile freezes nothing — so test membership via `runsConcurrentlyWithMap`,
+ *  which knows about phases, rather than reading this set directly. */
 export const MAP_FREEZING_SEASONALS: ReadonlySet<SeasonalType> =
   new Set<SeasonalType>(['arcana', 'vorex', 'sandlord']);
 
-export function runsConcurrentlyWithMap(type: SeasonalType | null): boolean {
-  return type !== null && !MAP_FREEZING_SEASONALS.has(type);
+/** `phase` matters only for Sandlord, whose two phases share one seasonal type.
+ *  LEGACY: a null phase on a sandlord row predates in-map tracking and means
+ *  'hub' — never 'map'. */
+export function runsConcurrentlyWithMap(
+  type:  SeasonalType | null,
+  phase: SeasonalPhase | null = null,
+): boolean {
+  if (type === null) return false;
+  if (type === 'sandlord') return phase === 'map';
+  return !MAP_FREEZING_SEASONALS.has(type);
 }
 
 /** True when a parent map row's drops already include its overlap seasonals'.
@@ -61,7 +71,7 @@ export function classifyRows(
       row,
       kind,
       mechanic,
-      concurrentWithMap: kind === 'overlap-seasonal' && runsConcurrentlyWithMap(row.seasonalType),
+      concurrentWithMap: kind === 'overlap-seasonal' && runsConcurrentlyWithMap(row.seasonalType, row.phase),
       parent,
       income:  valueIncome(row.drops),
       cost:    valueIncome(row.spent),

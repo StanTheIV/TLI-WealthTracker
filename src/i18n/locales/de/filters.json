@@ -48,7 +48,8 @@
     "sandlord": "Sandlord",
     "lunaria": "Lunaria",
     "wealth": "Vermögen",
-    "arcana": "Arcana"
+    "arcana": "Arcana",
+    "hunting": "Hunting"
   },
   "ruleDesc": {
     "showType": "{{type}} anzeigen",

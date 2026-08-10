@@ -26,16 +26,22 @@ export class SandlordHandler implements EventHandler {
 
     const enteringHub  = event.toScene.includes(SANDLORD_HUB_MARKER);
     const enteringTown = event.toScene.includes(TOWN_MARKER);
-    const inSandlord   = ctx.registry.seasonal('sandlord') !== null;
+    const existing     = ctx.registry.seasonal('sandlord');
+    // Only a HUB run blocks a fresh bubble. A dormant map-phase tile run shares
+    // the seasonal type but is a different mechanic, and can linger across a
+    // direct map → hub transition — counting it here would suppress the bubble.
+    const inHubRun = existing !== null && existing.phase !== 'map';
 
     // Entering the hub starts a bubble seasonal — a crediting start, inert while
     // paused so it doesn't spin up and begin accruing during the pause. A direct
     // map → hub transition is possible: the running map freezes for the whole
     // Sandlord run (it ends at town with the Sandlord time excluded).
-    if (enteringHub && !inSandlord) {
+    if (enteringHub && !inHubRun) {
       if (ctx.paused) return;
+      // Retire a map-phase run first so the type is free for the bubble.
+      if (existing) existing.finish();
       pauseMapForInterlude(ctx, emit);
-      ctx.registry.startSeasonal({type: 'sandlord', ownsBubble: true}, emit);
+      ctx.registry.startSeasonal({type: 'sandlord', ownsBubble: true, phase: 'hub'}, emit);
       return;
     }
 
@@ -45,9 +51,11 @@ export class SandlordHandler implements EventHandler {
     // resolves a map→hub interlude; ZoneHandler (registered after us) then
     // finishes that map off its frozen elapsed... unless it was resumed here a
     // tick earlier — same timestamp, zero accrual, harmless either way.
-    if (inSandlord && enteringTown) {
+    // A map-phase run is NOT ours to tear down — ZoneHandler.finishAll owns it,
+    // and it never froze a map, so resolveMapInterlude would wrongly un-freeze.
+    if (inHubRun && enteringTown) {
       resolveMapInterlude(ctx, emit);
-      ctx.registry.seasonal('sandlord')?.finish();
+      existing?.finish();
     }
   }
 }

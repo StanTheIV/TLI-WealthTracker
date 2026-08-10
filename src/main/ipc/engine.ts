@@ -19,6 +19,8 @@ import {ClockworkHandler} from '@/main/engine/handlers/clockwork-handler';
 import {LunariaHandler} from '@/main/engine/handlers/lunaria-handler';
 import {ArcanaHandler} from '@/main/engine/handlers/arcana-handler';
 import {SandlordHandler} from '@/main/engine/handlers/sandlord-handler';
+import {SandlordMapHandler} from '@/main/engine/handlers/sandlord-map-handler';
+import {HuntingHandler} from '@/main/engine/handlers/hunting-handler';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {MapMaterialHandler} from '@/main/engine/handlers/map-material';
 import {ErrorHandler} from '@/main/engine/handlers/error';
@@ -158,6 +160,8 @@ function createEngine(): Engine {
     .register(new ClockworkHandler())
     .register(new LunariaHandler())
     .register(new ArcanaHandler())
+    .register(new SandlordMapHandler())
+    .register(new HuntingHandler())
     .register(new ItemHandler())
     .register(new MapMaterialHandler())
     .register(new ErrorHandler());
@@ -207,13 +211,20 @@ function startEngine(logPath: string, loadSessionId?: string): void {
   const settings = settingsGetAll();
   engine.setLowStockThreshold(parsePositiveInt(settings['lowStockThreshold'], 0, /*allowZero*/ true));
 
-  // Per-handler loot collection windows (ms). Default 5000.
-  const overrealmMs = parsePositiveInt(settings['overrealmLootMs'], 5000, /*allowZero*/ false);
-  const carjackMs   = parsePositiveInt(settings['carjackLootMs'],   5000, /*allowZero*/ false);
-  const clockworkMs = parsePositiveInt(settings['clockworkLootMs'], 5000, /*allowZero*/ false);
+  // Per-handler loot collection windows (ms). Default 5000, except the Sandlord
+  // in-map wave window (10000) — it measures wave activity, not loot pickup.
+  const overrealmMs    = parsePositiveInt(settings['overrealmLootMs'], 5000, /*allowZero*/ false);
+  const carjackMs      = parsePositiveInt(settings['carjackLootMs'],   5000, /*allowZero*/ false);
+  const clockworkMs    = parsePositiveInt(settings['clockworkLootMs'], 5000, /*allowZero*/ false);
+  const lunariaMs      = parsePositiveInt(settings['lunariaLootMs'],   5000, /*allowZero*/ false);
+  const sandlordWaveMs = parsePositiveInt(settings['sandlordWaveMs'], 10000, /*allowZero*/ false);
+  const huntingMs      = parsePositiveInt(settings['huntingLootMs'],   5000, /*allowZero*/ false);
   engine.setOverrealmLootDurationMs(overrealmMs);
   engine.setCarjackLootDurationMs(carjackMs);
   engine.setClockworkLootDurationMs(clockworkMs);
+  engine.setLunariaLootDurationMs(lunariaMs);
+  engine.setSandlordWaveDurationMs(sandlordWaveMs);
+  engine.setHuntingLootDurationMs(huntingMs);
 
   log.info('engine', 'Engine started');
 }
@@ -301,6 +312,12 @@ export function registerEngineHandlers(
   });
   ipcMain.on('engine:set-lunaria-loot-ms', (_e, ms: number) => {
     engine?.setLunariaLootDurationMs(ms);
+  });
+  ipcMain.on('engine:set-sandlord-wave-ms', (_e, ms: number) => {
+    engine?.setSandlordWaveDurationMs(ms);
+  });
+  ipcMain.on('engine:set-hunting-loot-ms', (_e, ms: number) => {
+    engine?.setHuntingLootDurationMs(ms);
   });
   ipcMain.on('engine:update-filter-rules', (_e, payload: FilterRule[] | null) => {
     if (!engine) return;

@@ -141,6 +141,7 @@ export class SessionPersistence {
       spent,
       seasonalType,
       parentMapIndex,
+      phase:        tracker.phase ?? null,
     };
   }
 
