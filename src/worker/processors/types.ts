@@ -10,6 +10,7 @@ import type {S7Event} from './s7';
 import type {S14Event} from './s14';
 import type {S10Event} from './s10';
 import type {HuntingEvent} from './hunting';
+import type {AfterlightEvent} from './afterlight';
 
 // ---------------------------------------------------------------------------
 // RawEvent — assembled union of all processor event types.
@@ -30,6 +31,7 @@ export type RawEvent =
   | S14Event
   | S10Event
   | HuntingEvent
+  | AfterlightEvent
   | {type: 'reader_ready'}
   | {type: 'reader_error'; message: string}
   | {type: 'worker_log'; logType: 'info' | 'warn' | 'error' | 'debug'; message: string};

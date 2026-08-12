@@ -42,6 +42,8 @@ export default function GeneralTab() {
   const setSandlordWaveSec  = useSettingsStore(s => s.setSandlordWaveSec);
   const huntingLootSec      = useSettingsStore(s => s.huntingLootSec);
   const setHuntingLootSec   = useSettingsStore(s => s.setHuntingLootSec);
+  const afterlightLootSec    = useSettingsStore(s => s.afterlightLootSec);
+  const setAfterlightLootSec = useSettingsStore(s => s.setAfterlightLootSec);
 
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
@@ -209,6 +211,7 @@ export default function GeneralTab() {
           {key: 'lunaria',   value: lunariaLootSec,   set: setLunariaLootSec},
           {key: 'sandlord',  value: sandlordWaveSec,  set: setSandlordWaveSec},
           {key: 'hunting',   value: huntingLootSec,   set: setHuntingLootSec},
+          {key: 'afterlight', value: afterlightLootSec, set: setAfterlightLootSec},
         ] as const).map(row => (
           <div key={row.key} className="bg-surface rounded-lg p-4 border border-border mb-3">
             <div className="flex items-center justify-between mb-2 gap-3">

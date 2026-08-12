@@ -2,7 +2,7 @@ import type {FilterRule} from './itemFilter';
 
 export {};
 
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting';
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight';
 /** Sandlord runs in two phases sharing one seasonal type: 'map' — the in-map
  *  coin tile (in-map category, drop-through), 'hub' — the own-area hub bubble.
  *  Other seasonals leave this unset. */
@@ -24,6 +24,9 @@ export interface TrackerSnapshot {
   /** False while the tracker is paused (e.g. Lunaria between strum episodes —
    *  drops won't accrue but the tracker isn't finished). */
   active:        boolean;
+  /** True on the seasonal that currently owns incoming drops — the one whose
+   *  window was armed or re-armed most recently. */
+  owner?:        boolean;
   /** Per-source breakdown — populated only on the session tracker's snapshot.
    *  Each drop is attributed to exactly one source (newest active tracker at
    *  the moment the drop fired). Slices sum to session FE. Omitted on map and
@@ -194,6 +197,7 @@ interface ElectronAPI {
     setLunariaLootMs:     (ms: number) => void;
     setSandlordWaveMs:    (ms: number) => void;
     setHuntingLootMs:     (ms: number) => void;
+    setAfterlightLootMs:  (ms: number) => void;
     onEvent:         (cb: (event: EngineEvent) => void) => () => void;
   };
 

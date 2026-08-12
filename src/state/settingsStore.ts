@@ -31,6 +31,8 @@ interface SettingsState {
   sandlordWaveSec:          number;
   /** Post-boss Hunting loot collection window, in seconds. */
   huntingLootSec:           number;
+  /** Post-kill Afterlight loot collection window, in seconds. */
+  afterlightLootSec:        number;
   isLoaded:                 boolean;
 }
 
@@ -53,6 +55,7 @@ interface SettingsActions {
   setLunariaLootSec:            (v: number) => void;
   setSandlordWaveSec:           (v: number) => void;
   setHuntingLootSec:            (v: number) => void;
+  setAfterlightLootSec:         (v: number) => void;
 }
 
 const DEFAULT_LOOT_SEC = 5;
@@ -76,6 +79,7 @@ const DEFAULTS: SettingsState = {
   lunariaLootSec:           DEFAULT_LOOT_SEC,
   sandlordWaveSec:          DEFAULT_SANDLORD_WAVE_SEC,
   huntingLootSec:           DEFAULT_LOOT_SEC,
+  afterlightLootSec:        DEFAULT_LOOT_SEC,
   isLoaded:                 false,
 };
 
@@ -116,6 +120,7 @@ export const useSettingsStore = create<Store>((set, get) => ({
     const clockworkLootSec = parseLootSec(raw.clockworkLootMs ? String(Number(raw.clockworkLootMs) / 1000) : undefined);
     const lunariaLootSec   = parseLootSec(raw.lunariaLootMs   ? String(Number(raw.lunariaLootMs)   / 1000) : undefined);
     const huntingLootSec   = parseLootSec(raw.huntingLootMs   ? String(Number(raw.huntingLootMs)   / 1000) : undefined);
+    const afterlightLootSec = parseLootSec(raw.afterlightLootMs ? String(Number(raw.afterlightLootMs) / 1000) : undefined);
     const sandlordWaveSec  = parseLootSec(
       raw.sandlordWaveMs ? String(Number(raw.sandlordWaveMs) / 1000) : undefined,
       DEFAULT_SANDLORD_WAVE_SEC,
@@ -138,6 +143,7 @@ export const useSettingsStore = create<Store>((set, get) => ({
       lunariaLootSec,
       sandlordWaveSec,
       huntingLootSec,
+      afterlightLootSec,
       isLoaded: true,
     });
     window.electronAPI.engine.setLowStockThreshold(lowStockThreshold);
@@ -147,6 +153,7 @@ export const useSettingsStore = create<Store>((set, get) => ({
     window.electronAPI.engine.setLunariaLootMs(lunariaLootSec * 1000);
     window.electronAPI.engine.setSandlordWaveMs(sandlordWaveSec * 1000);
     window.electronAPI.engine.setHuntingLootMs(huntingLootSec * 1000);
+    window.electronAPI.engine.setAfterlightLootMs(afterlightLootSec * 1000);
   },
 
   setTorchlightPath: (v) => {
@@ -243,6 +250,13 @@ export const useSettingsStore = create<Store>((set, get) => ({
     persist('huntingLootMs', String(clamped * 1000));
     window.electronAPI.engine.setHuntingLootMs(clamped * 1000);
     set({huntingLootSec: clamped});
+  },
+
+  setAfterlightLootSec: (v) => {
+    const clamped = Number.isFinite(v) && v > 0 ? Math.floor(v) : DEFAULT_LOOT_SEC;
+    persist('afterlightLootMs', String(clamped * 1000));
+    window.electronAPI.engine.setAfterlightLootMs(clamped * 1000);
+    set({afterlightLootSec: clamped});
   },
 
   validateLogFile: async () => {
