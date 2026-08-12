@@ -87,8 +87,10 @@ export default function AddRuleDialog({onConfirm, onClose}: Props) {
     );
   };
 
+  const allScopesSelected = scopes.length === FILTER_SCOPES.length;
+
   const toggleAllScopes = () => {
-    setScopes(scopes.length === FILTER_SCOPES.length ? [] : [...FILTER_SCOPES]);
+    setScopes(allScopesSelected ? [] : [...FILTER_SCOPES]);
   };
 
   const canConfirm = scopes.length > 0 && (matchType === 'by-type' || itemId !== '');
@@ -187,18 +189,24 @@ export default function AddRuleDialog({onConfirm, onClose}: Props) {
 
           {/* Step 3: Scopes */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest">
-                {t('addRule.scopes')}
-              </p>
+            <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-2">
+              {t('addRule.scopes')}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
               <button
                 onClick={toggleAllScopes}
-                className="text-xs text-accent hover:underline"
+                className={[
+                  'px-2.5 py-1 rounded-full border text-xs font-semibold transition-colors',
+                  allScopesSelected
+                    ? 'bg-accent/15 border-accent text-accent'
+                    : 'bg-surface-elevated border-border text-text-secondary hover:border-accent/50',
+                ].join(' ')}
               >
-                {t('addRule.allScopes')}
+                {t('scopes.all')}
               </button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
+
+              <span className="w-px self-stretch bg-border mx-0.5" />
+
               {FILTER_SCOPES.map(s => (
                 <button
                   key={s}

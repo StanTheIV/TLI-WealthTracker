@@ -1,6 +1,6 @@
 import {useTranslation} from 'react-i18next';
 import {GripVertical, Trash2} from 'lucide-react';
-import type {FilterRule} from '@/types/itemFilter';
+import {FILTER_SCOPES, type FilterRule} from '@/types/itemFilter';
 import {useItemsStore} from '@/state/itemsStore';
 
 interface Props {
@@ -17,6 +17,9 @@ export default function RuleCard({rule, onRemove, dragHandleProps}: Props) {
   const actionColor = rule.action === 'show'
     ? 'text-green-400 bg-green-500/10 border-green-500/30'
     : 'text-red-400 bg-red-500/10 border-red-500/30';
+
+  const allScopes = FILTER_SCOPES.every(s => rule.scopes.includes(s));
+  const scopeTag  = 'text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-accent/10 text-accent uppercase tracking-wide shrink-0';
 
   const description = (() => {
     if (rule.kind.type === 'by-type') {
@@ -43,20 +46,24 @@ export default function RuleCard({rule, onRemove, dragHandleProps}: Props) {
       </span>
 
       {/* Description */}
-      <span className="flex-1 text-sm text-text-primary truncate">{description}</span>
+      <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{description}</span>
 
-      {/* Scopes */}
-      <div className="hidden group-hover:flex items-center gap-1 shrink-0">
-        {rule.scopes.map(s => (
-          <span key={s} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-accent/10 text-accent uppercase tracking-wide">
-            {t(`scopes.${s}`)}
-          </span>
-        ))}
+      {/* Scopes — the strip must be shrinkable, or a long list pushes the
+          delete button out of the card. */}
+      <div className="hidden group-hover:flex items-center gap-1 min-w-0 overflow-hidden justify-end">
+        {allScopes ? (
+          <span className={scopeTag}>{t('scopes.all')}</span>
+        ) : (
+          rule.scopes.map(s => (
+            <span key={s} className={scopeTag}>{t(`scopes.${s}`)}</span>
+          ))
+        )}
       </div>
 
       {/* Remove */}
       <button
         onClick={onRemove}
+        title={t('removeRule')}
         className="text-text-disabled hover:text-danger transition-colors shrink-0 ml-1"
       >
         <Trash2 className="w-3.5 h-3.5" />
