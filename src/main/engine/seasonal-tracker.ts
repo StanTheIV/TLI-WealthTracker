@@ -21,6 +21,8 @@ export class SeasonalTracker extends Tracker {
   private _lootTimer:         LootCollectionTimer | null = null;
   private _lootDurationMs:    number;
   private _pauseOnLootExpiry: boolean;
+  private _lastWaveResetAt:   number = 0;
+  private _claimsDrops:       boolean;
 
   constructor(opts: {
     registry:           TrackerRegistry;
@@ -30,6 +32,7 @@ export class SeasonalTracker extends Tracker {
     phase?:             SeasonalPhase;
     lootDurationMs?:    number;
     pauseOnLootExpiry?: boolean;
+    claimsDrops?:       boolean;
   }) {
     super('seasonal', opts.type, opts.ownsBubble ?? false);
     this.seasonalType       = opts.type;
@@ -39,19 +42,46 @@ export class SeasonalTracker extends Tracker {
     this._emit              = opts.emit;
     this._lootDurationMs    = opts.lootDurationMs ?? 5_000;
     this._pauseOnLootExpiry = opts.pauseOnLootExpiry ?? false;
+    this._claimsDrops       = opts.claimsDrops ?? true;
+  }
+
+  /**
+   * Whether this tracker is eligible to OWN incoming drops right now.
+   *
+   * Separates two things an active tracker normally conflates: that its clock
+   * is running, and that it is the drop writer. A mechanic with a phase the
+   * player is engaged in but which yields no loot of its own — Clockwork's
+   * cogwheel fights, whose kills belong to the map — runs `claimsDrops: false`
+   * so its elapsed accumulates while `writer()` skips straight past it.
+   *
+   * Pausing is NOT a substitute: a paused tracker stops its clock too, and
+   * `Tracker.addDrop` would reject the drops the phase is supposed to time.
+   */
+  get claimsDrops(): boolean {
+    return this._claimsDrops;
+  }
+
+  /** Flip drop eligibility. The registry's cached writer is invalidated by the
+   *  caller (see TrackerRegistry.setSeasonalClaimsDrops) — changing this alone
+   *  would leave a stale `_currentWriter` pointing at the wrong tracker. */
+  _setClaimsDrops(v: boolean): void {
+    this._claimsDrops = v;
   }
 
   // -------------------------------------------------------------------------
   // Loot timer API — handlers call these
   // -------------------------------------------------------------------------
 
-  /** Arm a fresh post-mechanic loot window. Cancels any in-flight timer. */
+  /** Arm a fresh post-mechanic loot window. Cancels any in-flight timer.
+   *  Arming is gameplay engagement, so it also takes ownership — see
+   *  `_takeOwnership`. */
   armLootTimer(): void {
     this._lootTimer?.cancel();
     this._lootTimer = new LootCollectionTimer(this._lootDurationMs, () => this._onLootExpire());
     this._lootTimer.start();
     const deadline = this._lootTimer.deadline ?? Date.now() + this._lootDurationMs;
     this._emit({type: 'loot_window_started', seasonalType: this.seasonalType, deadline, timestamp: Date.now()});
+    this._takeOwnership();
   }
 
   /** Pickup-driven refresh — decaying 80% rule with 1s floor. */
@@ -63,7 +93,8 @@ export class SeasonalTracker extends Tracker {
     }
   }
 
-  /** Strum-driven reset — full re-arm, undoes any decay. */
+  /** Strum/wave-driven reset — full re-arm, undoes any decay. Also takes
+   *  ownership: see `_takeOwnership`. */
   resetLootTimer(): void {
     if (!this._lootTimer) {
       this.armLootTimer();
@@ -72,6 +103,49 @@ export class SeasonalTracker extends Tracker {
     this._lootTimer.reset();
     const deadline = this._lootTimer.deadline ?? Date.now() + this._lootDurationMs;
     this._emit({type: 'loot_window_started', seasonalType: this.seasonalType, deadline, timestamp: Date.now()});
+    this._takeOwnership();
+  }
+
+  /** Wave-driven reset, rate-limited: spawn bursts fire 30+ markers/sec and each
+   *  reset publishes a new deadline to the overlay. Only for the ACTIVE branch —
+   *  a dormant tracker has no timer to keep alive, so waking it must arm
+   *  unthrottled or it resumes with no window at all.
+   *
+   *  Returns true when it actually re-armed, so callers can keep state that
+   *  must move with the window (e.g. the expiry mode) in step with it. */
+  resetLootTimerThrottled(minIntervalMs: number = 1_000): boolean {
+    const now = Date.now();
+    if (now - this._lastWaveResetAt < minIntervalMs) return false;
+    this._lastWaveResetAt = now;
+    this.resetLootTimer();
+    return true;
+  }
+
+  /** The ownership rule: the seasonal whose window was most recently armed or
+   *  re-armed owns the drops. Arming IS the engagement signal — the player just
+   *  triggered, re-triggered or finished this mechanic — so it decides the
+   *  writer, not creation order and not merely waking from dormancy. Without
+   *  this a mechanic started later keeps owning loot from a fight the player has
+   *  since gone back to. Skipped while inactive: a dormant tracker rejects drops
+   *  anyway, and its resume path bumps the order itself. */
+  private _takeOwnership(): void {
+    if (!this.active || !this._claimsDrops) return;
+    this._registry._onSeasonalReactivated(this, this._emit);
+  }
+
+  /** Flip expiry from park-dormant to finish-for-good. Called once when a real
+   *  end marker lands: the wave window parks the tracker between waves, the end
+   *  window closes the run. Must be flipped back on the next start marker —
+   *  mechanics that fold a second encounter reuse the same tracker. */
+  setPauseOnLootExpiry(v: boolean): void {
+    this._pauseOnLootExpiry = v;
+  }
+
+  /** Retune the window length for windows armed from here on. Clockwork uses
+   *  this to swap its fixed cogwheel timeout for the configured loot window at
+   *  the turn-in; an in-flight timer keeps the duration it started with. */
+  setLootDurationMs(ms: number): void {
+    if (Number.isFinite(ms) && ms > 0) this._lootDurationMs = Math.floor(ms);
   }
 
   /** Cancel an active loot timer (e.g. on safe re-entry). Idempotent. */

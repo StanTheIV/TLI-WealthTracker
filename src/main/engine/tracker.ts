@@ -1,4 +1,4 @@
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting';
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight';
 /** A drop's attribution source — 'map' or one of the seasonal types. */
 export type Source = 'map' | SeasonalType;
 export type TrackerKind = 'session' | 'map' | 'seasonal';
@@ -18,6 +18,10 @@ export interface TrackerSnapshot {
    *  drops won't accrue but the tracker isn't finished). True for normal
    *  active seasonals. */
   active:        boolean;
+  /** True on the seasonal that currently owns incoming drops — the one whose
+   *  window was armed or re-armed most recently. Set by the registry at emit
+   *  time, since ownership is registry state rather than tracker state. */
+  owner?:        boolean;
   /** Per-source breakdown — populated only on the session tracker's snapshot.
    *  Each drop is attributed to exactly one source (newest active tracker at
    *  the moment the drop fired) so summing per-source totals reproduces
