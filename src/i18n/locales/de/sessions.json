@@ -139,7 +139,8 @@
       "sandlordMap": "Sandlord (Karte)",
       "lunaria": "Lunaria",
       "arcana": "Arcana",
-      "hunting": "Hunting"
+      "hunting": "Hunting",
+      "afterlight": "Afterlight"
     },
     "tooltipIncome": "Karte",
     "tooltipCost": "Kosten",
@@ -152,7 +153,6 @@
     "continue": "Sitzung fortsetzen",
     "rename": "Umbenennen",
     "delete": "Löschen",
-    "renamePrompt": "Neuen Sitzungsnamen eingeben",
     "confirmDelete": "Sitzung \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
   }
 }

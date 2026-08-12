@@ -78,11 +78,11 @@
     },
     "carjack": {
       "label": "Carjack",
-      "hint": "Zeit nach Ende der Carjack-Kampfmusik, in der Drops weiterhin zugerechnet werden. Drops fallen meist binnen 1-2 Sekunden; 5s ist großzügig."
+      "hint": "Wie lange der Carjack-Tracker ohne Kampfaktivität weiterläuft. Jeder Kill oder Spawn startet ihn neu; aufgehobener Loot nicht. Der Tracker pausiert nach Ablauf und wird fortgesetzt, wenn der Kampf weitergeht — eine verlassene Begegnung hört also auf, Drops zuzurechnen, ohne auf die Endmusik des Spiels zu warten."
     },
     "clockwork": {
       "label": "Clockwork Ballet",
-      "hint": "Zeit nach einer Clockwork-Voucher-Abgabe, in der Drops weiterhin zugerechnet werden."
+      "hint": "Zeit nach der Clockwork-Abgabe, in der Drops weiterhin zugerechnet werden. Zahnrad-Kämpfe nutzen einen festen 10s-Timer und zählen nie Loot, dieser Wert deckt also nur die Belohnung ab. Diese kann bis zu 6,7s nach der Abgabe erscheinen — stelle daher 7s oder mehr ein, damit eine verdoppelte Belohnung nicht verloren geht."
     },
     "lunaria": {
       "label": "Lunaria",
@@ -90,11 +90,15 @@
     },
     "sandlord": {
       "label": "Sandlord-Wellen-Timer",
-      "hint": "Wie lange der Sandlord-Kachel-Tracker in der Map nach dem Spawn einer Welle weiterläuft. Jede neue Welle startet ihn neu; aufgehobener Loot nicht. Der Tracker pausiert nach Ablauf und wird bei der nächsten Kachel fortgesetzt."
+      "hint": "Wie lange der Sandlord-Kachel-Tracker in der Map nach dem Spawn einer Welle weiterläuft. Jede neue Welle startet ihn neu, ebenso das Ende einer Maschine, damit deren letzte Drops noch zählen; aufgehobener Loot nicht. Wenn die letzte Maschine endet und nichts mehr folgt, wird der Lauf mit Ablauf dieses Fensters beendet."
     },
     "hunting": {
       "label": "Hunting",
       "hint": "Loot-Fenster nach dem Tod des Hunting-Bosses."
+    },
+    "afterlight": {
+      "label": "Afterlight-Wellen-Timer",
+      "hint": "Wie lange der Afterlight-Tracker ohne neue Gegner weiterläuft. Jede Welle startet ihn neu; aufgehobener Loot nicht. Der Tracker pausiert nach Ablauf und wird bei der nächsten Welle fortgesetzt, sodass eine längere Pause eine Begegnung nie in zwei aufteilt. Nach dem Tod des Wächters wird daraus das Loot-Fenster."
     }
   },
   "overlay": {
