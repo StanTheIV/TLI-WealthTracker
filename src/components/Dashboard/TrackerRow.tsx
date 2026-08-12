@@ -16,6 +16,9 @@ interface TrackerRowProps {
   /** Indents the row to mark it as an "of which" breakdown of the row above.
    *  Set for in-map seasonals, whose drops also count toward the Map row. */
   nested?:       boolean;
+  /** Marks the tracker currently receiving drops, so it's clear at a glance
+   *  which mechanic a pickup will credit when several run at once. */
+  owner?:        boolean;
 }
 
 function formatElapsed(ms: number): string {
@@ -48,7 +51,7 @@ function formatRate(valueFE: number | null, elapsedMs: number | null, timeframe:
 
 export default function TrackerRow({
   label, valueFE, elapsedMs, rateTimeframe, accentClass, dim = false, badge, countdownSec, paused = false,
-  nested = false,
+  nested = false, owner = false,
 }: TrackerRowProps) {
   const elapsedSec = elapsedMs !== null ? Math.floor(elapsedMs / 1000) * 1000 : null;
   const rateStr = useMemo(
@@ -66,6 +69,7 @@ export default function TrackerRow({
         transition-opacity duration-200
         ${dim ? 'opacity-35' : 'opacity-100'}
         ${nested ? 'ml-3' : ''}
+        ${owner && !dim && !paused ? 'ring-1 ring-gold/40' : ''}
       `}
       style={{backgroundColor: 'color-mix(in srgb, var(--color-surface-elevated) calc(var(--card-opacity, 1) * 100%), transparent)'}}
     >

@@ -8,6 +8,7 @@ import {useTrackerElapsed} from '@/hooks/useTrackerElapsed';
 import {useLootWindowCountdown} from '@/hooks/useLootWindowCountdown';
 import {useAnimatedPresence} from '@/hooks/useAnimatedPresence';
 import type {SeasonalType, TrackerSnapshot} from '@/types/electron';
+import {runsConcurrentlyWithMap} from '@/components/Sessions/analytics/attribution';
 import TrackerRow from './TrackerRow';
 import DropTable from './DropTable';
 import LowStockWarningRow from './LowStockWarningRow';
@@ -95,6 +96,8 @@ function SeasonalRow({type, snapshot, receivedAt, lootDeadline, isRunning, isPau
         dim={dim}
         paused={isPaused}
         nested={nested}
+        // Map-freezing seasonals own their loot outright — nothing to disambiguate.
+        owner={snapshot.owner === true && runsConcurrentlyWithMap(type, snapshot.phase ?? null)}
       />
     </div>
   );
@@ -247,9 +250,13 @@ export default function TrackerPanel() {
         </span>
       </button>
 
-      {/* Drop table */}
+      {/* Drop table — carries its own card backdrop so it follows the tracker
+          rows' opacity rather than whatever pane sits behind it. */}
       {tableOpen && (
-        <div className="border-t border-border mx-2.5 mb-2.5 pt-2 overflow-y-auto max-h-72">
+        <div
+          className="rounded-md mx-2.5 mb-2.5 px-2 pt-2 overflow-y-auto max-h-72"
+          style={{backgroundColor: 'color-mix(in srgb, var(--color-surface-elevated) calc(var(--card-opacity, 1) * 100%), transparent)'}}
+        >
           <DropTable drops={tableDrops} />
         </div>
       )}
