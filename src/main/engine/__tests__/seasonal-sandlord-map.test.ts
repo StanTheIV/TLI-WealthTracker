@@ -24,7 +24,7 @@ describe('Sandlord in-map tile integration', () => {
 
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
 
     const t = ctx(e).registry.seasonal('sandlord');
     expect(t).not.toBeNull();
@@ -44,7 +44,7 @@ describe('Sandlord in-map tile integration', () => {
 
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
     feed(d, e, log.bagUpdate(1, 1000, 4));
 
     expect(ctx(e).registry.seasonal('sandlord')?.snapshot().drops[1000]).toBe(4);
@@ -62,7 +62,7 @@ describe('Sandlord in-map tile integration', () => {
 
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
 
     // 9.5s into the 10s window — 0.5s from expiry.
     vi.advanceTimersByTime(9_500);
@@ -88,7 +88,7 @@ describe('Sandlord in-map tile integration', () => {
     // Real-log shape (2026.08.10 05:52): one tile, ONE Machine_Active for the
     // whole event, then mob rounds landing at ~9s intervals with no further
     // Machine marker. The landings alone must carry the window.
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
     feed(d, e, log.s10Wave);
     for (let round = 0; round < 3; round++) {
       vi.advanceTimersByTime(9_000);
@@ -107,7 +107,7 @@ describe('Sandlord in-map tile integration', () => {
 
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
     events.length = 0;
 
     // A burst lands ~30 mobs/sec; only ~1 reset/sec may reach the overlay.
@@ -121,25 +121,120 @@ describe('Sandlord in-map tile integration', () => {
     expect(resets.length).toBeGreaterThan(0);
   });
 
-  it('an early quench self-heals — the next landing resumes the tracker', () => {
+  it('a quench keeps the tracker alive — the last wave\'s loot still credits', () => {
     const d = createDispatcher();
     const e = createEngine([]);
 
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
 
-    // One machine quenches while another is still spawning rounds.
+    // Quench fires per MACHINE, not per tile: measured across 41 quenches the
+    // next wave followed within 5s in 37 cases (median 1.1s). Ending here would
+    // strip the loot the just-quenched machine is still dropping.
     vi.advanceTimersByTime(3_000);
     feed(d, e, log.s10Quench);
-    expect(ctx(e).registry.seasonal('sandlord')?.active).toBe(false);
+    expect(ctx(e).registry.seasonal('sandlord')?.active).toBe(true);
+    expect(ctx(e).registry.seasonal('sandlord')?.isLootCollecting()).toBe(true);
 
+    feed(d, e, log.bagUpdate(1, 1000, 3));
+    expect(ctx(e).registry.seasonal('sandlord')?.snapshot().drops[1000]).toBe(3);
+
+    // A later machine simply extends the same run.
     vi.advanceTimersByTime(2_000);
     feed(d, e, log.s10Land);
     expect(ctx(e).registry.seasonal('sandlord')?.active).toBe(true);
+  });
 
-    feed(d, e, log.bagUpdate(1, 1000, 3)); // post-resume drops still credit
-    expect(ctx(e).registry.seasonal('sandlord')?.snapshot().drops[1000]).toBe(3);
+  it('an active tracker always has a live window', () => {
+    const d = createDispatcher();
+    const e = createEngine([]);
+
+    boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+
+    // Waves arrive in bursts, so most are swallowed by the reset throttle. A
+    // swallowed reset must never leave the tracker running untimed — that is
+    // what made a tile silently stop having a countdown.
+    const check = (where: string) => {
+      const t = ctx(e).registry.seasonal('sandlord');
+      if (t && t.active && !t.isLootCollecting()) throw new Error(`untimed at ${where}`);
+    };
+
+    feed(d, e, log.s10Wave);                    check('start');
+    vi.advanceTimersByTime(100);
+    feed(d, e, log.s10Land);                    check('throttled burst wave');
+    vi.advanceTimersByTime(100);
+    feed(d, e, log.s10Quench);                  check('quench');
+    vi.advanceTimersByTime(100);
+    feed(d, e, log.s10Land);                    check('throttled wave after quench');
+    vi.advanceTimersByTime(5_000);
+    feed(d, e, log.s10Land);                    check('wave mid-window');
+  });
+
+  it('a quench with no follow-up wave finishes the run outright', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s10Wave);
+    feed(d, e, log.s10Quench);
+
+    // The last machine quenched and nothing followed — the tile is done.
+    vi.advanceTimersByTime(10_100);
+    expect(ctx(e).registry.seasonal('sandlord')).toBeNull();
+    expect(events.some(ev => ev.type === 'tracker_finished'
+      && ev.tracker.seasonalType === 'sandlord')).toBe(true);
+  });
+
+  it('walking away mid-tile only parks the run — a later wave resumes it', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s10Wave);
+
+    // No quench — the machine is still live, the player just left.
+    vi.advanceTimersByTime(10_100);
+    expect(ctx(e).registry.seasonal('sandlord')?.active).toBe(false);
+    expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
+
+    feed(d, e, log.s10Land);
+    expect(ctx(e).registry.seasonal('sandlord')?.active).toBe(true);
+    expect(events.filter(ev => ev.type === 'tracker_started'
+      && ev.tracker.seasonalType === 'sandlord').length).toBe(1);
+  });
+
+  it('a quench followed by another machine keeps one continuous run', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+
+    // Real tiles interleave several machines: 8 quenches in one 14s encounter.
+    feed(d, e, log.s10Wave);
+    feed(d, e, log.s10Quench);
+    vi.advanceTimersByTime(1_100);
+    feed(d, e, log.s10WaveResource); // second machine — clears the terminal flag
+    feed(d, e, log.s10Quench);
+    vi.advanceTimersByTime(1_100);
+    feed(d, e, log.s10Wave);
+
+    expect(ctx(e).registry.seasonal('sandlord')?.active).toBe(true);
+    expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
+    expect(events.filter(ev => ev.type === 'tracker_started'
+      && ev.tracker.seasonalType === 'sandlord').length).toBe(1);
+
+    // And now the tile really ends.
+    feed(d, e, log.s10Quench);
+    vi.advanceTimersByTime(10_100);
+    expect(ctx(e).registry.seasonal('sandlord')).toBeNull();
   });
 
   it('a wave with no tracker starts one defensively (tile line missed mid-map)', () => {
@@ -160,7 +255,7 @@ describe('Sandlord in-map tile integration', () => {
 
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
 
     // Steady pickups across the whole window. Under Lunaria's rules these would
     // keep re-arming it; here only waves count, so it must still expire on time.
@@ -180,7 +275,7 @@ describe('Sandlord in-map tile integration', () => {
 
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
 
     vi.advanceTimersByTime(10_100);
 
@@ -197,7 +292,7 @@ describe('Sandlord in-map tile integration', () => {
 
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
     feed(d, e, log.bagUpdate(1, 1000, 2));
     vi.advanceTimersByTime(10_100); // dormant
 
@@ -211,23 +306,6 @@ describe('Sandlord in-map tile integration', () => {
     expect(starts).toHaveLength(1);
   });
 
-  it('a quench pauses the tracker immediately', () => {
-    const events: EngineEvent[] = [];
-    const d = createDispatcher();
-    const e = createEngine(events);
-
-    boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
-    feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
-
-    vi.advanceTimersByTime(1_000); // well inside the window
-    feed(d, e, log.s10Quench);
-
-    expect(ctx(e).registry.seasonal('sandlord')?.active).toBe(false);
-    expect(ctx(e).registry.seasonal('sandlord')?.isLootCollecting()).toBe(false);
-    expect(events.some(ev => ev.type === 'tracker_finished' && ev.tracker.seasonalType === 'sandlord')).toBe(false);
-  });
-
   it('a second tile in the same map resumes the same tracker — no second start', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
@@ -236,9 +314,9 @@ describe('Sandlord in-map tile integration', () => {
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
 
-    feed(d, e, log.s10Tile);
-    feed(d, e, log.s10Quench);      // first tile done, dormant
-    feed(d, e, log.s10Tile);        // second tile
+    feed(d, e, log.s10Wave);
+    feed(d, e, log.s10Quench);      // first machine done
+    feed(d, e, log.s10Wave);        // second machine / later tile
 
     expect(ctx(e).registry.seasonal('sandlord')?.active).toBe(true);
     expect(ctx(e).registry.seasonalsSize()).toBe(1);
@@ -253,8 +331,8 @@ describe('Sandlord in-map tile integration', () => {
 
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
-    feed(d, e, log.s10Tile);
-    feed(d, e, log.s10Quench); // dormant — must still be torn down
+    feed(d, e, log.s10Wave);
+    feed(d, e, log.s10Quench); // still alive — must be torn down regardless
 
     feed(d, e, log.zoneTransition(MAP, TOWN));
 
@@ -272,7 +350,7 @@ describe('Sandlord in-map tile integration', () => {
     events.length = 0;
 
     // The hub's Pillage minigame replays these markers densely.
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
     feed(d, e, log.s10Wave);
     feed(d, e, log.s10Quench);
 
@@ -293,7 +371,7 @@ describe('Sandlord in-map tile integration', () => {
     boot(d, e, [{slotId: 1, itemId: 1000, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
     vi.advanceTimersByTime(10_000); // 10s of real mapping
-    feed(d, e, log.s10Tile);
+    feed(d, e, log.s10Wave);
     feed(d, e, log.s10Quench);      // tile run goes dormant, still registered
     expect(ctx(e).registry.seasonal('sandlord')?.snapshot().phase).toBe('map');
     events.length = 0;

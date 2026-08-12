@@ -3,9 +3,6 @@ import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 
 const DEFAULT_WAVE_MS = 10_000;
-// Mob-landing markers arrive 30+/sec during a spawn burst; resets are
-// rate-limited so the overlay isn't flooded with loot_window_started events.
-const WAVE_RESET_INTERVAL_MS = 1_000;
 
 /**
  * SandlordMapHandler — Sandlord (S10) IN-MAP coin-tile translator.
@@ -13,16 +10,25 @@ const WAVE_RESET_INTERVAL_MS = 1_000;
  * Shares the 'sandlord' seasonal type with the hub bubble but runs as phase
  * 'map': an in-map mechanic, so the map keeps running and drops fall through.
  * Multiple tiles in one map fold into the same tracker, dormant between them.
- *   s10_tile / s10_wave (first)  : start tracker + arm the wave window
- *   s10_tile / s10_wave (dormant): resume + arm a fresh window
- *   s10_tile / s10_wave (active) : reset the window (full re-arm, rate-limited)
- *   s10_quench                   : cancel the window + go dormant
+ *   s10_wave (first)  : start tracker + arm the wave window
+ *   s10_wave (dormant): resume + arm a fresh window
+ *   s10_wave (active) : reset the window (full re-arm, rate-limited)
+ *   s10_quench        : re-arm the window so the last wave's loot still credits
  *
  * s10_wave covers both a machine engaging AND every mob landing — a machine
  * fires its Active marker only once but spawns several rounds, so the landing
- * markers are what attest a round is still coming. A quench can fire per
- * machine while another is still spawning; the next landing simply resumes
- * the tracker, so an early quench self-heals.
+ * markers are what attest a round is still coming.
+ *
+ * A quench alone is not the end: it fires per MACHINE, and a tile runs several.
+ * Measured across 41 quenches, the next Active_Lp followed within 5s in 37 cases
+ * (median 1.1s, min 68ms), and one 14s encounter contained 8 quenches. So quench
+ * re-arms the window rather than ending anything — the last machine's drops keep
+ * crediting. But a quench with NO follow-up wave is the real end of the tile, so
+ * that window finishes the run outright instead of parking it dormant.
+ *
+ * Before the first quench the window is pure wave activity, so expiry only parks
+ * the tracker: the player may have walked away mid-tile and a later wave must
+ * resume the same run. Town entry remains the backstop for both.
  *
  * The timer is a WAVE-ACTIVITY window, not a loot window — it repurposes the
  * loot-timer machinery so expiry pauses the tracker (`pauseOnLootExpiry`). Hence
@@ -35,11 +41,9 @@ const WAVE_RESET_INTERVAL_MS = 1_000;
  */
 export class SandlordMapHandler implements EventHandler {
   readonly name    = 'sandlord-map';
-  readonly handles = ['s10_tile', 's10_wave', 's10_quench'] as const;
+  readonly handles = ['s10_wave', 's10_quench'] as const;
 
-  private _waveMs:      number = DEFAULT_WAVE_MS;
-  private _lastResetAt: number = 0;
-
+  private _waveMs: number = DEFAULT_WAVE_MS;
   setWaveDurationMs(ms: number): void {
     this._waveMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_WAVE_MS;
   }
@@ -54,19 +58,20 @@ export class SandlordMapHandler implements EventHandler {
     if (!ctx.inMap || ctx.registry.hasBubble()) return;
 
     if (event.type === 's10_quench') {
+      // Re-arm rather than cancel: the machine's last wave is still dropping,
+      // and cancelling stripped that loot from the tracker. If another machine
+      // follows, the next wave clears the flag; if none does, this window is
+      // the tile's real end and expiry finishes the run.
       const t = ctx.registry.seasonal('sandlord');
       if (t) {
-        t.cancelLootTimer();
-        t.pauseTracker();
+        t.setPauseOnLootExpiry(false);
+        t.resetLootTimer();
       }
       return;
     }
 
-    if (event.type !== 's10_tile' && event.type !== 's10_wave') return;
+    if (event.type !== 's10_wave') return;
 
-    // Tile and wave share one activation path. A wave with no tracker starts one
-    // defensively — the tile line is missed whenever the watcher attaches after
-    // the tile was already activated mid-map.
     const existing = ctx.registry.seasonal('sandlord');
     if (!existing) {
       const t = ctx.registry.startSeasonal({
@@ -76,23 +81,21 @@ export class SandlordMapHandler implements EventHandler {
         pauseOnLootExpiry: true,
       }, emit);
       t?.armLootTimer();
-      this._lastResetAt = Date.now();
       return;
     }
 
     if (!existing.active) {
+      existing.setPauseOnLootExpiry(true);
       existing.resumeTracker();
       existing.armLootTimer();
-      this._lastResetAt = Date.now();
       return;
     }
 
-    // Active tracker, window in flight — wave activity refreshes it in full,
-    // at most once per WAVE_RESET_INTERVAL_MS.
-    const now = Date.now();
-    if (now - this._lastResetAt >= WAVE_RESET_INTERVAL_MS) {
-      existing.resetLootTimer();
-      this._lastResetAt = now;
-    }
+    // A wave means the tile is still running, so expiry goes back to parking the
+    // tracker. The window in flight may be the terminal one a quench armed —
+    // that must be replaced outright, never merely throttled, or it expires
+    // under the new park-flag and leaves a dormant tracker with no timer.
+    existing.setPauseOnLootExpiry(true);
+    existing.resetLootTimerThrottled();
   }
 }
