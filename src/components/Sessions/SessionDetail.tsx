@@ -39,7 +39,11 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
   const [maps, setMaps]             = useState<DbSessionMap[]>([]);
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [itemTab, setItemTab]       = useState<ItemTab>('dropped');
-  const [mode, setMode]             = useState<ValueMode>('live');
+  // Default to the prices captured at save: a past session's value is what it
+  // was worth then, not what today's market would pay for the same drops.
+  const [mode, setMode]             = useState<ValueMode>('snapshot');
+  const [renaming, setRenaming]     = useState(false);
+  const [draftName, setDraftName]   = useState('');
 
   const session = sessions.find(s => s.id === sessionId);
 
@@ -111,11 +115,17 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
     onNavChange('dashboard');
   }
 
-  function handleRename() {
-    const newName = window.prompt(t('actions.renamePrompt'), session!.name);
-    if (newName && newName.trim() && newName.trim() !== session!.name) {
-      renameSession(session!.id, newName.trim());
-    }
+  // Renaming is inline rather than a prompt(): Electron renderers ignore
+  // window.prompt() entirely, so the old handler silently did nothing.
+  function startRename() {
+    setDraftName(session!.name);
+    setRenaming(true);
+  }
+
+  function commitRename() {
+    const next = draftName.trim();
+    if (next && next !== session!.name) renameSession(session!.id, next);
+    setRenaming(false);
   }
 
   function handleDelete() {
@@ -142,9 +152,27 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
           <ArrowLeft className="w-4 h-4" />
           {t('details.back')}
         </button>
-        <h1 className="text-lg font-bold text-text-primary truncate" title={session.name}>
-          {session.name}
-        </h1>
+        {renaming ? (
+          <input
+            autoFocus
+            value={draftName}
+            onChange={e => setDraftName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={e => {
+              if (e.key === 'Enter')  commitRename();
+              if (e.key === 'Escape') setRenaming(false);
+            }}
+            className="flex-1 min-w-0 text-lg font-bold bg-surface-elevated text-text-primary rounded-md px-2 py-0.5 border border-accent outline-none"
+          />
+        ) : (
+          <h1
+            onDoubleClick={startRename}
+            className="flex-1 min-w-0 text-lg font-bold text-text-primary truncate cursor-text"
+            title={session.name}
+          >
+            {session.name}
+          </h1>
+        )}
         <div className="flex gap-2 shrink-0">
           <button
             onClick={handleContinue}
@@ -154,7 +182,7 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
             {t('actions.continue')}
           </button>
           <button
-            onClick={handleRename}
+            onClick={startRename}
             className="px-3 py-1.5 rounded-md text-xs font-medium bg-surface-elevated text-text-primary hover:bg-white/10 transition-colors"
           >
             {t('actions.rename')}

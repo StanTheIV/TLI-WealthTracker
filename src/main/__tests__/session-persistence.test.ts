@@ -91,30 +91,31 @@ describe('SessionPersistence.onTrackerFinished', () => {
     const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
     const engine = makeEngine({hasMap: true, spends: {'42': 2}});
 
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), engine);
     p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), engine);
+    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), engine);
 
     const rows = pendingRows(p);
-    expect(rows[0].spent).toEqual({'42': 2});
-    expect(rows[1].spent).toEqual({});
+    const map     = rows.find(r => r.seasonalType === null)!;
+    const overlap = rows.find(r => r.seasonalType === 'overrealm')!;
+    expect(map.spent).toEqual({'42': 2});
+    expect(overlap.spent).toEqual({});
   });
 
   it('buffers an overlap seasonal (active map) pointing at the parent mapIndex', () => {
     const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
 
-    // Run a map first so _lastPrimaryMapIndex = 1.
-    p.onTrackerFinished(trackerFinished('map', {100: 5}, 60_000), makeEngine({hasMap: true}));
-
-    // Overrealm fires while the map tracker is still active (overlap case).
+    // finishAll() emits the seasonal first, while the map tracker is still live.
     p.onTrackerFinished(trackerFinished('seasonal', {300: 2}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
+    p.onTrackerFinished(trackerFinished('map', {100: 5}, 60_000), makeEngine({hasMap: true}));
 
     const rows = pendingRows(p);
     expect(rows.length).toBe(2);
-    expect(rows[0]).toMatchObject({mapIndex: 1, parentMapIndex: null, seasonalType: null});
-    expect(rows[1]).toMatchObject({
+    expect(rows.find(r => r.seasonalType === null)).toMatchObject({
+      mapIndex: 1, parentMapIndex: null,
+    });
+    expect(rows.find(r => r.seasonalType === 'overrealm')).toMatchObject({
       mapIndex:       1,
       drops:          {'300': 2},
-      seasonalType:   'overrealm',
       parentMapIndex: 1,
     });
   });
@@ -122,7 +123,7 @@ describe('SessionPersistence.onTrackerFinished', () => {
   it('mapIndex only advances on primary rows (overlap rows reuse parent mapIndex)', () => {
     const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
 
-    // map #1, then an overlap, then map #2, then a standalone Sandlord.
+    // map #1 (bare), then map #2 with an overlap, then a standalone Sandlord.
     p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
     p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
     p.onTrackerFinished(trackerFinished('map', {100: 2}, 70_000), makeEngine({hasMap: true}));
@@ -131,8 +132,8 @@ describe('SessionPersistence.onTrackerFinished', () => {
     const rows = pendingRows(p);
     expect(rows.map(r => ({mi: r.mapIndex, st: r.seasonalType, p: r.parentMapIndex}))).toEqual([
       {mi: 1, st: null,        p: null},
-      {mi: 1, st: 'overrealm', p: 1},
       {mi: 2, st: null,        p: null},
+      {mi: 2, st: 'overrealm', p: 2},
       {mi: 3, st: 'sandlord',  p: null},
     ]);
   });
@@ -140,18 +141,17 @@ describe('SessionPersistence.onTrackerFinished', () => {
   it("carries a snapshot's phase onto the buffered row (in-map sandlord)", () => {
     const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
 
-    // Map runs first, then the in-map sandlord coin tile finishes inside it.
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    // The in-map coin tile finishes first, then the map it ran in.
     p.onTrackerFinished(
       trackerFinished('seasonal', {200: 4}, 15_000, 'sandlord', 1_000_000, 'map'),
       makeEngine({hasMap: true}),
     );
+    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
 
     const rows = pendingRows(p);
-    expect(rows[0].phase).toBe(null);
-    expect(rows[1]).toMatchObject({
+    expect(rows.find(r => r.seasonalType === null)!.phase).toBe(null);
+    expect(rows.find(r => r.seasonalType === 'sandlord')).toMatchObject({
       mapIndex:       1,
-      seasonalType:   'sandlord',
       parentMapIndex: 1,
       phase:          'map',
     });
@@ -176,16 +176,52 @@ describe('SessionPersistence.onTrackerFinished', () => {
   it('a snapshot without phase buffers phase null (non-sandlord seasonals, map rows)', () => {
     const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
 
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
     p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
+    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
 
     expect(pendingRows(p).map(r => r.phase)).toEqual([null, null]);
   });
 
+  // ZoneHandler's town path calls registry.finishAll(), which finishes every
+  // seasonal BEFORE the map tracker. So for an in-map mechanic the seasonal's
+  // tracker_finished always arrives while `_lastPrimaryMapIndex` still names the
+  // PREVIOUS map — the map it actually ran in has not been buffered yet.
+  it('attaches an in-map seasonal to the map it ran in, not the previous one', () => {
+    const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
+    const engine = makeEngine({hasMap: true});
+
+    // Map 1 completes cleanly, no seasonals.
+    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), engine);
+    // Map 2 runs a Hunting arena. finishAll() emits the seasonal first.
+    p.onTrackerFinished(trackerFinished('seasonal', {10054: 2}, 5_000, 'hunting'), engine);
+    p.onTrackerFinished(trackerFinished('map', {10054: 2}, 60_000), engine);
+
+    const rows    = pendingRows(p);
+    const hunting = rows.find(r => r.seasonalType === 'hunting')!;
+    const mapTwo  = rows.filter(r => r.seasonalType === null)[1];
+
+    // The hunting run's loot is in map 2's row, so it must point at map 2.
+    expect(mapTwo.drops['10054']).toBe(2);
+    expect(hunting.parentMapIndex).toBe(mapTwo.mapIndex);
+  });
+
+  it('discard() drops staged overlaps whose parent map never arrived', () => {
+    const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
+    p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
+    expect(pendingRows(p).length).toBe(0); // staged, not yet buffered
+
+    p.discard();
+    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+
+    // The discarded overlap must not resurface when the next map row lands.
+    expect(pendingRows(p).length).toBe(1);
+    expect(pendingRows(p)[0].seasonalType).toBe(null);
+  });
+
   it('discard() resets pending rows and primary-index counter', () => {
     const p = new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false});
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
     p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
+    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
     expect(pendingRows(p).length).toBe(2);
 
     p.discard();

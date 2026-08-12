@@ -46,10 +46,15 @@ export class SessionPersistence {
   private readonly _meta: SessionMeta;
   private _pendingRows: DbSessionMap[] = [];
   /** mapIndex of the most-recently-buffered primary row (regular map or
-   *  standalone seasonal). Overlap seasonal rows attach to this. 0 before any
-   *  primary row exists — overlap rows in that window have no parent and are
-   *  treated as standalones (defensive; should never happen in practice). */
+   *  standalone seasonal). Standalone seasonals bump this. 0 before any
+   *  primary row exists. */
   private _lastPrimaryMapIndex: number = 0;
+  /** In-map seasonal rows awaiting their parent's mapIndex. `finishAll` emits
+   *  every seasonal BEFORE the map they ran in, so at the moment an overlap
+   *  arrives its parent row does not exist yet and `_lastPrimaryMapIndex` still
+   *  names the PREVIOUS map. Staging them here and stamping the index when the
+   *  map row lands is what keeps an overlap tied to the map it actually ran in. */
+  private _pendingOverlaps: DbSessionMap[] = [];
 
   constructor(meta: SessionMeta) {
     this._meta = meta;
@@ -81,14 +86,16 @@ export class SessionPersistence {
     if (tracker.kind === 'map') {
       const mapIndex = ++this._lastPrimaryMapIndex;
       this._pendingRows.push(this._buildRow(tracker, timestamp, engine.getLastMapSpends(), null, mapIndex, null));
+      this._claimOverlaps(mapIndex);
       return null;
     }
 
     if (tracker.kind === 'seasonal') {
-      if (engine.hasActiveMapTracker() && this._lastPrimaryMapIndex > 0) {
+      if (engine.hasActiveMapTracker()) {
         // Overlap row — a breakdown of the parent map row, which already
-        // includes these drops (drop-through attribution).
-        this._pendingRows.push(this._buildRow(tracker, timestamp, {}, tracker.seasonalType ?? null, this._lastPrimaryMapIndex, this._lastPrimaryMapIndex));
+        // includes these drops (drop-through attribution). The parent's index
+        // is unknown until its row is buffered, so stage it.
+        this._pendingOverlaps.push(this._buildRow(tracker, timestamp, {}, tracker.seasonalType ?? null, 0, 0));
       } else {
         // Standalone seasonal (Sandlord, etc.) — primary row. It owns its entry
         // cost: ItemHandler records the pre-map flush on any transition into a
@@ -101,6 +108,15 @@ export class SessionPersistence {
     }
 
     if (tracker.kind === 'session') {
+      // A session ending mid-map leaves overlaps whose parent row never
+      // arrived. Promote them to standalones so their drops are still saved.
+      for (const row of this._pendingOverlaps) {
+        row.mapIndex       = ++this._lastPrimaryMapIndex;
+        row.parentMapIndex = null;
+        this._pendingRows.push(row);
+      }
+      this._pendingOverlaps = [];
+
       const savedId = this._autoSave(event);
       // Whatever path autoSave took (saved or skipped), the buffer is gone.
       this._pendingRows = [];
@@ -111,12 +127,24 @@ export class SessionPersistence {
     return null;
   }
 
+  /** Stamp staged in-map seasonals with the parent map row's index. */
+  private _claimOverlaps(mapIndex: number): void {
+    if (this._pendingOverlaps.length === 0) return;
+    for (const row of this._pendingOverlaps) {
+      row.mapIndex       = mapIndex;
+      row.parentMapIndex = mapIndex;
+      this._pendingRows.push(row);
+    }
+    this._pendingOverlaps = [];
+  }
+
   /**
    * Drop any buffered per-run rows. Call when the engine is being reset or
    * stopped without a natural session-finish flow (e.g. user clicked Reset).
    */
   discard(): void {
     this._pendingRows = [];
+    this._pendingOverlaps = [];
     this._lastPrimaryMapIndex = 0;
   }
 
