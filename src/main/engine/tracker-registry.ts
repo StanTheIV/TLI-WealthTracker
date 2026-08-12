@@ -1,6 +1,6 @@
 import {Tracker} from './tracker';
 import {SeasonalTracker} from './seasonal-tracker';
-import type {SeasonalPhase, SeasonalType, Source} from './tracker';
+import type {SeasonalPhase, SeasonalType, Source, TrackerSnapshot} from './tracker';
 import type {EmitFn} from './types';
 import type {ItemFilterEngine} from './item-filter';
 import type {FilterScope} from '@/types/itemFilter';
@@ -21,6 +21,9 @@ export class TrackerRegistry {
   map:     Tracker | null = null;
 
   private _seasonals:  Map<SeasonalType, SeasonalTracker> = new Map();
+  // Last `owner` flag published per seasonal, so ownership churn only emits for
+  // trackers whose flag actually flipped.
+  private _lastEmittedOwner: Map<SeasonalType, boolean> = new Map();
   // ACTIVATION order — start pushes, gameplay reactivation bumps to the end.
   // writer() scans it from the end for the drop owner.
   private _startOrder: SeasonalType[]                     = [];
@@ -96,6 +99,7 @@ export class TrackerRegistry {
     phase?:             SeasonalPhase;
     lootDurationMs?:    number;
     pauseOnLootExpiry?: boolean;
+    claimsDrops?:       boolean;
   }, emit: EmitFn): SeasonalTracker | null {
     const type       = opts.type;
     const ownsBubble = opts.ownsBubble ?? false;
@@ -120,11 +124,17 @@ export class TrackerRegistry {
       phase:             opts.phase,
       lootDurationMs:    opts.lootDurationMs,
       pauseOnLootExpiry: opts.pauseOnLootExpiry,
+      claimsDrops:       opts.claimsDrops,
     });
     this._seasonals.set(type, tracker);
     this._startOrder.push(type);
     this._currentWriter = undefined;
-    emit({type: 'tracker_started', tracker: tracker.snapshot(), timestamp: Date.now()});
+    // Starting normally makes it the newest → owner, but a timing-only tracker
+    // never holds the flag, and seeding `true` would suppress the corrective
+    // update that _emitOwnership only sends on a CHANGE.
+    this._lastEmittedOwner.set(type, tracker.claimsDrops);
+    emit({type: 'tracker_started', tracker: this._snapshotWithOwner(tracker), timestamp: Date.now()});
+    this._emitOwnership(emit);              // whoever held it before must drop the flag
     return tracker;
   }
 
@@ -142,13 +152,20 @@ export class TrackerRegistry {
     this._seasonals.delete(type);
     const idx = this._startOrder.indexOf(type);
     if (idx >= 0) this._startOrder.splice(idx, 1);
+    this._lastEmittedOwner.delete(type);
     this._currentWriter = undefined;
     emit({type: 'tracker_finished', tracker: snap, timestamp: Date.now()});
+    this._emitOwnership(emit); // ownership falls to whoever is now newest
   }
 
+  /** Internal: a seasonal paused or resumed. The renderer freezes a row's clock
+   *  on `active: false`, so this state MUST reach it — hence the forced emit.
+   *  Ownership alone would not do it: a tracker that never owns drops (a
+   *  timing-only one, see SeasonalTracker.claimsDrops) has no ownership change
+   *  to publish, so it would park silently and its row keep ticking. */
   _onSeasonalStateChanged(tracker: SeasonalTracker, emit: EmitFn): void {
     this._currentWriter = undefined;
-    emit({type: 'tracker_update', tracker: tracker.snapshot(), timestamp: Date.now()});
+    this._emitOwnership(emit, tracker.seasonalType);
   }
 
   /** Internal: a seasonal was re-activated by gameplay (e.g. a fresh Lunaria
@@ -163,7 +180,50 @@ export class TrackerRegistry {
       this._startOrder.push(type);
     }
     this._currentWriter = undefined;
-    emit({type: 'tracker_update', tracker: tracker.snapshot(), timestamp: Date.now()});
+    // Forced for the same reason as the pause path: waking a timing-only
+    // tracker changes no ownership, but the row must start ticking again.
+    this._emitOwnership(emit, type);
+  }
+
+  /** Turn drop ownership on or off for a live seasonal without touching its
+   *  clock — see SeasonalTracker.claimsDrops. Ownership is registry state, so
+   *  the cached writer must be dropped and the change fanned out here rather
+   *  than by the handler. Granting it also bumps the tracker to newest, so a
+   *  mechanic that finally claims its loot outranks anything started meanwhile. */
+  setSeasonalClaimsDrops(tracker: SeasonalTracker, claims: boolean, emit: EmitFn): void {
+    if (tracker.claimsDrops === claims) return;
+    tracker._setClaimsDrops(claims);
+    if (claims) {
+      this._onSeasonalReactivated(tracker, emit);
+      return;
+    }
+    this._currentWriter = undefined;
+    this._emitOwnership(emit);
+  }
+
+  /** Emit a tracker_update for every live seasonal whose `owner` flag changed.
+   *  Ownership is a property of the SET — one seasonal gaining it means another
+   *  lost it, and the loser needs a snapshot too or the UI would show two owners.
+   *
+   *  `force` names a seasonal to emit even when its ownership is unchanged, for
+   *  callers publishing some OTHER state on it (pause/resume). Routing that
+   *  through here rather than emitting separately is what keeps it to exactly
+   *  one update per tracker. */
+  private _emitOwnership(emit: EmitFn, force?: SeasonalType): void {
+    const owner = this.writer();
+    for (const t of this._seasonals.values()) {
+      const isOwner = t.seasonalType === owner;
+      if (this._lastEmittedOwner.get(t.seasonalType) === isOwner && t.seasonalType !== force) continue;
+      this._lastEmittedOwner.set(t.seasonalType, isOwner);
+      emit({type: 'tracker_update', tracker: this._snapshotWithOwner(t, owner), timestamp: Date.now()});
+    }
+  }
+
+  /** Snapshot stamped with the drop-ownership flag. */
+  _snapshotWithOwner(tracker: SeasonalTracker, owner?: Source | null): TrackerSnapshot {
+    const snap = tracker.snapshot();
+    snap.owner = tracker.seasonalType === (owner === undefined ? this.writer() : owner);
+    return snap;
   }
 
   // -----------------------------------------------------------------------
@@ -206,7 +266,10 @@ export class TrackerRegistry {
     let writer: Source | null = null;
     for (let i = this._startOrder.length - 1; i >= 0; i--) {
       const t = this._seasonals.get(this._startOrder[i]);
-      if (t && t.active) { writer = this._startOrder[i]; break; }
+      // A timing-only tracker (claimsDrops: false) is skipped rather than
+      // treated as the owner, so drops fall through to the next candidate —
+      // in practice the map. See SeasonalTracker.claimsDrops.
+      if (t && t.active && t.claimsDrops) { writer = this._startOrder[i]; break; }
     }
     if (writer === null && this.map !== null && this.map.active) writer = 'map';
     this._currentWriter = writer;

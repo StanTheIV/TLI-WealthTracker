@@ -88,33 +88,41 @@ export default function OverlayWindow() {
     return () => observer.disconnect();
   }, []);
 
+  // While tracking, the window itself goes fully transparent so only the cards
+  // float over the game — the opacity setting governs the cards, not the pane
+  // behind them. Idle/paused keeps the pane so the overlay stays findable.
+  const chromeVisible = !isActivelyTracking;
+
   return (
     <div
       style={{
-        backgroundColor: `rgba(13,17,23,${opacity})`,
+        backgroundColor: chromeVisible ? `rgba(13,17,23,${opacity})` : 'transparent',
         '--card-opacity': String(0.5 + opacity * 0.5),
       } as React.CSSProperties}
-      className="rounded-xl border border-white/8 relative overflow-hidden shadow-2xl"
+      className={`rounded-xl relative overflow-hidden transition-colors duration-200
+        ${chromeVisible ? 'border border-white/8 shadow-2xl' : 'border border-transparent'}`}
       ref={contentRef}
     >
-      {/* Drag handle strip */}
-      <div
-        className="flex items-center justify-center h-6 cursor-move transition-colors hover:bg-white/6"
-        onMouseDown={e => { dragState.current = {startX: e.screenX, startY: e.screenY}; }}
-        onMouseEnter={() => setHandleHovered(true)}
-        onMouseLeave={() => setHandleHovered(false)}
-      >
-        <div className={`flex gap-1 transition-opacity duration-200 ${handleHovered ? 'opacity-60' : 'opacity-20'}`}>
-          <span className="w-1 h-1 rounded-full bg-text-secondary" />
-          <span className="w-1 h-1 rounded-full bg-text-secondary" />
-          <span className="w-1 h-1 rounded-full bg-text-secondary" />
-          <span className="w-1 h-1 rounded-full bg-text-secondary" />
-          <span className="w-1 h-1 rounded-full bg-text-secondary" />
-        </div>
-      </div>
-
-      {/* Thin separator under handle */}
-      <div className="h-px bg-white/5 mx-2" />
+      {/* Drag handle strip — hidden while tracking, along with the pane it sits on */}
+      {chromeVisible && (
+        <>
+          <div
+            className="flex items-center justify-center h-6 cursor-move transition-colors hover:bg-white/6"
+            onMouseDown={e => { dragState.current = {startX: e.screenX, startY: e.screenY}; }}
+            onMouseEnter={() => setHandleHovered(true)}
+            onMouseLeave={() => setHandleHovered(false)}
+          >
+            <div className={`flex gap-1 transition-opacity duration-200 ${handleHovered ? 'opacity-60' : 'opacity-20'}`}>
+              <span className="w-1 h-1 rounded-full bg-text-secondary" />
+              <span className="w-1 h-1 rounded-full bg-text-secondary" />
+              <span className="w-1 h-1 rounded-full bg-text-secondary" />
+              <span className="w-1 h-1 rounded-full bg-text-secondary" />
+              <span className="w-1 h-1 rounded-full bg-text-secondary" />
+            </div>
+          </div>
+          <div className="h-px bg-white/5 mx-2" />
+        </>
+      )}
 
       <TrackerPanel />
     </div>

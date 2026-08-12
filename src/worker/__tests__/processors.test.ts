@@ -9,7 +9,9 @@ import {S9Processor} from '@/worker/processors/s9';
 import {S7Processor} from '@/worker/processors/s7';
 import {S14Processor} from '@/worker/processors/s14';
 import {S10Processor} from '@/worker/processors/s10';
+import {S11Processor} from '@/worker/processors/s11';
 import {HuntingProcessor} from '@/worker/processors/hunting';
+import {AfterlightProcessor} from '@/worker/processors/afterlight';
 
 // ---------------------------------------------------------------------------
 // Realistic log line templates
@@ -552,11 +554,20 @@ describe('S12Processor', () => {
 const ts7 = '[2026.04.22-15.19.40:581]';
 
 const s7Lines = {
-  start:     `${ts7}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = -1 PushState = S7GamePlayStateStart`,
-  heartbeat: `${ts7}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = S7GamePlayStateStart PushState = S7GamePlayStateStart`,
-  success:   `${ts7}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = S7GamePlayStateStart PushState = S7GamePlayStateSuccess`,
-  failOpen:  `${ts7}TLLua: Display: [Game] PageBase@ OpenFlow0! Switch = true S7GamePlayFailStateItem 8292819`,
-  failOther: `${ts7}TLLua: Display: [Game] TipMsgShowMgr@DispatchPageRunChange PageName = S7GamePlayFailStateItem , PageRunState = Run`,
+  podium:       `${ts7}TLLua: Display: [Game] AudioMgr@PlayAudio  AudioEnum  == S7_3X1_Open`,
+  cogwheel:     `${ts7}[476]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_S7_WOJLB_Machine_Gear_Idle_Common_Lp' requested row 'Play_Obj_S7_WOJLB_Machine_Gear_Idle_Common_Lp' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+  cogwheelEnd:  `${ts7}[476]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_S7_WOJLB_Machine_Gear_Exp_Common' requested row 'Play_Obj_S7_WOJLB_Machine_Gear_Exp_Common' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+  rewardBox:    `${ts7}[476]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_S7_WOJLB_Machine_GearBox_Appear_Common' requested row 'Play_Obj_S7_WOJLB_Machine_GearBox_Appear_Common' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+  cogwheelMob:  `${ts7}TLGame: Display: [Game] Monster Created: npc id 2610011 rarity 1`,
+  voucher:      `${ts7}TLLua: Display: [Game] AudioMgr@PlayAudio  AudioEnum  == S7_Level_Gear`,
+  turnin:       `${ts7}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = S7GamePlayStateStart PushState = S7GamePlayStateSuccess`,
+  gameStart:    `${ts7}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = -1 PushState = S7GamePlayStateStart`,
+  heartbeat:    `${ts7}TLLua: Display: [Game] S7GamePlayMgr@HandleS7PushData GamePlayState = S7GamePlayStateStart PushState = S7GamePlayStateStart`,
+  failOpen:     `${ts7}TLLua: Display: [Game] PageBase@ OpenFlow0! Switch = true S7GamePlayFailStateItem 8292819`,
+  failOther:    `${ts7}TLLua: Display: [Game] TipMsgShowMgr@DispatchPageRunChange PageName = S7GamePlayFailStateItem , PageRunState = Run`,
+  podiumEcho:   `${ts7}LogDataTable: Warning: UDataTable::FindRow : 'Play_UI_S7_3X1_Open' requested row 'Play_UI_S7_3X1_Open' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+  otherAudio:   `${ts7}TLLua: Display: [Game] AudioMgr@PlayAudio  AudioEnum  == S7_Rating_SSS`,
+  otherMob:     `${ts7}TLGame: Display: [Game] Monster Created: npc id 1170005 rarity 1`,
 };
 
 describe('S7Processor', () => {
@@ -566,10 +577,12 @@ describe('S7Processor', () => {
     expect(proc.name).toBe('s7');
   });
 
-  it('test() matches push-data and fail-page lines', () => {
-    expect(proc.test(s7Lines.start)).toBe(true);
+  it('test() matches audio, machine, push-data and fail-page lines', () => {
+    expect(proc.test(s7Lines.podium)).toBe(true);
+    expect(proc.test(s7Lines.cogwheel)).toBe(true);
+    expect(proc.test(s7Lines.cogwheelEnd)).toBe(true);
+    expect(proc.test(s7Lines.turnin)).toBe(true);
     expect(proc.test(s7Lines.heartbeat)).toBe(true);
-    expect(proc.test(s7Lines.success)).toBe(true);
     expect(proc.test(s7Lines.failOpen)).toBe(true);
     expect(proc.test(s7Lines.failOther)).toBe(true);
   });
@@ -579,12 +592,43 @@ describe('S7Processor', () => {
     expect(proc.test(lines.unrelated)).toBe(false);
   });
 
-  it('parses s7_start from -1 → Start transition', () => {
-    expect(proc.process(s7Lines.start)).toEqual({type: 's7_start'});
+  it('parses s7_podium from the modifier-podium open', () => {
+    expect(proc.process(s7Lines.podium)).toEqual({type: 's7_podium'});
   });
 
-  it('parses s7_success from Start → Success transition', () => {
-    expect(proc.process(s7Lines.success)).toEqual({type: 's7_success'});
+  it('parses a spinning cogwheel and its explosion as distinct events', () => {
+    expect(proc.process(s7Lines.cogwheel)).toEqual({type: 's7_cogwheel'});
+    expect(proc.process(s7Lines.cogwheelEnd)).toEqual({type: 's7_cogwheel_end'});
+  });
+
+  // The cogwheel's mobs scatter across the whole map, so kills made anywhere
+  // would keep re-arming the window — measured 1.45x over-counted fight time.
+  it('ignores cogwheel MOB spawns — the machine is the activity signal', () => {
+    expect(proc.process(s7Lines.cogwheelMob)).toBeNull();
+    expect(proc.process(s7Lines.otherMob)).toBeNull();
+  });
+
+  it('ignores the post-turn-in reward chest markers', () => {
+    expect(proc.process(s7Lines.rewardBox)).toBeNull();
+  });
+
+  // It trails Gear_Exp by ~0.15s so adds nothing, and 38 of 164 fire with no
+  // cogwheel at all (bonus and turn-in payouts) — acting on those would park
+  // the tracker mid-run.
+  it('ignores the voucher award — the explosion is the end marker', () => {
+    expect(proc.process(s7Lines.voucher)).toBeNull();
+  });
+
+  it('ignores the LogDataTable echo of an audio marker', () => {
+    expect(proc.process(s7Lines.podiumEcho)).toBeNull();
+  });
+
+  it('ignores audio markers we do not track', () => {
+    expect(proc.process(s7Lines.otherAudio)).toBeNull();
+  });
+
+  it('parses s7_turnin from the Success push', () => {
+    expect(proc.process(s7Lines.turnin)).toEqual({type: 's7_turnin'});
   });
 
   it('parses s7_fail only from the OpenFlow0 fail-page line', () => {
@@ -592,8 +636,9 @@ describe('S7Processor', () => {
     expect(proc.process(s7Lines.failOther)).toBeNull();
   });
 
-  it('ignores heartbeat pings (Start → Start)', () => {
+  it('ignores heartbeat pings and the -1 → Start transition', () => {
     expect(proc.process(s7Lines.heartbeat)).toBeNull();
+    expect(proc.process(s7Lines.gameStart)).toBeNull();
   });
 });
 
@@ -687,8 +732,10 @@ describe('S10Processor', () => {
     expect(proc.test(lines.unrelated)).toBe(false);
   });
 
-  it('parses s10_tile from the Normal_Lp marker', () => {
-    expect(proc.process(s10Lines.tile)).toEqual({type: 's10_tile'});
+  it('ignores the Normal_Lp proximity loop', () => {
+    // The tile's idle ambient loop starts when the tile renders near the player,
+    // up to 43.8s before the real activation — starting on it credited the walk-up.
+    expect(proc.process(s10Lines.tile)).toBeNull();
   });
 
   it('parses s10_wave from both Active_Lp variants', () => {
@@ -770,5 +817,186 @@ describe('HuntingProcessor', () => {
 
   it('ignores gathers of other interactables (different cfgId)', () => {
     expect(proc.process(huntingLines.otherGather)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S11Processor (Carjack — in-map Robbery encounter)
+// ---------------------------------------------------------------------------
+
+const tsS11 = '[2026.08.10-06.01.36:269][665]';
+
+/** The THTJ combat markers surface as missing-DataTable warnings. */
+function s11ObjLine(marker: string): string {
+  return `${tsS11}LogDataTable: Warning: UDataTable::FindRow : '${marker}' requested row '${marker}' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`;
+}
+
+const s11Lines = {
+  start: `${tsS11}TLGame: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Play_Mus_Gameplay_S11_Robbery_Full.Play_Mus_Gameplay_S11_Robbery_Full id 68451`,
+  end:   `${tsS11}TLGame: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Stop_Mus_Gameplay_S11_Robbery_Full.Stop_Mus_Gameplay_S11_Robbery_Full id 73296`,
+  monAppear:   s11ObjLine('Play_Obj_Season_S11_THTJ_Mon_Appear'),
+  monDie:      s11ObjLine('Play_Obj_Season_S11_THTJ_Mon_Die_Gold2'),
+  boxOpen:     s11ObjLine('Play_Obj_Season_S11_THTJ_BoxMonster_Open'),
+  carOpen:     s11ObjLine('Play_Obj_Season_S11_THTJ_Car_Open1'),
+  monDisAppear: s11ObjLine('Play_Obj_Season_S11_THTJ_Mon_DisAppear'),
+  uiCountdown: `${tsS11}TLGame: Display: [Game] AudioMgr@PlayAudio Play_UI_Season_S11_THTJ_YJ_Count_Down`,
+};
+
+describe('S11Processor', () => {
+  const proc = new S11Processor();
+
+  it('has correct name', () => {
+    expect(proc.name).toBe('s11');
+  });
+
+  it('test() matches both the music and the combat markers', () => {
+    expect(proc.test(s11Lines.start)).toBe(true);
+    expect(proc.test(s11Lines.end)).toBe(true);
+    // Regression: test() used to gate on the music string alone, so the THTJ
+    // combat markers never reached process() at all.
+    expect(proc.test(s11Lines.monDie)).toBe(true);
+  });
+
+  it('test() rejects unrelated lines', () => {
+    expect(proc.test(lines.bagInit)).toBe(false);
+    expect(proc.test(lines.unrelated)).toBe(false);
+  });
+
+  it('parses s11_start and s11_end from the music markers', () => {
+    // Stop must be checked first — its string contains the Play marker.
+    expect(proc.process(s11Lines.start)).toEqual({type: 's11_start'});
+    expect(proc.process(s11Lines.end)).toEqual({type: 's11_end'});
+  });
+
+  it('parses s11_wave from mob, box and car markers', () => {
+    expect(proc.process(s11Lines.monAppear)).toEqual({type: 's11_wave'});
+    expect(proc.process(s11Lines.monDie)).toEqual({type: 's11_wave'});
+    expect(proc.process(s11Lines.boxOpen)).toEqual({type: 's11_wave'});
+    expect(proc.process(s11Lines.carOpen)).toEqual({type: 's11_wave'});
+  });
+
+  it('returns null for the terminal despawn burst', () => {
+    // Mon_DisAppear fires as the encounter ends, so counting it as activity
+    // would extend the window exactly when it should expire.
+    expect(proc.process(s11Lines.monDisAppear)).toBeNull();
+  });
+
+  it('ignores the UI flourish markers', () => {
+    expect(proc.test(s11Lines.uiCountdown)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AfterlightProcessor (S15 ShouYe — in-map cart encounter)
+// ---------------------------------------------------------------------------
+
+const tsAfter = '[2026.08.10-05.51.03:061][835]';
+
+/** Every ShouYe marker surfaces as the same missing-DataTable warning. */
+function afterlightLine(marker: string): string {
+  return `${tsAfter}LogDataTable: Warning: UDataTable::FindRow : '${marker}' requested row '${marker}' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`;
+}
+
+const afterlightLines = {
+  wardenApp:  afterlightLine('Play_Obj_Season_S15_ShouYe_JiangJun_App'),
+  wardenWin:  afterlightLine('Play_Obj_Season_S15_ShouYe_JiangJun_Win'),
+  brideApp:   afterlightLine('Play_Obj_Season_S15_ShouYe_XinNiang_App'),
+  brideWin:   afterlightLine('Play_Obj_Season_S15_ShouYe_XinNiang_Win'),
+  // Non-encounters sharing the prefix: the ghost is a mid-fight NPC and the box
+  // a reward chest. Neither ever has a _Win, so neither may trigger.
+  ghostApp:    afterlightLine('Play_Obj_Season_S15_ShouYe_YouHun_App'),
+  ghostDiaApp: afterlightLine('Play_Obj_Season_S15_ShouYe_YouHun_DiaApp'),
+  boxApp:      afterlightLine('Play_Obj_Season_S15_ShouYe_Box_App'),
+  boxOpen:     afterlightLine('Play_Obj_Season_S15_ShouYe_Box_Open'),
+  flowerPick:  afterlightLine('Play_Obj_Season_S15_ShouYe_XinNiang_Flower_Pick'),
+  wardenLose:  afterlightLine('Play_Obj_Season_S15_ShouYe_JiangJun_Lose'),
+  // Waves are a gameplay line, not an audio row. 299-prefixed npc ids fire only
+  // inside an Afterlight encounter; the 2991xxx family appears in some sessions.
+  wave:        `${tsAfter}TLGame: Display: [Game] Monster Created: npc id 2990103 rarity 1`,
+  waveAlt:     `${tsAfter}TLGame: Display: [Game] Monster Created: npc id 2991002 rarity 2`,
+  genericMob:  `${tsAfter}TLGame: Display: [Game] Monster Created: npc id 1140043 rarity 1`,
+};
+
+describe('AfterlightProcessor', () => {
+  const proc = new AfterlightProcessor();
+
+  it('has correct name', () => {
+    expect(proc.name).toBe('afterlight');
+  });
+
+  it('test() matches every ShouYe marker', () => {
+    expect(proc.test(afterlightLines.wardenApp)).toBe(true);
+    expect(proc.test(afterlightLines.wardenWin)).toBe(true);
+    expect(proc.test(afterlightLines.brideApp)).toBe(true);
+    expect(proc.test(afterlightLines.ghostApp)).toBe(true);
+  });
+
+  it('test() rejects unrelated lines', () => {
+    expect(proc.test(lines.bagInit)).toBe(false);
+    expect(proc.test(lines.zoneToMap)).toBe(false);
+    expect(proc.test(lines.unrelated)).toBe(false);
+  });
+
+  it('parses afterlight_start from both encounter variants', () => {
+    expect(proc.process(afterlightLines.wardenApp)).toEqual({type: 'afterlight_start'});
+    expect(proc.process(afterlightLines.brideApp)).toEqual({type: 'afterlight_start'});
+  });
+
+  it('parses afterlight_end from both encounter variants', () => {
+    expect(proc.process(afterlightLines.wardenWin)).toEqual({type: 'afterlight_end'});
+    expect(proc.process(afterlightLines.brideWin)).toEqual({type: 'afterlight_end'});
+  });
+
+  it('parses afterlight_end from a failed encounter', () => {
+    expect(proc.process(afterlightLines.wardenLose)).toEqual({type: 'afterlight_end'});
+  });
+
+  it('parses afterlight_wave from 299-prefixed mob spawns', () => {
+    expect(proc.test(afterlightLines.wave)).toBe(true);
+    expect(proc.process(afterlightLines.wave)).toEqual({type: 'afterlight_wave'});
+    expect(proc.process(afterlightLines.waveAlt)).toEqual({type: 'afterlight_wave'});
+  });
+
+  it('ignores generic map mobs sharing the Monster Created line shape', () => {
+    expect(proc.test(afterlightLines.genericMob)).toBe(false);
+  });
+
+  it('maps the non-Core BGM brackets to special / end', () => {
+    const mus = (m: string) =>
+      `${tsAfter}TLGame: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S15_Gameplay_MusicEvents/${m}.${m} id 1`;
+
+    for (const kind of ['Special', 'Bride', 'Goblin']) {
+      expect(proc.process(mus(`Play_Mus_Gameplay_S15_${kind}`))).toEqual({type: 'afterlight_special'});
+      // Stop is checked first — its string contains the Play marker.
+      expect(proc.process(mus(`Stop_Mus_Gameplay_S15_${kind}`))).toEqual({type: 'afterlight_end'});
+    }
+  });
+
+  it('ignores the Core BGM — the plain fight uses its boss rows', () => {
+    const mus = (m: string) =>
+      `${tsAfter}TLGame: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S15_Gameplay_MusicEvents/${m}.${m} id 1`;
+    expect(proc.process(mus('Play_Mus_Gameplay_S15_Core'))).toBeNull();
+    expect(proc.process(mus('Stop_Mus_Gameplay_S15_Core'))).toBeNull();
+  });
+
+  it('returns null for the wandering ghost', () => {
+    // It fires *inside* a running encounter, so treating its _App as a start
+    // would spawn a phantom second tracker mid-fight.
+    expect(proc.process(afterlightLines.ghostApp)).toBeNull();
+    expect(proc.process(afterlightLines.ghostDiaApp)).toBeNull();
+  });
+
+  it('returns null for the reward chest', () => {
+    expect(proc.process(afterlightLines.boxApp)).toBeNull();
+    expect(proc.process(afterlightLines.boxOpen)).toBeNull();
+  });
+
+  it('returns null for the Bride flower pickups', () => {
+    // Shares the XinNiang prefix but is neither an _App nor a _Win.
+    expect(proc.process(afterlightLines.flowerPick)).toBeNull();
+  });
+
+  it('returns null for an unrecognised ShouYe marker', () => {
+    expect(proc.process(afterlightLine('Play_Obj_Season_S15_ShouYe_Something_Else'))).toBeNull();
   });
 });

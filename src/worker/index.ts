@@ -19,6 +19,7 @@ import {S7Processor} from './processors/s7';
 import {S14Processor} from './processors/s14';
 import {S10Processor} from './processors/s10';
 import {HuntingProcessor} from './processors/hunting';
+import {AfterlightProcessor} from './processors/afterlight';
 import type {RawEvent} from './processors/types';
 
 // ---------------------------------------------------------------------------
@@ -38,6 +39,7 @@ dispatcher.register(new S7Processor());
 dispatcher.register(new S14Processor());
 dispatcher.register(new S10Processor());
 dispatcher.register(new HuntingProcessor());
+dispatcher.register(new AfterlightProcessor());
 
 const watcher = new Watcher(
   (lines) => {

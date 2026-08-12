@@ -21,6 +21,7 @@ import {ArcanaHandler} from '@/main/engine/handlers/arcana-handler';
 import {SandlordHandler} from '@/main/engine/handlers/sandlord-handler';
 import {SandlordMapHandler} from '@/main/engine/handlers/sandlord-map-handler';
 import {HuntingHandler} from '@/main/engine/handlers/hunting-handler';
+import {AfterlightHandler} from '@/main/engine/handlers/afterlight-handler';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {MapMaterialHandler} from '@/main/engine/handlers/map-material';
 import {ErrorHandler} from '@/main/engine/handlers/error';
@@ -162,6 +163,7 @@ function createEngine(): Engine {
     .register(new ArcanaHandler())
     .register(new SandlordMapHandler())
     .register(new HuntingHandler())
+    .register(new AfterlightHandler())  // before ItemHandler — both take bag_update; the loot timer must refresh before the drop is distributed
     .register(new ItemHandler())
     .register(new MapMaterialHandler())
     .register(new ErrorHandler());
@@ -219,12 +221,14 @@ function startEngine(logPath: string, loadSessionId?: string): void {
   const lunariaMs      = parsePositiveInt(settings['lunariaLootMs'],   5000, /*allowZero*/ false);
   const sandlordWaveMs = parsePositiveInt(settings['sandlordWaveMs'], 10000, /*allowZero*/ false);
   const huntingMs      = parsePositiveInt(settings['huntingLootMs'],   5000, /*allowZero*/ false);
+  const afterlightMs   = parsePositiveInt(settings['afterlightLootMs'], 5000, /*allowZero*/ false);
   engine.setOverrealmLootDurationMs(overrealmMs);
   engine.setCarjackLootDurationMs(carjackMs);
   engine.setClockworkLootDurationMs(clockworkMs);
   engine.setLunariaLootDurationMs(lunariaMs);
   engine.setSandlordWaveDurationMs(sandlordWaveMs);
   engine.setHuntingLootDurationMs(huntingMs);
+  engine.setAfterlightLootDurationMs(afterlightMs);
 
   log.info('engine', 'Engine started');
 }
@@ -318,6 +322,9 @@ export function registerEngineHandlers(
   });
   ipcMain.on('engine:set-hunting-loot-ms', (_e, ms: number) => {
     engine?.setHuntingLootDurationMs(ms);
+  });
+  ipcMain.on('engine:set-afterlight-loot-ms', (_e, ms: number) => {
+    engine?.setAfterlightLootDurationMs(ms);
   });
   ipcMain.on('engine:update-filter-rules', (_e, payload: FilterRule[] | null) => {
     if (!engine) return;

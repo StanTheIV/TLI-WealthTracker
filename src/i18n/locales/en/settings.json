@@ -78,11 +78,11 @@
     },
     "carjack": {
       "label": "Carjack",
-      "hint": "Time after the Carjack combat music stops to keep attributing drops. Drops typically land within 1-2 seconds; the default 5s is generous."
+      "hint": "How long the Carjack tracker keeps running with no combat activity. Each kill or spawn restarts it; loot pickups do not. The tracker pauses on expiry and resumes if the fight picks back up, so an encounter you walk away from stops crediting drops without waiting for the game's end music."
     },
     "clockwork": {
       "label": "Clockwork Ballet",
-      "hint": "Time after a Clockwork voucher turn-in to keep attributing drops."
+      "hint": "Time after the Clockwork voucher turn-in to keep attributing drops. Cogwheel fights use a fixed 10s timeout and never credit loot, so this only covers the reward burst. That burst can arrive up to 6.7s after the turn-in — set this to 7s or more so a doubled reward is not missed."
     },
     "lunaria": {
       "label": "Lunaria",
@@ -90,11 +90,15 @@
     },
     "sandlord": {
       "label": "Sandlord wave timer",
-      "hint": "How long the in-map Sandlord tile tracker keeps running after a wave spawns. Each new wave restarts it; loot pickups do not. The tracker pauses on expiry and resumes on the next tile."
+      "hint": "How long the in-map Sandlord tile tracker keeps running after a wave spawns. Each new wave restarts it, as does a machine finishing, so its last drops still count; loot pickups do not. Once the last machine finishes and nothing follows, the run ends when this window runs out."
     },
     "hunting": {
       "label": "Hunting",
       "hint": "Loot collection window after the Hunting boss dies."
+    },
+    "afterlight": {
+      "label": "Afterlight wave timer",
+      "hint": "How long the Afterlight tracker keeps running with no new mobs. Each wave restarts it; loot pickups do not. The tracker pauses on expiry and resumes on the next wave, so a long lull never splits one encounter in two. After the warden dies this becomes the loot collection window."
     }
   },
   "overlay": {

@@ -139,7 +139,8 @@
       "sandlordMap": "Sandlord (Map)",
       "lunaria": "Lunaria",
       "arcana": "Arcana",
-      "hunting": "Hunting"
+      "hunting": "Hunting",
+      "afterlight": "Afterlight"
     },
     "tooltipIncome": "Map",
     "tooltipCost": "Cost",
@@ -152,7 +153,6 @@
     "continue": "Continue Session",
     "rename": "Rename",
     "delete": "Delete",
-    "renamePrompt": "Enter new session name",
     "confirmDelete": "Delete session \"{{name}}\"? This cannot be undone."
   }
 }

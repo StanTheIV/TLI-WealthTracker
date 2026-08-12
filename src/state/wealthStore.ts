@@ -34,6 +34,22 @@ const RANGE_MS: Record<Exclude<WealthRange, 'all'>, number> = {
   '1m': 30 * DAY_MS,
 };
 
+const WEALTH_RANGE_KEY = 'wealthChartRange';
+const VALID_RANGES: readonly WealthRange[] = ['1d', '3d', '7d', '1m', 'all'];
+
+/** The chart range the user last picked, or null to keep the default — a value
+ *  written by an older build that no longer exists is treated as absent. */
+async function loadPersistedRange(): Promise<WealthRange | null> {
+  try {
+    const raw = await window.electronAPI.db.settings.getAll();
+    const stored = raw[WEALTH_RANGE_KEY] as WealthRange | undefined;
+    return stored && VALID_RANGES.includes(stored) ? stored : null;
+  } catch (err) {
+    console.error('[wealth] load range failed:', err);
+    return null;
+  }
+}
+
 function parseBreakdown(point: DbWealthDatapoint | undefined): {breakdown: Breakdown; latestTimestamp: number | null} {
   if (!point) return {breakdown: {}, latestTimestamp: null};
   try {
@@ -62,10 +78,10 @@ export const useWealthStore = create<WealthState & WealthActions>((set, get) => 
   isLoaded:        false,
 
   load: async () => {
-    const {range} = get();
+    const range = await loadPersistedRange() ?? get().range;
     const [points, latest] = await Promise.all([fetchPoints(range), fetchLatest()]);
     const {breakdown, latestTimestamp} = parseBreakdown(latest);
-    set({datapoints: points, latestBreakdown: breakdown, latestTimestamp, isLoaded: true});
+    set({range, datapoints: points, latestBreakdown: breakdown, latestTimestamp, isLoaded: true});
   },
 
   refresh: async () => {
@@ -77,6 +93,9 @@ export const useWealthStore = create<WealthState & WealthActions>((set, get) => 
 
   setRange: async (range) => {
     set({range});
+    window.electronAPI.db.settings.set(WEALTH_RANGE_KEY, range).catch(
+      (err: unknown) => console.error('[wealth] persist range failed:', err)
+    );
     const points = await fetchPoints(range);
     set({datapoints: points});
   },

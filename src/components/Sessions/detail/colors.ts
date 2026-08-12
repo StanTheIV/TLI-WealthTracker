@@ -8,18 +8,19 @@ type Theme = ReturnType<typeof useTheme>;
  *  is a residual, not a mechanic. The rest reuse item-type tokens for variety. */
 export function mechanicColors(theme: Theme): Record<MechanicKey, string> {
   return {
-    map:       theme.success,
-    town:      theme.textDisabled,
-    unknown:   theme.textDisabled,
-    sandlord:  theme.gold,
-    overrealm: theme.accent,
-    clockwork: theme.typeCube,
-    carjack:   theme.typeCard,
-    lunaria:   theme.typeFuel,
-    vorex:     theme.typeEmber,
-    arcana:    theme.typeSkill,
-    dream:     theme.typeDream,
-    hunting:   theme.hunt,
+    map:        theme.success,
+    town:       theme.textDisabled,
+    unknown:    theme.textDisabled,
+    sandlord:   theme.gold,
+    overrealm:  theme.accent,
+    clockwork:  theme.typeCube,
+    carjack:    theme.typeCard,
+    lunaria:    theme.typeFuel,
+    vorex:      theme.typeEmber,
+    arcana:     theme.typeSkill,
+    dream:      theme.typeDream,
+    hunting:    theme.hunt,
+    afterlight: theme.afterlight,
   };
 }
 

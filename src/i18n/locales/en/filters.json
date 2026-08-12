@@ -21,7 +21,6 @@
     "action": "Action",
     "matchBy": "Match By",
     "scopes": "Apply to Scopes",
-    "allScopes": "All Scopes",
     "confirm": "Add Rule",
     "cancel": "Cancel"
   },
@@ -38,6 +37,7 @@
     "byItemDesc": "Match one specific item by name"
   },
   "scopes": {
+    "all": "All",
     "session": "Session",
     "map": "Map",
     "vorex": "Vorex",
@@ -49,7 +49,8 @@
     "lunaria": "Lunaria",
     "wealth": "Wealth",
     "arcana": "Arcana",
-    "hunting": "Hunting"
+    "hunting": "Hunting",
+    "afterlight": "Afterlight"
   },
   "ruleDesc": {
     "showType": "Show {{type}}",
@@ -61,6 +62,7 @@
     "placeholder": "Search items by name or ID…",
     "noResults": "No items found"
   },
+  "removeRule": "Remove rule",
   "renamePrompt": "Enter a new name for this filter:",
   "confirmDelete": "Delete filter \"{{name}}\"? This cannot be undone."
 }

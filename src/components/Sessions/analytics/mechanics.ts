@@ -6,7 +6,7 @@ import {ZERO_VAL, addVal, clampVal, perHour, scaleVal, sharePct, subVal} from '.
 /** Display order. Town last — it is a residual, not a mechanic. */
 const ORDER: MechanicKey[] = [
   'map', 'lunaria', 'overrealm', 'carjack', 'clockwork', 'dream', 'hunting',
-  'sandlord', 'vorex', 'arcana', 'unknown', 'town',
+  'afterlight', 'sandlord', 'vorex', 'arcana', 'unknown', 'town',
 ];
 
 interface Bucket {
@@ -98,7 +98,10 @@ export function computeMechanics(
     if (c.kind === 'map') {
       const overlap = overlapByParent.get(c.row.mapIndex) ?? ZERO_VAL;
       if (foldOverlap) {
-        const net = subVal(c.income, overlap);
+        // Fold gross against gross: a map row's drops are NET of what was spent
+        // opening it, an overlap's are gross, so folding directly charged the
+        // map's costs twice and drove nearly every first map negative.
+        const net = subVal(addVal(c.income, c.cost), overlap);
         if (net.live < -1e-6 || net.snapshot < -1e-6) {
           warnings.push({code: 'overlap-exceeds-parent', mapIndex: c.row.mapIndex});
         }
