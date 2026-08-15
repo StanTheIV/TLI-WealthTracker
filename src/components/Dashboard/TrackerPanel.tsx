@@ -3,7 +3,8 @@ import {useTranslation} from 'react-i18next';
 import {PackageOpen, ChevronDown} from 'lucide-react';
 import {useEngineStore} from '@/state/engineStore';
 import {useItemsStore} from '@/state/itemsStore';
-import {useSettingsStore} from '@/state/settingsStore';
+import {useSettingsStore, useTaxConfig} from '@/state/settingsStore';
+import {taxedValue} from '@/lib/tax';
 import {useTrackerElapsed} from '@/hooks/useTrackerElapsed';
 import {useLootWindowCountdown} from '@/hooks/useLootWindowCountdown';
 import {useAnimatedPresence} from '@/hooks/useAnimatedPresence';
@@ -35,12 +36,13 @@ function formatAvgPerMap(ms: number): string {
 
 function useTotalFE(drops: Record<number, number>): number {
   const items = useItemsStore(s => s.items);
+  const tax   = useTaxConfig();
   return useMemo(() => {
     return Object.entries(drops).reduce((sum, [id, qty]) => {
-      const price = items[id]?.price ?? 0;
-      return sum + qty * price;
+      const item = items[id];
+      return sum + taxedValue(qty, item?.price ?? 0, item?.type, tax);
     }, 0);
-  }, [drops, items]);
+  }, [drops, items, tax]);
 }
 
 // -----------------------------------------------------------------------

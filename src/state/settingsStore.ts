@@ -1,5 +1,6 @@
 import {create} from 'zustand';
 import i18n from '@/i18n';
+import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/lib/tax';
 
 export type RateTimeframe = 'hour' | 'minute';
 export type ThemeMode = 'system' | 'dark' | 'light';
@@ -11,6 +12,9 @@ interface SettingsState {
   pauseTotalTimerInTown:    boolean;
   /** Dashboard live event feed — hidden unless explicitly enabled. */
   showEventFeed:            boolean;
+  /** Discount displayed FE by the auction-house cut (fuel exempt). Defaults ON,
+   *  so hydration must distinguish "never set" from an explicit opt-out. */
+  auctionTaxEnabled:        boolean;
   language:                 string;
   logFileValid:             boolean;
   serperApiKey:             string;
@@ -43,6 +47,7 @@ interface SettingsActions {
   setClickThroughWhileRunning:  (v: boolean) => void;
   setPauseTotalTimerInTown:     (v: boolean) => void;
   setShowEventFeed:             (v: boolean) => void;
+  setAuctionTaxEnabled:         (v: boolean) => void;
   setLanguage:                  (v: string) => void;
   validateLogFile:              () => Promise<boolean>;
   setSerperApiKey:              (v: string) => void;
@@ -67,6 +72,7 @@ const DEFAULTS: SettingsState = {
   clickThroughWhileRunning: false,
   pauseTotalTimerInTown:    false,
   showEventFeed:            false,
+  auctionTaxEnabled:        true,
   language:                 'en',
   logFileValid:             false,
   serperApiKey:             '',
@@ -131,6 +137,9 @@ export const useSettingsStore = create<Store>((set, get) => ({
       clickThroughWhileRunning: raw.clickThroughWhileRunning === 'true',
       pauseTotalTimerInTown:    raw.pauseTotalTimerInTown === 'true',
       showEventFeed:            raw.showEventFeed === 'true',
+      // Not the usual `=== 'true'` idiom: this setting defaults ON, so an
+      // absent key must read true while an explicit 'false' opt-out sticks.
+      auctionTaxEnabled:        raw.auctionTaxEnabled === undefined ? true : raw.auctionTaxEnabled === 'true',
       language,
       logFileValid,
       serperApiKey: raw.serper_api_key ?? '',
@@ -180,6 +189,11 @@ export const useSettingsStore = create<Store>((set, get) => ({
   setShowEventFeed: (v) => {
     persist('showEventFeed', v ? 'true' : 'false');
     set({showEventFeed: v});
+  },
+
+  setAuctionTaxEnabled: (v) => {
+    persist('auctionTaxEnabled', v ? 'true' : 'false');
+    set({auctionTaxEnabled: v});
   },
 
   setLanguage: (v) => {
@@ -268,3 +282,14 @@ export const useSettingsStore = create<Store>((set, get) => ({
     return valid;
   },
 }));
+
+const TAX_ON: TaxConfig = {enabled: true, rate: AUCTION_TAX_RATE};
+
+/** The tax policy every FE display must value through. Returns one of two
+ *  module-level constants rather than a fresh object: zustand v5 passes the
+ *  selector result straight to `useSyncExternalStore` with no equality check,
+ *  so an inline `{enabled, rate}` would make React throw "The result of
+ *  getSnapshot should be cached to avoid an infinite loop". */
+export function useTaxConfig(): TaxConfig {
+  return useSettingsStore(s => (s.auctionTaxEnabled ? TAX_ON : NO_TAX));
+}

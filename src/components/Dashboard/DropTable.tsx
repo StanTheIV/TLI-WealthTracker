@@ -1,6 +1,8 @@
 import {useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useItemsStore} from '@/state/itemsStore';
+import {useTaxConfig} from '@/state/settingsStore';
+import {taxedUnitPrice, taxedValue} from '@/lib/tax';
 
 interface DropTableProps {
   drops: Record<number, number>;
@@ -27,23 +29,26 @@ function formatFE(value: number): string {
 export default function DropTable({drops}: DropTableProps) {
   const {t}   = useTranslation('tracker');
   const items = useItemsStore(s => s.items);
+  const tax   = useTaxConfig();
 
   const rows = useMemo<DropRow[]>(() => {
     return Object.entries(drops)
       .map(([idStr, qty]) => {
-        const item = items[idStr];
-        const unitPrice = item?.price ?? 0;
+        const item  = items[idStr];
+        const gross = item?.price ?? 0;
         return {
           id:         idStr,
           name:       item?.name || `#${idStr}`,
-          unitPrice,
+          // Unit price and total take the cut together, or the row reads as
+          // broken arithmetic (10 FE x 10 = 85 FE).
+          unitPrice:  taxedUnitPrice(gross, item?.type, tax),
           quantity:   qty,
-          totalValue: qty * unitPrice,
+          totalValue: taxedValue(qty, gross, item?.type, tax),
         };
       })
       .filter(r => r.quantity !== 0)
       .sort((a, b) => Math.abs(b.totalValue) - Math.abs(a.totalValue));
-  }, [drops, items]);
+  }, [drops, items, tax]);
 
   if (rows.length === 0) {
     return (

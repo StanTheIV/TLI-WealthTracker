@@ -1,5 +1,6 @@
 import {create} from 'zustand';
-import type {DbWealthDatapoint} from '@/types/electron';
+import type {DbItem, DbWealthDatapoint} from '@/types/electron';
+import {taxedValue, type TaxConfig} from '@/lib/tax';
 
 export interface BreakdownEntry {
   qty:   number;
@@ -9,10 +10,51 @@ export interface BreakdownEntry {
 
 export type Breakdown = Record<string, BreakdownEntry>;
 
+/** A datapoint with its breakdown parsed once at fetch. `value` stays the GROSS
+ *  figure the main process stored; `taxedValueFor` derives the net one, since
+ *  the stored aggregate is type-blind and can't honour the fuel exemption. */
+export interface WealthPoint extends DbWealthDatapoint {
+  parsed: Breakdown | null;
+}
+
+/**
+ * Net value of one datapoint under the given tax policy.
+ *
+ * Rows written before the `breakdown` column exists carry '{}' and have no per
+ * item detail to tax, so they fall back to the stored gross value. A history
+ * spanning that migration therefore shows a step where the detail begins —
+ * unavoidable, since the information to tax those rows was never recorded.
+ */
+export function pointValue(
+  point: WealthPoint,
+  items: Record<string, DbItem>,
+  tax:   TaxConfig,
+): number {
+  if (!tax.enabled) return point.value;
+  const parsed = point.parsed;
+  if (!parsed || Object.keys(parsed).length === 0) return point.value;
+
+  let total = 0;
+  for (const [itemId, entry] of Object.entries(parsed)) {
+    total += taxedValue(entry.qty, entry.price, items[itemId]?.type, tax);
+  }
+  return total;
+}
+
+function toPoints(rows: DbWealthDatapoint[]): WealthPoint[] {
+  return rows.map((row) => {
+    try {
+      return {...row, parsed: JSON.parse(row.breakdown) as Breakdown};
+    } catch {
+      return {...row, parsed: null};
+    }
+  });
+}
+
 export type WealthRange = '1d' | '3d' | '7d' | '1m' | 'all';
 
 interface WealthState {
-  datapoints:      DbWealthDatapoint[];
+  datapoints:      WealthPoint[];
   latestBreakdown: Breakdown;
   latestTimestamp: number | null;
   range:           WealthRange;
@@ -59,10 +101,14 @@ function parseBreakdown(point: DbWealthDatapoint | undefined): {breakdown: Break
   }
 }
 
-async function fetchPoints(range: WealthRange): Promise<DbWealthDatapoint[]> {
+/** Parses each row's breakdown once here rather than per render: an 'all' range
+ *  is thousands of rows, each holding an object per inventory item. */
+async function fetchPoints(range: WealthRange): Promise<WealthPoint[]> {
   const now = Date.now();
-  if (range === 'all') return window.electronAPI.db.wealth.getRange(0, now);
-  return window.electronAPI.db.wealth.getRange(now - RANGE_MS[range], now);
+  const rows = range === 'all'
+    ? await window.electronAPI.db.wealth.getRange(0, now)
+    : await window.electronAPI.db.wealth.getRange(now - RANGE_MS[range], now);
+  return toPoints(rows);
 }
 
 async function fetchLatest(): Promise<DbWealthDatapoint | undefined> {

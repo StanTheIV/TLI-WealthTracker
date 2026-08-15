@@ -1,8 +1,9 @@
-import {useEffect, useMemo} from 'react';
+import {useEffect} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useSessionsStore} from '@/state/sessionsStore';
 import {useEngineStore} from '@/state/engineStore';
 import {useItemsStore} from '@/state/itemsStore';
+import {useTaxConfig} from '@/state/settingsStore';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
 import SessionsTable from './SessionsTable';
 import SessionDetail from './SessionDetail';
@@ -20,11 +21,7 @@ export default function SessionsScreen({onNavChange}: Props) {
   const refresh      = useSessionsStore(s => s.refresh);
   const lastSavedId  = useEngineStore(s => s.lastSavedSessionId);
   const items        = useItemsStore(s => s.items);
-
-  const itemPrices = useMemo(
-    () => Object.fromEntries(Object.entries(items).map(([id, item]) => [id, item.price])),
-    [items],
-  );
+  const tax          = useTaxConfig();
 
   // Load sessions on first mount
   useEffect(() => {
@@ -63,7 +60,8 @@ export default function SessionsScreen({onNavChange}: Props) {
           <SessionsTable
             sessions={sessions}
             selectedId={null}
-            itemPrices={itemPrices}
+            items={items}
+            tax={tax}
             onSelect={select}
           />
         )}

@@ -3,6 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {ArrowLeft, Clock} from 'lucide-react';
 import {useSessionsStore} from '@/state/sessionsStore';
 import {useItemsStore} from '@/state/itemsStore';
+import {useTaxConfig} from '@/state/settingsStore';
 import {useTracking} from '@/state/TrackingContext';
 import type {DbSessionMap} from '@/types/electron';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
@@ -34,6 +35,7 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
   const deleteSession = useSessionsStore(s => s.deleteSession);
   const renameSession = useSessionsStore(s => s.renameSession);
   const items         = useItemsStore(s => s.items);
+  const tax           = useTaxConfig();
   const {continueSession, status} = useTracking();
 
   const [maps, setMaps]             = useState<DbSessionMap[]>([]);
@@ -62,8 +64,8 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
   }, [sessionId]);
 
   const analytics = useMemo(
-    () => (session && mapsLoaded ? computeSessionAnalytics({session, maps, items}) : null),
-    [session, maps, items, mapsLoaded],
+    () => (session && mapsLoaded ? computeSessionAnalytics({session, maps, items, tax}) : null),
+    [session, maps, items, mapsLoaded, tax],
   );
 
   // Rows still loading: render the frame only. Computing over an empty `maps`

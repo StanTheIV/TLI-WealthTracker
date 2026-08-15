@@ -6,9 +6,13 @@
 import {beforeEach, describe, expect, it} from 'vitest';
 import {computeSessionAnalytics} from '../index';
 import {driftPct} from '../valuation';
+import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/lib/tax';
 import {makeItems, makeSession, mapRow, overlapRow, resetRowIndex, standaloneRow} from './fixtures';
 
+/** Item '1' is a taxable card at 10 FE; item '2' is exempt fuel at 4 FE. */
 const ITEMS = makeItems({'1': 10, '2': 4}, {'1': 'card', '2': 'fuel'});
+
+const TAX_ON: TaxConfig = {enabled: true, rate: AUCTION_TAX_RATE};
 
 beforeEach(resetRowIndex);
 
@@ -33,6 +37,7 @@ describe('dual valuation', () => {
       session: makeSession({drops: {'1': 10}, priceSnapshot: {'1': 8}}),
       maps:    [mapRow(300, {'1': 10})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.totals.income.snapshot).toBe(80);
@@ -46,6 +51,7 @@ describe('dual valuation', () => {
       session: makeSession({drops: {'1': 10}, priceSnapshot: {}}),
       maps:    [mapRow(300, {'1': 10})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.meta.hasSnapshot).toBe(false);
@@ -58,6 +64,7 @@ describe('dual valuation', () => {
       session: makeSession({drops: {'1': 10, '2': 5}, priceSnapshot: {'1': 8}}),
       maps:    [mapRow(300)],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     // Item 2 has no snapshot price, so it contributes its live value to both.
@@ -76,6 +83,7 @@ describe('dual valuation', () => {
       session: makeSession({drops: {'99': 3}, priceSnapshot: {'99': 100}}),
       maps:    [mapRow(300)],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     const row = a.dropped.find(d => d.itemId === '99')!;
@@ -92,6 +100,7 @@ describe('item tables', () => {
       session: makeSession({drops: {'1': 4}, totalTime: 7200, mapCount: 8}),
       maps:    [mapRow(300, {'1': 4})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     const row = a.dropped[0];
@@ -106,6 +115,7 @@ describe('item tables', () => {
       session: makeSession({drops: {'1': 10, '2': -5}}),
       maps:    [mapRow(300, {'1': 10, '2': -5})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.totals.income.live).toBe(100);
@@ -119,6 +129,7 @@ describe('item tables', () => {
       session: makeSession({mapCount: 2}),
       maps:    [mapRow(300, {}, {'2': 3}), mapRow(300, {}, {'2': 1})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.consumed).toHaveLength(1);
@@ -134,6 +145,7 @@ describe('item tables', () => {
       }),
       maps:  [mapRow(300, {'1': 10})],
       items: ITEMS,
+      tax:   NO_TAX,
     });
 
     expect(a.dropped[0].topSource).toBe('lunaria');
@@ -145,6 +157,7 @@ describe('item tables', () => {
       session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {} as never}),
       maps:    [mapRow(300, {'1': 10}), overlapRow('lunaria', 60, 1, {'1': 3})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.meta.legacyBySource).toBe(true);
@@ -161,6 +174,7 @@ describe('shares follow the displayed valuation leg', () => {
       session: makeSession({drops: {'1': 10, '2': 10}, priceSnapshot: {'1': 100, '2': 1}}),
       maps:    [mapRow(300, {'1': 10, '2': 10})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     const one = a.dropped.find(d => d.itemId === '1')!;
@@ -173,6 +187,7 @@ describe('shares follow the displayed valuation leg', () => {
       session: makeSession({drops: {'1': 10}, priceSnapshot: {'1': 8}}),
       maps:    [mapRow(300, {'1': 6}), standaloneRow('sandlord', 60, {'1': 4})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     const map = a.mechanics.find(m => m.key === 'map')!;
@@ -188,6 +203,7 @@ describe('by-source breakdown', () => {
       session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {} as never}),
       maps:    [mapRow(300, {'1': 7}), overlapRow('arcana', 60, 1, {'1': 3})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     const total = a.bySource.reduce((s, x) => s + x.value.live, 0);
@@ -200,6 +216,7 @@ describe('by-source breakdown', () => {
       session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {} as never}),
       maps:    [mapRow(300, {'1': 5}), overlapRow('lunaria', 60, 1, {'1': 10})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.bySource.every(s => s.value.live >= 0)).toBe(true);
@@ -213,6 +230,7 @@ describe('derived stats', () => {
       session: makeSession({drops: {'1': 10}, mapCount: 2, totalTime: 3600}),
       maps:    [mapRow(300, {'1': 6}, {'2': 5}), mapRow(300, {'1': 4}, {'2': 5})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.totals.income.live).toBe(100);
@@ -229,6 +247,7 @@ describe('derived stats', () => {
       session: makeSession({drops: {'1': 10}}),
       maps:    [mapRow(300, {'1': 10})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.totals.roiMultiple.live).toBeNull();
@@ -239,6 +258,7 @@ describe('derived stats', () => {
       session: makeSession({drops: {'1': 3}, mapCount: 2}),
       maps:    [mapRow(300, {'1': 3}, {'2': 1}), mapRow(300, {}, {'2': 5})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.totals.mapsUnprofitable).toBe(1);
@@ -249,6 +269,7 @@ describe('derived stats', () => {
       session: makeSession({drops: {'1': 100}, mapCount: 3}),
       maps:    [mapRow(60, {'1': 1}), mapRow(60, {'1': 2}), mapRow(60, {'1': 97})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.mapNetStats.median.live).toBe(20);
@@ -262,6 +283,7 @@ describe('derived stats', () => {
       session: makeSession({drops: {'1': 10}, mapCount: 4}),
       maps:    [mapRow(60, {'1': 1}), mapRow(60, {'1': 2}), mapRow(60, {'1': 3}), mapRow(60, {'1': 4})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     const counted = a.mapNetStats.histogram.reduce((s, b) => s + b.count, 0);
@@ -273,6 +295,7 @@ describe('derived stats', () => {
       session: makeSession({drops: {'1': 4}, mapCount: 2}),
       maps:    [mapRow(60, {'1': 2}), mapRow(60, {'1': 2})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.mapNetStats.histogram).toHaveLength(1);
@@ -286,6 +309,7 @@ describe('timeline', () => {
       session: makeSession(),
       maps:    [mapRow(300), overlapRow('lunaria', 60, 1), mapRow(300)],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.timeline).toHaveLength(2);
@@ -301,6 +325,7 @@ describe('timeline', () => {
       session: makeSession(),
       maps:    [late, early],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.timeline.map(s => s.mapIndex)).toEqual([1, 2]);
@@ -313,6 +338,7 @@ describe('degenerate sessions', () => {
       session: makeSession({totalTime: 0, mapTime: 0, mapCount: 0, drops: {}}),
       maps:    [],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.meta.noMapRows).toBe(true);
@@ -326,6 +352,7 @@ describe('degenerate sessions', () => {
       session: makeSession({drops: {'1': 5}, mapCount: 0, totalTime: 600}),
       maps:    [],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.totals.income.live).toBe(50);
@@ -340,6 +367,7 @@ describe('degenerate sessions', () => {
       session: makeSession({drops: {'1': 5}, priceSnapshot: {'2': 4}}),
       maps:    [mapRow(300, {'1': 5}, {'2': 1})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.meta.hasSnapshot).toBe(false);
@@ -351,6 +379,7 @@ describe('degenerate sessions', () => {
       session: makeSession({totalTime: 600, mapTime: 0, mapCount: 0}),
       maps:    [standaloneRow('sandlord', 120, {}, {'2': 5})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.totals.cost.live).toBe(20);
@@ -363,6 +392,7 @@ describe('degenerate sessions', () => {
       session: makeSession({mapCount: 1, mapTime: 60}),
       maps:    [mapRow(60, {}, {'2': 1}), standaloneRow('sandlord', 60, {}, {'2': 1})],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.totals.mapsUnprofitable).toBe(1);
@@ -376,6 +406,7 @@ describe('degenerate sessions', () => {
       session: makeSession(),
       maps:    [mapRow(300, {}, {}, 5), {...overlapRow('lunaria', 60, 5, {}), parentMapIndex: 99}],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     const keys = a.timeline.map(s => s.key);
@@ -388,6 +419,7 @@ describe('degenerate sessions', () => {
       session: makeSession({mapCount: 5}),
       maps:    [mapRow(300), standaloneRow('sandlord', 120)],
       items:   ITEMS,
+      tax:     NO_TAX,
     });
 
     expect(a.meta.warnings.some(w => w.code === 'map-count-mismatch')).toBe(true);
@@ -408,9 +440,86 @@ describe('degenerate sessions', () => {
         standaloneRow('sandlord', 150, {'1': 1}, {'2': 1}),
       ],
       items: ITEMS,
+      tax:   NO_TAX,
     });
 
     expectAllFinite(a);
     expect(a.mechanics.reduce((s, m) => s + m.timePct, 0)).toBeCloseTo(100, 6);
+  });
+});
+
+describe('auction-house tax', () => {
+  const taxed = (tax: TaxConfig) => computeSessionAnalytics({
+    session: makeSession({drops: {'1': 10, '2': 10}, priceSnapshot: {'1': 10, '2': 4}}),
+    maps:    [mapRow(300, {'1': 10, '2': 10})],
+    items:   ITEMS,
+    tax,
+  });
+
+  it('discounts taxable items and leaves fuel at face value', () => {
+    const a = taxed(TAX_ON);
+    const card = a.dropped.find(r => r.itemId === '1')!;
+    const fuel = a.dropped.find(r => r.itemId === '2')!;
+
+    expect(card.total.live).toBe(85);  // 10 x 10 less 15%
+    expect(fuel.total.live).toBe(40);  // 10 x 4, exempt
+    expect(a.totals.income.live).toBe(125);
+  });
+
+  it('taxes the snapshot leg too, so a saved haul does not read as gross', () => {
+    expect(taxed(TAX_ON).totals.income.snapshot).toBe(125);
+    expect(taxed(NO_TAX).totals.income.snapshot).toBe(140);
+  });
+
+  it('keeps a row\'s unit price consistent with its total', () => {
+    const card = taxed(TAX_ON).dropped.find(r => r.itemId === '1')!;
+    expect(card.unitPrice.live * card.qty).toBe(card.total.live);
+  });
+
+  // Tax reweights the two legs whenever an exempt item is in the basket, so the
+  // share of the pie moves even though every price is scaled by one factor.
+  it('shifts type shares toward fuel', () => {
+    const share = (a: ReturnType<typeof taxed>, type: string) =>
+      a.byType.find(s => s.type === type)!.pct.live;
+
+    expect(share(taxed(NO_TAX), 'fuel')).toBeCloseTo(28.5714, 3);
+    expect(share(taxed(TAX_ON), 'fuel')).toBeCloseTo(32, 3);
+  });
+
+  // driftPct is NOT tax-invariant on a mixed basket: exempting fuel changes the
+  // legs' composition, so the percentage moves. It only survives untouched when
+  // every item in the basket shares one tax treatment.
+  it('leaves drift alone for a single-type basket but not a mixed one', () => {
+    const drift = (tax: TaxConfig, snap: Record<string, number>, drops: Record<string, number>) =>
+      computeSessionAnalytics({
+        session: makeSession({drops, priceSnapshot: snap}),
+        maps:    [mapRow(300, drops)],
+        items:   ITEMS,
+        tax,
+      }).totals.driftPct;
+
+    // One taxable item: both legs scale by 0.85, so the ratio survives.
+    const soloSnap = {'1': 8};
+    expect(drift(TAX_ON, soloSnap, {'1': 10})).toBeCloseTo(drift(NO_TAX, soloSnap, {'1': 10})!, 6);
+
+    // Card rose 8 -> 10 while fuel held at 4. Exempting fuel reweights the legs
+    // (120->140 gross, 108->125 taxed), so the same price move reads as a
+    // different percentage.
+    const mixedSnap = {'1': 8, '2': 4};
+    const mixedDrops = {'1': 10, '2': 10};
+    expect(drift(NO_TAX, mixedSnap, mixedDrops)).toBeCloseTo(16.6667, 3);
+    expect(drift(TAX_ON, mixedSnap, mixedDrops)).toBeCloseTo(15.7407, 3);
+  });
+
+  it('values fuel stored under its raw import name as exempt', () => {
+    const a = computeSessionAnalytics({
+      session: makeSession({drops: {'3': 10}}),
+      maps:    [mapRow(300, {'3': 10})],
+      items:   makeItems({'3': 4}, {'3': 'Erosion Material'}),
+      tax:     TAX_ON,
+    });
+
+    expect(a.totals.income.live).toBe(40);
+    expect(a.byType[0].type).toBe('fuel');
   });
 });

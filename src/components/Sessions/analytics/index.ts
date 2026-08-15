@@ -1,4 +1,5 @@
 import type {DbItem, DbSession, DbSessionMap} from '@/types/electron';
+import type {TaxConfig} from '@/lib/tax';
 import type {AnalyticsWarning, SessionAnalytics, SessionTotals} from './types';
 import {classifyRows} from './attribution';
 import {computeBySource, computeByType, computeConsumed, computeDropped} from './items';
@@ -17,13 +18,16 @@ export interface SessionAnalyticsInput {
   session: DbSession;
   maps:    DbSessionMap[];
   items:   Record<string, DbItem>;
+  /** Auction-house cut to value through. Every figure below inherits it from
+   *  the price lookup, so no aggregate applies it a second time. */
+  tax:     TaxConfig;
 }
 
 /** Every section reads from one result, so no two can disagree about how a row
  *  was classified. */
-export function computeSessionAnalytics({session, maps, items}: SessionAnalyticsInput): SessionAnalytics {
+export function computeSessionAnalytics({session, maps, items, tax}: SessionAnalyticsInput): SessionAnalytics {
   const warnings: AnalyticsWarning[] = [];
-  const prices    = makePriceLookup(items, session.priceSnapshot, Object.keys(session.drops ?? {}));
+  const prices    = makePriceLookup(items, session.priceSnapshot, tax, Object.keys(session.drops ?? {}));
   const valIncome = makeValuator(prices, {clampNegative: true});
 
   const classified = classifyRows(maps, valIncome, warnings);

@@ -66,6 +66,10 @@
     "eventFeed": {
       "label": "Live-Ereignisprotokoll im Dashboard anzeigen",
       "hint": "Zeigt unter der Gegenstandsaufschlüsselung ein Echtzeitprotokoll von Drops, Zonenwechseln und Tracker-Ereignissen."
+    },
+    "auctionTax": {
+      "label": "Auktionshausgebühr auf Werte anwenden",
+      "hint": "Reduziert jeden angezeigten FE-Wert um 15 %, um die Auktionshausgebühr abzubilden. Brennstoff ist ausgenommen – er wird über die Materialbörse gehandelt. Betrifft Dashboard, Overlay, Sitzungen und Vermögensdiagramm, einschließlich vergangener Sitzungen."
     }
   },
   "lootTimers": {

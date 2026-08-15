@@ -66,6 +66,10 @@
     "eventFeed": {
       "label": "Show live event feed on dashboard",
       "hint": "Adds a real-time log of drops, zone changes and tracker events below the item breakdown."
+    },
+    "auctionTax": {
+      "label": "Apply auction house tax to values",
+      "hint": "Reduces every displayed FE value by 15% to reflect the auction house cut. Fuel is exempt — it trades on the material exchange. Affects the dashboard, overlay, sessions and wealth chart, including past sessions."
     }
   },
   "lootTimers": {
