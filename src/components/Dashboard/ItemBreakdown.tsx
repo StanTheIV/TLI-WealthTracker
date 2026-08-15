@@ -3,6 +3,8 @@ import {useTranslation} from 'react-i18next';
 import {ChevronUp, ChevronDown, ArrowUpRight} from 'lucide-react';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
+import {useTaxConfig} from '@/state/settingsStore';
+import {taxedUnitPrice, taxedValue} from '@/lib/tax';
 import {ITEM_TYPES} from '@/types/itemType';
 
 // ---------------------------------------------------------------------------
@@ -83,6 +85,7 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
   const latestBreakdown   = useWealthStore(s => s.latestBreakdown);
   const latestTimestamp   = useWealthStore(s => s.latestTimestamp);
   const items             = useItemsStore(s => s.items);
+  const tax               = useTaxConfig();
   const [filters, setFilters] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -96,12 +99,15 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
           name:      item?.name || `#${id}`,
           type:      item?.type  ?? '',
           qty:       entry.qty,
-          unitPrice: entry.price,
-          total:     entry.total,
+          // Recomputed from qty x price rather than scaling the stored total:
+          // that total is a type-blind aggregate, so the fuel exemption cannot
+          // be applied to it after the fact.
+          unitPrice: taxedUnitPrice(entry.price, item?.type, tax),
+          total:     taxedValue(entry.qty, entry.price, item?.type, tax),
         };
       })
       .filter(r => r.qty > 0);
-  }, [latestBreakdown, items]);
+  }, [latestBreakdown, items, tax]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');

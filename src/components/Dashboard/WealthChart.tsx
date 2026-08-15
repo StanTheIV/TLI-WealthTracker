@@ -9,7 +9,9 @@ import {
   CartesianGrid,
   Tooltip,
 } from 'recharts';
-import {useWealthStore, type WealthRange} from '@/state/wealthStore';
+import {pointValue, useWealthStore, type WealthRange} from '@/state/wealthStore';
+import {useItemsStore} from '@/state/itemsStore';
+import {useTaxConfig} from '@/state/settingsStore';
 import {useTheme} from '@/theme/ThemeContext';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 
@@ -81,10 +83,12 @@ export default function WealthChart() {
   const datapoints  = useWealthStore(s => s.datapoints);
   const range       = useWealthStore(s => s.range);
   const setRange    = useWealthStore(s => s.setRange);
+  const items       = useItemsStore(s => s.items);
+  const tax         = useTaxConfig();
 
   const data = useMemo(
-    () => datapoints.map(dp => ({time: dp.timestamp, value: dp.value})),
-    [datapoints],
+    () => datapoints.map(dp => ({time: dp.timestamp, value: pointValue(dp, items, tax)})),
+    [datapoints, items, tax],
   );
 
   const rangeSegments = RANGE_OPTIONS.map(r => ({value: r, label: t(`chart.range.${r}`)}));

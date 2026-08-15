@@ -27,6 +27,12 @@ export default function OverlayWindow() {
       if (raw.pauseTotalTimerInTown !== undefined) {
         useSettingsStore.setState({pauseTotalTimerInTown: raw.pauseTotalTimerInTown === 'true'});
       }
+      // Defaults ON, so an absent key must read true — matching settingsStore's
+      // hydration. The overlay never calls load(), so without this it would show
+      // gross FE while the dashboard shows net.
+      useSettingsStore.setState({
+        auctionTaxEnabled: raw.auctionTaxEnabled === undefined ? true : raw.auctionTaxEnabled === 'true',
+      });
     });
   }, []);
 
@@ -41,6 +47,9 @@ export default function OverlayWindow() {
       }
       if (key === 'pauseTotalTimerInTown') {
         useSettingsStore.setState({pauseTotalTimerInTown: value === 'true'});
+      }
+      if (key === 'auctionTaxEnabled') {
+        useSettingsStore.setState({auctionTaxEnabled: value === 'true'});
       }
     });
   }, []);
