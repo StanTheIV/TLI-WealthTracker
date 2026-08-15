@@ -1,5 +1,8 @@
+import {useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
-import type {DbSession} from '@/types/electron';
+import type {DbItem, DbSession} from '@/types/electron';
+import type {TaxConfig} from '@/lib/tax';
+import {makePriceLookup, makeValuator} from './analytics/valuation';
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -30,12 +33,25 @@ function formatIncome(fe: number): string {
 interface Props {
   sessions:    DbSession[];
   selectedId:  string | null;
-  itemPrices:  Record<string, number>; // itemId → price per unit
+  items:       Record<string, DbItem>;
+  tax:         TaxConfig;
   onSelect:    (id: string) => void;
 }
 
-export default function SessionsTable({sessions, selectedId, itemPrices, onSelect}: Props) {
+export default function SessionsTable({sessions, selectedId, items, tax, onSelect}: Props) {
   const {t} = useTranslation('sessions');
+
+  /** Valued on the SNAPSHOT leg, the same default SessionDetail opens on, so a
+   *  row and the page it opens can't disagree. (They used to: this column read
+   *  live prices while the detail page read the frozen ones.) Priced per row —
+   *  each session carries its own price snapshot. */
+  const incomes = useMemo(() => {
+    return new Map(sessions.map((session) => {
+      const drops  = session.drops ?? {};
+      const prices = makePriceLookup(items, session.priceSnapshot, tax, Object.keys(drops));
+      return [session.id, makeValuator(prices, {clampNegative: true})(drops).snapshot];
+    }));
+  }, [sessions, items, tax]);
 
   if (sessions.length === 0) {
     return (
@@ -59,9 +75,7 @@ export default function SessionsTable({sessions, selectedId, itemPrices, onSelec
         </thead>
         <tbody>
           {sessions.map(session => {
-            const income = Object.entries(session.drops).reduce((sum, [id, qty]) => {
-              return sum + qty * (itemPrices[id] ?? 0);
-            }, 0);
+            const income     = incomes.get(session.id) ?? 0;
             const isSelected = session.id === selectedId;
 
             return (

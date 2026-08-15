@@ -12,6 +12,7 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import {classifyRows} from '../attribution';
 import {computeMechanics} from '../mechanics';
 import {makePriceLookup, makeValuator} from '../valuation';
+import {NO_TAX} from '@/lib/tax';
 import type {AnalyticsWarning, MechanicKey} from '../types';
 import type {DbSession, DbSessionMap} from '@/types/electron';
 import {makeItems, makeSession, mapRow, overlapRow, resetRowIndex, standaloneRow} from './fixtures';
@@ -21,7 +22,9 @@ const ITEMS = makeItems({'1': 1, '2': 10});
 
 function run(session: DbSession, maps: DbSessionMap[]) {
   const warnings: AnalyticsWarning[] = [];
-  const prices   = makePriceLookup(ITEMS, session.priceSnapshot);
+  // Untaxed: these assert time attribution and raw FE, so the tax would only
+  // scale every expectation by 0.85. Tax itself is covered in analytics.test.ts.
+  const prices   = makePriceLookup(ITEMS, session.priceSnapshot, NO_TAX);
   const income   = makeValuator(prices, {clampNegative: true});
   const rows     = classifyRows(maps, income, warnings);
   const result   = computeMechanics(session, rows, warnings);
@@ -318,7 +321,7 @@ describe('row classification fallbacks', () => {
 
   it('routes a null-typed overlap to `unknown` rather than guessing a mechanic', () => {
     const warnings: AnalyticsWarning[] = [];
-    const prices = makePriceLookup(ITEMS, {});
+    const prices = makePriceLookup(ITEMS, {}, NO_TAX);
     const rows = classifyRows(
       [mapRow(300, {'1': 100}), {...overlapRow('lunaria', 60, 1, {'1': 20}), seasonalType: null}],
       makeValuator(prices, {clampNegative: true}),

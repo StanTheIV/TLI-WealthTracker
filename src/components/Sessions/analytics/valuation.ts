@@ -1,4 +1,5 @@
 import type {DbItem} from '@/types/electron';
+import {taxedUnitPrice, type TaxConfig} from '@/lib/tax';
 import type {PriceLookup, Valuation, Valuator} from './types';
 
 export const ZERO_VAL: Valuation = {snapshot: 0, live: 0};
@@ -59,10 +60,19 @@ export function ratio(a: Valuation, b: Valuation): {snapshot: number | null; liv
 /** An empty snapshot is indistinguishable from a pre-column session, so both
  *  degrade identically: `snapshot` aliases `live` and `hasSnapshot` tells the UI
  *  to hide the comparison. Per-item misses fall back the same way, so one
- *  unpriced item can't make a whole session look like it lost value. */
+ *  unpriced item can't make a whole session look like it lost value.
+ *
+ *  Both legs come out taxed, which is what makes this the seam for the whole
+ *  analytics module: `makeValuator`, `valueOne` and every aggregate built on
+ *  them inherit the auction-house cut without knowing it exists. The snapshot
+ *  leg is taxed too — the cut is a property of realising the value, not of when
+ *  the haul happened, so a saved session must not read as gross. */
 export function makePriceLookup(
   items: Record<string, DbItem>,
   snapshot: Record<string, number> | null | undefined,
+  /** Required (and positional, ahead of the optional `coveredIds`) so adding it
+   *  breaks every existing caller rather than silently valuing at gross. */
+  tax: TaxConfig,
   /** Ids the page actually values. A snapshot covering none of them (only
    *  consumed materials, say) can't support a comparison, so it counts as
    *  absent rather than as "nothing moved". */
@@ -73,12 +83,15 @@ export function makePriceLookup(
   const hasSnapshot = anySnapshot && (
     coveredIds === undefined || [...coveredIds].some(id => snap[id] !== undefined)
   );
-  const live = (itemId: string) => items[itemId]?.price ?? 0;
+  const taxed = (itemId: string, price: number) => taxedUnitPrice(price, items[itemId]?.type, tax);
+  const live  = (itemId: string) => taxed(itemId, items[itemId]?.price ?? 0);
 
   return {
     live,
     hasSnapshot,
-    snapshot: (itemId: string) => (hasSnapshot ? snap[itemId] ?? live(itemId) : live(itemId)),
+    snapshot: (itemId: string) => (
+      hasSnapshot && snap[itemId] !== undefined ? taxed(itemId, snap[itemId]) : live(itemId)
+    ),
     isMissing: (itemId: string) => hasSnapshot && snap[itemId] === undefined,
   };
 }

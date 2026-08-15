@@ -1,6 +1,6 @@
 import type {DbItem, DbSession, Source} from '@/types/electron';
 import type {ItemType} from '@/types/itemType';
-import {ITEM_TYPES} from '@/types/itemType';
+import {ITEM_TYPES, mapRawType} from '@/types/itemType';
 import type {
   ClassifiedRow, ConsumedItemRow, DroppedItemRow, PriceLookup, SourceSlice, TypeSlice, Valuation,
 } from './types';
@@ -11,8 +11,11 @@ function nameOf(items: Record<string, DbItem>, id: string): {name: string; known
   return item?.name ? {name: item.name, known: true} : {name: `#${id}`, known: false};
 }
 
+/** Normalises rather than casting: the items.type column can hold an unmapped
+ *  raw name (e.g. 'Corrosion Material') written by an API lookup or a batch
+ *  import, which a bare cast would bucket as its own bogus type. */
 function typeOf(items: Record<string, DbItem>, id: string): ItemType {
-  return (items[id]?.type as ItemType) ?? 'other';
+  return mapRawType(items[id]?.type);
 }
 
 function valueOne(prices: PriceLookup, id: string, qty: number): Valuation {
