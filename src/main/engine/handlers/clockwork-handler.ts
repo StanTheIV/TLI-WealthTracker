@@ -16,6 +16,7 @@ const COGWHEEL_IDLE_MS = 10_000;
  *   s7_cogwheel_end : that cogwheel finished — grey the row out again
  *   s7_turnin       : claim drops, arm the terminal loot window
  *   s7_fail         : outcome annotation only
+ *   bag_update      : decaying refresh, but only once terminal
  *
  * Cogwheel fights drop no loot of their own — their kills belong to the map — so
  * the tracker runs `claimsDrops: false` until the turn-in. Being active is what
@@ -33,8 +34,10 @@ const COGWHEEL_IDLE_MS = 10_000;
  *
  * The cogwheel timeout is an abandonment guard, re-armed by each pulse, and its
  * expiry only parks the tracker (`pauseOnLootExpiry`) so a later cogwheel
- * resumes the same run. Only the turn-in window is terminal. Pickups never move
- * either window, so `bag_update` is absent from `handles` (as for Sandlord).
+ * resumes the same run. Only the turn-in window is terminal. Pickups move the
+ * TERMINAL window only (decaying refresh, as for Carjack) — mid-fight a pickup
+ * is not evidence the cogwheel is still turning, and the tracker owns nothing
+ * then anyway.
  *
  * Once `_terminal` is set every fight-phase event is ignored. A bonus cogwheel
  * really can pay out during the reward sequence — 14 of 16 measured turn-ins had
@@ -45,7 +48,7 @@ const COGWHEEL_IDLE_MS = 10_000;
  */
 export class ClockworkHandler implements EventHandler {
   readonly name    = 'clockwork';
-  readonly handles = ['s7_podium', 's7_cogwheel', 's7_cogwheel_end', 's7_turnin', 's7_fail'] as const;
+  readonly handles = ['s7_podium', 's7_cogwheel', 's7_cogwheel_end', 's7_turnin', 's7_fail', 'bag_update'] as const;
 
   private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
   /** True once the vouchers are turned in, so a repeat can't re-arm. */
@@ -133,6 +136,12 @@ export class ClockworkHandler implements EventHandler {
 
       case 's7_fail':
         // Outcome only — the turn-in already armed the loot window.
+        break;
+
+      case 'bag_update':
+        // Only after the turn-in: during the fight phase the pickup is the map's
+        // (claimsDrops: false) and must not extend the abandonment timeout.
+        if (this._terminal) ctx.registry.seasonal('clockwork')?.refreshLootTimer();
         break;
     }
   }

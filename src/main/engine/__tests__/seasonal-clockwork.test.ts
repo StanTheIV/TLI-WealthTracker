@@ -285,6 +285,31 @@ describe('Clockwork integration', () => {
     expect(finishedClockwork(events)).toHaveLength(1);
   });
 
+  it('pickups during the TERMINAL window extend it, decaying 5000 → 4000ms', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 700, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s7Podium);
+    feed(d, e, log.s7Cogwheel);
+    feed(d, e, log.s7CogwheelEnd);
+    feed(d, e, log.s7Turnin);
+
+    // Deep into the window, so the pickup is past the 80% re-arm threshold.
+    vi.advanceTimersByTime(4_500);
+    feed(d, e, log.bagUpdate(1, 700, 3));
+
+    // The original 5s deadline has passed; the refresh bought a 4s window.
+    vi.advanceTimersByTime(1_000);
+    expect(finishedClockwork(events)).toHaveLength(0);
+    expect(ctx(e).registry.seasonal('clockwork')?.snapshot().drops[700]).toBe(3);
+
+    vi.advanceTimersByTime(3_200);
+    expect(finishedClockwork(events)).toHaveLength(1);
+  });
+
   it('a bonus mob spawn after the turn-in does not reopen the fight phase', () => {
     const d = createDispatcher();
     const e = createEngine([]);
