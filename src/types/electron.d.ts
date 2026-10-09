@@ -1,4 +1,6 @@
 import type {FilterRule} from './itemFilter';
+import type {League} from '@/lib/leagues';
+import type {PriceBucket} from '@/main/prices/history';
 
 export {};
 
@@ -58,6 +60,37 @@ export interface ItemChangedPatch {
   id:      string;
   changes: Partial<Omit<DbItem, 'id'>>;
 }
+
+/** Per-item price movement over a time range (db:prices:movers). */
+export interface PriceMover {
+  itemId:    string;
+  name:      string;
+  type:      string;
+  first:     number;
+  last:      number;
+  min:       number;
+  max:       number;
+  count:     number;
+  /** (last - first) / first; null when first is 0. */
+  pctChange: number | null;
+}
+
+/** One raw price observation for CSV export (db:prices:export). */
+export interface PriceExportRow {
+  timestamp: number;
+  itemId:    string;
+  name:      string;
+  source:    string;
+  price:     number;
+  n:         number | null;
+  p10:       number | null;
+  p25:       number | null;
+  p75:       number | null;
+  p90:       number | null;
+  min:       number | null;
+}
+
+export type {League, PriceBucket};
 
 export interface DbSession {
   id:            string;
@@ -262,6 +295,19 @@ interface ElectronAPI {
       update:     (filter: DbItemFilter) => Promise<void>;
       delete:     (id: string) => Promise<void>;
       setEnabled: (id: string, enabled: boolean) => Promise<void>;
+    };
+    leagues: {
+      getAll:    () => Promise<League[]>;
+      startNow:  (name?: string) => Promise<League>;
+      /** User leagues only; resolves false for official rows. */
+      setStart:  (id: string, ts: number) => Promise<boolean>;
+      onChanged: (cb: () => void) => () => void;
+    };
+    prices: {
+      /** Bucketed history over [from, to). */
+      history: (itemId: string, from: number, to: number) => Promise<PriceBucket[]>;
+      movers:  (from: number, to: number) => Promise<PriceMover[]>;
+      export:  (from: number, to: number) => Promise<PriceExportRow[]>;
     };
   };
 }

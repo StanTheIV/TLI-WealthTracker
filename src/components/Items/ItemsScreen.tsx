@@ -2,7 +2,11 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Search} from 'lucide-react';
 import {useItemsStore} from '@/state/itemsStore';
+import {useCurrentLeague} from '@/state/leaguesStore';
+import {isStalePrice} from '@/lib/leagues';
+import SegmentedControl from '@/components/ui/SegmentedControl';
 import ItemsTable from './ItemsTable';
+import PriceTrends from './PriceTrends';
 
 // ---------------------------------------------------------------------------
 // Filter pill
@@ -41,7 +45,8 @@ function FilterButton({label, count, active, onClick}: {
 // Main component
 // ---------------------------------------------------------------------------
 
-type Filter = 'all' | 'unknown' | 'noPrice';
+type Filter = 'all' | 'unknown' | 'noPrice' | 'stale';
+type Tab    = 'items' | 'trends';
 
 interface Props {
   /** If non-null, ItemsScreen clears filters/search and asks the table to scroll+flash this id. */
@@ -53,8 +58,10 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
   const {t}           = useTranslation('items');
   const items         = useItemsStore(s => s.items);
   const lookupsToday  = useItemsStore(s => s.lookupsToday);
+  const currentRange  = useCurrentLeague();
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
+  const [tab, setTab]       = useState<Tab>('items');
 
   // When the user narrows the table (search query or filter pill), remember
   // the first row that was visible. When they clear the narrowing, scroll
@@ -66,27 +73,30 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
   // Incoming focus request — clear any filter/search so the target row is visible.
   useEffect(() => {
     if (focusItemId === null) return;
+    setTab('items');
     setFilter('all');
     setSearch('');
   }, [focusItemId]);
 
-  const {rows, unknownCount, noPriceCount} = useMemo(() => {
+  const {rows, unknownCount, noPriceCount, staleCount} = useMemo(() => {
     const all = Object.values(items);
     const unknownCount = all.filter(i => !i.name || i.name === i.id).length;
     const noPriceCount = all.filter(i => i.price === 0).length;
-    return {rows: all, unknownCount, noPriceCount};
-  }, [items]);
+    const staleCount = all.filter(i => isStalePrice(i, currentRange)).length;
+    return {rows: all, unknownCount, noPriceCount, staleCount};
+  }, [items, currentRange]);
 
   const filtered = useMemo(() => {
     let result = rows;
     if (filter === 'unknown') result = result.filter(i => !i.name || i.name === i.id);
     if (filter === 'noPrice') result = result.filter(i => i.price === 0);
+    if (filter === 'stale')   result = result.filter(i => isStalePrice(i, currentRange));
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(i => i.id.includes(q) || i.name.toLowerCase().includes(q));
     }
     return result;
-  }, [rows, filter, search]);
+  }, [rows, filter, search, currentRange]);
 
   const isNarrowed = filter !== 'all' || search.trim().length > 0;
 
@@ -134,6 +144,18 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
         </div>
       </div>
 
+      <div className="mb-4 shrink-0">
+        <SegmentedControl
+          segments={[
+            {value: 'items' as Tab,  label: t('tabs.items')},
+            {value: 'trends' as Tab, label: t('tabs.trends')},
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      </div>
+
+      {tab === 'trends' ? <PriceTrends /> : (<>
       {/* Filter bar + search */}
       <div className="flex items-center gap-2 mb-4 shrink-0">
         <div className="flex flex-wrap gap-1.5">
@@ -154,6 +176,12 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
             active={filter === 'noPrice'}
             onClick={() => handleFilterChange('noPrice')}
           />
+          <FilterButton
+            label={t('filters.stale')}
+            count={staleCount}
+            active={filter === 'stale'}
+            onClick={() => handleFilterChange('stale')}
+          />
         </div>
 
         <div className="relative ml-auto">
@@ -162,7 +190,7 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
             type="text"
             value={search}
             onChange={e => handleSearchChange(e.target.value)}
-            placeholder="Search ID or name…"
+            placeholder={t('search.placeholder')}
             className="bg-surface-elevated border border-border rounded-full pl-6 pr-3 py-1 text-[11px] text-text-primary placeholder:text-text-disabled outline-none focus:border-accent/50 transition-colors w-48"
           />
         </div>
@@ -185,6 +213,7 @@ export default function ItemsScreen({focusItemId = null, onFocusConsumed}: Props
           />
         )}
       </div>
+      </>)}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {useSessionsStore} from '@/state/sessionsStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
 import type {DbItem} from '@/types/electron';
 import SegmentedControl from '@/components/ui/SegmentedControl';
+import LeagueSection from './LeagueSection';
 
 export default function GeneralTab() {
   const {t} = useTranslation('settings');
@@ -278,6 +279,8 @@ export default function GeneralTab() {
           <p className="text-xs text-text-secondary mt-2">{t('overlay.clickThrough.hint')}</p>
         </div>
       </section>
+
+      <LeagueSection />
 
       <section className="mb-8">
         <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-4">

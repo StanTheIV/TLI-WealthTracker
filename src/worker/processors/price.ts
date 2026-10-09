@@ -1,6 +1,7 @@
 import type {Processor, RawEvent} from './types';
+import {median} from '@/lib/percentiles';
 
-export type PriceEvent = {type: 'price_update'; itemId: number; price: number};
+export type PriceEvent = {type: 'price_update'; itemId: number; price: number; listings: number[]};
 
 // ---------------------------------------------------------------------------
 // Regex patterns — ported from Python core/constants.py
@@ -13,10 +14,13 @@ const RE_TYP3     = /\+typ3 \[(\d+)\]/;
 const RE_REFER    = /\+refer \[(\d+)\]/;
 // Matches RecvMessage header
 const RE_RECV     = /Socket RecvMessage STT----XchgSearchPrice----SynId = (\d+)/;
-// Matches individual listing prices: "+unitPrices+1 [20.0]" or "+2 [21.0]"
-const RE_PRICE    = /\+(?:unitPrices\+)?\d+ \[([0-9.]+)\]/g;
-// Currency marker that verifies this is a Flame Elementium (FE) price response
-const FE_MARKER   = '+currency [100300]';
+// Matches one listing price line: "+unitPrices+1 [20.0]" or "+2 [21.0]".
+// Anchored to the line end so "+2+currency [100200]" / "+itemGoldId [x]" never match.
+const RE_PRICE    = /\+(?:unitPrices\+)?\d+ \[([0-9.]+)\]\s*$/;
+// Closes a price group: "| +currency [100300]" or "+2+currency [100200]"
+const RE_CURRENCY = /\+currency \[(\d+)\]/;
+// Flame Elementium (FE) currency id
+const FE_CURRENCY = '100300';
 // End-of-message markers
 const END_SEND    = 'Socket SendMessage End';
 const END_RECV    = 'Socket RecvMessage End';
@@ -27,14 +31,6 @@ const MAX_BUFFER  = 200;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? (sorted[mid - 1] + sorted[mid]) / 2
-    : sorted[mid];
-}
 
 // ---------------------------------------------------------------------------
 // PriceProcessor
@@ -116,17 +112,26 @@ export class PriceProcessor implements Processor {
 
       this._pendingRequests.delete(synId);
 
-      if (!text.includes(FE_MARKER)) return null;
-
-      const prices: number[] = [];
-      let m: RegExpExecArray | null;
-      RE_PRICE.lastIndex = 0; // reset global regex state
-      while ((m = RE_PRICE.exec(text)) !== null) {
-        prices.push(+m[1]);
+      // Responses can hold several price groups (one per currency). Price
+      // lines accumulate until a +currency line closes the group.
+      const groups = new Map<string, number[]>();
+      let current: number[] = [];
+      for (const line of text.split(/\r?\n/)) {
+        const cur = RE_CURRENCY.exec(line);
+        if (cur) {
+          const existing = groups.get(cur[1]);
+          groups.set(cur[1], existing ? existing.concat(current) : current);
+          current = [];
+          continue;
+        }
+        const pm = RE_PRICE.exec(line);
+        if (pm) current.push(+pm[1]);
       }
-      if (prices.length === 0) return null;
 
-      return {type: 'price_update', itemId, price: median(prices)};
+      const listings = [...(groups.get(FE_CURRENCY) ?? [])].sort((a, b) => a - b);
+      if (listings.length === 0) return null;
+
+      return {type: 'price_update', itemId, price: median(listings), listings};
     }
 
     return null;

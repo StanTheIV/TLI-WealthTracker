@@ -121,6 +121,23 @@
     "browse": "Durchsuchen…",
     "notSet": "Nicht konfiguriert"
   },
+  "league": {
+    "heading": "Liga",
+    "current": "Aktuelle Liga",
+    "none": "Keine Liga",
+    "startsOn": "Gestartet am {{date}}",
+    "known": "Bekannte Ligen",
+    "official": "Offiziell",
+    "manual": "Manuell",
+    "upcoming": "Bevorstehend",
+    "editStart": "Startdatum von {{name}}",
+    "startNow": {
+      "label": "Neue Liga jetzt starten",
+      "namePlaceholder": "Liganame (optional)",
+      "hold": "Gedrückt halten, um jetzt eine neue Liga zu starten"
+    },
+    "hint": "Liga-Daten kommen mit App-Updates und werden online abgerufen. Startet eine neue Saison, bevor ein Update verfügbar ist, kannst du sie mit dem Button manuell starten. Ein offizielles Datum ersetzt ein manuelles innerhalb von 7 Tagen. Preise von Season- und Legacy-Realm werden nicht unterschieden."
+  },
   "itemImport": {
     "heading": "Item-Daten",
     "label": "Item-Preise aus einer full_table.json importieren. Bereits vorhandene Items bleiben unverändert.",

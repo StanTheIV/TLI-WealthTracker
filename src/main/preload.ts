@@ -130,5 +130,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
       delete:     (id: string)                        => ipcRenderer.invoke('db:filters:delete', id),
       setEnabled: (id: string, enabled: boolean)      => ipcRenderer.invoke('db:filters:set-enabled', id, enabled),
     },
+    leagues: {
+      getAll:   ()                          => ipcRenderer.invoke('db:leagues:get-all'),
+      startNow: (name?: string)             => ipcRenderer.invoke('db:leagues:start-now', name),
+      setStart: (id: string, ts: number)    => ipcRenderer.invoke('db:leagues:set-start', id, ts),
+      onChanged: (cb: () => void) => {
+        const wrapped = () => cb();
+        ipcRenderer.on('leagues:changed', wrapped);
+        return () => ipcRenderer.removeListener('leagues:changed', wrapped);
+      },
+    },
+    prices: {
+      history: (itemId: string, from: number, to: number) => ipcRenderer.invoke('db:prices:history', itemId, from, to),
+      movers:  (from: number, to: number)                 => ipcRenderer.invoke('db:prices:movers', from, to),
+      export:  (from: number, to: number)                 => ipcRenderer.invoke('db:prices:export', from, to),
+    },
   },
 });

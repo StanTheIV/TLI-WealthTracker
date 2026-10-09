@@ -1,40 +1,92 @@
 {
   "title": "Items",
   "filters": {
-    "all":      "Alle",
-    "unknown":  "Unbekannt",
-    "noPrice":  "Kein Preis"
+    "all": "Alle",
+    "unknown": "Unbekannt",
+    "noPrice": "Kein Preis",
+    "stale": "Veraltet"
   },
   "columns": {
-    "id":     "ID",
-    "name":   "Name",
-    "type":   "Typ",
-    "price":     "Preis",
+    "id": "ID",
+    "name": "Name",
+    "type": "Typ",
+    "price": "Preis",
     "priceDate": "Preisdatum"
   },
   "types": {
-    "ember":   "Ember",
-    "fuel":    "Treibstoff",
+    "ember": "Ember",
+    "fuel": "Treibstoff",
     "compass": "Kompass",
-    "dream":   "Traum",
-    "cube":    "Würfel",
-    "card":        "Fluoreszierend",
-    "skill":       "Fähigkeit",
-    "equipment":   "Ausrüstung",
+    "dream": "Traum",
+    "cube": "Würfel",
+    "card": "Fluoreszierend",
+    "skill": "Fähigkeit",
+    "equipment": "Ausrüstung",
     "mapMaterial": "Kartenmaterial",
-    "other":       "Sonstiges"
+    "other": "Sonstiges"
+  },
+  "stale": {
+    "tooltip": "Preis aus einer früheren Liga ({{league}})",
+    "unknownLeague": "unbekannt"
+  },
+  "search": {
+    "placeholder": "ID oder Name suchen…"
   },
   "empty": "Keine Items gefunden",
   "lookup": {
-    "button":       "Suchen",
-    "counter":      "{{used}}/{{max}} Suchen heute",
+    "button": "Suchen",
+    "counter": "{{used}}/{{max}} Suchen heute",
     "limitReached": "Tageslimit erreicht ({{used}}/{{max}})",
-    "noApiKey":     "Google API-Schlüssel in Einstellungen setzen",
-    "notFound":     "Name nicht gefunden",
-    "error":        "Suche fehlgeschlagen"
+    "noApiKey": "Google API-Schlüssel in Einstellungen setzen",
+    "notFound": "Name nicht gefunden",
+    "error": "Suche fehlgeschlagen"
   },
   "lock": {
-    "lock":   "Preis sperren (Auto-Updates überspringen)",
+    "lock": "Preis sperren (Auto-Updates überspringen)",
     "unlock": "Preis entsperren (Auto-Updates erlauben)"
+  },
+  "tabs": {
+    "items": "Items",
+    "trends": "Preistrends"
+  },
+  "range": {
+    "league": "Aktuelle Liga",
+    "prevLeague": "Vorherige Liga",
+    "all": "Gesamte Zeit",
+    "7d": "7 Tage",
+    "1d": "24 Stunden"
+  },
+  "history": {
+    "open": "Preisverlauf",
+    "title": "{{name}} — Preisverlauf",
+    "loading": "Lädt…",
+    "empty": "Kein Preisverlauf in diesem Zeitraum",
+    "logScale": "Logarithmische Skala",
+    "median": "Median",
+    "orderBook": "Angebote (p25–p75)",
+    "medianRange": "Median-Spanne",
+    "legend": {
+      "median": "Median",
+      "medianRange": "Median-Spanne (niedrigste–höchste Suche)",
+      "orderBook": "Angebote (p25–p75 aller Listungen)"
+    },
+    "listings_one": "{{count}} Angebot",
+    "listings_other": "{{count}} Angebote",
+    "searches_one": "{{count}} Suche",
+    "searches_other": "{{count}} Suchen"
+  },
+  "trends": {
+    "showSingle": "Einzelne Beobachtungen anzeigen",
+    "exportCsv": "CSV exportieren",
+    "empty": "Keine Preisbewegung in diesem Zeitraum",
+    "columns": {
+      "name": "Name",
+      "first": "Erster",
+      "last": "Letzter",
+      "min": "Min",
+      "max": "Max",
+      "count": "Beob.",
+      "pctChange": "Änderung"
+    }
   }
 }

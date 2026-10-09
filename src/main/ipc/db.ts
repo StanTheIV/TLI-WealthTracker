@@ -2,7 +2,8 @@ import {ipcMain, BrowserWindow} from 'electron';
 import {log} from '@/main/logger';
 import {
   settingsGetAll, settingsSet,
-  itemsGetAll, itemsUpsert, itemsSetName, itemsSetType, itemsSetPrice, itemsSetLocked, itemsImportBatch,
+  itemsGetAll, itemsUpsert, itemsSetName, itemsSetType, priceRecord, itemsSetLocked, itemsImportBatch,
+  leaguesGetAll, leaguesInsertUser, leaguesSetStart, pricesHistory, pricesMovers, pricesExport,
   sessionsGetAll, sessionsInsert, sessionsUpdate, sessionsDelete, sessionsRename, sessionsGetOne,
   sessionMapsGetForSession,
   seasonalStatsGetAll, seasonalStatsUpsert,
@@ -11,7 +12,7 @@ import {
   filtersGetAll, filtersInsert, filtersUpdate, filtersDelete, filtersSetEnabled,
   type DbItem,
 } from '@/main/db';
-import {broadcastItemsChanged, setItemBroadcastWindows} from '@/main/items-broadcast';
+import {broadcastItemsChanged, broadcastLeaguesChanged, setItemBroadcastWindows} from '@/main/items-broadcast';
 
 interface RegisterDeps {
   getMainWindow:    () => BrowserWindow | null;
@@ -40,8 +41,8 @@ export function registerDbHandlers(deps: RegisterDeps): void {
     deps.onItemTypeChanged?.(id, type);
   });
   ipcMain.handle('db:items:set-price',   (_e, id: string, price: number)  => {
-    itemsSetPrice(id, price);
-    broadcastItemsChanged({id, changes: {price}});
+    const {priceDate} = priceRecord(id, 'manual', price, undefined, {updateItem: true});
+    broadcastItemsChanged({id, changes: {price, ...(priceDate !== null && {priceDate})}});
   });
   ipcMain.handle('db:items:set-locked',  (_e, id: string, locked: boolean) => {
     itemsSetLocked(id, locked);
@@ -67,13 +68,33 @@ export function registerDbHandlers(deps: RegisterDeps): void {
     return result;
   });
   ipcMain.handle('db:items:import-batch',       (_e, items: DbItem[])     => {
-    const inserted = itemsImportBatch(items);
+    const insertedIds = new Set(itemsImportBatch(items));
     // Bulk import: broadcast per-item so each renderer can patch incrementally.
+    // Rows skipped by INSERT OR IGNORE keep their DB values, so they're not broadcast.
     for (const item of items) {
+      if (!insertedIds.has(item.id)) continue;
       broadcastItemsChanged({id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
     }
-    return inserted;
+    return insertedIds.size;
   });
+
+  ipcMain.handle('db:leagues:get-all',   ()               => leaguesGetAll());
+  ipcMain.handle('db:leagues:start-now', (_e, name?: string) => {
+    const trimmed = typeof name === 'string' ? name.trim().slice(0, 100) : '';
+    const league = leaguesInsertUser(trimmed || 'New league', Date.now());
+    broadcastLeaguesChanged();
+    return league;
+  });
+  ipcMain.handle('db:leagues:set-start', (_e, id: string, ts: number) => {
+    if (typeof id !== 'string' || !Number.isFinite(ts)) return false;
+    const changed = leaguesSetStart(id, ts);
+    if (changed) broadcastLeaguesChanged();
+    return changed;
+  });
+
+  ipcMain.handle('db:prices:history', (_e, itemId: string, from: number, to: number) => pricesHistory(String(itemId), from, to));
+  ipcMain.handle('db:prices:movers',  (_e, from: number, to: number)                  => pricesMovers(from, to));
+  ipcMain.handle('db:prices:export',  (_e, from: number, to: number)                  => pricesExport(from, to));
 
   ipcMain.handle('db:sessions:get-all',  ()                      => sessionsGetAll());
   ipcMain.handle('db:sessions:insert',   (_e, session)           => sessionsInsert(session));

@@ -4,7 +4,7 @@ import {join} from 'path';
 import {spawn} from 'child_process';
 import {log} from './logger';
 
-const REPO = 'StanTheIV/TLI-WealthTracker';
+export const REPO = 'StanTheIV/TLI-WealthTracker';
 const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 
 export interface UpdateInfo {
