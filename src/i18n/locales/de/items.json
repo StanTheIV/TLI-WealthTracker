@@ -61,11 +61,15 @@
     "title": "{{name}} — Preisverlauf",
     "loading": "Lädt…",
     "empty": "Kein Preisverlauf in diesem Zeitraum",
-    "showOuter": "p10–p90-Band anzeigen",
     "logScale": "Logarithmische Skala",
     "median": "Median",
-    "iqr": "IQR (p25–p75)",
-    "p1090": "p10–p90",
+    "orderBook": "Angebote (p25–p75)",
+    "medianRange": "Median-Spanne",
+    "legend": {
+      "median": "Median",
+      "medianRange": "Median-Spanne (niedrigste–höchste Suche)",
+      "orderBook": "Angebote (p25–p75 aller Listungen)"
+    },
     "listings_one": "{{count}} Angebot",
     "listings_other": "{{count}} Angebote",
     "searches_one": "{{count}} Suche",

@@ -8,14 +8,14 @@ export type ChartRow = {
   /** True for the synthetic null row inserted at a league boundary. */
   gap: boolean;
   median: number | null;
-  p10: number | null;
   p25: number | null;
   p75: number | null;
-  p90: number | null;
-  /** [p25, p75] for the recharts range area; null where unknown. */
+  medianLo: number | null;
+  medianHi: number | null;
+  /** Order-book spread: [p25, p75] of all listings in the bucket (recharts range area). */
   iqr: [number, number] | null;
-  /** [p10, p90] outer band. */
-  outer: [number, number] | null;
+  /** Median spread: [lowest, highest] per-search median in the bucket. */
+  medianBand: [number, number] | null;
   n: number;
   searches: number;
 };
@@ -42,11 +42,12 @@ export function buildChartRows(
   for (const b of buckets) {
     // Manual/backfill-only buckets have null percentiles: they still feed the
     // median line (most pre-recording history is backfill) but draw no band.
-    const p10 = pos(b.p10, log), p25 = pos(b.p25, log), p75 = pos(b.p75, log), p90 = pos(b.p90, log);
+    const p25 = pos(b.p25, log), p75 = pos(b.p75, log);
+    const medianLo = pos(b.medianLo, log), medianHi = pos(b.medianHi, log);
     rows.push({
       t: b.timestamp, gap: false, median: pos(b.median, log),
-      p10, p25, p75, p90,
-      iqr: band(p25, p75), outer: band(p10, p90),
+      p25, p75, medianLo, medianHi,
+      iqr: band(p25, p75), medianBand: band(medianLo, medianHi),
       n: b.n, searches: b.searches,
     });
   }
@@ -54,7 +55,7 @@ export function buildChartRows(
     if (r.from > from && r.from < to) {
       rows.push({
         t: r.from - 1, gap: true, median: null,
-        p10: null, p25: null, p75: null, p90: null, iqr: null, outer: null, n: 0, searches: 0,
+        p25: null, p75: null, medianLo: null, medianHi: null, iqr: null, medianBand: null, n: 0, searches: 0,
       });
     }
   }

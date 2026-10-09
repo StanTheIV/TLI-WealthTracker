@@ -61,11 +61,15 @@
     "title": "{{name}} — price history",
     "loading": "Loading…",
     "empty": "No price history in this range",
-    "showOuter": "Show p10–p90 band",
     "logScale": "Log scale",
     "median": "Median",
-    "iqr": "IQR (p25–p75)",
-    "p1090": "p10–p90",
+    "orderBook": "Order book (p25–p75)",
+    "medianRange": "Median range",
+    "legend": {
+      "median": "Median",
+      "medianRange": "Median range (lowest–highest search)",
+      "orderBook": "Order book (p25–p75 of all listings)"
+    },
     "listings_one": "{{count}} listing",
     "listings_other": "{{count}} listings",
     "searches_one": "{{count}} search",

@@ -110,11 +110,26 @@ describe('bucket', () => {
     expect(out.map(b => b.timestamp)).toEqual([0, 5 * H]);
   });
 
-  it('reports manual points separately and ignores them for the median when listings exist', () => {
+  it('ignores listing-less prices for the median when listings exist', () => {
     const listings = new Map([[1, [10, 20, 30]]]);
     const [b] = bucket([obs(1, 0, 20), obs(2, 50, 999, 'manual')], listings, H);
     expect(b.median).toBe(20);
-    expect(b.manual).toEqual([{timestamp: 50, price: 999, source: 'manual'}]);
+  });
+
+  it('reports the spread of per-observation medians, null for a single observation', () => {
+    const listings = new Map([[1, [9, 10, 11]], [2, [14, 15, 16]], [3, [11, 12, 13]]]);
+    const [b] = bucket([obs(1, 0, 10), obs(2, 10, 15), obs(3, 20, 12)], listings, H);
+    expect(b.medianLo).toBe(10);
+    expect(b.medianHi).toBe(15);
+    const [single] = bucket([obs(1, 0, 10)], listings, H);
+    expect(single.medianLo).toBeNull();
+    expect(single.medianHi).toBeNull();
+  });
+
+  it('aligns daily buckets to local midnight', () => {
+    const t = new Date(2026, 9, 9, 23, 30).getTime();
+    const [b] = bucket([obs(1, t, 1)], new Map([[1, [1]]]), 24 * H);
+    expect(b.timestamp).toBe(new Date(2026, 9, 9).getTime());
   });
 
   it('uses the median of manual prices when a bucket has no listings', () => {
@@ -127,7 +142,7 @@ describe('bucket', () => {
     expect(b.n).toBe(0);
     expect(b.searches).toBe(0);
     expect(b.p25).toBeNull();
-    expect(b.manual).toHaveLength(3);
+    expect([b.medianLo, b.medianHi]).toEqual([4, 8]);
   });
 
   it('bucketMs 0 yields one point per distinct timestamp', () => {
@@ -147,11 +162,9 @@ describe('bucket', () => {
 
 describe('pickBucketMs', () => {
   const DAY = 24 * 3_600_000;
-  it('is raw under 200 observations', () => {
-    expect(pickBucketMs(199, 100 * DAY)).toBe(0);
-  });
-  it('is hourly up to 14 days, daily beyond', () => {
-    expect(pickBucketMs(200, 14 * DAY)).toBe(3_600_000);
-    expect(pickBucketMs(5000, 14 * DAY + 1)).toBe(DAY);
+  it('is hourly up to two days, daily beyond', () => {
+    expect(pickBucketMs(DAY)).toBe(3_600_000);
+    expect(pickBucketMs(2 * DAY)).toBe(3_600_000);
+    expect(pickBucketMs(2 * DAY + 1)).toBe(DAY);
   });
 });

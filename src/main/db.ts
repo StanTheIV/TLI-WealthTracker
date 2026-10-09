@@ -781,8 +781,9 @@ export function pricesHistory(itemId: string, from: number, to: number): PriceBu
     else listingsByObs.set(r.observation_id, [r.price]);
   }
 
-  const span = obs[obs.length - 1].timestamp - obs[0].timestamp;
-  return bucket(obs, listingsByObs, pickBucketMs(obs.length, span));
+  // Span of the requested window, clipped to where data starts ('all' begins at 0).
+  const span = to - Math.max(from, obs[0].timestamp);
+  return bucket(obs, listingsByObs, pickBucketMs(span));
 }
 
 /** Per-item first/last/min/max median and % change over [from, to). */

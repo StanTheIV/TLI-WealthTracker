@@ -5,7 +5,7 @@ import {buildChartRows, csvField, formatPrice, toCsv} from '../priceChart';
 
 const bucket = (timestamp: number, median: number, extra: Partial<PriceBucket> = {}): PriceBucket => ({
   timestamp, median, p10: median / 2, p25: median * 0.8, p75: median * 1.2, p90: median * 2,
-  n: 10, searches: 1, manual: [], ...extra,
+  medianLo: median * 0.9, medianHi: median * 1.1, n: 10, searches: 1, ...extra,
 });
 
 const ranges = leagueRanges([
@@ -24,8 +24,11 @@ describe('buildChartRows', () => {
   });
   it('builds range tuples and nulls them when a percentile is missing', () => {
     const [r] = buildChartRows([bucket(5, 10, {p25: null})], ranges, 0, 200, false);
-    expect(r.outer).toEqual([5, 20]);
+    expect(r.medianBand).toEqual([9, 11]);
     expect(r.iqr).toBeNull();
+    const [single] = buildChartRows([bucket(5, 10, {medianLo: null, medianHi: null})], ranges, 0, 200, false);
+    expect(single.medianBand).toBeNull();
+    expect(single.iqr).toEqual([8, 12]);
   });
   it('keeps listing-less (backfill/manual) buckets on the median line without bands', () => {
     const rows = buildChartRows(
@@ -35,12 +38,11 @@ describe('buildChartRows', () => {
     expect(real).toHaveLength(1);
     expect(real[0].median).toBe(3);
     expect(real[0].iqr).toBeNull();
-    expect(real[0].outer).toBeNull();
   });
   it('drops non-positive values in log mode', () => {
-    const [r] = buildChartRows([bucket(5, 10, {p10: 0})], ranges, 0, 200, true);
-    expect(r.p10).toBeNull();
-    expect(r.outer).toBeNull();
+    const [r] = buildChartRows([bucket(5, 10, {medianLo: 0})], ranges, 0, 200, true);
+    expect(r.medianLo).toBeNull();
+    expect(r.medianBand).toBeNull();
     expect(r.median).toBe(10);
     expect(buildChartRows([bucket(5, 0)], ranges, 0, 200, true)[0].median).toBeNull();
   });

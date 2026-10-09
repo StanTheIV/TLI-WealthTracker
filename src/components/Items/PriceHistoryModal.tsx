@@ -51,14 +51,25 @@ function CustomTooltip({active, payload}: {active?: boolean; payload?: {payload?
       {/* Backfill/manual-only points have no order book: skip the empty band lines. */}
       {row.n > 0 && (
         <>
-          <p className="font-mono text-text-secondary">{t('history.iqr')}: {range(row.p25, row.p75)}</p>
-          <p className="font-mono text-text-secondary">{t('history.p1090')}: {range(row.p10, row.p90)}</p>
+          <p className="font-mono text-text-secondary">{t('history.orderBook')}: {range(row.p25, row.p75)}</p>
           <p className="text-text-disabled">
             {t('history.listings', {count: row.n})} · {t('history.searches', {count: row.searches})}
           </p>
         </>
       )}
+      {row.medianLo !== null && row.medianHi !== null && (
+        <p className="font-mono text-text-secondary">{t('history.medianRange')}: {range(row.medianLo, row.medianHi)}</p>
+      )}
     </div>
+  );
+}
+
+function LegendItem({swatch, label}: {swatch: string; label: string}) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={swatch} />
+      {label}
+    </span>
   );
 }
 
@@ -79,7 +90,6 @@ export default function PriceHistoryModal({itemId, name, onClose}: Props) {
 
   const [preset, setPreset]   = useState<PricePreset>(() => defaultPreset(ranges, Date.now()));
   const [log, setLog]         = useState(false);
-  const [outer, setOuter]     = useState(false);
   const [buckets, setBuckets] = useState<PriceBucket[] | null>(null);
 
   // Resolved per preset change so the fetch and the axis domain agree.
@@ -142,10 +152,6 @@ export default function PriceHistoryModal({itemId, name, onClose}: Props) {
             <PriceRangeControl value={preset} onChange={setPreset} />
             <div className="flex items-center gap-4 text-xs text-text-secondary">
               <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" checked={outer} onChange={e => setOuter(e.target.checked)} className="accent-accent" />
-                {t('history.showOuter')}
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
                 <input type="checkbox" checked={log} onChange={e => setLog(e.target.checked)} className="accent-accent" />
                 {t('history.logScale')}
               </label>
@@ -193,24 +199,22 @@ export default function PriceHistoryModal({itemId, name, onClose}: Props) {
                     label={{value: r.name, position: 'insideTopLeft', fill: theme.textSecondary, fontSize: 10}}
                   />
                 ))}
-                {outer && (
-                  <Area
-                    dataKey="outer"
-                    type="monotone"
-                    stroke="none"
-                    fill={theme.accent}
-                    fillOpacity={0.1}
-                    isAnimationActive={false}
-                    activeDot={false}
-                    legendType="none"
-                  />
-                )}
                 <Area
                   dataKey="iqr"
                   type="monotone"
                   stroke="none"
                   fill={theme.accent}
                   fillOpacity={0.25}
+                  isAnimationActive={false}
+                  activeDot={false}
+                  legendType="none"
+                />
+                <Area
+                  dataKey="medianBand"
+                  type="monotone"
+                  stroke="none"
+                  fill={theme.gold}
+                  fillOpacity={0.3}
                   isAnimationActive={false}
                   activeDot={false}
                   legendType="none"
@@ -227,6 +231,15 @@ export default function PriceHistoryModal({itemId, name, onClose}: Props) {
                 />
               </ComposedChart>
             </ResponsiveContainer>
+          )}
+
+          {/* Swatches mirror the chart: accent band 0.25, gold band 0.3, gold line. */}
+          {hasData && (
+            <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-text-secondary">
+              <LegendItem swatch="w-4 h-0.5 rounded-full bg-gold" label={t('history.legend.median')} />
+              <LegendItem swatch="w-4 h-2.5 rounded-sm bg-gold/30" label={t('history.legend.medianRange')} />
+              <LegendItem swatch="w-4 h-2.5 rounded-sm bg-accent/25" label={t('history.legend.orderBook')} />
+            </div>
           )}
         </div>
       </div>

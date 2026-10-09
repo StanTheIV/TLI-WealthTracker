@@ -62,16 +62,15 @@ export type BucketObservation = {
   n?: number | null;
 };
 
-export type ManualPoint = {timestamp: number; price: number; source: string};
-
 /**
  * One time bucket of an item's history.
  * - `timestamp`: bucket start (ms).
  * - `median`/`p10..p90`/`n`: computed from the MERGED raw listings of every scrape
  *   observation in the bucket (percentiles are never averaged). If the bucket has no
  *   listings, `median` is the median of manual/backfill prices, percentiles are null, `n` is 0.
+ * - `medianLo`/`medianHi`: lowest/highest per-observation median in the bucket (how far
+ *   the price moved within it); null with fewer than two observations.
  * - `searches`: number of observations with listings merged into the bucket.
- * - `manual`: listing-less (manual/backfill) points, always reported so the UI can draw dots.
  */
 export type PriceBucket = {
   timestamp: number;
@@ -80,12 +79,26 @@ export type PriceBucket = {
   p25: number | null;
   p75: number | null;
   p90: number | null;
+  medianLo: number | null;
+  medianHi: number | null;
   n: number;
   searches: number;
-  manual: ManualPoint[];
 };
 
-/** Group observations into `bucketMs` buckets (epoch-aligned; 0 = one per timestamp). Empty buckets are omitted. */
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
+
+/** Bucket start: local midnight for daily buckets (days follow the user's clock), epoch-aligned otherwise. */
+function bucketKey(ts: number, bucketMs: number): number {
+  if (bucketMs <= 0) return ts;
+  if (bucketMs === DAY_MS) {
+    const d = new Date(ts);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  }
+  return Math.floor(ts / bucketMs) * bucketMs;
+}
+
+/** Group observations into `bucketMs` buckets (0 = one per timestamp). Empty buckets are omitted. */
 export function bucket(
   observations: BucketObservation[],
   listingsByObs: Map<number, number[]>,
@@ -93,7 +106,7 @@ export function bucket(
 ): PriceBucket[] {
   const groups = new Map<number, BucketObservation[]>();
   for (const o of observations) {
-    const key = bucketMs > 0 ? Math.floor(o.timestamp / bucketMs) * bucketMs : o.timestamp;
+    const key = bucketKey(o.timestamp, bucketMs);
     const g = groups.get(key);
     if (g) g.push(o);
     else groups.set(key, [o]);
@@ -101,19 +114,25 @@ export function bucket(
 
   const out: PriceBucket[] = [];
   for (const key of [...groups.keys()].sort((a, b) => a - b)) {
+    const group = groups.get(key)!;
     const merged: number[] = [];
+    const listingless: number[] = [];
     let searches = 0;
-    const manual: ManualPoint[] = [];
-    for (const o of groups.get(key)!) {
+    for (const o of group) {
       const l = listingsByObs.get(o.id);
       if (l && l.length > 0) {
         merged.push(...l);
         searches++;
       } else {
-        manual.push({timestamp: o.timestamp, price: o.price, source: o.source});
+        listingless.push(o.price);
       }
     }
-    manual.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Each observation's `price` already is its own median, so the spread of
+    // medians needs no extra storage.
+    const medians = group.map(o => o.price);
+    const medianLo = medians.length >= 2 ? Math.min(...medians) : null;
+    const medianHi = medians.length >= 2 ? Math.max(...medians) : null;
 
     if (merged.length > 0) {
       merged.sort((a, b) => a - b);
@@ -124,34 +143,27 @@ export function bucket(
         p25: percentile(merged, 0.25),
         p75: percentile(merged, 0.75),
         p90: percentile(merged, 0.9),
+        medianLo, medianHi,
         n: merged.length,
         searches,
-        manual,
       });
-    } else if (manual.length > 0) {
+    } else {
       out.push({
         timestamp: key,
-        median: median(manual.map(m => m.price)),
-        p10: null,
-        p25: null,
-        p75: null,
-        p90: null,
+        median: median(listingless),
+        p10: null, p25: null, p75: null, p90: null,
+        medianLo, medianHi,
         n: 0,
         searches: 0,
-        manual,
       });
     }
   }
   return out;
 }
 
-const HOUR_MS = 3_600_000;
-const DAY_MS = 24 * HOUR_MS;
-
-/** 0 = raw (no bucketing) under 200 observations; else hourly up to 14 days, otherwise daily. */
-export function pickBucketMs(count: number, spanMs: number): number {
-  if (count < 200) return 0;
-  return spanMs <= 14 * DAY_MS ? HOUR_MS : DAY_MS;
+/** Hourly up to a two-day span, daily beyond. Always bucketed: one point per search would collapse the median spread. */
+export function pickBucketMs(spanMs: number): number {
+  return spanMs <= 2 * DAY_MS ? HOUR_MS : DAY_MS;
 }
 
 export type BackfillPoint = {itemId: string; timestamp: number; price: number};
