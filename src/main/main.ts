@@ -9,6 +9,7 @@ import {registerOverlayHandlers} from './ipc/overlay';
 import {registerEngineHandlers, stopEngineForShutdown, notifyEngineItemTypeChanged} from './ipc/engine';
 import {registerUpdaterHandlers} from './ipc/updater';
 import {registerLoggingHandlers} from './ipc/logging';
+import {initLeaguesAndPriceHistory} from './leagues-sync';
 
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER = 'http://localhost:5173';
@@ -194,7 +195,7 @@ function seedItemsIfEmpty(): void {
       price: v.price ?? 0,
       priceDate: v.last_update ?? 0,
     }));
-    const count = itemsImportBatch(items);
+    const count = itemsImportBatch(items).length;
     log.info('database', `Auto-seeded ${count} items from full_table.json`);
   } catch (err) {
     log.error('database', `Failed to seed items: ${err}`);
@@ -212,6 +213,7 @@ app.whenReady().then(() => {
   initDb();
   seedItemsIfEmpty();
   initLogger(settingsGetAll);
+  initLeaguesAndPriceHistory();
 
   registerDbHandlers({
     getMainWindow:    () => mainWindow,

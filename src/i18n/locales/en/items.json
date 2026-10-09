@@ -1,40 +1,88 @@
 {
   "title": "Items",
   "filters": {
-    "all":      "All",
-    "unknown":  "Unknown",
-    "noPrice":  "No price"
+    "all": "All",
+    "unknown": "Unknown",
+    "noPrice": "No price",
+    "stale": "Stale"
   },
   "columns": {
-    "id":     "ID",
-    "name":   "Name",
-    "type":   "Type",
-    "price":     "Price",
+    "id": "ID",
+    "name": "Name",
+    "type": "Type",
+    "price": "Price",
     "priceDate": "Price Date"
   },
   "types": {
-    "ember":   "Ember",
-    "fuel":    "Fuel",
+    "ember": "Ember",
+    "fuel": "Fuel",
     "compass": "Compass",
-    "dream":   "Dream",
-    "cube":    "Cube",
-    "card":        "Fluorescent",
-    "skill":       "Skill",
-    "equipment":   "Equipment",
+    "dream": "Dream",
+    "cube": "Cube",
+    "card": "Fluorescent",
+    "skill": "Skill",
+    "equipment": "Equipment",
     "mapMaterial": "Map Material",
-    "other":       "Other"
+    "other": "Other"
+  },
+  "stale": {
+    "tooltip": "Price from a previous league ({{league}})",
+    "unknownLeague": "unknown"
+  },
+  "search": {
+    "placeholder": "Search ID or name…"
   },
   "empty": "No items found",
   "lookup": {
-    "button":       "Lookup",
-    "counter":      "{{used}}/{{max}} lookups today",
+    "button": "Lookup",
+    "counter": "{{used}}/{{max}} lookups today",
     "limitReached": "Daily limit reached ({{used}}/{{max}})",
-    "noApiKey":     "Set Google API key in Settings",
-    "notFound":     "Name not found",
-    "error":        "Lookup failed"
+    "noApiKey": "Set Google API key in Settings",
+    "notFound": "Name not found",
+    "error": "Lookup failed"
   },
   "lock": {
-    "lock":   "Lock price (skip auto-updates)",
+    "lock": "Lock price (skip auto-updates)",
     "unlock": "Unlock price (allow auto-updates)"
+  },
+  "tabs": {
+    "items": "Items",
+    "trends": "Price trends"
+  },
+  "range": {
+    "league": "Current league",
+    "prevLeague": "Previous league",
+    "all": "All time",
+    "7d": "7 days",
+    "1d": "24 hours"
+  },
+  "history": {
+    "open": "Price history",
+    "title": "{{name}} — price history",
+    "loading": "Loading…",
+    "empty": "No price history in this range",
+    "showOuter": "Show p10–p90 band",
+    "logScale": "Log scale",
+    "median": "Median",
+    "iqr": "IQR (p25–p75)",
+    "p1090": "p10–p90",
+    "listings_one": "{{count}} listing",
+    "listings_other": "{{count}} listings",
+    "searches_one": "{{count}} search",
+    "searches_other": "{{count}} searches"
+  },
+  "trends": {
+    "showSingle": "Show single observations",
+    "exportCsv": "Export CSV",
+    "empty": "No price movement in this range",
+    "columns": {
+      "name": "Name",
+      "first": "First",
+      "last": "Last",
+      "min": "Min",
+      "max": "Max",
+      "count": "Obs.",
+      "pctChange": "Change"
+    }
   }
 }

@@ -221,18 +221,27 @@ function makeSendLines(synId: string, typ3: number, refer?: number): string[] {
 }
 
 function makeRecvLines(synId: string, prices: number[], hasFEMarker = true): string[] {
-  const feHeader = hasFEMarker ? '+prices+1+currency [100300]' : '+prices+1';
+  // Real shape: price lines first, then a "+currency [id]" line closing the group.
   const unitPriceLines = prices.map((p, i) =>
     i === 0
-      ? `|      | +unitPrices+1 [${p}]`
+      ? `+prices+1+unitPrices+1 [${p}]`
       : `|      | |          +${i + 1} [${p}]`,
   );
   return [
     `[ts]GameLog: Display: [Game] ----Socket RecvMessage STT----XchgSearchPrice----SynId = ${synId}`,
     '[ts]GameLog: Display: [Game]',
-    feHeader,
     ...unitPriceLines,
+    ...(hasFEMarker ? ['|      | +currency [100300]'] : []),
     '+errCode',
+    '[ts]GameLog: Display: [Game] ----Socket RecvMessage End----',
+  ];
+}
+
+function recvWrap(synId: string, body: string[]): string[] {
+  return [
+    `[ts]GameLog: Display: [Game] ----Socket RecvMessage STT----XchgSearchPrice----SynId = ${synId}`,
+    '[ts]GameLog: Display: [Game]',
+    ...body,
     '[ts]GameLog: Display: [Game] ----Socket RecvMessage End----',
   ];
 }
@@ -284,7 +293,51 @@ describe('PriceProcessor', () => {
     feedLines(proc, makeSendLines('1', 5011));
     const results = feedLines(proc, makeRecvLines('1', [20, 21, 22]));
     const event = results.find(r => r !== null);
-    expect(event).toEqual({type: 'price_update', itemId: 5011, price: 21}); // median of [20,21,22]
+    expect(event).toEqual({type: 'price_update', itemId: 5011, price: 21, listings: [20, 21, 22]}); // median of [20,21,22]
+  });
+
+  it('keeps only FE listings from a multi-currency response (ascending)', () => {
+    feedLines(proc, makeSendLines('30', 1001));
+    const results = feedLines(proc, recvWrap('30', [
+      '+prices+1+unitPrices+1 [0.0999099909991]',
+      '|      | |          +2 [0.038759689922481]',
+      '|      | |          +3 [0.047924787892685]',
+      '|      | +currency [100300]',
+      '|      +2+unitPrices+1 [28888.0]',
+      '|      | +currency [100200]',
+      '+errCode',
+    ]));
+    const event = results.find(r => r !== null);
+    expect(event).toEqual({
+      type: 'price_update',
+      itemId: 1001,
+      price: 0.047924787892685,
+      listings: [0.038759689922481, 0.047924787892685, 0.0999099909991],
+    });
+  });
+
+  it('returns null when the response only has non-FE groups', () => {
+    feedLines(proc, makeSendLines('31', 1001));
+    const results = feedLines(proc, recvWrap('31', [
+      '+prices+1+unitPrices+1 [28888.0]',
+      '|      | +currency [100200]',
+      '+errCode',
+    ]));
+    expect(results.every(r => r === null)).toBe(true);
+  });
+
+  it('ignores an empty second group and +itemGoldId lines', () => {
+    feedLines(proc, makeSendLines('32', 1001));
+    const results = feedLines(proc, recvWrap('32', [
+      '+prices+1+unitPrices+1 [3.5]',
+      '|      | |          +2 [3.1]',
+      '|      | +currency [100300]',
+      '|      +2+currency [100200]',
+      '+itemGoldId [200029]',
+      '+errCode',
+    ]));
+    const event = results.find(r => r !== null);
+    expect(event).toEqual({type: 'price_update', itemId: 1001, price: 3.3, listings: [3.1, 3.5]});
   });
 
   it('uses +refer as item ID for filtered (category) searches', () => {

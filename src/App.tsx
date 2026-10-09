@@ -7,6 +7,7 @@ import {useSettingsStore} from './state/settingsStore';
 import {useItemsStore} from './state/itemsStore';
 import {useEngineStore} from './state/engineStore';
 import {useWealthStore} from './state/wealthStore';
+import {useLeaguesStore} from './state/leaguesStore';
 import MainWindow from './windows/MainWindow';
 import OverlayWindow from './windows/OverlayWindow';
 
@@ -26,6 +27,7 @@ function AppInner() {
       useItemsStore.getState().load(),
       windowType === 'main' ? useSettingsStore.getState().load() : Promise.resolve(),
       windowType === 'main' ? useWealthStore.getState().load()   : Promise.resolve(),
+      windowType === 'main' ? useLeaguesStore.getState().load()  : Promise.resolve(),
     ]).then(() => setReady(true));
   }, []);
 

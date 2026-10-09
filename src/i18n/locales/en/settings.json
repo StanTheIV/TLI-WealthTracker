@@ -121,6 +121,23 @@
     "browse": "Browse…",
     "notSet": "Not configured"
   },
+  "league": {
+    "heading": "League",
+    "current": "Current league",
+    "none": "No league",
+    "startsOn": "Started {{date}}",
+    "known": "Known leagues",
+    "official": "Official",
+    "manual": "Manual",
+    "upcoming": "Upcoming",
+    "editStart": "Start date of {{name}}",
+    "startNow": {
+      "label": "Start new league now",
+      "namePlaceholder": "League name (optional)",
+      "hold": "Hold to start a new league now"
+    },
+    "hint": "League dates arrive with app updates and are fetched online. If a new season launches before an update is available, use the button to start it manually. An official date replaces a manual one within 7 days. Season and Legacy realm prices are not distinguished."
+  },
   "itemImport": {
     "heading": "Item Data",
     "label": "Import item prices from a full_table.json file. Existing items are kept as-is.",

@@ -1,9 +1,12 @@
 import {useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {Search, Loader2, Check, X, Lock, LockOpen} from 'lucide-react';
+import {Search, Loader2, Check, X, Lock, LockOpen, LineChart} from 'lucide-react';
 import {useItemsStore} from '@/state/itemsStore';
+import {useCurrentLeague, useLeaguesStore} from '@/state/leaguesStore';
+import {isStalePrice, leagueAt} from '@/lib/leagues';
 import type {DbItem} from '@/types/electron';
 import {ITEM_TYPES} from '@/types/itemType';
+import PriceHistoryModal from './PriceHistoryModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,6 +87,8 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
   const setLocked     = useItemsStore(s => s.setLocked);
   const lookupName    = useItemsStore(s => s.lookupName);
   const lookupsToday  = useItemsStore(s => s.lookupsToday);
+  const ranges        = useLeaguesStore(s => s.ranges);
+  const currentRange  = useCurrentLeague();
 
   const [sortField, setSortField] = useState<SortField>('id');
   const [sortDir,   setSortDir]   = useState<SortDir>('asc');
@@ -91,6 +96,7 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
   const [draftValue, setDraftValue] = useState('');
   const [lookupStatus, setLookupStatus] = useState<Record<string, LookupStatus>>({});
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [historyItem, setHistoryItem] = useState<DbItem | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const rowRefs  = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -163,7 +169,7 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
         <div className="w-28 shrink-0">
           <ColHeader label={t('columns.type')} field="type" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
         </div>
-        <div className="w-24 shrink-0 text-right">
+        <div className="w-28 shrink-0 text-right">
           <ColHeader label={t('columns.price')} field="price" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
         </div>
         <div className="w-32 shrink-0">
@@ -178,6 +184,10 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
           const isEditingPrice = editing?.id === item.id && editing.field === 'price';
 
           const isFlashing = flashId === item.id;
+          const stale      = isStalePrice(item, currentRange);
+          const staleTitle = stale
+            ? t('stale.tooltip', {league: leagueAt(ranges, item.priceDate)?.name ?? t('stale.unknownLeague')})
+            : undefined;
 
           return (
             <div
@@ -255,7 +265,7 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
               </div>
 
               {/* Price — editable + lock toggle */}
-              <div className="w-24 shrink-0 flex items-center justify-end gap-1">
+              <div className="w-28 shrink-0 flex items-center justify-end gap-1">
                 {isEditingPrice ? (
                   <input
                     ref={inputRef}
@@ -270,9 +280,10 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
                 ) : (
                   <button
                     onClick={() => startEdit(item, 'price')}
+                    title={staleTitle}
                     className={[
                       'flex-1 min-w-0 text-right font-mono text-xs tabular-nums hover:text-accent transition-colors',
-                      item.price === 0 ? 'text-text-disabled' : 'text-text-secondary',
+                      item.price === 0 || stale ? 'text-text-disabled' : 'text-text-secondary',
                     ].join(' ')}
                   >
                     {item.price === 0 ? '—' : item.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
@@ -288,16 +299,33 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
                 >
                   {item.locked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
                 </button>
+                <button
+                  onClick={e => { e.stopPropagation(); setHistoryItem(item); }}
+                  title={t('history.open')}
+                  className="shrink-0 p-0.5 rounded text-text-disabled hover:text-accent transition-colors"
+                >
+                  <LineChart className="w-3 h-3" />
+                </button>
               </div>
 
               {/* Price date */}
-              <span className="text-xs text-text-disabled w-32 shrink-0 truncate tabular-nums">
+              <span
+                title={staleTitle}
+                className={[
+                  'text-xs text-text-disabled w-32 shrink-0 truncate tabular-nums',
+                  stale ? 'line-through decoration-text-disabled/50' : '',
+                ].join(' ')}
+              >
                 {formatDate(item.priceDate)}
               </span>
             </div>
           );
         })}
       </div>
+
+      {historyItem && (
+        <PriceHistoryModal itemId={historyItem.id} name={historyItem.name} onClose={() => setHistoryItem(null)} />
+      )}
     </div>
   );
 }

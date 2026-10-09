@@ -25,6 +25,12 @@ export function setItemBroadcastWindows(
   _getTrackerWindow = getTrackerWindow;
 }
 
+/** Leagues changed (user edit or remote sync): renderers re-fetch via db:leagues:get-all. */
+export function broadcastLeaguesChanged(): void {
+  _getMainWindow()?.webContents.send('leagues:changed');
+  _getTrackerWindow()?.webContents.send('leagues:changed');
+}
+
 export function broadcastItemsChanged(patch: ItemChangedPatch): void {
   _getMainWindow()?.webContents.send('items:changed', patch);
   _getTrackerWindow()?.webContents.send('items:changed', patch);
