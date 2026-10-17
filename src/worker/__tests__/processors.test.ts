@@ -4,6 +4,7 @@ import {ZoneProcessor} from '@/worker/processors/zone';
 import {LevelTypeProcessor} from '@/worker/processors/level-type';
 import {PriceProcessor} from '@/worker/processors/price';
 import {S13Processor} from '@/worker/processors/s13';
+import {S16Processor} from '@/worker/processors/s16';
 import {S12Processor} from '@/worker/processors/s12';
 import {S9Processor} from '@/worker/processors/s9';
 import {S7Processor} from '@/worker/processors/s7';
@@ -1051,5 +1052,57 @@ describe('AfterlightProcessor', () => {
 
   it('returns null for an unrecognised ShouYe marker', () => {
     expect(proc.process(afterlightLine('Play_Obj_Season_S15_ShouYe_Something_Else'))).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S16Processor (Tartarus)
+// ---------------------------------------------------------------------------
+
+const s16Lines = {
+  boardOpen:        `${ts}TLLua: Display: [Game] [S16BGM] board Begin runId=cbd0465f-c985-11f1-858f-000000000137 IsSettled=false Result=-1`,
+  boardOpenSettled: `${ts}TLLua: Display: [Game] [S16BGM] board Begin runId=cbd0465f-c985-11f1-858f-000000000137 IsSettled=true Result=table: 000001E14F35A3A0`,
+  boardClose:       `${ts}TLLua: Display: [Game] S16BoardMain Destory`,
+  boardCloseTip:    `${ts}TLLua: Display: [Game] TipMsgShowMgr@DispatchPageRunChange PageName = S16BoardMain , PageRunState = Destory `,
+  boardRun:         `${ts}TLLua: Display: [Game] S16BoardMain Run`,
+  suppress:         `${ts}TLGame: Display: [Game] UIButton@ normal-click Btn_S16GamePlay_CheckOut_StartChallenge`,
+  suppressRow:      `${ts}[640]LogDataTable: Warning: UDataTable::FindRow : 'AudioMgr' requested row 'S16GamePlayCheckOut_C_Btn_S16GamePlay_CheckOut_StartChallenge' not in DataTable '/Game/Audio/BluePrint/AudioMgr.AudioMgr'.`,
+  ignore:           `${ts}TLGame: Display: [Game] UIButton@ normal-click Btn_S16GamePlay_CheckOut_AbandonChallenge`,
+  ignoreRow:        `${ts}[610]LogDataTable: Warning: UDataTable::FindRow : 'Play_UI_S16_Click_GiveUp_Repression' requested row 'Play_UI_S16_Click_GiveUp_Repression' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`,
+  entryDestroy:     `${ts}TLLua: Display: [Game] S16GamePlayEntry Destory`,
+};
+
+describe('S16Processor', () => {
+  const proc = new S16Processor();
+
+  it('has correct name', () => {
+    expect(proc.name).toBe('s16');
+  });
+
+  it('test() rejects unrelated lines', () => {
+    expect(proc.test(lines.bagInit)).toBe(false);
+    expect(proc.test(lines.zoneToMap)).toBe(false);
+  });
+
+  it('parses a live board open', () => {
+    expect(proc.process(s16Lines.boardOpen)).toEqual({type: 's16_board_open', settled: false});
+  });
+
+  it('parses the settled-board replay', () => {
+    expect(proc.process(s16Lines.boardOpenSettled)).toEqual({type: 's16_board_open', settled: true});
+  });
+
+  it('parses board close, suppress and ignore', () => {
+    expect(proc.process(s16Lines.boardClose)).toEqual({type: 's16_board_close'});
+    expect(proc.process(s16Lines.suppress)).toEqual({type: 's16_suppress'});
+    expect(proc.process(s16Lines.ignore)).toEqual({type: 's16_ignore'});
+  });
+
+  it('ignores the sibling lines that fire alongside the real markers', () => {
+    expect(proc.process(s16Lines.boardCloseTip)).toBeNull();
+    expect(proc.process(s16Lines.boardRun)).toBeNull();
+    expect(proc.process(s16Lines.suppressRow)).toBeNull();
+    expect(proc.process(s16Lines.ignoreRow)).toBeNull();
+    expect(proc.process(s16Lines.entryDestroy)).toBeNull();
   });
 });

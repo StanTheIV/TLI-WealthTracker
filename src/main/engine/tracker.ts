@@ -1,4 +1,4 @@
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight';
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight' | 'tartarus';
 /** A drop's attribution source — 'map' or one of the seasonal types. */
 export type Source = 'map' | SeasonalType;
 export type TrackerKind = 'session' | 'map' | 'seasonal';

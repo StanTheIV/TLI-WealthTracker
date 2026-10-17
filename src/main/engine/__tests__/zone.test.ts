@@ -106,6 +106,20 @@ describe('ZoneHandler', () => {
     expect(events[0]).toMatchObject({entering: 'map'});
   });
 
+  it('classifies the Tartarus prison scene as unknown — no phantom map', () => {
+    const events: Parameters<EmitFn>[0][] = [];
+    const emit: EmitFn = (e) => events.push(e);
+
+    handler.handle(
+      {type: 'zone_transition', fromScene: 'XZ_YuJinZhiXiBiNanSuo200', toScene: '/Game/Art/Season/S16/Maps/ZhongZuiDiYu/ZhongZuiDiYu.ZhongZuiDiYu'},
+      ctx, emit,
+    );
+
+    expect(events[0]).toMatchObject({entering: 'unknown'});
+    expect(ctx.mapCount).toBe(0);
+    expect(ctx.inMap).toBe(false);
+  });
+
   it('classifies unknown scene correctly', () => {
     const events: Parameters<EmitFn>[0][] = [];
     const emit: EmitFn = (e) => events.push(e);

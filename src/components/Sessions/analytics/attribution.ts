@@ -10,7 +10,7 @@ import type {AnalyticsWarning, ClassifiedRow, MechanicKey, Valuator} from './typ
  *  tile freezes nothing — so test membership via `runsConcurrentlyWithMap`,
  *  which knows about phases, rather than reading this set directly. */
 export const MAP_FREEZING_SEASONALS: ReadonlySet<SeasonalType> =
-  new Set<SeasonalType>(['arcana', 'vorex', 'sandlord']);
+  new Set<SeasonalType>(['arcana', 'vorex', 'tartarus', 'sandlord']);
 
 /** `phase` matters only for Sandlord, whose two phases share one seasonal type.
  *  LEGACY: a null phase on a sandlord row predates in-map tracking and means

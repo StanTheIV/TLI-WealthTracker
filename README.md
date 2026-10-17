@@ -56,6 +56,7 @@ The tracker automatically detects and tracks these seasonal farming mechanics:
 - **Carjack (Season 11)** — Combat timer with post-combat loot window (5 seconds)
 - **Overrealm (Season 12)** — Multi-stage tracking; captures loot collected after exiting the portal (5-second collection window)
 - **Vorex (Season 13)** — Tracks window open/close/abandon states; correctly attributes reward-zone loot even after the window closes
+- **Tartarus (Season 16)** — Tracks the Warden's Duty board and the prison fight as one run (board time counts); closing the board pauses it, Ignore ends it with no loot
 
 Each seasonal tracker starts and stops independently, pauses when the event pauses, and only counts loot that belongs to that event.
 

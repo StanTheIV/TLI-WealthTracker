@@ -13,6 +13,7 @@ import {BagInitHandler} from '@/main/engine/handlers/bag-init';
 import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {DreamHandler} from '@/main/engine/handlers/dream-handler';
 import {VorexHandler} from '@/main/engine/handlers/vorex-handler';
+import {TartarusHandler} from '@/main/engine/handlers/tartarus-handler';
 import {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import {CarjackHandler} from '@/main/engine/handlers/carjack-handler';
 import {ClockworkHandler} from '@/main/engine/handlers/clockwork-handler';
@@ -160,6 +161,7 @@ function createEngine(): Engine {
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())
+    .register(new TartarusHandler())
     .register(new OverrealmHandler())
     .register(new CarjackHandler())
     .register(new ClockworkHandler())

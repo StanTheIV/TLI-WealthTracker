@@ -20,6 +20,9 @@ export interface Theme {
   // Afterlight mechanic accent — desaturated indigo, kept low-chroma so it stays
   // distinct from the saturated blue/violet item-type tokens.
   afterlight:      string;
+  // Tartarus mechanic accent — rusted copper, sits between the danger red and
+  // the fuel orange so it reads as neither.
+  tartarus:        string;
   // Per-item-type accent palette used by the Sessions chart breakdown.
   typeEmber:       string;
   typeFuel:        string;
@@ -48,6 +51,7 @@ export const darkTheme: Theme = {
   success:         '#3dbf7a',
   hunt:            '#a4b83c',
   afterlight:      '#8a86c4',
+  tartarus:        '#c0703f',
   typeEmber:       '#e85a8b',
   typeFuel:        '#e8a23a',
   typeDream:       '#8a6dff',
@@ -75,6 +79,7 @@ export const lightTheme: Theme = {
   success:         '#2a9a5e',
   hunt:            '#6f8414',
   afterlight:      '#565394',
+  tartarus:        '#8f4a20',
   // Light-mode equivalents — slightly darker so they read on parchment.
   typeEmber:       '#c43d70',
   typeFuel:        '#b87410',

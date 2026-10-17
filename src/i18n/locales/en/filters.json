@@ -50,7 +50,8 @@
     "wealth": "Wealth",
     "arcana": "Arcana",
     "hunting": "Hunting",
-    "afterlight": "Afterlight"
+    "afterlight": "Afterlight",
+    "tartarus": "Tartarus"
   },
   "ruleDesc": {
     "showType": "Show {{type}}",

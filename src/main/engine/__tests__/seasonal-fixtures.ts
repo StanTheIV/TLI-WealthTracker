@@ -14,6 +14,7 @@ import {BagProcessor}      from '@/worker/processors/bag';
 import {ZoneProcessor}     from '@/worker/processors/zone';
 import {LevelTypeProcessor} from '@/worker/processors/level-type';
 import {S13Processor}      from '@/worker/processors/s13';
+import {S16Processor}      from '@/worker/processors/s16';
 import {S12Processor}      from '@/worker/processors/s12';
 import {S9Processor}       from '@/worker/processors/s9';
 import {S11Processor}      from '@/worker/processors/s11';
@@ -27,6 +28,7 @@ import {BagInitHandler}    from '@/main/engine/handlers/bag-init';
 import {ZoneHandler}       from '@/main/engine/handlers/zone';
 import {DreamHandler}      from '@/main/engine/handlers/dream-handler';
 import {VorexHandler}      from '@/main/engine/handlers/vorex-handler';
+import {TartarusHandler}   from '@/main/engine/handlers/tartarus-handler';
 import {OverrealmHandler}  from '@/main/engine/handlers/overrealm-handler';
 import {CarjackHandler}    from '@/main/engine/handlers/carjack-handler';
 import {ClockworkHandler}  from '@/main/engine/handlers/clockwork-handler';
@@ -64,7 +66,18 @@ export const log = {
   s13Abandon:     `${ts} S13GamePlay Destory`,
 
   // Overrealm entry = LevelType 25 transition; exit = notifyId 101 success.
-  s12Entry:       `${ts}TLShipping: Display: [Game] LevelMgr@ LevelUid, LevelType, LevelId = 1121406 25 5354`,
+  // Tartarus (S16). Every device open first replays the previous settled
+  // board's checkout (IsSettled=true) — dismissed with the same Ignore button.
+  s16BoardOpen:        `${ts}TLLua: Display: [Game] [S16BGM] board Begin runId=cbd0465f-c985-11f1-858f-000000000137 IsSettled=false Result=-1`,
+  s16BoardOpenSettled: `${ts}TLLua: Display: [Game] [S16BGM] board Begin runId=cbd0465f-c985-11f1-858f-000000000137 IsSettled=true Result=table: 000001E14F35A3A0`,
+  s16BoardClose:       `${ts}TLLua: Display: [Game] S16BoardMain Destory`,
+  s16Suppress:         `${ts}TLGame: Display: [Game] UIButton@ normal-click Btn_S16GamePlay_CheckOut_StartChallenge`,
+  s16Ignore:           `${ts}TLGame: Display: [Game] UIButton@ normal-click Btn_S16GamePlay_CheckOut_AbandonChallenge`,
+  // Sibling lines that fire alongside the real markers and must stay inert.
+  s16BoardCloseTip:    `${ts}TLLua: Display: [Game] TipMsgShowMgr@DispatchPageRunChange PageName = S16BoardMain , PageRunState = Destory `,
+  s16SuppressRow:      `${ts}[640]LogDataTable: Warning: UDataTable::FindRow : 'AudioMgr' requested row 'S16GamePlayCheckOut_C_Btn_S16GamePlay_CheckOut_StartChallenge' not in DataTable '/Game/Audio/BluePrint/AudioMgr.AudioMgr'.`,
+
+  s12Entry:     `${ts}TLShipping: Display: [Game] LevelMgr@ LevelUid, LevelType, LevelId = 1121406 25 5354`,
   s12Exit:        `${ts}TLGame: Display: [Game] gameplay type 8001 received notifyId 101 NotifyData `,
 
   s11Start: `${ts}GameLog: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/S11_Gameplay_MusicEvents/Play_Mus_Gameplay_S11_Robbery_Full.Play_Mus_Gameplay_S11_Robbery_Full id 3808`,
@@ -144,6 +157,7 @@ export const VOREX_REWARD     = '/Game/Art/Season/S13/Maps/DiXiaZhenSuo/DiXiaZhe
 export const SANDLORD_HUB     = '/Game/Art/Season/S10/Maps/YunDuanLvZhou/YunDuanLvZhou.YunDuanLvZhou';
 export const SANDLORD_SUB_MAP = '/Game/Art/Maps/06SQ/SQ_NvShenQunBai100/SQ_NvShenQunBai100.SQ_NvShenQunBai100';
 export const ARCANA_FIGHT      = '/Game/Art/Season/S9/Maps/SuMingTaLuo/SuMingTaLuo000.SuMingTaLuo000';
+export const TARTARUS_FIGHT    = '/Game/Art/Season/S16/Maps/ZhongZuiDiYu/ZhongZuiDiYu.ZhongZuiDiYu';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -157,6 +171,7 @@ export function createDispatcher(): Dispatcher {
   d.register(new ZoneProcessor());
   d.register(new LevelTypeProcessor());
   d.register(new S13Processor());
+  d.register(new S16Processor());
   d.register(new S12Processor());
   d.register(new S9Processor());
   d.register(new S11Processor());
@@ -189,6 +204,7 @@ function registerHandlers(engine: Engine): Engine {
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())
+    .register(new TartarusHandler())
     .register(new OverrealmHandler())
     .register(new CarjackHandler())
     .register(new ClockworkHandler())

@@ -12,9 +12,10 @@ const TOWN_MARKER = 'YuJinZhiXiBiNanSuo';
 // its own tracker lifecycle via its own log markers:
 //   SuMingTaLuo  — Arcana (S9) Fateful Contest scene, owned by ArcanaHandler.
 //   DiXiaZhenSuo — Vorex  (S13) reward zone, owned by VorexHandler.
+//   ZhongZuiDiYu — Tartarus (S16) prison fight/loot scene, owned by TartarusHandler.
 // (Sandlord's S10 scene isn't listed here — it owns a bubble, and the
 //  hasBubble() guard below already suppresses the map tracker for it.)
-const SEASONAL_SCENE_MARKERS = ['SuMingTaLuo', 'DiXiaZhenSuo'];
+const SEASONAL_SCENE_MARKERS = ['SuMingTaLuo', 'DiXiaZhenSuo', 'ZhongZuiDiYu'];
 
 function classifyScene(scene: string): 'map' | 'town' | 'unknown' {
   if (scene.includes(TOWN_MARKER)) return 'town';

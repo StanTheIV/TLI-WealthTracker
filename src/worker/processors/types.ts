@@ -3,6 +3,7 @@ import type {ZoneEvent} from './zone';
 import type {LevelTypeEvent} from './level-type';
 import type {PriceEvent} from './price';
 import type {S13Event} from './s13';
+import type {S16Event} from './s16';
 import type {S12Event} from './s12';
 import type {S9Event} from './s9';
 import type {S11Event} from './s11';
@@ -24,6 +25,7 @@ export type RawEvent =
   | LevelTypeEvent
   | PriceEvent
   | S13Event
+  | S16Event
   | S12Event
   | S9Event
   | S11Event

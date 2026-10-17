@@ -21,6 +21,7 @@ export function mechanicColors(theme: Theme): Record<MechanicKey, string> {
     dream:      theme.typeDream,
     hunting:    theme.hunt,
     afterlight: theme.afterlight,
+    tartarus:   theme.tartarus,
   };
 }
 

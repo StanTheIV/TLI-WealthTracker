@@ -4,7 +4,7 @@ import type {PriceBucket} from '@/main/prices/history';
 
 export {};
 
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight';
+export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight' | 'tartarus';
 /** Sandlord runs in two phases sharing one seasonal type: 'map' — the in-map
  *  coin tile (in-map category, drop-through), 'hub' — the own-area hub bubble.
  *  Other seasonals leave this unset. */
