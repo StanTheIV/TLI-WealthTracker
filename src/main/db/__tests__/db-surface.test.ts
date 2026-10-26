@@ -6,25 +6,13 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import {
   initDb, getDb, itemsCount, itemsGetAll, itemsImportBatch, itemsSetName, itemsSetType, itemsSetPrice,
   itemsSetLocked, itemsGetLocked, getLookupCountToday, recordLookup,
-  sessionsGetAll, sessionsInsert, sessionsUpdate, sessionsDelete, sessionsRename, sessionsGetOne,
-  sessionMapsInsert, sessionMapsGetForSession, sessionMapsDeleteForSession,
   seasonalStatsGetAll, seasonalStatsUpsert,
   wealthInsert, wealthGetRange, wealthGetLatest, wealthDelete,
   filtersInsert, filtersUpdate, filtersDelete, filtersGetAll,
   priceRecord, pricesHistory, pricesMovers, pricesExport,
   leaguesInsertUser, leaguesGetAll, leaguesSetStart,
 } from '@/main/db';
-import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
 import {openNodeSqlite} from '@/test/sql/node-sqlite';
-
-const session = (id: string, savedAt: string, extra: Partial<DbSession> = {}): DbSession => ({
-  id, name: id, savedAt, totalTime: 1, mapTime: 1, mapCount: 1,
-  drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, ...extra,
-});
-
-const mapRow = (sessionId: string, mapIndex: number): DbSessionMap => ({
-  sessionId, mapIndex, startedAt: mapIndex, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null,
-});
 
 beforeEach(() => {
   initDb(openNodeSqlite(), {backup: () => {}});
@@ -52,39 +40,6 @@ describe('db.ts surface', () => {
     recordLookup('200');
     getDb().prepare("INSERT INTO api_lookups (date, item_id, timestamp) VALUES ('2000-01-01', '1', 0)").run();
     expect(getLookupCountToday()).toBe(2);
-  });
-
-  it('sessions: getAll ordering, update, rename, delete cascades to maps', () => {
-    sessionsInsert(session('a', '2026-10-01T00:00:00Z'));
-    sessionsInsert(session('b', '2026-10-02T00:00:00Z'));
-    expect(sessionsGetAll().map(s => s.id)).toEqual(['b', 'a']);
-
-    sessionsUpdate({...session('a', '2026-10-03T00:00:00Z'), name: 'renamed-by-update', drops: {'200': 9}, priceSnapshot: {'200': 1}});
-    expect(sessionsGetOne('a')).toMatchObject({name: 'renamed-by-update', savedAt: '2026-10-03T00:00:00Z', drops: {'200': 9}, priceSnapshot: {'200': 1}});
-    expect(sessionsGetAll().map(s => s.id)).toEqual(['a', 'b']);
-
-    sessionsRename('b', 'Bee');
-    expect(sessionsGetOne('b')?.name).toBe('Bee');
-
-    sessionMapsInsert([mapRow('a', 0), mapRow('b', 0), mapRow('b', 1)]);
-    sessionMapsDeleteForSession('b');
-    expect(sessionMapsGetForSession('b')).toEqual([]);
-    expect(sessionMapsGetForSession('a')).toHaveLength(1);
-
-    sessionMapsInsert([mapRow('b', 0)]);
-    sessionsDelete('b');
-    expect(sessionsGetOne('b')).toBeNull();
-    expect(sessionMapsGetForSession('b')).toEqual([]);
-    expect(sessionMapsGetForSession('a')).toHaveLength(1);
-    sessionMapsInsert([]);   // empty batch is a no-op
-  });
-
-  it('a legacy row (attribution empty, no drops_by_source) is classified at read time', () => {
-    const conn = getDb();
-    conn.prepare("INSERT INTO sessions (id, name, saved_at, drops) VALUES ('old', 'Old', 'x', '{}')").run();
-    conn.prepare(`INSERT INTO sessions (id, name, saved_at, drops, drops_by_source) VALUES ('mid', 'Mid', 'y', '{}', '{"map":{"1":1}}')`).run();
-    expect(sessionsGetOne('old')).toMatchObject({attribution: 'legacy', dropsBySource: {}, priceSnapshot: {}});
-    expect(sessionsGetOne('mid')?.attribution).toBe('exclusive');
   });
 
   it('seasonal stats upsert replaces by zone type', () => {

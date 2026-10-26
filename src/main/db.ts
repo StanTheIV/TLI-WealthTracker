@@ -1,11 +1,10 @@
 import {log} from './logger';
 import {MIGRATIONS, runMigrations, type MigrateOptions} from './db/migrations';
 import type {SqlConn} from './db/sql-conn';
-import type {SeasonalType, SeasonalPhase} from '@/shared/contracts/engine';
 import type {League, LeagueSource} from '@/lib/leagues';
 import type {
-  DbItem, DbItemFilter, DbSeasonalStat, DbSession, DbSessionMap, DbWealthDatapoint,
-  PriceBucket, PriceExportRow, PriceMover, SessionAttribution,
+  DbItem, DbItemFilter, DbSeasonalStat, DbWealthDatapoint,
+  PriceBucket, PriceExportRow, PriceMover,
 } from '@/shared/contracts/db';
 import {
   summarize, shouldSkipDuplicate, extractBackfillPoints, bucket, pickBucketMs,
@@ -145,138 +144,6 @@ export function getLookupCountToday(): number {
 
 export function recordLookup(itemId: string): void {
   db.prepare('INSERT INTO api_lookups (date, item_id, timestamp) VALUES (?, ?, ?)').run(todayDate(), itemId, Date.now());
-}
-
-// ---------------------------------------------------------------------------
-// Sessions
-// ---------------------------------------------------------------------------
-
-type SessionRow = {
-  id:              string;
-  name:            string;
-  saved_at:        string;
-  total_time:      number;
-  map_time:        number;
-  map_count:       number;
-  drops:           string;
-  drops_by_source: string;
-  attribution:     string;
-  price_snapshot:  string;
-};
-
-function rowToSession(r: SessionRow): DbSession {
-  const dropsBySource = JSON.parse(r.drops_by_source ?? '{}');
-  // Rows written before the attribution column: dropsBySource was introduced
-  // together with exclusive attribution, so its presence dates the row.
-  const attribution = (r.attribution || null) as SessionAttribution | null
-    ?? (Object.keys(dropsBySource).length === 0 ? 'legacy' : 'exclusive');
-  return {
-    id:            r.id,
-    name:          r.name,
-    savedAt:       r.saved_at,
-    totalTime:     r.total_time,
-    mapTime:       r.map_time,
-    mapCount:      r.map_count,
-    drops:         JSON.parse(r.drops),
-    dropsBySource,
-    attribution,
-    priceSnapshot: JSON.parse(r.price_snapshot ?? '{}'),
-  };
-}
-
-export function sessionsGetAll(): DbSession[] {
-  const rows = db.prepare('SELECT * FROM sessions ORDER BY saved_at DESC').all() as SessionRow[];
-  return rows.map(rowToSession);
-}
-
-export function sessionsInsert(session: DbSession): void {
-  db.prepare(`
-    INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source, attribution, price_snapshot)
-    VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource, @attribution, @priceSnapshot)
-  `).run({
-    ...session,
-    drops:         JSON.stringify(session.drops),
-    dropsBySource: JSON.stringify(session.dropsBySource),
-    priceSnapshot: JSON.stringify(session.priceSnapshot ?? {}),
-  });
-}
-
-export function sessionsUpdate(session: DbSession): void {
-  db.prepare(`
-    UPDATE sessions
-    SET name = @name, saved_at = @savedAt, total_time = @totalTime,
-        map_time = @mapTime, map_count = @mapCount, drops = @drops,
-        drops_by_source = @dropsBySource, attribution = @attribution,
-        price_snapshot = @priceSnapshot
-    WHERE id = @id
-  `).run({
-    ...session,
-    drops:         JSON.stringify(session.drops),
-    dropsBySource: JSON.stringify(session.dropsBySource),
-    priceSnapshot: JSON.stringify(session.priceSnapshot ?? {}),
-  });
-}
-
-export function sessionsDelete(id: string): void {
-  db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
-  // Cascade: per-map rows have no FK constraint; clean them up explicitly so
-  // deleting a session doesn't leave orphans behind.
-  sessionMapsDeleteForSession(id);
-}
-
-export function sessionsRename(id: string, name: string): void {
-  db.prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, id);
-}
-
-export function sessionsGetOne(id: string): DbSession | null {
-  const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as SessionRow | undefined;
-  if (!row) return null;
-  return rowToSession(row);
-}
-
-// ---------------------------------------------------------------------------
-// Session maps — per-map breakdown rows attached to a session
-// ---------------------------------------------------------------------------
-
-export function sessionMapsInsert(rows: DbSessionMap[]): void {
-  if (rows.length === 0) return;
-  const stmt = db.prepare(`
-    INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase)
-    VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType, @parentMapIndex, @phase)
-  `);
-  db.transaction(() => {
-    for (const r of rows) {
-      stmt.run({
-        ...r,
-        drops:          JSON.stringify(r.drops),
-        spent:          JSON.stringify(r.spent),
-        seasonalType:   r.seasonalType,
-        parentMapIndex: r.parentMapIndex,
-        phase:          r.phase,
-      });
-    }
-  });
-}
-
-export function sessionMapsGetForSession(sessionId: string): DbSessionMap[] {
-  const rows = db.prepare(
-    'SELECT session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase FROM session_maps WHERE session_id = ? ORDER BY id ASC'
-  ).all(sessionId) as {session_id: string; map_index: number; started_at: number; duration: number; drops: string; spent: string; seasonal_type: string | null; parent_map_index: number | null; phase: string | null}[];
-  return rows.map(r => ({
-    sessionId:      r.session_id,
-    mapIndex:       r.map_index,
-    startedAt:      r.started_at,
-    duration:       r.duration,
-    drops:          JSON.parse(r.drops),
-    spent:          JSON.parse(r.spent),
-    seasonalType:   r.seasonal_type as SeasonalType | null,
-    parentMapIndex: r.parent_map_index,
-    phase:          r.phase as SeasonalPhase | null,
-  }));
-}
-
-export function sessionMapsDeleteForSession(sessionId: string): void {
-  db.prepare('DELETE FROM session_maps WHERE session_id = ?').run(sessionId);
 }
 
 // ---------------------------------------------------------------------------

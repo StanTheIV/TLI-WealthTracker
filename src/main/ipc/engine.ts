@@ -1,8 +1,9 @@
 import {ipcMain, BrowserWindow} from 'electron';
 import {log} from '@/main/logger';
-import {itemsGetAll, priceRecord, itemsGetLocked, itemsInsertIfMissing, sessionsGetOne, filtersGetAll, settingsGetAll} from '@/main/db';
+import {itemsGetAll, priceRecord, itemsGetLocked, itemsInsertIfMissing, filtersGetAll, settingsGetAll} from '@/main/db';
+import type {SqliteSessionStore} from '@/main/db/session-store';
 import {broadcastItemsChanged} from '@/main/items-broadcast';
-import {SessionPersistence} from '@/main/session-persistence';
+import {SessionPersistence, type SessionMeta} from '@/main/session-persistence';
 import {WorkerProcess} from '@/main/worker-process';
 import {WealthRecorder} from '@/main/wealth-recorder';
 import {configureEngine} from '@/main/engine/configure-engine';
@@ -21,6 +22,8 @@ import {LOG_SUBPATH} from '@/shared/paths';
 let worker: WorkerProcess | null = null;
 let engine: Engine | null = null;
 let persistence: SessionPersistence | null = null;
+// Set once in registerEngineHandlers
+let sessions: SqliteSessionStore | null = null;
 
 // Window accessors — set once in registerEngineHandlers
 let _getMainWindow:    () => BrowserWindow | null = () => null;
@@ -92,6 +95,28 @@ function resolveLogPath(): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Session persistence
+// ---------------------------------------------------------------------------
+
+function sessionStore(): SqliteSessionStore {
+  if (!sessions) throw new Error('Engine handlers not registered');
+  return sessions;
+}
+
+/** Current price of every known item among `ids`. */
+function readPrices(ids: ReadonlySet<string>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of itemsGetAll()) {
+    if (ids.has(item.id)) out[item.id] = item.price;
+  }
+  return out;
+}
+
+function newPersistence(meta: SessionMeta): SessionPersistence {
+  return new SessionPersistence(meta, {store: sessionStore(), readPrices});
+}
+
+// ---------------------------------------------------------------------------
 // Engine lifecycle
 // ---------------------------------------------------------------------------
 
@@ -149,9 +174,9 @@ function startEngine(logPath: string, loadSessionId?: string): void {
 
   engine = createEngine();
 
-  const loaded = loadSessionId ? sessionsGetOne(loadSessionId) : null;
+  const loaded = loadSessionId ? sessionStore().getSession(loadSessionId) : null;
   if (loaded) {
-    persistence = new SessionPersistence({sessionId: loaded.id, sessionName: loaded.name, isOverride: true});
+    persistence = newPersistence({sessionId: loaded.id, sessionName: loaded.name, isOverride: true});
     log.info('session', `Session loaded: id=${loaded.id}, name="${loaded.name}"`);
     engine.loadSession({
       id:        loaded.id,
@@ -162,7 +187,7 @@ function startEngine(logPath: string, loadSessionId?: string): void {
       mapCount:  loaded.mapCount,
     });
   } else {
-    persistence = new SessionPersistence({sessionId: crypto.randomUUID(), sessionName: null, isOverride: false});
+    persistence = newPersistence({sessionId: crypto.randomUUID(), sessionName: null, isOverride: false});
     log.info('session', `Session created: id=${persistence.getSessionId()}`);
   }
 
@@ -215,9 +240,11 @@ export function stopEngineForShutdown(): void {
 export function registerEngineHandlers(
   getMainWindow:   () => BrowserWindow | null,
   getTrackerWindow:() => BrowserWindow | null,
+  store:           SqliteSessionStore,
 ): void {
   _getMainWindow    = getMainWindow;
   _getTrackerWindow = getTrackerWindow;
+  sessions          = store;
 
   ipcMain.on('engine:start',              (_e, logPath: string)                      => startEngine(logPath));
   ipcMain.on('engine:start-with-session', (_e, logPath: string, sessionId: string)   => startEngine(logPath, sessionId));
@@ -231,7 +258,7 @@ export function registerEngineHandlers(
     // any buffered per-run rows belong to the discarded run — replacing the
     // SessionPersistence instance drops both.
     persistence?.discard();
-    persistence = new SessionPersistence({sessionId: crypto.randomUUID(), sessionName: null, isOverride: false});
+    persistence = newPersistence({sessionId: crypto.randomUUID(), sessionName: null, isOverride: false});
     log.info('session', `Session reset; new id=${persistence.getSessionId()}`);
   });
   // Note: item type changes are now propagated via `db:items:set-type`,

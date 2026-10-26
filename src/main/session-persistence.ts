@@ -1,7 +1,7 @@
-import {sessionsInsert, sessionsUpdate, sessionMapsInsert, itemsGetAll} from './db';
 import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
 import type {EngineEvent, Source} from '@/shared/contracts/engine';
 import type {Engine} from './engine/engine';
+import type {SqliteSessionStore} from './db/session-store';
 import {log} from './logger';
 
 /** Identity of the session currently being tracked. */
@@ -18,6 +18,14 @@ export interface SessionMeta {
 export interface AutoSaveOutcome {
   /** Saved session id, or null when the run was discarded (too short, no drops). */
   savedId: string | null;
+}
+
+/** Current price of each requested item id the reader knows. */
+export type PriceReader = (ids: ReadonlySet<string>) => Record<string, number>;
+
+export interface SessionPersistenceDeps {
+  store:      SqliteSessionStore;
+  readPrices: PriceReader;
 }
 
 /** Minimum total session duration (ms) before auto-saving an empty run. */
@@ -44,6 +52,8 @@ function generateSessionName(): string {
  */
 export class SessionPersistence {
   private readonly _meta: SessionMeta;
+  private readonly _store: SqliteSessionStore;
+  private readonly _readPrices: PriceReader;
   private _pendingRows: DbSessionMap[] = [];
   /** mapIndex of the most-recently-buffered primary row (regular map or
    *  standalone seasonal). Standalone seasonals bump this. 0 before any
@@ -56,8 +66,10 @@ export class SessionPersistence {
    *  map row lands is what keeps an overlap tied to the map it actually ran in. */
   private _pendingOverlaps: DbSessionMap[] = [];
 
-  constructor(meta: SessionMeta) {
-    this._meta = meta;
+  constructor(meta: SessionMeta, deps: SessionPersistenceDeps) {
+    this._meta       = meta;
+    this._store      = deps.store;
+    this._readPrices = deps.readPrices;
   }
 
   getSessionId(): string {
@@ -187,8 +199,8 @@ export class SessionPersistence {
     if (needed.size === 0) return {};
 
     const out: Record<string, number> = {};
-    for (const item of itemsGetAll()) {
-      if (needed.has(item.id) && item.price > 0) out[item.id] = item.price;
+    for (const [id, price] of Object.entries(this._readPrices(needed))) {
+      if (needed.has(id) && price > 0) out[id] = price;
     }
     return out;
   }
@@ -235,11 +247,13 @@ export class SessionPersistence {
       priceSnapshot: this._capturePrices(drops),
     };
 
-    if (this._meta.isOverride) sessionsUpdate(record);
-    else                       sessionsInsert(record);
-
+    // The session row and its per-map rows commit together or not at all.
+    this._store.transaction(() => {
+      if (this._meta.isOverride) this._store.updateSessionTotals(record);
+      else                       this._store.insertSession(record);
+      this._store.insertRows(this._pendingRows);
+    });
     if (this._pendingRows.length > 0) {
-      sessionMapsInsert(this._pendingRows);
       log.debug('database', `Saved ${this._pendingRows.length} per-map rows for session ${record.id}`);
     }
 

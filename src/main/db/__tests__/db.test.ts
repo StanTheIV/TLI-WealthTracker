@@ -7,13 +7,13 @@ import {describe, it, expect, beforeEach, vi} from 'vitest';
 import {
   initDb, getDb, settingsSet, settingsGet, settingsGetAll,
   itemsImportBatch, itemsUpsert, itemsGetAll, itemsInsertIfMissing,
-  sessionsInsert, sessionsGetOne, sessionMapsInsert, sessionMapsGetForSession,
   wealthInsert, wealthGetLatest, wealthClear,
   filtersInsert, filtersSetEnabled, filtersGetAll,
   priceRecord, priceBackfillOnce, pricesExport,
   leaguesApply, leaguesGetAll, leaguesSetStart,
 } from '@/main/db';
-import type {DbItem, DbSession, DbSessionMap} from '@/shared/contracts/db';
+import {SqliteSessionStore} from '@/main/db/session-store';
+import type {DbItem, DbSession} from '@/shared/contracts/db';
 import {openNodeSqlite} from '@/test/sql/node-sqlite';
 
 const ITEMS: DbItem[] = [
@@ -70,26 +70,16 @@ describe('db.ts on SqlConn', () => {
     expect(itemsGetAll().find(i => i.id === '200')?.type).toBe('other');
   });
 
-  it('sessions and session maps round-trip', () => {
-    sessionsInsert(SESSION);
-    expect(sessionsGetOne('s1')).toEqual(SESSION);
-    expect(sessionsGetOne('nope')).toBeNull();
-
-    const rows: DbSessionMap[] = [
-      {sessionId: 's1', mapIndex: 0, startedAt: 1, duration: 2, drops: {'100': 1}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null},
-      {sessionId: 's1', mapIndex: 0, startedAt: 3, duration: 4, drops: {}, spent: {'100': 1}, seasonalType: 'sandlord', parentMapIndex: 0, phase: 'map'},
-    ];
-    sessionMapsInsert(rows);
-    expect(sessionMapsGetForSession('s1')).toEqual(rows);
-  });
-
   it('wealthClear removes farming history in one transaction', () => {
-    sessionsInsert(SESSION);
+    const sessions = new SqliteSessionStore(getDb());
+    sessions.insertSession(SESSION);
+    sessions.insertRows([{sessionId: 's1', mapIndex: 1, startedAt: 1, duration: 2, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null}]);
     wealthInsert({timestamp: 1, value: 10, sessionId: 's1', breakdown: '{}'});
     expect(wealthGetLatest(10)).toHaveLength(1);
     wealthClear();
     expect(wealthGetLatest(10)).toEqual([]);
-    expect(sessionsGetOne('s1')).toBeNull();
+    expect(sessions.getSession('s1')).toBeNull();
+    expect(sessions.getRows('s1')).toEqual([]);
   });
 
   it('filtersSetEnabled leaves exactly one filter enabled', () => {
