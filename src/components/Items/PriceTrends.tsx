@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Download, Search} from 'lucide-react';
-import type {PriceMover} from '@/types/electron';
+import type {PriceMover} from '@/shared/contracts/db';
 import {useLeaguesStore} from '@/state/leaguesStore';
 import {defaultPreset, resolvePriceRange, type PricePreset} from '@/lib/priceRange';
 import {formatPrice, toCsv} from '@/lib/priceChart';

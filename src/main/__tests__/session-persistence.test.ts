@@ -11,9 +11,9 @@
  */
 import {describe, it, expect} from 'vitest';
 import {SessionPersistence} from '@/main/session-persistence';
-import type {EngineEvent, SeasonalPhase, SeasonalType} from '@/types/electron';
+import type {EngineEvent, SeasonalPhase, SeasonalType} from '@/shared/contracts/engine';
 import type {Engine} from '@/main/engine/engine';
-import type {DbSessionMap} from '@/main/db';
+import type {DbSessionMap} from '@/shared/contracts/db';
 
 function makeEngine(opts: {hasMap: boolean; spends?: Record<string, number>}): Engine {
   return {

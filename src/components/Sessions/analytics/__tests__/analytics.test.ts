@@ -141,7 +141,7 @@ describe('item tables', () => {
     const a = computeSessionAnalytics({
       session: makeSession({
         drops: {'1': 10},
-        dropsBySource: {map: {'1': 3}, lunaria: {'1': 7}} as never,
+        dropsBySource: {map: {'1': 3}, lunaria: {'1': 7}},
       }),
       maps:  [mapRow(300, {'1': 10})],
       items: ITEMS,
@@ -154,7 +154,7 @@ describe('item tables', () => {
 
   it('falls back to per-row aggregation for legacy sessions', () => {
     const a = computeSessionAnalytics({
-      session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {} as never}),
+      session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {}}),
       maps:    [mapRow(300, {'1': 10}), overlapRow('lunaria', 60, 1, {'1': 3})],
       items:   ITEMS,
       tax:     NO_TAX,
@@ -200,7 +200,7 @@ describe('by-source breakdown', () => {
   it('does not fold an interlude overlap out of its parent', () => {
     // Arcana froze the map, so the parent row's 70 never included the 30.
     const a = computeSessionAnalytics({
-      session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {} as never}),
+      session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {}}),
       maps:    [mapRow(300, {'1': 7}), overlapRow('arcana', 60, 1, {'1': 3})],
       items:   ITEMS,
       tax:     NO_TAX,
@@ -213,7 +213,7 @@ describe('by-source breakdown', () => {
 
   it('clamps rather than deletes a map slice that oversubtracts', () => {
     const a = computeSessionAnalytics({
-      session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {} as never}),
+      session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {}}),
       maps:    [mapRow(300, {'1': 5}), overlapRow('lunaria', 60, 1, {'1': 10})],
       items:   ITEMS,
       tax:     NO_TAX,

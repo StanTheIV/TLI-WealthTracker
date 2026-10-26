@@ -2,8 +2,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {pauseMapForInterlude, resolveMapInterlude} from '@/main/engine/map-interlude';
-
-const TARTARUS_FIGHT_ZONE = 'ZhongZuiDiYu';
+import {TARTARUS_PRISON_SCENE} from '@/shared/scenes';
 
 /**
  * TartarusHandler — Tartarus (S16) translator. Board minigame ("Warden's Duty",
@@ -70,8 +69,8 @@ export class TartarusHandler implements EventHandler {
         ctx.registry.seasonal('tartarus')?.pauseTracker();
         break;
       case 'zone_transition': {
-        const enteringFight = !event.fromScene.includes(TARTARUS_FIGHT_ZONE) && event.toScene.includes(TARTARUS_FIGHT_ZONE);
-        const leavingFight  = event.fromScene.includes(TARTARUS_FIGHT_ZONE) && !event.toScene.includes(TARTARUS_FIGHT_ZONE);
+        const enteringFight = !event.fromScene.includes(TARTARUS_PRISON_SCENE) && event.toScene.includes(TARTARUS_PRISON_SCENE);
+        const leavingFight  = event.fromScene.includes(TARTARUS_PRISON_SCENE) && !event.toScene.includes(TARTARUS_PRISON_SCENE);
         const committed = this._committed;
         this._committed = false;
 

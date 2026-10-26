@@ -1,5 +1,5 @@
 import {create} from 'zustand';
-import type {EngineEvent, SeasonalType, TrackerSnapshot} from '@/types/electron';
+import type {EngineEvent, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
 import {useItemsStore} from './itemsStore';
 
 const MAX_EVENTS = 200;

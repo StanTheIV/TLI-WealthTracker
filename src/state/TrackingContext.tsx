@@ -2,6 +2,7 @@ import {type ReactNode, createContext, useCallback, useContext, useEffect, useRe
 import {useSettingsStore} from './settingsStore';
 import {useEngineStore} from './engineStore';
 import {useSessionsStore} from './sessionsStore';
+import {LOG_SUBPATH} from '@/shared/paths';
 
 export type TrackingStatus = 'idle' | 'running' | 'paused';
 
@@ -24,7 +25,7 @@ const TrackingContext = createContext<TrackingContextValue | null>(null);
 
 function getLogPath(): string {
   const {torchlightPath} = useSettingsStore.getState();
-  return `${torchlightPath}/TorchLight/Saved/Logs/UE_game.log`;
+  return `${torchlightPath}/${LOG_SUBPATH}`;
 }
 
 export function TrackingProvider({children}: {children: ReactNode}) {

@@ -1,10 +1,5 @@
 import {create} from 'zustand';
-
-interface UpdateInfo {
-  version:     string;
-  changelog:   string;
-  downloadUrl: string;
-}
+import type {UpdateInfo} from '@/shared/contracts/api';
 
 interface UpdaterState {
   updateInfo:       UpdateInfo | null;

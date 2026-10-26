@@ -3,13 +3,14 @@ import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
 import {initDb, itemsCount, itemsImportBatch, settingsGetAll, settingsSet} from './db';
 import {initLogger, log} from './logger';
-import type {DbItem} from './db';
+import type {DbItem} from '@/shared/contracts/db';
 import {registerDbHandlers} from './ipc/db';
 import {registerOverlayHandlers} from './ipc/overlay';
 import {registerEngineHandlers, stopEngineForShutdown, notifyEngineItemTypeChanged} from './ipc/engine';
 import {registerUpdaterHandlers} from './ipc/updater';
 import {registerLoggingHandlers} from './ipc/logging';
 import {initLeaguesAndPriceHistory} from './leagues-sync';
+import {LOG_SUBPATH} from '@/shared/paths';
 
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER = 'http://localhost:5173';
@@ -20,7 +21,6 @@ const VITE_DEV_SERVER = 'http://localhost:5173';
 if (DEV) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222');
 }
-const LOG_SUBPATH = join('TorchLight', 'Saved', 'Logs', 'UE_game.log');
 
 let mainWindow: BrowserWindow | null = null;
 let trackerWindow: BrowserWindow | null = null;

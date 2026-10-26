@@ -2,8 +2,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {pauseMapForInterlude, resolveMapInterlude} from '@/main/engine/map-interlude';
-
-const VOREX_REWARD_ZONE = 'DiXiaZhenSuo';
+import {VOREX_REWARD_SCENE} from '@/shared/scenes';
 
 /**
  * VorexHandler — Vorex (S13) translator.
@@ -55,8 +54,8 @@ export class VorexHandler implements EventHandler {
         // window_close + abandon just before zoning, briefly resuming it);
         // the exit always goes to town, where ZoneHandler has already finished
         // the map off its frozen elapsed — resolve just clears the marker.
-        const enteringFight = !event.fromScene.includes(VOREX_REWARD_ZONE) && event.toScene.includes(VOREX_REWARD_ZONE);
-        const leavingFight  = event.fromScene.includes(VOREX_REWARD_ZONE) && !event.toScene.includes(VOREX_REWARD_ZONE);
+        const enteringFight = !event.fromScene.includes(VOREX_REWARD_SCENE) && event.toScene.includes(VOREX_REWARD_SCENE);
+        const leavingFight  = event.fromScene.includes(VOREX_REWARD_SCENE) && !event.toScene.includes(VOREX_REWARD_SCENE);
         if (enteringFight)     pauseMapForInterlude(ctx, emit);
         else if (leavingFight) resolveMapInterlude(ctx, emit);
 
@@ -66,7 +65,7 @@ export class VorexHandler implements EventHandler {
         // is consumed either way — on resume a fresh s13_start re-enters).
         if (this._abandoning) {
           this._abandoning = false;
-          if (event.toScene.includes(VOREX_REWARD_ZONE)) {
+          if (event.toScene.includes(VOREX_REWARD_SCENE)) {
             if (ctx.paused) break;
             ctx.registry.activateSeasonal({type: 'vorex'}, emit);
           } else {

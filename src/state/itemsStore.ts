@@ -1,5 +1,5 @@
 import {create} from 'zustand';
-import type {DbItem, ItemChangedPatch} from '@/types/electron';
+import type {DbItem, ItemChangedPatch} from '@/shared/contracts/db';
 
 interface ItemsState {
   items:        Record<string, DbItem>;

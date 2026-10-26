@@ -23,7 +23,7 @@ import {OverrealmHandler}  from '@/main/engine/handlers/overrealm-handler';
 import {LunariaHandler}    from '@/main/engine/handlers/lunaria-handler';
 import {ItemHandler}       from '@/main/engine/handlers/item';
 import {MapMaterialHandler} from '@/main/engine/handlers/map-material';
-import type {EngineEvent}   from '@/main/engine/types';
+import type {EngineEvent}   from '@/shared/contracts/engine';
 import type {EngineContext} from '@/main/engine/context';
 
 const TOWN_SCENE = 'XZ_YuJinZhiXiBiNanSuo200';

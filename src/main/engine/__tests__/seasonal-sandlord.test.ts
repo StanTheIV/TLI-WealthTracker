@@ -8,7 +8,7 @@
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import {Engine}            from '@/main/engine/engine';
-import type {EngineEvent}  from '@/main/engine/types';
+import type {EngineEvent}  from '@/shared/contracts/engine';
 import {
   boot, createDispatcher, createEngine, createEngineWithEmit, ctx, feed, log,
   MAP, SANDLORD_HUB, SANDLORD_SUB_MAP, TOWN,

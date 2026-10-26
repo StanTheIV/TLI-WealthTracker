@@ -3,15 +3,10 @@ import {createWriteStream, unlinkSync} from 'fs';
 import {join} from 'path';
 import {spawn} from 'child_process';
 import {log} from './logger';
+import type {UpdateInfo} from '@/shared/contracts/api';
 
 export const REPO = 'StanTheIV/TLI-WealthTracker';
 const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
-
-export interface UpdateInfo {
-  version:     string;
-  changelog:   string;
-  downloadUrl: string;
-}
 
 interface GitHubRelease {
   tag_name: string;

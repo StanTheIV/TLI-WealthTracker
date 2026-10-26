@@ -2,12 +2,15 @@ import Database from 'better-sqlite3';
 import {app} from 'electron';
 import {join} from 'path';
 import {log} from './logger';
-import type {SeasonalType, SeasonalPhase} from './engine/tracker';
+import type {SeasonalType, SeasonalPhase} from '@/shared/contracts/engine';
 import type {League, LeagueSource} from '@/lib/leagues';
-import type {PriceMover, PriceExportRow} from '@/types/electron';
+import type {
+  DbItem, DbItemFilter, DbSeasonalStat, DbSession, DbSessionMap, DbWealthDatapoint,
+  PriceBucket, PriceExportRow, PriceMover, SessionAttribution,
+} from '@/shared/contracts/db';
 import {
   summarize, shouldSkipDuplicate, extractBackfillPoints, bucket, pickBucketMs,
-  type PriceBucket, type BucketObservation,
+  type BucketObservation,
 } from './prices/history';
 
 let db: Database.Database;
@@ -235,18 +238,6 @@ export function settingsSet(key: string, value: string): void {
 // Items (price table)
 // ---------------------------------------------------------------------------
 
-export interface DbItem {
-  id:        string;
-  name:      string;
-  type:      string;
-  price:     number;
-  priceDate: number;
-  /** Local-only flag: when true, automated price scrapes from the worker skip
-   *  this item. Manual edits in the UI still go through. Excluded from
-   *  full_table.json import/export by design — it's per-installation. */
-  locked?:   boolean;
-}
-
 function migrateItems(): void {
   try {
     db.exec("ALTER TABLE items ADD COLUMN price_date REAL NOT NULL DEFAULT 0");
@@ -360,43 +351,6 @@ export function recordLookup(itemId: string): void {
 // Sessions
 // ---------------------------------------------------------------------------
 
-export interface DbSession {
-  id:            string;
-  name:          string;
-  savedAt:       string;
-  totalTime:     number;
-  mapTime:       number;
-  mapCount:      number;
-  drops:         Record<string, number>;
-  /** Per-source attribution for the source-breakdown pie. Each itemId qty
-   *  appears under exactly one source (the owner tracker at write time), so
-   *  slices sum to exactly session FE regardless of attribution era. Empty for
-   *  legacy sessions saved before this column existed — pie falls back to
-   *  per-map-row aggregation in that case. */
-  dropsBySource: Record<string, Record<string, number>>;
-  /** Which attribution era wrote this session's per-map rows. Decides whether
-   *  a parent map row already contains its overlap seasonals' drops — see
-   *  SessionAttribution. Never '' after rowToSession normalises it. */
-  attribution:   SessionAttribution;
-  /** Item prices captured at save time, keyed by itemId. Lets the detail page
-   *  show what the haul was worth *then* alongside what it is worth now.
-   *  Empty for sessions saved before this column existed — readers must treat
-   *  `{}` as "no snapshot" and fall back to live prices rather than 0. */
-  priceSnapshot: Record<string, number>;
-}
-
-/**
- * Attribution era of a saved session. Governs how `session_maps` rows combine:
- *   legacy       — old fan-out engine: parent map rows CONTAIN overlap drops.
- *   exclusive    — single-owner: parent map rows EXCLUDE overlap drops, so
- *                  overlap income must be folded back into the parent.
- *   drop-through — current: parent map rows CONTAIN overlap drops again, and
- *                  overlap rows are a pure per-seasonal breakdown of them.
- * Legacy and drop-through share the same sum-across-rows maths (primary rows
- * only); exclusive is the era needing the fold.
- */
-export type SessionAttribution = 'legacy' | 'exclusive' | 'drop-through';
-
 type SessionRow = {
   id:              string;
   name:            string;
@@ -484,29 +438,6 @@ export function sessionsGetOne(id: string): DbSession | null {
 // Session maps — per-map breakdown rows attached to a session
 // ---------------------------------------------------------------------------
 
-export interface DbSessionMap {
-  sessionId:    string;
-  mapIndex:     number;
-  startedAt:    number;        // ms epoch
-  duration:     number;        // ms
-  drops:        Record<string, number>;
-  spent:        Record<string, number>;
-  /** Non-null when this row represents a standalone seasonal run (e.g. Sandlord)
-   *  rather than a regular map. Null for plain map rows. */
-  seasonalType: SeasonalType | null;
-  /** Non-null only for "overlap" seasonal rows that ran inside a regular map —
-   *  points at the `mapIndex` of the parent map row. Null for primary rows
-   *  (regular maps and standalone seasonals). Whether those drops are ALSO in
-   *  the parent row depends on the session's `attribution` era, so aggregations
-   *  that sum across rows must branch on it — see SessionAttribution. */
-  parentMapIndex: number | null;
-  /** Sandlord phase for seasonal_type='sandlord' rows: 'map' (in-map coin tile)
-   *  or 'hub' (own-area hub bubble). Null for other rows AND for sandlord rows
-   *  written before this column existed — readers must treat null as 'hub',
-   *  since in-map tracking didn't exist back then. */
-  phase: SeasonalPhase | null;
-}
-
 export function sessionMapsInsert(rows: DbSessionMap[]): void {
   if (rows.length === 0) return;
   const stmt = db.prepare(`
@@ -553,14 +484,6 @@ export function sessionMapsDeleteForSession(sessionId: string): void {
 // Seasonal stats
 // ---------------------------------------------------------------------------
 
-export interface DbSeasonalStat {
-  zoneType:    string;
-  zoneCount:   number;
-  totalTime:   number;
-  totalIncome: number;
-  dropList:    Record<string, number>;
-}
-
 export function seasonalStatsGetAll(): DbSeasonalStat[] {
   const rows = db.prepare('SELECT * FROM seasonal_stats').all() as {zone_type: string; zone_count: number; total_time: number; total_income: number; drop_list: string}[];
   return rows.map(r => ({zoneType: r.zone_type, zoneCount: r.zone_count, totalTime: r.total_time, totalIncome: r.total_income, dropList: JSON.parse(r.drop_list)}));
@@ -581,15 +504,6 @@ export function seasonalStatsUpsert(stat: DbSeasonalStat): void {
 // ---------------------------------------------------------------------------
 // Wealth datapoints
 // ---------------------------------------------------------------------------
-
-export interface DbWealthDatapoint {
-  /** Row id — present on every read, absent when inserting. */
-  id?:       number;
-  timestamp: number;
-  value:     number;
-  sessionId: string | null;
-  breakdown: string; // JSON: Record<itemId, {qty, price, total}>
-}
 
 type WealthRow = {id: number; timestamp: number; value: number; session_id: string | null; breakdown: string};
 
@@ -634,13 +548,6 @@ export function wealthClear(): void {
 // ---------------------------------------------------------------------------
 // Item filters
 // ---------------------------------------------------------------------------
-
-export interface DbItemFilter {
-  id:      string;
-  name:    string;
-  enabled: boolean;
-  rules:   string; // JSON array of FilterRule
-}
 
 export function filtersGetAll(): DbItemFilter[] {
   const rows = db.prepare('SELECT id, name, enabled, rules FROM item_filters ORDER BY rowid').all() as {id: string; name: string; enabled: number; rules: string}[];

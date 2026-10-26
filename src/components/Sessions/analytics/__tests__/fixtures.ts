@@ -1,4 +1,5 @@
-import type {DbItem, DbSession, DbSessionMap, SeasonalPhase, SeasonalType} from '@/types/electron';
+import type {DbItem, DbSession, DbSessionMap} from '@/shared/contracts/db';
+import type {SeasonalPhase, SeasonalType} from '@/shared/contracts/engine';
 
 export function makeSession(over: Partial<DbSession> = {}): DbSession {
   return {
@@ -9,7 +10,7 @@ export function makeSession(over: Partial<DbSession> = {}): DbSession {
     mapTime:       300,
     mapCount:      1,
     drops:         {},
-    dropsBySource: {} as DbSession['dropsBySource'],
+    dropsBySource: {},
     attribution:   'drop-through',
     priceSnapshot: {},
     ...over,

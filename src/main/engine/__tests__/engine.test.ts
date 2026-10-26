@@ -4,7 +4,7 @@ import {BagInitHandler} from '@/main/engine/handlers/bag-init';
 import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {ErrorHandler} from '@/main/engine/handlers/error';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
 
 function createEngine(events: EngineEvent[]): Engine {
   return new Engine((e) => events.push(e))

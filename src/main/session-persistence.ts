@@ -1,6 +1,6 @@
 import {sessionsInsert, sessionsUpdate, sessionMapsInsert, itemsGetAll} from './db';
-import type {DbSession, DbSessionMap} from './db';
-import type {EngineEvent} from '@/types/electron';
+import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
+import type {EngineEvent, Source} from '@/shared/contracts/engine';
 import type {Engine} from './engine/engine';
 import {log} from './logger';
 
@@ -213,12 +213,12 @@ export class SessionPersistence {
     // Project tracker.dropsBySource (Record<Source, Record<number, number>>)
     // to JSON-friendly string-keyed shape. Mirror the same number→string
     // boundary handling we use for `drops` on this same line.
-    const dropsBySource: Record<string, Record<string, number>> = {};
+    const dropsBySource: DbSession['dropsBySource'] = {};
     if (tracker.dropsBySource) {
       for (const [source, bucket] of Object.entries(tracker.dropsBySource)) {
         const entry: Record<string, number> = {};
         for (const [id, qty] of Object.entries(bucket)) entry[String(id)] = qty;
-        dropsBySource[source] = entry;
+        dropsBySource[source as Source] = entry;
       }
     }
 

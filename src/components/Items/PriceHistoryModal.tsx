@@ -12,7 +12,7 @@ import {
   Tooltip,
   ReferenceLine,
 } from 'recharts';
-import type {PriceBucket} from '@/main/prices/history';
+import type {PriceBucket} from '@/shared/contracts/db';
 import {useLeaguesStore} from '@/state/leaguesStore';
 import {useTheme} from '@/theme/ThemeContext';
 import {defaultPreset, resolvePriceRange, type PricePreset} from '@/lib/priceRange';

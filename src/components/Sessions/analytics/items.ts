@@ -1,6 +1,7 @@
-import type {DbItem, DbSession, Source} from '@/types/electron';
-import type {ItemType} from '@/types/itemType';
-import {ITEM_TYPES, mapRawType} from '@/types/itemType';
+import type {DbItem, DbSession} from '@/shared/contracts/db';
+import type {Source} from '@/shared/contracts/engine';
+import type {ItemType} from '@/shared/items';
+import {ITEM_TYPES, mapRawType} from '@/shared/items';
 import type {
   ClassifiedRow, ConsumedItemRow, DroppedItemRow, PriceLookup, SourceSlice, TypeSlice, Valuation,
 } from './types';

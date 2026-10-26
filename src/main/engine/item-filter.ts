@@ -1,5 +1,5 @@
-import type {FilterRule, FilterScope} from '@/types/itemFilter';
-import type {ItemType} from '@/types/itemType';
+import type {FilterRule, FilterScope} from '@/shared/item-filter';
+import type {ItemType} from '@/shared/items';
 
 /**
  * ItemFilterEngine — evaluates ordered filter rules against (itemId, scope) pairs.

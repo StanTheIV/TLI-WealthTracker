@@ -11,11 +11,14 @@ import importPlugin from 'eslint-plugin-import';
 //   (and `no-floating-promises`) are deliberately NOT enabled.
 // - `no-unused-vars` is delegated to the @typescript-eslint version with
 //   argsIgnorePattern/varsIgnorePattern '^_' so intentionally-unused bindings
-//   (e.g. the `_a`/`_b` type-sync assertions) don't trip it. The base ESLint
-//   rule is disabled to avoid double-reporting.
+//   don't trip it. The base ESLint rule is disabled to avoid double-reporting.
 // - `no-explicit-any` errors: src has zero `any` today — lock that in. If a
 //   boundary cast is ever unavoidable, use `unknown` or a justified disable.
 // - `eqeqeq` and `import/no-duplicates` are added as high-value extras.
+// - `import/no-restricted-paths` enforces process layering: `src/shared` is
+//   pure and imports nothing else from src; renderer code never imports
+//   `src/main`/`src/worker`; main and worker never import renderer dirs.
+//   Tests and the replay harness are exempt.
 
 export default [
   {
@@ -64,6 +67,22 @@ export default [
       // High-value extras.
       eqeqeq: ['error', 'always', {null: 'ignore'}],
       'import/no-duplicates': 'error',
+
+      'import/no-restricted-paths': ['error', {zones: [
+        {target: './src/shared', from: './src', except: ['./shared']},
+        {
+          target: ['./src/components', './src/state', './src/hooks', './src/windows', './src/theme', './src/i18n', './src/App.tsx', './src/main.tsx', './src/lib', './src/types'],
+          from:   ['./src/main', './src/worker'],
+        },
+        {target: './src/main',   from: ['./src/components', './src/state', './src/hooks', './src/windows']},
+        {target: './src/worker', from: ['./src/main', './src/components', './src/state', './src/hooks', './src/windows']},
+      ]}],
+    },
+  },
+  {
+    files: ['src/replay/**', 'src/**/__tests__/**', 'src/test/**'],
+    rules: {
+      'import/no-restricted-paths': 'off',
     },
   },
 ];

@@ -2,25 +2,12 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {log} from '@/main/logger';
-
-const TOWN_MARKER = 'YuJinZhiXiBiNanSuo';
-
-// Seasonal scenes that live under /Game/Art/Season/ but are owned by a
-// seasonal handler, not a generic map tracker. Classifying them as 'map'
-// would spin up a phantom map tracker on top of the seasonal one and
-// double-count drops. Each entry must correspond to a seasonal that manages
-// its own tracker lifecycle via its own log markers:
-//   SuMingTaLuo  — Arcana (S9) Fateful Contest scene, owned by ArcanaHandler.
-//   DiXiaZhenSuo — Vorex  (S13) reward zone, owned by VorexHandler.
-//   ZhongZuiDiYu — Tartarus (S16) prison fight/loot scene, owned by TartarusHandler.
-// (Sandlord's S10 scene isn't listed here — it owns a bubble, and the
-//  hasBubble() guard below already suppresses the map tracker for it.)
-const SEASONAL_SCENE_MARKERS = ['SuMingTaLuo', 'DiXiaZhenSuo', 'ZhongZuiDiYu'];
+import {MAP_SCENE_PREFIXES, SEASONAL_SCENE_MARKERS, TOWN_SCENE} from '@/shared/scenes';
 
 function classifyScene(scene: string): 'map' | 'town' | 'unknown' {
-  if (scene.includes(TOWN_MARKER)) return 'town';
+  if (scene.includes(TOWN_SCENE)) return 'town';
   if (SEASONAL_SCENE_MARKERS.some((m) => scene.includes(m))) return 'unknown';
-  if (scene.includes('/Game/Art/Maps/') || scene.includes('/Game/Art/Season/')) return 'map';
+  if (MAP_SCENE_PREFIXES.some((p) => scene.includes(p))) return 'map';
   return 'unknown';
 }
 

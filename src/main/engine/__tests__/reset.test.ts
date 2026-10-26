@@ -7,7 +7,7 @@ import {Engine}             from '@/main/engine/engine';
 import {BagInitHandler}     from '@/main/engine/handlers/bag-init';
 import {ZoneHandler}        from '@/main/engine/handlers/zone';
 import {ItemHandler}        from '@/main/engine/handlers/item';
-import type {EngineEvent}   from '@/main/engine/types';
+import type {EngineEvent}   from '@/shared/contracts/engine';
 import type {EngineContext} from '@/main/engine/context';
 
 const TOWN_SCENE = 'XZ_YuJinZhiXiBiNanSuo200';

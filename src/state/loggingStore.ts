@@ -1,20 +1,5 @@
 import {create} from 'zustand';
-
-// ---------------------------------------------------------------------------
-// Types (mirrored from main/logger.ts — renderer can't import main-process code)
-// ---------------------------------------------------------------------------
-
-export type LogFeature =
-  | 'engine' | 'worker' | 'database' | 'ipc' | 'overlay'
-  | 'session' | 'price' | 'wealth' | 'app' | 'filter' | 'update';
-
-export type LogType = 'info' | 'warn' | 'error' | 'debug';
-
-export interface LogTargetConfig {
-  enabled:  boolean;
-  features: LogFeature[];
-  types:    LogType[];
-}
+import type {LogFeature, LogTargetConfig, LogType} from '@/shared/logging';
 
 // ---------------------------------------------------------------------------
 // Defaults

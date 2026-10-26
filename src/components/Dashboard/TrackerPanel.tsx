@@ -8,7 +8,7 @@ import {taxedValue} from '@/lib/tax';
 import {useTrackerElapsed} from '@/hooks/useTrackerElapsed';
 import {useLootWindowCountdown} from '@/hooks/useLootWindowCountdown';
 import {useAnimatedPresence} from '@/hooks/useAnimatedPresence';
-import type {SeasonalType, TrackerSnapshot} from '@/types/electron';
+import type {SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
 import {runsConcurrentlyWithMap} from '@/components/Sessions/analytics/attribution';
 import TrackerRow from './TrackerRow';
 import DropTable from './DropTable';

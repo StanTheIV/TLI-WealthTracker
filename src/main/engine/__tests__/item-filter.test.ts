@@ -6,8 +6,8 @@
  */
 import {describe, it, expect} from 'vitest';
 import {ItemFilterEngine} from '@/main/engine/item-filter';
-import type {FilterRule}   from '@/types/itemFilter';
-import type {ItemType}     from '@/types/itemType';
+import type {FilterRule}   from '@/shared/item-filter';
+import type {ItemType}     from '@/shared/items';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,4 +1,4 @@
-import type {ItemType} from './itemType';
+import type {ItemType} from './items';
 
 export type FilterScope = 'session' | 'map' | 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight' | 'tartarus' | 'wealth';
 export const FILTER_SCOPES: FilterScope[] = ['session', 'map', 'vorex', 'dream', 'overrealm', 'carjack', 'clockwork', 'sandlord', 'lunaria', 'arcana', 'hunting', 'afterlight', 'tartarus', 'wealth'];

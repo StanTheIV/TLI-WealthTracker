@@ -14,7 +14,7 @@ import {computeMechanics} from '../mechanics';
 import {makePriceLookup, makeValuator} from '../valuation';
 import {NO_TAX} from '@/lib/tax';
 import type {AnalyticsWarning, MechanicKey} from '../types';
-import type {DbSession, DbSessionMap} from '@/types/electron';
+import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
 import {makeItems, makeSession, mapRow, overlapRow, resetRowIndex, standaloneRow} from './fixtures';
 
 /** Price table: item '1' is worth exactly 1 FE, so drops read as FE directly. */

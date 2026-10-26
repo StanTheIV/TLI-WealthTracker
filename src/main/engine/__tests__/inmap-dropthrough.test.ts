@@ -30,7 +30,7 @@ import {ZoneHandler}        from '@/main/engine/handlers/zone';
 import {HuntingHandler}     from '@/main/engine/handlers/hunting-handler';
 import {SandlordMapHandler} from '@/main/engine/handlers/sandlord-map-handler';
 import {ItemHandler}        from '@/main/engine/handlers/item';
-import type {EngineEvent}   from '@/main/engine/types';
+import type {EngineEvent}   from '@/shared/contracts/engine';
 import type {EngineContext} from '@/main/engine/context';
 
 const TOWN_SCENE = 'XZ_YuJinZhiXiBiNanSuo200';

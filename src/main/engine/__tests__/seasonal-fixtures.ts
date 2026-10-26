@@ -14,7 +14,8 @@ import {createDispatcher as createProductionDispatcher} from '@/worker/create-di
 import type {Engine} from '@/main/engine/engine';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
 import type {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
-import type {EngineEvent, EmitFn}  from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
+import type {EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 
 // ---------------------------------------------------------------------------

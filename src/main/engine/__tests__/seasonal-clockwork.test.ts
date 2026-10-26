@@ -5,7 +5,7 @@
  * turn-in; in between, its elapsed accumulates while cogwheel fights are live.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
 import {boot, createDispatcher, createEngine, ctx, feed, log, MAP, TOWN} from './seasonal-fixtures';
 
 beforeEach(() => {

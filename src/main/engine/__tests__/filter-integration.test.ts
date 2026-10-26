@@ -26,8 +26,8 @@ import {VorexHandler}      from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler}  from '@/main/engine/handlers/overrealm-handler';
 import {LunariaHandler}    from '@/main/engine/handlers/lunaria-handler';
 import {ItemHandler}       from '@/main/engine/handlers/item';
-import type {EngineEvent}  from '@/main/engine/types';
-import type {FilterRule}   from '@/types/itemFilter';
+import type {EngineEvent}  from '@/shared/contracts/engine';
+import type {FilterRule}   from '@/shared/item-filter';
 import type {EngineContext} from '@/main/engine/context';
 
 // ---------------------------------------------------------------------------

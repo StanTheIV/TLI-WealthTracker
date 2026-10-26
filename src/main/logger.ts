@@ -14,31 +14,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {app} from 'electron';
+import type {LogFeature, LogTargetConfig, LogType} from '@/shared/logging';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export type LogFeature =
-  | 'engine'
-  | 'worker'
-  | 'database'
-  | 'ipc'
-  | 'overlay'
-  | 'session'
-  | 'price'
-  | 'wealth'
-  | 'app'
-  | 'filter'
-  | 'update';
-
-export type LogType = 'info' | 'warn' | 'error' | 'debug';
-
-export interface LogTargetConfig {
-  enabled:  boolean;
-  features: LogFeature[];
-  types:    LogType[];
-}
 
 export interface LogConfig {
   console: LogTargetConfig;

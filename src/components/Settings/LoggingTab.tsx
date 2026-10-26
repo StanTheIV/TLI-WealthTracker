@@ -1,7 +1,7 @@
 import {useEffect} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useLoggingStore} from '@/state/loggingStore';
-import type {LogFeature, LogType} from '@/main/logger';
+import type {LogFeature, LogType} from '@/shared/logging';
 
 const ALL_FEATURES: LogFeature[] = [
   'engine', 'worker', 'database', 'ipc', 'overlay',

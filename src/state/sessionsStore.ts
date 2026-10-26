@@ -1,5 +1,5 @@
 import {create} from 'zustand';
-import type {DbSession} from '@/types/electron';
+import type {DbSession} from '@/shared/contracts/db';
 
 interface SessionsState {
   sessions:   DbSession[];

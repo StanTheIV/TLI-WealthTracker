@@ -10,8 +10,8 @@ import {
   wealthInsert, wealthGetRange, wealthGetLatest, wealthDelete, wealthClear,
   getLookupCountToday, recordLookup,
   filtersGetAll, filtersInsert, filtersUpdate, filtersDelete, filtersSetEnabled,
-  type DbItem,
 } from '@/main/db';
+import type {DbItem} from '@/shared/contracts/db';
 import {broadcastItemsChanged, broadcastLeaguesChanged, setItemBroadcastWindows} from '@/main/items-broadcast';
 
 interface RegisterDeps {

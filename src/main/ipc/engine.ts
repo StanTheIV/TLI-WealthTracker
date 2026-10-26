@@ -6,14 +6,13 @@ import {SessionPersistence} from '@/main/session-persistence';
 import {WorkerProcess} from '@/main/worker-process';
 import {WealthRecorder} from '@/main/wealth-recorder';
 import {configureEngine} from '@/main/engine/configure-engine';
-import type {FilterRule} from '@/types/itemFilter';
-import {mapRawType} from '@/types/itemType';
+import type {FilterRule} from '@/shared/item-filter';
+import {mapRawType} from '@/shared/items';
 import type {Engine} from '@/main/engine/engine';
 import {createEngine as createEngineChain} from '@/main/engine/create-engine';
 import type {RawEvent} from '@/worker/processors/types';
-import type {EngineEvent} from '@/types/electron';
-
-const LOG_SUBPATH = 'TorchLight/Saved/Logs/UE_game.log';
+import type {EngineEvent} from '@/shared/contracts/engine';
+import {LOG_SUBPATH} from '@/shared/paths';
 
 // ---------------------------------------------------------------------------
 // Module-level state

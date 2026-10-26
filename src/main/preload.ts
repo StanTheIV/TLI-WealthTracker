@@ -1,16 +1,17 @@
 import {contextBridge, ipcRenderer} from 'electron';
+import type {ElectronAPI} from '@/shared/contracts/api';
 import type {
   DbItem,
   DbSession,
   DbSeasonalStat,
   DbWealthDatapoint,
   DbItemFilter,
-  EngineEvent,
   ItemChangedPatch,
-} from '@/types/electron';
-import type {FilterRule} from '@/types/itemFilter';
+} from '@/shared/contracts/db';
+import type {EngineEvent} from '@/shared/contracts/engine';
+import type {FilterRule} from '@/shared/item-filter';
 
-contextBridge.exposeInMainWorld('electronAPI', {
+const api = {
   pickFolder:    () => ipcRenderer.invoke('dialog:pick-folder') as Promise<string | null>,
   checkLogFile:  (folder: string) => ipcRenderer.invoke('fs:check-log-file', folder) as Promise<boolean>,
 
@@ -147,4 +148,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       export:  (from: number, to: number)                 => ipcRenderer.invoke('db:prices:export', from, to),
     },
   },
-});
+} satisfies ElectronAPI;
+
+contextBridge.exposeInMainWorld('electronAPI', api);

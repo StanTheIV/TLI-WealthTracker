@@ -3,7 +3,7 @@ import {useTranslation} from 'react-i18next';
 import type {TFunction} from 'i18next';
 import {useEngineStore, type FeedEvent} from '@/state/engineStore';
 import {useItemsStore} from '@/state/itemsStore';
-import type {DbItem} from '@/types/electron';
+import type {DbItem} from '@/shared/contracts/db';
 
 // ---------------------------------------------------------------------------
 // Per-event rendering

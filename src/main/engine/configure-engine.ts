@@ -1,6 +1,6 @@
 import type {Engine} from './engine';
-import type {FilterRule} from '@/types/itemFilter';
-import {mapRawType} from '@/types/itemType';
+import type {FilterRule} from '@/shared/item-filter';
+import {mapRawType} from '@/shared/items';
 
 export interface EngineSettingsInput {
   /** Every known item (id + raw type) — seeds `new_item` de-dup and the filter's type map. */

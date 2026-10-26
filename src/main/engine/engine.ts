@@ -3,8 +3,8 @@ import type {EventHandler, EmitFn} from './types';
 import {EngineContext} from './context';
 import type {LoadedSessionData} from './context';
 import {ItemFilterEngine} from './item-filter';
-import type {FilterRule} from '@/types/itemFilter';
-import type {ItemType} from '@/types/itemType';
+import type {FilterRule} from '@/shared/item-filter';
+import type {ItemType} from '@/shared/items';
 import {ItemHandler} from './handlers/item';
 import {MapMaterialHandler} from './handlers/map-material';
 import {OverrealmHandler} from './handlers/overrealm-handler';
@@ -47,7 +47,7 @@ export class Engine {
   // Only these are resumed on session resume; a self-paused seasonal stays
   // paused. Maps need no equivalent set — the sole "stay paused" reason is an
   // ongoing seasonal interlude, captured by ctx.mapPausedForInterludeAt.
-  private _pausedSeasonals = new Set<import('./tracker').SeasonalType>();
+  private _pausedSeasonals = new Set<import('@/shared/contracts/engine').SeasonalType>();
 
   constructor(emit: EmitFn) {
     this._emit = emit;

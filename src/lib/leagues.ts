@@ -1,24 +1,7 @@
 /** League (season) date model. Pure; shared by main and renderer. */
+import type {League, LeagueRange, LeagueSource} from '@/shared/contracts/leagues';
 
-export type LeagueSource = 'bundled' | 'remote' | 'user';
-
-export type League = {
-  id: string;
-  name: string;
-  /** ms epoch */
-  startsAt: number;
-  source: LeagueSource;
-};
-
-export type LeagueRange = {
-  id: string;
-  name: string;
-  source: LeagueSource;
-  /** inclusive, ms epoch */
-  from: number;
-  /** exclusive (next league's start); null for the latest league */
-  to: number | null;
-};
+export type {League, LeagueRange, LeagueSource};
 
 const SEVEN_DAYS_MS = 7 * 24 * 3_600_000;
 const SOURCE_RANK: Record<LeagueSource, number> = {bundled: 0, remote: 1, user: 2};

@@ -1,4 +1,4 @@
-import type {DbSession} from '@/types/electron';
+import type {DbSession} from '@/shared/contracts/db';
 import type {
   ClassifiedRow, HistogramBucket, MapNetStats, MechanicKey, PerMapPoint, Valuation,
 } from './types';

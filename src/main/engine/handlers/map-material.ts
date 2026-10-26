@@ -2,11 +2,10 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {log} from '@/main/logger';
-
-const TOWN_MARKER = 'YuJinZhiXiBiNanSuo';
+import {TOWN_SCENE} from '@/shared/scenes';
 
 function isTownScene(scene: string): boolean {
-  return scene.includes(TOWN_MARKER);
+  return scene.includes(TOWN_SCENE);
 }
 
 /**

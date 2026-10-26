@@ -17,12 +17,12 @@ import {join} from 'path';
 import {parseArgs} from 'util';
 import {initLogger} from '@/main/logger';
 import {configureEngine} from '@/main/engine/configure-engine';
-import type {FilterRule} from '@/types/itemFilter';
+import type {FilterRule} from '@/shared/item-filter';
+import {LOG_SUBPATH} from '@/shared/paths';
 import {readLogFile} from '@/replay/log-source';
 import {replay, type ControlOp} from '@/replay/replay';
 import {compareRows, diffDrops, formatComparison, formatReport, type StoredRow} from '@/replay/report';
 
-const LOG_SUBPATH = 'TorchLight/Saved/Logs/UE_game.log';
 const DEFAULT_DB  = join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'tli-tracker', 'tli-tracker.db');
 
 const {values: args, positionals} = parseArgs({

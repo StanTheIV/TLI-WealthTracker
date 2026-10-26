@@ -1,5 +1,5 @@
 import {BrowserWindow} from 'electron';
-import type {ItemChangedPatch} from '@/types/electron';
+import type {ItemChangedPatch} from '@/shared/contracts/db';
 
 /**
  * items:changed broadcaster.

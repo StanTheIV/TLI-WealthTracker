@@ -1,6 +1,6 @@
 import type {Engine} from '@/main/engine/engine';
 import {createEngine} from '@/main/engine/create-engine';
-import type {EngineEvent, TrackerSnapshot} from '@/main/engine/types';
+import type {EngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
 import {createDispatcher} from '@/worker/create-dispatcher';
 import type {LogLine} from './log-source';
 import {installReplayClock, type ReplayClock} from './clock';

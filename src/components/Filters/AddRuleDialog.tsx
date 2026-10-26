@@ -1,9 +1,9 @@
 import {useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {X} from 'lucide-react';
-import {ITEM_TYPES} from '@/types/itemType';
-import {FILTER_SCOPES} from '@/types/itemFilter';
-import type {FilterRule, FilterScope, RuleAction, RuleKind} from '@/types/itemFilter';
+import {ITEM_TYPES} from '@/shared/items';
+import {FILTER_SCOPES} from '@/shared/item-filter';
+import type {FilterRule, FilterScope, RuleAction, RuleKind} from '@/shared/item-filter';
 import {useItemsStore} from '@/state/itemsStore';
 
 interface Props {

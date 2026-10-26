@@ -1,5 +1,5 @@
 import type {TFunction} from 'i18next';
-import type {SeasonalPhase} from '@/types/electron';
+import type {SeasonalPhase} from '@/shared/contracts/engine';
 import type {MechanicKey, Valuation} from '../analytics';
 
 /** Row label for a mechanic. Sandlord's two phases share one bucket, so only

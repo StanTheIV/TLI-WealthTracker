@@ -1,4 +1,4 @@
-import type {DbItem, DbSession, DbSessionMap} from '@/types/electron';
+import type {DbItem, DbSession, DbSessionMap} from '@/shared/contracts/db';
 import type {TaxConfig} from '@/lib/tax';
 import type {AnalyticsWarning, SessionAnalytics, SessionTotals} from './types';
 import {classifyRows} from './attribution';

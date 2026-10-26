@@ -5,7 +5,7 @@ import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useTaxConfig} from '@/state/settingsStore';
 import {taxedUnitPrice, taxedValue} from '@/lib/tax';
-import {ITEM_TYPES} from '@/types/itemType';
+import {ITEM_TYPES} from '@/shared/items';
 
 // ---------------------------------------------------------------------------
 // Helpers

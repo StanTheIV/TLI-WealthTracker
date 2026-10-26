@@ -1,5 +1,6 @@
 import {useState} from 'react';
 import {useSettingsStore} from '@/state/settingsStore';
+import {LOG_SUBPATH} from '@/shared/paths';
 
 export default function SetupDialog() {
   const setTorchlightPath = useSettingsStore(s => s.setTorchlightPath);
@@ -42,7 +43,7 @@ export default function SetupDialog() {
         <div className="bg-bg rounded-lg border border-border p-4 mb-6">
           <p className="text-xs text-text-secondary mb-1 font-semibold uppercase tracking-widest">Expected log file location</p>
           <p className="text-xs font-mono text-gold break-all">
-            &lt;your folder&gt;\TorchLight\Saved\Logs\UE_game.log
+            &lt;your folder&gt;\{LOG_SUBPATH.replace(/\//g, '\\')}
           </p>
           <p className="text-xs text-text-disabled mt-3">
             Usually found in your Steam library, e.g.:<br />

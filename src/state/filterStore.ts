@@ -1,5 +1,5 @@
 import {create} from 'zustand';
-import type {ItemFilter, FilterRule} from '@/types/itemFilter';
+import type {ItemFilter, FilterRule} from '@/shared/item-filter';
 
 interface FilterState {
   filters:  ItemFilter[];

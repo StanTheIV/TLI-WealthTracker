@@ -1,9 +1,9 @@
 import {Tracker} from './tracker';
 import {SeasonalTracker} from './seasonal-tracker';
-import type {SeasonalPhase, SeasonalType, Source, TrackerSnapshot} from './tracker';
+import type {SeasonalPhase, SeasonalType, Source, TrackerSnapshot} from '@/shared/contracts/engine';
 import type {EmitFn} from './types';
 import type {ItemFilterEngine} from './item-filter';
-import type {FilterScope} from '@/types/itemFilter';
+import type {FilterScope} from '@/shared/item-filter';
 import {log} from '@/main/logger';
 
 export interface DistributeResult {

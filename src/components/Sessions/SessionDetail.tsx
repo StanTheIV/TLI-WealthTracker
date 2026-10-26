@@ -5,7 +5,7 @@ import {useSessionsStore} from '@/state/sessionsStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useTaxConfig} from '@/state/settingsStore';
 import {useTracking} from '@/state/TrackingContext';
-import type {DbSessionMap} from '@/types/electron';
+import type {DbSessionMap} from '@/shared/contracts/db';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
 import {computeSessionAnalytics} from './analytics';
 import {formatDate} from './SessionsTable';

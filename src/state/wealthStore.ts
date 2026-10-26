@@ -1,5 +1,5 @@
 import {create} from 'zustand';
-import type {DbItem, DbWealthDatapoint} from '@/types/electron';
+import type {DbItem, DbWealthDatapoint} from '@/shared/contracts/db';
 import {taxedValue, type TaxConfig} from '@/lib/tax';
 
 export interface BreakdownEntry {

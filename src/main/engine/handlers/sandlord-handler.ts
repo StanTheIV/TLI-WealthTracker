@@ -2,9 +2,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {pauseMapForInterlude, resolveMapInterlude} from '@/main/engine/map-interlude';
-
-const SANDLORD_HUB_MARKER = 'YunDuanLvZhou';
-const TOWN_MARKER         = 'YuJinZhiXiBiNanSuo';
+import {SANDLORD_HUB_SCENE, TOWN_SCENE} from '@/shared/scenes';
 
 /**
  * SandlordHandler — Sandlord (S10) translator.
@@ -24,8 +22,8 @@ export class SandlordHandler implements EventHandler {
     if (event.type !== 'zone_transition') return;
     if (ctx.phase !== 'tracking') return;
 
-    const enteringHub  = event.toScene.includes(SANDLORD_HUB_MARKER);
-    const enteringTown = event.toScene.includes(TOWN_MARKER);
+    const enteringHub  = event.toScene.includes(SANDLORD_HUB_SCENE);
+    const enteringTown = event.toScene.includes(TOWN_SCENE);
     const existing     = ctx.registry.seasonal('sandlord');
     // Only a HUB run blocks a fresh bubble. A dormant map-phase tile run shares
     // the seasonal type but is a different mechanic, and can linger across a

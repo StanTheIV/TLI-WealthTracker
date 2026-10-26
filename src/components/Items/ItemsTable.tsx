@@ -4,8 +4,8 @@ import {Search, Loader2, Check, X, Lock, LockOpen, LineChart} from 'lucide-react
 import {useItemsStore} from '@/state/itemsStore';
 import {useCurrentLeague, useLeaguesStore} from '@/state/leaguesStore';
 import {isStalePrice, leagueAt} from '@/lib/leagues';
-import type {DbItem} from '@/types/electron';
-import {ITEM_TYPES} from '@/types/itemType';
+import type {DbItem} from '@/shared/contracts/db';
+import {ITEM_TYPES} from '@/shared/items';
 import PriceHistoryModal from './PriceHistoryModal';
 
 // ---------------------------------------------------------------------------

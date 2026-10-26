@@ -1,5 +1,6 @@
-import type {DbSession, DbSessionMap, SeasonalPhase, SeasonalType, Source} from '@/types/electron';
-import type {ItemType} from '@/types/itemType';
+import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
+import type {SeasonalPhase, SeasonalType, Source} from '@/shared/contracts/engine';
+import type {ItemType} from '@/shared/items';
 
 // ---------------------------------------------------------------------------
 // Valuation — every FE figure carries both its save-time and present-day value

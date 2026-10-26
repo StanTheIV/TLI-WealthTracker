@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {ITEM_TYPE_CONFIG, ITEM_TYPES} from '@/types/itemType';
+import {ITEM_TYPE_CONFIG, ITEM_TYPES} from '@/shared/items';
 import {AUCTION_TAX_RATE, NO_TAX, isTaxable, taxedUnitPrice, taxedValue, type TaxConfig} from '../tax';
 
 const TAX_ON: TaxConfig = {enabled: true, rate: AUCTION_TAX_RATE};

@@ -1,7 +1,7 @@
 import {BagState, type SlotChange} from './bag-state';
 import {TrackerRegistry} from './tracker-registry';
 import type {ItemFilterEngine} from './item-filter';
-import type {ItemType} from '@/types/itemType';
+import type {ItemType} from '@/shared/items';
 
 export type {DistributeResult} from './tracker-registry';
 

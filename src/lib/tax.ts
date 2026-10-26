@@ -1,4 +1,4 @@
-import {mapRawType, type ItemType} from '@/types/itemType';
+import {mapRawType, type ItemType} from '@/shared/items';
 
 /**
  * Auction-house tax — the single place a displayed FE value is discounted.

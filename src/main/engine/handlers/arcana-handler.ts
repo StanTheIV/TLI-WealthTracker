@@ -2,8 +2,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {pauseMapForInterlude, resolveMapInterlude} from '@/main/engine/map-interlude';
-
-const ARCANA_SCENE = 'SuMingTaLuo';
+import {ARCANA_FIGHT_SCENE} from '@/shared/scenes';
 
 /**
  * ArcanaHandler — Arcana (S9 "Tarot" / Fateful Contest) translator.
@@ -71,8 +70,8 @@ export class ArcanaHandler implements EventHandler {
       // frozen: the map tracker is paused, and while the session is paused we
       // leave it paused for Engine.resume() to bring back.
       case 'zone_transition': {
-        const enteringFight = !event.fromScene.includes(ARCANA_SCENE) && event.toScene.includes(ARCANA_SCENE);
-        const leavingFight  = event.fromScene.includes(ARCANA_SCENE) && !event.toScene.includes(ARCANA_SCENE);
+        const enteringFight = !event.fromScene.includes(ARCANA_FIGHT_SCENE) && event.toScene.includes(ARCANA_FIGHT_SCENE);
+        const leavingFight  = event.fromScene.includes(ARCANA_FIGHT_SCENE) && !event.toScene.includes(ARCANA_FIGHT_SCENE);
 
         if (enteringFight) {
           // Usually a no-op (map frozen since the minigame opened); covers a

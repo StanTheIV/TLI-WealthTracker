@@ -1,6 +1,6 @@
 import type {EngineContext} from './context';
 import type {EmitFn} from './types';
-import type {SeasonalType} from './tracker';
+import type {SeasonalType} from '@/shared/contracts/engine';
 
 /**
  * Publishes a batch of item deltas through the standard drop pipeline.

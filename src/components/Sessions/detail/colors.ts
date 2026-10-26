@@ -1,5 +1,5 @@
 import type {useTheme} from '@/theme/ThemeContext';
-import type {ItemType} from '@/types/itemType';
+import type {ItemType} from '@/shared/items';
 import type {MechanicKey} from '../analytics';
 
 type Theme = ReturnType<typeof useTheme>;

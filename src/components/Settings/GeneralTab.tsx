@@ -5,7 +5,7 @@ import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useSessionsStore} from '@/state/sessionsStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
-import type {DbItem} from '@/types/electron';
+import type {DbItem} from '@/shared/contracts/db';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import LeagueSection from './LeagueSection';
 

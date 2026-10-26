@@ -1,4 +1,5 @@
-import type {DbSession, DbSessionMap, SeasonalPhase, SeasonalType} from '@/types/electron';
+import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
+import type {SeasonalPhase, SeasonalType} from '@/shared/contracts/engine';
 import type {AnalyticsWarning, ClassifiedRow, MechanicKey, Valuator} from './types';
 
 /** Seasonals that FREEZE the map clock, so their time is NOT inside

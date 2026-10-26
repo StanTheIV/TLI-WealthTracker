@@ -2,7 +2,7 @@ import {describe, it, expect, vi} from 'vitest';
 import {parseLogTimestamp, readLogText, type LogLine} from '@/replay/log-source';
 import {replay} from '@/replay/replay';
 import {compareRows, type StoredRow} from '@/replay/report';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
 
 const T0 = Date.UTC(2026, 9, 25, 11, 0, 0, 0);
 

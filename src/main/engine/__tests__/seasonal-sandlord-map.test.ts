@@ -6,7 +6,7 @@
  * window — pickups never refresh it) pauses the tracker on expiry.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
 import {
   boot, createDispatcher, createEngine, ctx, feed, log,
   MAP, SANDLORD_HUB, TOWN,

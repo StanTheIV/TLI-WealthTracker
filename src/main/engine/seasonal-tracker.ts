@@ -1,5 +1,5 @@
 import {Tracker} from './tracker';
-import type {SeasonalPhase, SeasonalType, TrackerSnapshot} from './tracker';
+import type {SeasonalPhase, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
 import type {EmitFn} from './types';
 import {LootCollectionTimer} from './loot-collection-timer';
 import type {TrackerRegistry} from './tracker-registry';

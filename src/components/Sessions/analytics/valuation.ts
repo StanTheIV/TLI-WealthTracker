@@ -1,4 +1,4 @@
-import type {DbItem} from '@/types/electron';
+import type {DbItem} from '@/shared/contracts/db';
 import {taxedUnitPrice, type TaxConfig} from '@/lib/tax';
 import type {PriceLookup, Valuation, Valuator} from './types';
 

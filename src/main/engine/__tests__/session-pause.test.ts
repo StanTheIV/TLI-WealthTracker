@@ -8,7 +8,7 @@
  * full dispatcher → engine pipeline via the shared seasonal fixtures.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
 import {
   boot, createDispatcher, createEngine, ctx, feed, log,
   ARCANA_FIGHT, MAP, TOWN,

@@ -1,6 +1,6 @@
 import {useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
-import type {DbItem, DbSession} from '@/types/electron';
+import type {DbItem, DbSession} from '@/shared/contracts/db';
 import type {TaxConfig} from '@/lib/tax';
 import {makePriceLookup, makeValuator} from './analytics/valuation';
 
