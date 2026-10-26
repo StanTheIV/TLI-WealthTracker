@@ -10,9 +10,7 @@ import type {EngineEvent} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
 import {LOG_SUBPATH} from '@/shared/paths';
-
-/** Fan a payload out to every renderer window. */
-export type Broadcast = (channel: string, payload?: unknown) => void;
+import type {Broadcast} from '@/main/broadcast';
 
 /** The log-reader process. `start` is idempotent while running; `stop` is safe when stopped. */
 export interface LogWorker {
@@ -129,8 +127,11 @@ export class TrackingService {
 
   /** App shutdown: stop (auto-saving the active session), then the worker. */
   shutdown(): void {
-    this.stop();
-    this._worker.stop();
+    try {
+      this.stop();
+    } finally {
+      this._worker.stop();
+    }
   }
 
   // -- engine pass-throughs (no-ops without a running engine) ---------------

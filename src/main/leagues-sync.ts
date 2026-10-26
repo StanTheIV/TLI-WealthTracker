@@ -1,7 +1,7 @@
 import {net} from 'electron';
 import {log} from './logger';
 import {leaguesGetAll, leaguesApply, priceBackfillOnce} from './db';
-import type {Broadcast} from './tracking-service';
+import type {Broadcast} from './broadcast';
 import {REPO} from './updater';
 import {mergeLeagues, parseLeaguesJson} from '@/lib/leagues';
 import bundledLeagues from '../../resources/leagues.json';

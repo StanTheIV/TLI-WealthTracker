@@ -4,7 +4,8 @@
  * price-routing propagation, worker lifecycle, stale-persistence references.
  */
 import {describe, it, expect, beforeEach, afterEach, vi, type Mock} from 'vitest';
-import {TrackingService, type Broadcast, type LogWorker, type TrackingDeps} from '@/main/tracking-service';
+import {TrackingService, type LogWorker, type TrackingDeps} from '@/main/tracking-service';
+import type {Broadcast} from '@/main/broadcast';
 import {SqliteSessionStore} from '@/main/db/session-store';
 import type {Engine} from '@/main/engine/engine';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
@@ -311,13 +312,13 @@ describe('adversarial - errors outside the fan-out', () => {
     expect(types(h).filter(t => t === 'init_complete')).toHaveLength(2);
   });
 
-  it('shutdown() when engine.stop() throws: error propagates and the worker is NOT stopped (characterization)', () => {
+  it('shutdown() when engine.stop() throws: error propagates and the worker is still stopped', () => {
     const h = build();
     h.service.start();
     init(h);
     vi.spyOn(h.engines[0], 'stop').mockImplementation(() => { throw new Error('onStop boom'); });
     expect(() => h.service.shutdown()).toThrow('onStop boom');
-    expect(h.worker.stop).not.toHaveBeenCalled();
+    expect(h.worker.stop).toHaveBeenCalledTimes(1);
   });
 
   it('start() when the previous engine.stop() throws: propagates before a new engine is created', () => {

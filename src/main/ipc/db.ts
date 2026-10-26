@@ -11,7 +11,7 @@ import {
 } from '@/main/db';
 import type {DbItem} from '@/shared/contracts/db';
 import type {SqliteSessionStore} from '@/main/db/session-store';
-import type {Broadcast} from '@/main/tracking-service';
+import type {Broadcast} from '@/main/broadcast';
 
 interface RegisterDeps {
   /** Fan-out to both renderer windows (items:changed, leagues:changed). */

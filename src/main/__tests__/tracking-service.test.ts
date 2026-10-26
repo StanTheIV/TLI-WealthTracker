@@ -5,7 +5,8 @@
  * through the fake worker's captured onEvent, exactly like the log reader.
  */
 import {describe, it, expect, beforeEach, afterEach, vi, type Mock} from 'vitest';
-import {TrackingService, type Broadcast, type LogWorker, type TrackingDeps} from '@/main/tracking-service';
+import {TrackingService, type LogWorker, type TrackingDeps} from '@/main/tracking-service';
+import type {Broadcast} from '@/main/broadcast';
 import {SqliteSessionStore} from '@/main/db/session-store';
 import type {Engine} from '@/main/engine/engine';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
