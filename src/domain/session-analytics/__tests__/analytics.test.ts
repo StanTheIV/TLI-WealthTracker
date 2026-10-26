@@ -109,7 +109,8 @@ describe('item tables', () => {
     expect(row.mapsPerDrop).toBe(2);        // 8 maps / 4 drops
   });
 
-  it('shows negative quantities verbatim but keeps them out of income', () => {
+  // FLIPPED: was 'shows negative quantities verbatim but keeps them out of income' (income 100).
+  it('shows negative quantities verbatim and counts them against income', () => {
     const a = computeSessionAnalytics({
       session: makeSession({drops: {'1': 10, '2': -5}}),
       maps:    [mapRow(300, {'1': 10, '2': -5})],
@@ -117,7 +118,7 @@ describe('item tables', () => {
       tax:     NO_TAX,
     });
 
-    expect(a.totals.income.live).toBe(100);
+    expect(a.totals.income.live).toBe(80);     // 10 x 10 - 5 x 4
     const conversion = a.dropped.find(d => d.itemId === '2')!;
     expect(conversion.qty).toBe(-5);
     expect(conversion.total.live).toBe(-20);
@@ -125,7 +126,9 @@ describe('item tables', () => {
 
   it('unions consumed materials across runs and counts how many used each', () => {
     const a = computeSessionAnalytics({
-      session: makeSession({mapCount: 2}),
+      // FLIPPED fixture: consumed quantities now come from session.spent (the
+      // totals.cost authority), so the session must carry the rows' sum.
+      session: makeSession({mapCount: 2, spent: {'2': 4}}),
       maps:    [mapRow(300, {}, {'2': 3}), mapRow(300, {}, {'2': 1})],
       items:   ITEMS,
       tax:     NO_TAX,
@@ -210,7 +213,8 @@ describe('by-source breakdown', () => {
     expect(a.bySource.find(s => s.source === 'map')!.value.live).toBe(70);
   });
 
-  it('clamps rather than deletes a map slice that oversubtracts', () => {
+  // FLIPPED: was 'clamps rather than deletes a map slice that oversubtracts'.
+  it('does not clamp a map slice that oversubtracts: its own income is negative, so it earns no slice, and warns once', () => {
     const a = computeSessionAnalytics({
       session: makeSession({attribution: 'legacy', drops: {'1': 10}, dropsBySource: {}}),
       maps:    [mapRow(300, {'1': 5}), overlapRow('lunaria', 60, 1, {'1': 10})],
@@ -218,15 +222,34 @@ describe('by-source breakdown', () => {
       tax:     NO_TAX,
     });
 
-    expect(a.bySource.every(s => s.value.live >= 0)).toBe(true);
-    expect(a.meta.warnings.some(w => w.code === 'overlap-exceeds-parent')).toBe(true);
+    // map own = 50 - 100 = -50 (unclamped): never shown as a positive slice.
+    expect(a.bySource.find(s => s.source === 'map')?.value.live ?? 0).toBeLessThanOrEqual(0);
+    expect(a.bySource.find(s => s.source === 'lunaria')!.value.live).toBe(100);
+    expect(a.perMap[0].mapIncome.live).toBe(-50);
+    expect(a.meta.warnings.filter(w => w.code === 'overlap-exceeds-parent')).toHaveLength(1);
+  });
+
+  it('legacy by-source path is era-aware: exclusive parents already exclude their overlaps, so nothing is folded', () => {
+    const a = computeSessionAnalytics({
+      session: makeSession({attribution: 'exclusive', drops: {'1': 10}, dropsBySource: {}}),
+      maps:    [mapRow(300, {'1': 7}), overlapRow('lunaria', 60, 1, {'1': 3})],
+      items:   ITEMS,
+      tax:     NO_TAX,
+    });
+
+    expect(a.meta.legacyBySource).toBe(true);
+    expect(a.bySource.find(s => s.source === 'map')!.value.live).toBe(70);   // NOT 40
+    expect(a.bySource.find(s => s.source === 'lunaria')!.value.live).toBe(30);
+    expect(a.bySource.reduce((s, x) => s + x.value.live, 0)).toBeCloseTo(100, 6);
+    expect(a.meta.warnings.filter(w => w.code === 'overlap-exceeds-parent')).toHaveLength(0);
   });
 });
 
 describe('derived stats', () => {
   it('computes net, ROI and break-even from income and cost', () => {
     const a = computeSessionAnalytics({
-      session: makeSession({drops: {'1': 10}, mapCount: 2, totalTime: 3600}),
+      // FLIPPED fixture: cost now comes from session.spent, so the session must carry it.
+      session: makeSession({drops: {'1': 10}, spent: {'2': 10}, mapCount: 2, totalTime: 3600}),
       maps:    [mapRow(300, {'1': 6}, {'2': 5}), mapRow(300, {'1': 4}, {'2': 5})],
       items:   ITEMS,
       tax:     NO_TAX,
@@ -239,6 +262,71 @@ describe('derived stats', () => {
     expect(a.totals.roiMultiple.live).toBeCloseTo(2.5, 6);
     expect(a.totals.costPerMap!.live).toBe(20);
     expect(a.totals.breakEvenYield!.live).toBe(20);
+  });
+
+  it('totals.cost comes from session.spent, not the row sum (session wins when they disagree)', () => {
+    const a = computeSessionAnalytics({
+      session: makeSession({drops: {'1': 10}, spent: {'2': 3}, mapCount: 2, totalTime: 3600}),
+      maps:    [mapRow(300, {'1': 6}, {'2': 1}), mapRow(300, {'1': 4}, {'2': 1})],   // rows sum to 2
+      items:   ITEMS,
+      tax:     NO_TAX,
+    });
+
+    expect(a.totals.cost).toEqual({snapshot: 12, live: 12});    // 3 x 4, not 2 x 4
+    expect(a.totals.net.live).toBe(88);
+    expect(a.totals.costPerMap!.live).toBe(6);
+    expect(a.totals.roiMultiple.live).toBeCloseTo(100 / 12, 6);
+  });
+
+  it('totals.cost is zero when session.spent is empty, whatever the rows say', () => {
+    const a = computeSessionAnalytics({
+      session: makeSession({drops: {'1': 10}, spent: {}}),
+      maps:    [mapRow(300, {'1': 10}, {'2': 5})],
+      items:   ITEMS,
+      tax:     NO_TAX,
+    });
+    expect(a.totals.cost.live).toBe(0);
+    expect(a.totals.net.live).toBe(100);
+  });
+
+  it('values session.spent signed: an item both spent and looted nets, and a negative spent reduces cost', () => {
+    const a = computeSessionAnalytics({
+      session: makeSession({drops: {'1': 10}, spent: {'1': 2, '2': -5}}),
+      maps:    [mapRow(300, {'1': 10})],
+      items:   ITEMS,
+      tax:     NO_TAX,
+    });
+    expect(a.totals.income.live).toBe(100);
+    expect(a.totals.cost.live).toBe(0);                          // 2 x 10 - 5 x 4
+    expect(a.totals.net.live).toBe(100);
+  });
+
+  it('the consumed grand total equals totals.cost (one authority), while per-map/runsUsing still read rows', () => {
+    const a = computeSessionAnalytics({
+      session: makeSession({drops: {'1': 10}, spent: {'2': 3}, mapCount: 2}),
+      maps:    [mapRow(300, {'1': 6}, {'2': 1}), mapRow(300, {'1': 4}, {'2': 1})],
+      items:   ITEMS,
+      tax:     NO_TAX,
+    });
+
+    const consumedTotal = a.consumed.reduce((s, c) => s + c.total.live, 0);
+    expect(consumedTotal).toBe(a.totals.cost.live);
+    expect(a.consumed).toHaveLength(1);
+    expect(a.consumed[0]).toMatchObject({itemId: '2', qty: 3, runsUsing: 2, perMap: 1.5});
+    expect(a.consumed[0].pct.live).toBeCloseTo(100, 6);
+  });
+
+  it('a snapshot covering only a spent id still counts as a snapshot', () => {
+    const a = computeSessionAnalytics({
+      session: makeSession({drops: {'1': 5}, spent: {'2': 1}, priceSnapshot: {'2': 8}}),
+      maps:    [mapRow(300, {'1': 5}, {'2': 1})],
+      items:   ITEMS,
+      tax:     NO_TAX,
+    });
+
+    expect(a.meta.hasSnapshot).toBe(true);
+    expect(a.totals.cost).toEqual({snapshot: 8, live: 4});
+    expect(a.totals.income).toEqual({snapshot: 50, live: 50});   // '1' not in snapshot -> live
   });
 
   it('returns a null ROI rather than Infinity when nothing was spent', () => {
@@ -375,7 +463,8 @@ describe('degenerate sessions', () => {
 
   it('reports no cost-per-map when no maps were run', () => {
     const a = computeSessionAnalytics({
-      session: makeSession({totalTime: 600, mapTime: 0, mapCount: 0}),
+      // FLIPPED fixture: cost now comes from session.spent, so the session must carry it.
+      session: makeSession({totalTime: 600, mapTime: 0, mapCount: 0, spent: {'2': 5}}),
       maps:    [standaloneRow('sandlord', 120, {}, {'2': 5})],
       items:   ITEMS,
       tax:     NO_TAX,

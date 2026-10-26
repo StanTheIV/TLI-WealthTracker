@@ -50,8 +50,8 @@
         "mechanics": [
           {
             "avgPerRun": {
-              "live": 42.561568,
-              "snapshot": 42.561568
+              "live": 39.003127,
+              "snapshot": 39.003127
             },
             "avgSeconds": 54,
             "cost": {
@@ -59,25 +59,25 @@
               "snapshot": 3.558441
             },
             "fePerHour": {
-              "live": 2837.437867,
-              "snapshot": 2837.437867
+              "live": 2600.208467,
+              "snapshot": 2600.208467
             },
             "income": {
-              "live": 46.120009,
-              "snapshot": 46.120009
+              "live": 42.561568,
+              "snapshot": 42.561568
             },
             "key": "map",
             "nestedInMap": false,
             "net": {
-              "live": 42.561568,
-              "snapshot": 42.561568
+              "live": 39.003127,
+              "snapshot": 39.003127
             },
             "runs": 1,
             "seconds": 54,
             "timePct": 36.180905,
             "valuePct": {
-              "live": 69.65926,
-              "snapshot": 69.65926
+              "live": 67.935932,
+              "snapshot": 67.935932
             }
           },
           {
@@ -108,8 +108,8 @@
             "seconds": 15,
             "timePct": 10.050251,
             "valuePct": {
-              "live": 30.34074,
-              "snapshot": 30.34074
+              "live": 32.064068,
+              "snapshot": 32.064068
             }
           },
           {
@@ -228,6 +228,12 @@
       "id": "replay-1",
       "invariants": {
         "dropsBySourceSumsToDrops": {
+          "ok": true
+        },
+        "liveMatchesAnalytics": {
+          "ok": true
+        },
+        "mechanicsNetReconciles": {
           "ok": true
         },
         "netReconciles": {

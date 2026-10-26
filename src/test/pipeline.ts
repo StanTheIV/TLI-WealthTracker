@@ -8,13 +8,14 @@
 import {computeSessionAnalytics, type SessionAnalytics} from '@/domain/session-analytics';
 import {configureEngine} from '@/main/engine/configure-engine';
 import {SqliteSessionStore} from '@/main/db/session-store';
-import {NO_TAX, type TaxConfig} from '@/domain/valuation';
+import {NO_TAX, liveValue, type TaxConfig} from '@/domain/valuation';
 import {readLogText, type LogLine} from '@/replay/log-source';
 import {replay, type ControlOp, type ReplayEvent, type ReplayMode} from '@/replay/replay';
 import type {Anomaly} from '@/replay/invariants';
 import type {DbItem, DbSession, DbSessionMap} from '@/shared/contracts/db';
 import type {EngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
+import {useEngineStore} from '@/state/engineStore';
 import {openMigratedNodeSqlite} from './sql/fresh-db';
 
 export interface PipelineOptions {
@@ -46,6 +47,10 @@ export interface PipelineResult {
   /** Time of the first log line — the origin of every relative time in a golden. */
   firstTs:        number | null;
   lastTs:         number | null;
+  /** The item table and tax policy analytics valued through — what the live
+   *  invariant must value the overlay's state with. */
+  items:          Record<string, DbItem>;
+  tax:            TaxConfig;
 }
 
 export async function runPipeline(source: string | LogLine[], opts: PipelineOptions = {}): Promise<PipelineResult> {
@@ -86,6 +91,8 @@ export async function runPipeline(source: string | LogLine[], opts: PipelineOpti
     linesDelivered: result.linesDelivered,
     firstTs:        result.firstTs,
     lastTs:         result.lastTs,
+    items,
+    tax,
   };
 }
 
@@ -110,20 +117,41 @@ const FE_TOLERANCE = 1e-6;
  *   drops (Σ |difference| over items, in units).
  * - `primaryMapIndexUnique` — no two primary rows share a mapIndex (duplicates).
  * - `overlapHasParent` — every overlap row's parent is a primary row (orphans).
+ * - `liveMatchesAnalytics` — the overlay's Total (the real engineStore driven
+ *   by the session's engine events, valued by `liveValue`) = session net (FE,
+ *   live − analytics).
+ * - `mechanicsNetReconciles` — Σ mechanic net = session net (FE).
  * Today's known failures are what the golden files pin; a fix flips them.
  */
 export function pipelineInvariants(result: PipelineResult): Record<string, Record<string, InvariantResult>> {
   const out: Record<string, Record<string, InvariantResult>> = {};
-  for (const {id, session, rows, analytics} of result.sessions) {
-    if (!session || !analytics) continue;
+  const segments = sessionEventSegments(result.events);
+  result.sessions.forEach(({id, session, rows, analytics}, i) => {
+    if (!session || !analytics) return;
     out[id] = {
       netReconciles:            netReconciles(analytics),
       dropsBySourceSumsToDrops: dropsBySourceSumsToDrops(session),
       primaryMapIndexUnique:    primaryMapIndexUnique(rows),
       overlapHasParent:         overlapHasParent(rows),
+      liveMatchesAnalytics:     liveMatchesAnalytics(segments[i] ?? [], result, analytics),
+      mechanicsNetReconciles:   mechanicsNetReconciles(analytics),
     };
-  }
+  });
   return out;
+}
+
+/** Each started run's engine events, in start order — the same order as
+ *  `result.sessions`. Every `Engine.start` opens with `init_started`, so that is
+ *  the boundary; a stream with none (a crafted one) is a single run. */
+function sessionEventSegments(events: ReplayEvent[]): EngineEvent[][] {
+  const segments: EngineEvent[][] = [];
+  for (const {event} of events) {
+    if (event.type === 'init_started' || segments.length === 0) segments.push([]);
+    segments[segments.length - 1].push(event);
+  }
+  // Events ahead of the first `init_started` belong to no run.
+  if (segments.length > 1 && segments[0][0]?.type !== 'init_started') segments.shift();
+  return segments;
 }
 
 function check(delta: number, tolerance = 0): InvariantResult {
@@ -133,6 +161,24 @@ function check(delta: number, tolerance = 0): InvariantResult {
 function netReconciles(a: SessionAnalytics): InvariantResult {
   const rowNet = a.perMap.reduce((sum, p) => sum + p.net.live, 0);
   return check(rowNet - a.totals.net.live, FE_TOLERANCE);
+}
+
+function mechanicsNetReconciles(a: SessionAnalytics): InvariantResult {
+  const mechanicNet = a.mechanics.reduce((sum, m) => sum + m.net.live, 0);
+  return check(mechanicNet - a.totals.net.live, FE_TOLERANCE);
+}
+
+/** Replays the run through the renderer's real reducer rather than reading
+ *  `session.drops`, which is what analytics read — comparing those would be a
+ *  tautology. What this pins is that the overlay's Total and the saved
+ *  session's net agree on state AND on the valuation rule. */
+function liveMatchesAnalytics(events: EngineEvent[], result: PipelineResult, a: SessionAnalytics): InvariantResult {
+  useEngineStore.getState().reset();
+  for (const event of events) useEngineStore.getState().handleEvent(event);
+  const {drops, sessionSpent} = useEngineStore.getState();
+  useEngineStore.getState().reset();
+  const live = liveValue({drops, spent: sessionSpent}, result.items, result.tax).net;
+  return check(live - a.totals.net.live, FE_TOLERANCE);
 }
 
 function dropsBySourceSumsToDrops(s: DbSession): InvariantResult {

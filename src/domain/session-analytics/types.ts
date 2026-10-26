@@ -3,7 +3,7 @@ import type {SeasonalPhase, SeasonalType, Source} from '@/shared/contracts/engin
 import type {ItemType} from '@/shared/items';
 import type {Valuation} from '@/domain/valuation';
 
-export type {PriceLookup, Valuation, Valuator} from '@/domain/valuation';
+export type {PriceLookup, Valuation} from '@/domain/valuation';
 
 // ---------------------------------------------------------------------------
 // Row classification
@@ -27,13 +27,32 @@ export interface ClassifiedRow {
   /** Resolved parent row; null when unresolvable (row is then reclassified as
    *  standalone so its time and value never vanish from the aggregates). */
   parent:   DbSessionMap | null;
-  /** Positive-only drop value. Negative quantities are auction-house
-   *  conversions, not income. */
+  /** Signed drop value (`valueQty`): a negative quantity reduces it. */
   income:   Valuation;
-  /** Entry materials consumed. */
+  /** Entry materials consumed, valued by the same rule. */
   cost:     Valuation;
   /** Active seconds. Excludes paused time — see docs/GAMEPLAY.md. */
   seconds:  number;
+}
+
+/** One primary or standalone row after THE fold (`foldMapRows`) — the only
+ *  place a parent's overlaps are taken back out of it. Every aggregate that
+ *  needs a map's own income reads it from here. */
+export interface FoldedRow {
+  row:            ClassifiedRow;
+  /** The map's own loot: its income less its concurrent overlaps' when the era
+   *  wrote them into it. Unclamped — negative when the overlaps exceed it.
+   *  Zero for a standalone seasonal, whose income is all `bySeasonal`. */
+  ownIncome:      Valuation;
+  /** Every overlap's income (concurrent and interlude), plus a standalone's own. */
+  seasonalIncome: Valuation;
+  bySeasonal:     Partial<Record<MechanicKey, Valuation>>;
+  /** What was subtracted from the row's income to get `ownIncome`. */
+  foldedOut:      Valuation;
+  /** The primary row's own entry cost. */
+  cost:           Valuation;
+  /** ownIncome + seasonalIncome − cost. */
+  net:            Valuation;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +78,9 @@ export interface MechanicStats {
 }
 
 /** Shares are per-leg: switching the page to snapshot values must switch the
- *  percentages with them, or they describe a total that is no longer on screen. */
+ *  percentages with them, or they describe a total that is no longer on screen.
+ *  `value` is signed; `pct` is a share of the positive slices (zero for a
+ *  negative one), so proportional visuals draw positive slices only. */
 export interface SourceSlice {
   source: Source;
   value:  Valuation;
@@ -82,7 +103,7 @@ export interface DroppedItemRow {
   qty:       number;
   unitPrice: Valuation;
   total:     Valuation;
-  /** Share of positive session income, per leg. Negative for conversion rows. */
+  /** Share of the positive item totals, per leg. Negative for conversion rows. */
   pct:       Valuation;
   perHour:   Valuation;
   /** Maps run per unit dropped. Null when qty <= 0 or no maps were run. */
@@ -113,8 +134,9 @@ export interface PerMapPoint {
   /** Bucket of the primary row itself — 'map', or the type for a standalone. */
   mechanic:  MechanicKey;
   seconds:   number;
-  /** Income from the primary row with nested overlap income removed, so the
-   *  segments of a stacked bar sum to the row total exactly once. */
+  /** The fold's `ownIncome`: the primary row with nested overlap income
+   *  removed, so the segments of a stacked bar sum to the row total exactly
+   *  once. Signed — negative when its overlaps recorded more than it. */
   mapIncome:      Valuation;
   seasonalIncome: Valuation;
   bySeasonal:     Partial<Record<MechanicKey, Valuation>>;

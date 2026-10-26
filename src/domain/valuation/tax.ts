@@ -13,9 +13,9 @@ import {mapRawType, type ItemType} from '@/shared/items';
  * policy into historical rows that could never be re-derived.
  *
  * `src/domain/__tests__/tax-coverage.test.ts` pins the list of files allowed to
- * multiply a quantity by a price. If you are adding an eighth valuation site,
- * that test is what will fail — route it through here rather than widening the
- * allowlist without thought.
+ * multiply a quantity by a price. If you are adding a new valuation site, that
+ * test is what will fail — value through `valueQty` / `liveValue` (or here)
+ * rather than widening the allowlist without thought.
  */
 
 /** The auction house's cut. One constant: the checkbox toggles it on and off,
@@ -54,8 +54,8 @@ export function isTaxable(rawType: string | undefined): boolean {
  *
  * `qty` is signed. A negative quantity is an auction-house conversion — the
  * item left the bag and paid out FE — and scaling it by (1 - rate) is correct:
- * that sale really did net 15% less. Nothing is clamped here; whether negatives
- * count as income stays the caller's policy.
+ * that sale really did net 15% less. Nothing is clamped here or anywhere above
+ * it: a negative quantity reduces value (see `valueQty`).
  */
 export function taxedValue(
   qty:     number,

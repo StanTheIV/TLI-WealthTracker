@@ -173,6 +173,12 @@
         "dropsBySourceSumsToDrops": {
           "ok": true
         },
+        "liveMatchesAnalytics": {
+          "ok": true
+        },
+        "mechanicsNetReconciles": {
+          "ok": true
+        },
         "netReconciles": {
           "ok": true
         },

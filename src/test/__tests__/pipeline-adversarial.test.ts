@@ -6,7 +6,10 @@ import {describe, it, expect} from 'vitest';
 import {readFileSync} from 'fs';
 import {join} from 'path';
 import type {SessionAnalytics} from '@/domain/session-analytics';
-import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
+import {NO_TAX} from '@/domain/valuation';
+import type {DbItem, DbSession, DbSessionMap} from '@/shared/contracts/db';
+import type {EngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {ReplayEvent} from '@/replay/replay';
 import {createDispatcher} from '@/worker/create-dispatcher';
 import {pipelineInvariants, runPipeline, serializeGolden, type PipelineResult} from '../pipeline';
 import {GOLDEN_ITEMS} from '../golden/items';
@@ -24,17 +27,36 @@ const row = (over: Partial<DbSessionMap> = {}): DbSessionMap => ({
   seasonalType: null, parentMapIndex: null, phase: null, ...over,
 });
 
-const analytics = (total: number, perMap: number[]): SessionAnalytics => ({
+const analytics = (total: number, perMap: number[], mechanicNets: number[] = []): SessionAnalytics => ({
   totals:    {net: {live: total}},
-  mechanics: [],
+  mechanics: mechanicNets.map(n => ({net: {live: n}})),
   perMap:    perMap.map(n => ({net: {live: n}})),
   meta:      {warnings: []},
 } as unknown as SessionAnalytics);
 
-function result(s: DbSession | null, rows: DbSessionMap[], a: SessionAnalytics | null): PipelineResult {
+/** Priced 1 and 10 FE, untaxed: quantities read as FE (item 2 x10). */
+const ITEMS: Record<string, DbItem> = {
+  '1': {id: '1', name: 'one', type: 'other', price: 1,  priceDate: 0},
+  '2': {id: '2', name: 'two', type: 'other', price: 10, priceDate: 0},
+};
+
+const ev = (event: EngineEvent, at = 0): ReplayEvent => ({event, at, lineNo: null});
+const snap = (drops: Record<number, number>, spent?: Record<number, number>): TrackerSnapshot =>
+  ({kind: 'session', drops, elapsed: 1, active: true, ...(spent && {spent})});
+
+/** The engine's own view of one finished session: what `liveMatchesAnalytics`
+ *  replays through the real store. */
+const liveEvents = (drops: Record<number, number>, spent?: Record<number, number>): ReplayEvent[] => [
+  ev({type: 'tracker_started',  tracker: snap({}), timestamp: 1}),
+  ev({type: 'tracker_finished', tracker: snap(drops, spent), timestamp: 2}),
+];
+
+function result(s: DbSession | null, rows: DbSessionMap[], a: SessionAnalytics | null, events: ReplayEvent[] = []): PipelineResult {
+  // The pipeline owns the price table: `items`/`tax` ride on the result.
   return {
     sessions: [{id: 's', session: s, rows, analytics: a}],
-    events: [], anomalies: [], linesDelivered: 0, firstTs: 1000, lastTs: 2000,
+    events, anomalies: [], linesDelivered: 0, firstTs: 1000, lastTs: 2000,
+    items: ITEMS, tax: NO_TAX,
   };
 }
 
@@ -42,10 +64,16 @@ const inv = (r: PipelineResult) => pipelineInvariants(r).s;
 
 describe('pipelineInvariants on crafted rows', () => {
   it('clean rows pass everything', () => {
-    const r = result(session(), [row({mapIndex: 1}), row({mapIndex: 2}), row({mapIndex: 3, parentMapIndex: 2, seasonalType: 'arcana'})], analytics(5, [2, 3]));
+    const r = result(
+      session(),
+      [row({mapIndex: 1}), row({mapIndex: 2}), row({mapIndex: 3, parentMapIndex: 2, seasonalType: 'arcana'})],
+      analytics(5, [2, 3], [3, 2]),
+      liveEvents({1: 5}),
+    );
     expect(inv(r)).toEqual({
       netReconciles: {ok: true}, dropsBySourceSumsToDrops: {ok: true},
       primaryMapIndexUnique: {ok: true}, overlapHasParent: {ok: true},
+      liveMatchesAnalytics: {ok: true}, mechanicsNetReconciles: {ok: true},
     });
   });
 
@@ -101,6 +129,83 @@ describe('pipelineInvariants on crafted rows', () => {
 
   it('net reconcile with NaN is a failure, not a pass', () => {
     expect(inv(result(session(), [], analytics(1, [NaN]))).netReconciles.ok).toBe(false);
+  });
+
+  describe('mechanicsNetReconciles', () => {
+    const mech = (total: number, nets: number[]) => inv(result(session(), [], analytics(total, [], nets))).mechanicsNetReconciles;
+
+    it('passes when the mechanics nets re-add to totals.net', () => {
+      expect(mech(10, [6, 4])).toEqual({ok: true});
+      expect(mech(-5, [-8, 3])).toEqual({ok: true});
+    });
+
+    it('fails with the signed delta (sum of mechanics - total)', () => {
+      expect(mech(10, [6, 3])).toEqual({ok: false, delta: -1});
+      expect(mech(10, [6, 7])).toEqual({ok: false, delta: 3});
+    });
+
+    it('tolerance: 5e-7 is noise, 2e-6 is a failure', () => {
+      expect(mech(10, [6, 4 + 5e-7])).toEqual({ok: true});
+      const bad = mech(10, [6, 4 - 2e-6]);
+      expect(bad.ok).toBe(false);
+      expect(bad.delta).toBeCloseTo(-2e-6, 12);
+    });
+
+    it('NaN is a failure, not a pass', () => {
+      expect(mech(1, [NaN]).ok).toBe(false);
+    });
+  });
+
+  describe('liveMatchesAnalytics', () => {
+    // Items: '1' = 1 FE, '2' = 10 FE, untaxed. The invariant replays the events
+    // through the REAL engineStore and values its session state (what the
+    // overlay's Total shows) against analytics.totals.net.live.
+    const live = (net: number, events: ReplayEvent[], s = session()) =>
+      inv(result(s, [], analytics(net, []), events)).liveMatchesAnalytics;
+
+    it('passes when the store-driven live net equals analytics net (signed drops, spent)', () => {
+      // loot 100 - 3 x 10 = 70, cost 1 x 10 -> net 60
+      expect(live(60, liveEvents({1: 100, 2: -3}, {2: 1}))).toEqual({ok: true});
+    });
+
+    it('passes with no spent on the final snapshot (cost 0)', () => {
+      expect(live(100, liveEvents({1: 100}))).toEqual({ok: true});
+    });
+
+    it('fails with the delta when the live total and analytics disagree', () => {
+      const bad = live(65, liveEvents({1: 100, 2: -3}, {2: 1}));
+      expect(bad.ok).toBe(false);
+      expect(Math.abs(bad.delta!)).toBeCloseTo(5, 9);
+    });
+
+    it('fails when analytics clamped what the live view did not (the old bug)', () => {
+      // analytics (old clamp) = 100; live signed = 70.
+      const bad = live(100, liveEvents({1: 100, 2: -3}));
+      expect(bad.ok).toBe(false);
+      expect(Math.abs(bad.delta!)).toBeCloseTo(30, 9);
+    });
+
+    it('tolerance: 5e-7 is noise, 2e-6 is a failure', () => {
+      expect(live(60 + 5e-7, liveEvents({1: 100, 2: -3}, {2: 1}))).toEqual({ok: true});
+      const bad = live(60 + 2e-6, liveEvents({1: 100, 2: -3}, {2: 1}));
+      expect(bad.ok).toBe(false);
+      expect(Math.abs(bad.delta!)).toBeCloseTo(2e-6, 12);
+    });
+
+    it('reads the events, not session.drops (which would be tautological)', () => {
+      const s = session({drops: {'1': 999}, spent: {'2': 99}});
+      expect(live(5, liveEvents({1: 5}), s)).toEqual({ok: true});
+    });
+
+    it('follows spent from the last session snapshot, including a tracker_update', () => {
+      const events = [
+        ev({type: 'tracker_started', tracker: snap({}), timestamp: 1}),
+        ev({type: 'drop', itemId: 1, change: 50, timestamp: 2}),
+        ev({type: 'tracker_update',  tracker: snap({1: 50}, {2: 1}), timestamp: 3}),
+        ev({type: 'tracker_update',  tracker: snap({1: 50}, {2: 2}), timestamp: 4}),
+      ];
+      expect(live(30, events)).toEqual({ok: true});   // 50 - 2 x 10
+    });
   });
 
   it('unsaved sessions and null analytics produce no invariants', () => {

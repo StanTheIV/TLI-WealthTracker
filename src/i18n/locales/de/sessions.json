@@ -6,7 +6,7 @@
     "date": "Datum",
     "duration": "Dauer",
     "maps": "Karten",
-    "income": "Einnahmen"
+    "net": "Netto"
   },
   "details": {
     "selectPrompt": "Wähle eine Sitzung aus, um Details anzuzeigen",
@@ -121,7 +121,7 @@
       "time-reconciliation": "Laufzeiten und Sitzungsuhr weichen um {{seconds}}s ab. Prozentwerte sind normalisiert und ergeben weiterhin 100%.",
       "map-count-mismatch": "Die Sitzung zählte {{mapCount}} Karten, gespeichert wurden {{rows}} Kartenzeilen. Eigenständige Saison-Läufe belegen einen Platz, ohne Karten zu sein.",
       "orphan-overlap-row": "Ein Mechanik-Lauf bei #{{mapIndex}} hat seine übergeordnete Karte verloren und wird eigenständig gezählt.",
-      "overlap-exceeds-parent": "Eine Mechanik bei #{{mapIndex}} verzeichnete mehr Wert als ihre Karte. Die Karteneinnahmen werden als null statt negativ angezeigt.",
+      "overlap-exceeds-parent": "Eine Mechanik bei #{{mapIndex}} verzeichnete mehr Wert als ihre Karte, daher sind die eigenen Karteneinnahmen negativ.",
       "nested-exceeds-map-time": "Mechaniken in Karten ergeben {{nestedSeconds}}s gegenüber {{mapSeconds}}s Kartenzeit.",
       "unknown-seasonal-type": "Ein Mechanik-Lauf bei #{{mapIndex}} hat keinen erfassten Typ und wird unter Unbekannt gruppiert."
     },

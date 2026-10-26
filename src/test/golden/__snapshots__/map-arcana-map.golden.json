@@ -78,8 +78,8 @@
         "mechanics": [
           {
             "avgPerRun": {
-              "live": 213.346538,
-              "snapshot": 213.346538
+              "live": 205.758097,
+              "snapshot": 205.758097
             },
             "avgSeconds": 100,
             "cost": {
@@ -87,25 +87,25 @@
               "snapshot": 7.588441
             },
             "fePerHour": {
-              "live": 7680.475368,
-              "snapshot": 7680.475368
+              "live": 7407.291492,
+              "snapshot": 7407.291492
             },
             "income": {
-              "live": 220.934979,
-              "snapshot": 220.934979
+              "live": 213.346538,
+              "snapshot": 213.346538
             },
             "key": "map",
             "nestedInMap": false,
             "net": {
-              "live": 213.346538,
-              "snapshot": 213.346538
+              "live": 205.758097,
+              "snapshot": 205.758097
             },
             "runs": 1,
             "seconds": 100,
             "timePct": 19.083969,
             "valuePct": {
-              "live": 80.203656,
-              "snapshot": 80.203656
+              "live": 79.642868,
+              "snapshot": 79.642868
             }
           },
           {
@@ -136,8 +136,8 @@
             "seconds": 31.25,
             "timePct": 5.96374,
             "valuePct": {
-              "live": 3.679777,
-              "snapshot": 3.679777
+              "live": 3.784017,
+              "snapshot": 3.784017
             }
           },
           {
@@ -168,8 +168,8 @@
             "seconds": 268.5,
             "timePct": 51.240458,
             "valuePct": {
-              "live": 16.116567,
-              "snapshot": 16.116567
+              "live": 16.573115,
+              "snapshot": 16.573115
             }
           },
           {
@@ -292,6 +292,12 @@
       "id": "replay-1",
       "invariants": {
         "dropsBySourceSumsToDrops": {
+          "ok": true
+        },
+        "liveMatchesAnalytics": {
+          "ok": true
+        },
+        "mechanicsNetReconciles": {
           "ok": true
         },
         "netReconciles": {

@@ -4,7 +4,7 @@ import {PackageOpen, ChevronDown} from 'lucide-react';
 import {useEngineStore} from '@/state/engineStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useSettingsStore, useTaxConfig} from '@/state/settingsStore';
-import {taxedValue} from '@/domain/valuation';
+import {liveValue} from '@/domain/valuation';
 import {useTrackerElapsed} from '@/hooks/useTrackerElapsed';
 import {useLootWindowCountdown} from '@/hooks/useLootWindowCountdown';
 import {useAnimatedPresence} from '@/hooks/useAnimatedPresence';
@@ -34,15 +34,13 @@ function formatAvgPerMap(ms: number): string {
   return `${m}:${pad(s)}`;
 }
 
-function useTotalFE(drops: Record<number, number>): number {
+const EMPTY: Record<number, number> = {};
+
+/** A tracker's live loot / cost / net, by the analytics valuation rule. */
+function useLiveValue(drops: Record<number, number>, spent: Record<number, number> = EMPTY) {
   const items = useItemsStore(s => s.items);
   const tax   = useTaxConfig();
-  return useMemo(() => {
-    return Object.entries(drops).reduce((sum, [id, qty]) => {
-      const item = items[id];
-      return sum + taxedValue(qty, item?.price ?? 0, item?.type, tax);
-    }, 0);
-  }, [drops, items, tax]);
+  return useMemo(() => liveValue({drops, spent}, items, tax), [drops, spent, items, tax]);
 }
 
 // -----------------------------------------------------------------------
@@ -72,7 +70,8 @@ function SeasonalRow({type, snapshot, receivedAt, lootDeadline, isRunning, isPau
   // frozen at the pause point.
   const running       = isRunning && snapshot.active !== false;
   const elapsed       = useTrackerElapsed(snapshot.elapsed, receivedAt, running);
-  const fe            = useTotalFE(snapshot.drops);
+  // Seasonal rows carry no cost: entry materials belong to the map they opened.
+  const fe            = useLiveValue(snapshot.drops).loot;
   const countdownSec  = useLootWindowCountdown(lootDeadline);
   const presence      = useAnimatedPresence(true); // mounted ⇒ visible; unmount handles exit
 
@@ -119,6 +118,7 @@ export default function TrackerPanel() {
   const mapTracker                = useEngineStore(s => s.mapTracker);
   const seasonalTrackers          = useEngineStore(s => s.seasonalTrackers);
   const sessionDrops              = useEngineStore(s => s.drops);
+  const sessionSpent              = useEngineStore(s => s.sessionSpent);
   const mapTrackerReceivedAt      = useEngineStore(s => s.mapTrackerReceivedAt);
   const seasonalTrackersReceivedAt= useEngineStore(s => s.seasonalTrackersReceivedAt);
   const mapCount                  = useEngineStore(s => s.mapCount);
@@ -154,11 +154,14 @@ export default function TrackerPanel() {
   const elapsedMs  = useTrackerElapsed(sessionElapsed, sessionReceivedAt, isRunning);
   const mapElapsed = useTrackerElapsed(lastMapRef.current?.elapsed ?? 0, mapTrackerReceivedAt, isRunning && !mapIsPaused);
 
-  const sessionFE  = useTotalFE(sessionDrops);
-  const mapFE      = useTotalFE(lastMapRef.current?.drops ?? {});
+  // Total and Map show NET (loot − entry cost), so per-hour follows as net/h.
+  const lastMap    = lastMapRef.current;
+  const sessionFE  = useLiveValue(sessionDrops, sessionSpent).net;
+  const mapFE      = useLiveValue(lastMap?.drops ?? EMPTY, lastMap?.spent).net;
 
   const [tableOpen, setTableOpen] = useState(false);
-  const tableDrops = mapTracker ? (lastMapRef.current?.drops ?? {}) : sessionDrops;
+  const tableDrops = mapTracker ? (lastMap?.drops ?? EMPTY) : sessionDrops;
+  const tableSpent = mapTracker ? (lastMap?.spent ?? EMPTY) : sessionSpent;
 
   // Total-row badge: "#N · M:SS avg" where avg = (accumulatedMapTime + active
   // map's live elapsed) / mapCount. Active-map time is added only while still
@@ -259,7 +262,7 @@ export default function TrackerPanel() {
           className="rounded-md mx-2.5 mb-2.5 px-2 pt-2 overflow-y-auto max-h-72"
           style={{backgroundColor: 'color-mix(in srgb, var(--color-surface-elevated) calc(var(--card-opacity, 1) * 100%), transparent)'}}
         >
-          <DropTable drops={tableDrops} />
+          <DropTable drops={tableDrops} spent={tableSpent} />
         </div>
       )}
     </div>

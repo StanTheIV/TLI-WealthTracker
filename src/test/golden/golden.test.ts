@@ -13,7 +13,7 @@ import {readFileSync} from 'fs';
 import {join} from 'path';
 import {describe, expect, it} from 'vitest';
 import type {DbSessionMap} from '@/shared/contracts/db';
-import {runPipeline, serializeGolden, type PipelineResult} from '../pipeline';
+import {pipelineInvariants, runPipeline, serializeGolden, type PipelineResult} from '../pipeline';
 import {GOLDEN_ITEMS} from './items';
 import {SYNTHETIC_FIXTURES} from './synthetic';
 
@@ -67,6 +67,17 @@ describe('golden masters', () => {
     expect(events.filter(e => e.event.type === 'new_item')).toEqual([]);
     const zones = events.flatMap(e => (e.event.type === 'zone_change' ? [e.event.entering] : []));
     expect(zones.at(-1)).toBe('town');
+  });
+});
+
+describe('golden accounting invariants', () => {
+  it.each(SCENARIOS)('%s: live overlay value and mechanics both reconcile with analytics', async (name) => {
+    const invariants = Object.values(pipelineInvariants(await result(name)));
+    expect(invariants.length).toBeGreaterThan(0);
+    for (const inv of invariants) {
+      expect(inv.liveMatchesAnalytics).toEqual({ok: true});
+      expect(inv.mechanicsNetReconciles).toEqual({ok: true});
+    }
   });
 });
 

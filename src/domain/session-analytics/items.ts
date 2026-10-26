@@ -3,9 +3,9 @@ import type {Source} from '@/shared/contracts/engine';
 import type {ItemType} from '@/shared/items';
 import {ITEM_TYPES, mapRawType} from '@/shared/items';
 import type {
-  ClassifiedRow, ConsumedItemRow, DroppedItemRow, PriceLookup, SourceSlice, TypeSlice, Valuation,
+  ClassifiedRow, ConsumedItemRow, DroppedItemRow, FoldedRow, PriceLookup, SourceSlice, TypeSlice, Valuation,
 } from './types';
-import {ZERO_VAL, addVal, clampVal, perHour, scaleVal, sharePct} from '@/domain/valuation';
+import {ZERO_VAL, addVal, clampVal, isZeroVal, perHour, sharePct, valueItem, valueQty} from '@/domain/valuation';
 
 function nameOf(items: Record<string, DbItem>, id: string): {name: string; known: boolean} {
   const item = items[id];
@@ -17,10 +17,6 @@ function nameOf(items: Record<string, DbItem>, id: string): {name: string; known
  *  import, which a bare cast would bucket as its own bogus type. */
 function typeOf(items: Record<string, DbItem>, id: string): ItemType {
   return mapRawType(items[id]?.type);
-}
-
-function valueOne(prices: PriceLookup, id: string, qty: number): Valuation {
-  return {snapshot: qty * prices.snapshot(id), live: qty * prices.live(id)};
 }
 
 /** Winning source for one item, by quantity. Null for legacy sessions, whose
@@ -45,22 +41,22 @@ export function computeDropped(
   prices: PriceLookup,
   totalSeconds: number,
 ): DroppedItemRow[] {
-  const entries = Object.entries(session.drops ?? {});
-  const positiveTotal = entries.reduce(
-    (sum, [id, qty]) => (qty > 0 ? addVal(sum, valueOne(prices, id, qty)) : sum), ZERO_VAL,
-  );
+  const rows = Object.entries(session.drops ?? {})
+    .map(([itemId, qty]) => ({itemId, qty, total: valueItem(prices, itemId, qty)}));
+  // Shares are of the positive parts, so a conversion row reads as a negative
+  // share rather than inflating everything else's.
+  const positiveTotal = rows.reduce((sum, r) => addVal(sum, clampVal(r.total)), ZERO_VAL);
 
-  return entries
-    .map(([itemId, qty]) => {
+  return rows
+    .map(({itemId, qty, total}) => {
       const {name, known} = nameOf(items, itemId);
-      const total = valueOne(prices, itemId, qty);
       return {
         itemId,
         name,
         known,
         type:      typeOf(items, itemId),
         qty,
-        unitPrice: valueOne(prices, itemId, 1),
+        unitPrice: valueItem(prices, itemId, 1),
         total,
         pct:       sharePct(total, positiveTotal),
         perHour:   perHour(total, totalSeconds),
@@ -72,45 +68,40 @@ export function computeDropped(
     .sort((a, b) => b.total.live - a.total.live);
 }
 
-/** Consumed-material table, unioned across every run's `spent`. */
+/** Consumed-material table. Quantities and the grand total come from
+ *  `session.spent`, the same authority as `totals.cost`, so the table always
+ *  re-adds to the cost tile; the rows only say how many runs used each item. */
 export function computeConsumed(
+  session: DbSession,
   classified: ClassifiedRow[],
   items: Record<string, DbItem>,
   prices: PriceLookup,
-  mapCount: number,
 ): ConsumedItemRow[] {
-  const qtyById   = new Map<string, number>();
-  const runsById  = new Map<string, number>();
-
+  const runsById = new Map<string, number>();
   for (const c of classified) {
     for (const [id, qty] of Object.entries(c.row.spent ?? {})) {
-      // Costs are positive magnitudes; a negative would be a refund the cost
-      // valuator already clamps away, so skip it rather than net it off here
-      // and disagree with totals.cost.
-      if (qty <= 0) continue;
-      qtyById.set(id, (qtyById.get(id) ?? 0) + qty);
-      runsById.set(id, (runsById.get(id) ?? 0) + 1);
+      if (qty > 0) runsById.set(id, (runsById.get(id) ?? 0) + 1);
     }
   }
 
-  const grandTotal = [...qtyById].reduce(
-    (sum, [id, qty]) => addVal(sum, valueOne(prices, id, qty)), ZERO_VAL,
-  );
+  const rows = Object.entries(session.spent ?? {})
+    .filter(([, qty]) => qty !== 0)
+    .map(([itemId, qty]) => ({itemId, qty, total: valueItem(prices, itemId, qty)}));
+  const positiveTotal = rows.reduce((sum, r) => addVal(sum, clampVal(r.total)), ZERO_VAL);
 
-  return [...qtyById]
-    .map(([itemId, qty]) => {
+  return rows
+    .map(({itemId, qty, total}) => {
       const {name, known} = nameOf(items, itemId);
-      const total = valueOne(prices, itemId, qty);
       return {
         itemId,
         name,
         known,
         type:      typeOf(items, itemId),
         qty,
-        unitPrice: valueOne(prices, itemId, 1),
+        unitPrice: valueItem(prices, itemId, 1),
         total,
-        pct:       sharePct(total, grandTotal),
-        perMap:    mapCount > 0 ? qty / mapCount : null,
+        pct:       sharePct(total, positiveTotal),
+        perMap:    session.mapCount > 0 ? qty / session.mapCount : null,
         runsUsing: runsById.get(itemId) ?? 0,
         snapshotMissing: prices.isMissing(itemId),
       };
@@ -118,7 +109,8 @@ export function computeConsumed(
     .sort((a, b) => b.total.live - a.total.live);
 }
 
-/** Value split by item type. Negative quantities are conversions, not income. */
+/** Value split by item type, signed: a type the session net-consumed carries
+ *  its negative value. */
 export function computeByType(
   session: DbSession,
   items: Record<string, DbItem>,
@@ -126,65 +118,52 @@ export function computeByType(
 ): TypeSlice[] {
   const totals = new Map<ItemType, Valuation>();
   for (const [id, qty] of Object.entries(session.drops ?? {})) {
-    if (qty <= 0) continue;
     const type = typeOf(items, id);
-    totals.set(type, addVal(totals.get(type) ?? ZERO_VAL, valueOne(prices, id, qty)));
+    totals.set(type, addVal(totals.get(type) ?? ZERO_VAL, valueItem(prices, id, qty)));
   }
+  return slicesOf(ITEM_TYPES.filter(type => totals.has(type)).map(type => [type, totals.get(type)!] as const))
+    .map(({key, value, pct}) => ({type: key, value, pct}));
+}
 
-  const grand = [...totals.values()].reduce((s, v) => addVal(s, v), ZERO_VAL);
-  if (grand.live <= 0 && grand.snapshot <= 0) return [];
-
-  return ITEM_TYPES
-    .filter(type => (totals.get(type)?.live ?? 0) > 0)
-    .map(type => {
-      const value = totals.get(type)!;
-      return {type, value, pct: sharePct(value, grand)};
-    })
+/** Non-zero slices with their signed value, largest first. Shares are of the
+ *  positive slices only, so a negative slice stays in the data (never shown as
+ *  positive) while proportional visuals skip it. */
+function slicesOf<K>(entries: ReadonlyArray<readonly [K, Valuation]>): {key: K; value: Valuation; pct: Valuation}[] {
+  const positive = entries.reduce((s, [, v]) => addVal(s, clampVal(v)), ZERO_VAL);
+  return entries
+    .filter(([, value]) => !isZeroVal(value))
+    .map(([key, value]) => ({key, value, pct: sharePct(clampVal(value), positive)}))
     .sort((a, b) => b.value.live - a.value.live);
 }
 
 /** Prefers `dropsBySource`, where each drop is booked to exactly one owner so
- *  slices sum to session FE in every era. The legacy per-row fallback is sound
- *  only because that era ran one seasonal at a time. */
+ *  slices sum to session FE in every era. The legacy per-row fallback reads the
+ *  fold — a map's own income is whatever the fold left it — and is sound only
+ *  because that era ran one seasonal at a time. */
 export function computeBySource(
   session: DbSession,
-  classified: ClassifiedRow[],
+  folded: FoldedRow[],
   prices: PriceLookup,
 ): {slices: SourceSlice[]; legacy: boolean} {
   const totals = new Map<Source, Valuation>();
-  const byRow  = Object.keys(session.dropsBySource ?? {}).length === 0;
+  const add = (source: Source, v: Valuation) => totals.set(source, addVal(totals.get(source) ?? ZERO_VAL, v));
+  const legacy = Object.keys(session.dropsBySource ?? {}).length === 0;
 
-  if (!byRow) {
+  if (!legacy) {
     for (const [source, bucket] of Object.entries(session.dropsBySource)) {
-      let acc = ZERO_VAL;
-      for (const [id, qty] of Object.entries(bucket ?? {})) {
-        if (qty > 0) acc = addVal(acc, valueOne(prices, id, qty));
-      }
-      totals.set(source as Source, addVal(totals.get(source as Source) ?? ZERO_VAL, acc));
+      add(source as Source, valueQty(bucket ?? {}, prices));
     }
   } else {
-    for (const c of classified) {
-      const source = (c.row.seasonalType ?? 'map') as Source;
-      totals.set(source, addVal(totals.get(source) ?? ZERO_VAL, c.income));
-      // Only concurrent overlaps dropped through into the parent row, so only
-      // they may be subtracted from it — same gate as computeMechanics.
-      if (c.kind === 'overlap-seasonal' && c.concurrentWithMap) {
-        totals.set('map', addVal(totals.get('map') ?? ZERO_VAL, scaleVal(c.income, -1)));
+    for (const f of folded) {
+      if (f.row.kind === 'map') add('map', f.ownIncome);
+      // An overlap with no seasonal type has no source of its own; it stays
+      // with the map it ran in, as it always did here.
+      for (const [mechanic, value] of Object.entries(f.bySeasonal)) {
+        add((mechanic === 'unknown' ? 'map' : mechanic) as Source, value!);
       }
     }
-    // A legacy row set can subtract past zero. Clamp so the map's own income
-    // isn't silently deleted from the breakdown.
-    const mapTotal = totals.get('map') ?? ZERO_VAL;
-    totals.set('map', clampVal(mapTotal));
   }
 
-  const grand = [...totals.values()].reduce((s, v) => addVal(s, clampVal(v)), ZERO_VAL);
-  if (grand.live <= 0 && grand.snapshot <= 0) return {slices: [], legacy: byRow};
-
-  const slices = [...totals]
-    .filter(([, value]) => value.live > 0)
-    .map(([source, value]) => ({source, value, pct: sharePct(value, grand)}))
-    .sort((a, b) => b.value.live - a.value.live);
-
-  return {slices, legacy: byRow};
+  const slices = slicesOf([...totals]).map(({key, value, pct}) => ({source: key, value, pct}));
+  return {slices, legacy};
 }

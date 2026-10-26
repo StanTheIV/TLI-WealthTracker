@@ -1,12 +1,12 @@
 import type {DbItem, DbSession, DbSessionMap} from '@/shared/contracts/db';
 import type {AnalyticsWarning, SessionAnalytics, SessionTotals} from './types';
-import {classifyRows} from './attribution';
+import {classifyRows, foldMapRows} from './attribution';
 import {computeBySource, computeByType, computeConsumed, computeDropped} from './items';
 import {computeMechanics} from './mechanics';
 import {computeMapNetStats, computePerMap} from './perMap';
 import {computeTimeline} from './timeline';
 import {
-  ZERO_VAL, addVal, driftPct, makePriceLookup, makeValuator, perHour, ratio, scaleVal, subVal, type TaxConfig,
+  driftPct, makePriceLookup, perHour, ratio, scaleVal, subVal, valueQty, type TaxConfig,
 } from '@/domain/valuation';
 
 export * from './types';
@@ -22,33 +22,37 @@ export interface SessionAnalyticsInput {
   tax:     TaxConfig;
 }
 
-/** Every section reads from one result, so no two can disagree about how a row
- *  was classified. */
+/** Every section reads from one classification and one fold, so no two can
+ *  disagree about how a row was classified or what a map earned on its own. */
 export function computeSessionAnalytics({session, maps, items, tax}: SessionAnalyticsInput): SessionAnalytics {
   const warnings: AnalyticsWarning[] = [];
-  const prices    = makePriceLookup(items, session.priceSnapshot, tax, Object.keys(session.drops ?? {}));
-  const valIncome = makeValuator(prices, {clampNegative: true});
+  const drops  = session.drops ?? {};
+  const spent  = session.spent ?? {};
+  const prices = makePriceLookup(
+    items, session.priceSnapshot, tax, new Set([...Object.keys(drops), ...Object.keys(spent)]),
+  );
 
-  const classified = classifyRows(maps, valIncome, warnings);
-  const mech       = computeMechanics(session, classified, warnings);
-  const perMap     = computePerMap(session, classified);
+  const classified = classifyRows(maps, prices, warnings);
+  const folded     = foldMapRows(classified, session.attribution, warnings);
+  const mech       = computeMechanics(session, classified, folded, warnings);
+  const perMap     = computePerMap(folded);
 
   const primaryMapRows = classified.filter(c => c.kind === 'map');
   if (session.mapCount !== primaryMapRows.length) {
     warnings.push({code: 'map-count-mismatch', mapCount: session.mapCount, rows: primaryMapRows.length});
   }
 
-  // Session income comes from `session.drops`, the independent session-tier
-  // accumulator — not a sum over rows, which would inherit each era's overlap
-  // semantics. Cost has no such umbrella and must be summed from the rows.
-  const income = valIncome(session.drops ?? {});
-  const cost   = classified.reduce((acc, c) => addVal(acc, c.cost), ZERO_VAL);
+  // Income and cost both come from the session tier's own accumulators
+  // (`session.drops`, `session.spent`) — not sums over rows, which would
+  // inherit each era's overlap semantics and miss a map still in flight at stop.
+  const income = valueQty(drops, prices);
+  const cost   = valueQty(spent, prices);
   const net    = subVal(income, cost);
 
-  const {slices: bySource, legacy: legacyBySource} = computeBySource(session, classified, prices);
+  const {slices: bySource, legacy: legacyBySource} = computeBySource(session, folded, prices);
   const costPerMap = session.mapCount > 0 ? scaleVal(cost, 1 / session.mapCount) : null;
 
-  const dropEntries = Object.entries(session.drops ?? {});
+  const dropEntries = Object.entries(drops);
 
   const totals: SessionTotals = {
     totalSeconds:    session.totalTime,
@@ -92,7 +96,7 @@ export function computeSessionAnalytics({session, maps, items, tax}: SessionAnal
     perMap,
     mapNetStats: computeMapNetStats(perMap),
     dropped:     computeDropped(session, items, prices, session.totalTime),
-    consumed:    computeConsumed(classified, items, prices, session.mapCount),
+    consumed:    computeConsumed(session, classified, items, prices),
     timeline:    computeTimeline(classified),
   };
 }

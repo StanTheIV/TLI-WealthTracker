@@ -7,9 +7,11 @@ import {describe, it, expect} from 'vitest';
  *
  * Every FE figure the app displays must be valued through the tax module
  * (`domain/valuation/tax.ts`, imported via `@/domain/valuation`). Nothing
- * in the type system enforces that — `makePriceLookup` has only three callers,
- * so the sites that multiply `qty * price` inline stay green while showing
- * untaxed values. This test is the guard that catches them.
+ * in the type system enforces that — a site that multiplies `qty * price`
+ * inline stays green while showing untaxed values. This test is the guard that
+ * catches them. Session and live loot alike are valued by `valueQty` /
+ * `valueItem` / `liveValue` over a taxed `PriceLookup`, so the renderer has no
+ * multiplication site of its own.
  *
  * It is a tripwire, not a proof: a rewrite to `price * qty`, a destructured
  * intermediate or a helper function would slip past the regex. Its job is to
@@ -24,11 +26,8 @@ const TAX_MODULE = 'domain/valuation/tax.ts';
  *  exclusions below must import the tax module. */
 const VALUATION_SITES = [
   TAX_MODULE,
+  // The one valuation rule — every analytics and overlay figure is built on it.
   'domain/valuation/value.ts',
-  'domain/session-analytics/items.ts',
-  'components/Dashboard/TrackerPanel.tsx',
-  'components/Dashboard/DropTable.tsx',
-  'components/Sessions/SessionsTable.tsx',
   // Persists GROSS values on purpose — net is derived at read time, so that a
   // toggle rescales the whole wealth history instead of stepping it.
   'main/wealth-recorder.ts',
@@ -39,14 +38,11 @@ const VALUATION_SITES = [
 /** Sites that must apply the tax themselves. Excluded:
  *   - `domain/valuation/tax.ts` — it IS the module.
  *   - `main/wealth-recorder.ts` — persists gross on purpose.
- *   - `replay/report.ts` — gross diagnostics for the replay CLI.
- *   - `session-analytics/items.ts` — values through the `PriceLookup` it is handed, so
- *     the prices reach it already taxed and importing the module would be wrong. */
+ *   - `replay/report.ts` — gross diagnostics for the replay CLI. */
 const MUST_IMPORT_TAX = VALUATION_SITES.filter(f => ![
   TAX_MODULE,
   'main/wealth-recorder.ts',
   'replay/report.ts',
-  'domain/session-analytics/items.ts',
 ].includes(f));
 
 /** Reads the stored wealth breakdown, which holds a pre-computed gross total.

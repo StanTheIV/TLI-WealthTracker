@@ -6,7 +6,7 @@
     "date": "Date",
     "duration": "Duration",
     "maps": "Maps",
-    "income": "Income"
+    "net": "Net"
   },
   "details": {
     "selectPrompt": "Select a session to view details",
@@ -121,7 +121,7 @@
       "time-reconciliation": "Run timings and the session clock differ by {{seconds}}s. Percentages are normalised so they still total 100%.",
       "map-count-mismatch": "The session counted {{mapCount}} maps but {{rows}} map rows were saved. Standalone seasonal runs take a slot without being maps.",
       "orphan-overlap-row": "A mechanic run at #{{mapIndex}} lost its parent map and is counted on its own.",
-      "overlap-exceeds-parent": "A mechanic at #{{mapIndex}} recorded more value than its map. Map income is shown as zero rather than negative.",
+      "overlap-exceeds-parent": "A mechanic at #{{mapIndex}} recorded more value than its map, so the map's own income is negative.",
       "nested-exceeds-map-time": "Mechanics inside maps total {{nestedSeconds}}s against {{mapSeconds}}s of map time.",
       "unknown-seasonal-type": "A mechanic run at #{{mapIndex}} has no recorded type and is grouped under Unknown."
     },

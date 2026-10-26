@@ -9,9 +9,11 @@
  * other phase, the in-map coin tile, IS concurrent while sharing its bucket.
  */
 import {beforeEach, describe, expect, it} from 'vitest';
-import {classifyRows} from '../attribution';
+import * as Attribution from '../attribution';
+import {classifyRows, foldMapRows} from '../attribution';
+import {computeSessionAnalytics} from '../index';
 import {computeMechanics} from '../mechanics';
-import {NO_TAX, makePriceLookup, makeValuator} from '@/domain/valuation';
+import {NO_TAX, makePriceLookup} from '@/domain/valuation';
 import type {AnalyticsWarning, MechanicKey} from '../types';
 import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
 import {makeItems, makeSession, mapRow, overlapRow, resetRowIndex, standaloneRow} from './fixtures';
@@ -24,9 +26,9 @@ function run(session: DbSession, maps: DbSessionMap[]) {
   // Untaxed: these assert time attribution and raw FE, so the tax would only
   // scale every expectation by 0.85. Tax itself is covered in analytics.test.ts.
   const prices   = makePriceLookup(ITEMS, session.priceSnapshot, NO_TAX);
-  const income   = makeValuator(prices, {clampNegative: true});
-  const rows     = classifyRows(maps, income, warnings);
-  const result   = computeMechanics(session, rows, warnings);
+  const rows     = classifyRows(maps, prices, warnings);
+  const folded   = foldMapRows(rows, session.attribution, warnings);
+  const result   = computeMechanics(session, rows, folded, warnings);
   const seconds  = (key: MechanicKey) => result.mechanics.find(m => m.key === key)?.seconds ?? 0;
   const live     = (key: MechanicKey) => result.mechanics.find(m => m.key === key)?.income.live ?? 0;
   const pctSum   = result.mechanics.reduce((s, m) => s + m.timePct, 0);
@@ -244,23 +246,25 @@ describe('value attribution across eras', () => {
     expect(exclusive).toBe(100);
   });
 
-  it('clamps and warns when an overlap claims more than its parent holds', () => {
+  // FLIPPED: was 'clamps and warns...' (map own income clamped to 0).
+  it('does not clamp when an overlap claims more than its parent holds: own income is negative, and warns', () => {
     const {live, warnings} = run(
       makeSession({attribution: 'drop-through'}),
       [mapRow(300, {'1': 10}), overlapRow('lunaria', 60, 1, {'1': 30})],
     );
 
-    expect(live('map')).toBe(0);
+    expect(live('map')).toBe(-20);
     expect(live('lunaria')).toBe(30);
     expect(warnings.some(w => w.code === 'overlap-exceeds-parent')).toBe(true);
   });
 
-  it('excludes negative quantities from income (auction-house conversions)', () => {
+  // FLIPPED: was 'excludes negative quantities from income' (expected 100).
+  it('counts negative quantities against income: 100 - 5 x 10 = 50', () => {
     const {live} = run(
       makeSession(),
       [mapRow(300, {'1': 100, '2': -5})],
     );
-    expect(live('map')).toBe(100);
+    expect(live('map')).toBe(50);
   });
 
   it('sums multiple overlaps on one parent', () => {
@@ -323,11 +327,159 @@ describe('row classification fallbacks', () => {
     const prices = makePriceLookup(ITEMS, {}, NO_TAX);
     const rows = classifyRows(
       [mapRow(300, {'1': 100}), {...overlapRow('lunaria', 60, 1, {'1': 20}), seasonalType: null}],
-      makeValuator(prices, {clampNegative: true}),
+      prices,
       warnings,
     );
 
     expect(rows[1].mechanic).toBe('unknown');
     expect(warnings.some(w => w.code === 'unknown-seasonal-type')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// One signed valuation rule + one fold (step 1.3). These go through the public
+// computeSessionAnalytics so they do not depend on the internal helper wiring.
+// ---------------------------------------------------------------------------
+describe('one fold, signed values (computeSessionAnalytics)', () => {
+  const analyze = (session: DbSession, maps: DbSessionMap[]) =>
+    computeSessionAnalytics({session, maps, items: ITEMS, tax: NO_TAX});
+  const mech = (a: ReturnType<typeof analyze>, key: MechanicKey) => a.mechanics.find(m => m.key === key)!;
+  const overlapWarnings = (a: ReturnType<typeof analyze>) =>
+    a.meta.warnings.filter(w => w.code === 'overlap-exceeds-parent');
+
+  it('exports foldMapRows from attribution', () => {
+    expect(typeof (Attribution as Record<string, unknown>).foldMapRows).toBe('function');
+  });
+
+  it('drop-through: map income is own loot (70), cost is not added back, mechanics net sums to totals.net', () => {
+    // The map row's drops hold the lunaria 30 (drop-through); its cost lives on
+    // the row's `spent`, never in drops, so there is nothing to add back.
+    const a = analyze(
+      makeSession({drops: {'1': 100}, spent: {'2': 1}}),
+      [mapRow(300, {'1': 100}, {'2': 1}), overlapRow('lunaria', 60, 1, {'1': 30})],
+    );
+
+    const map = mech(a, 'map');
+    expect(map.income).toEqual({snapshot: 70, live: 70});   // NOT 80
+    expect(map.cost).toEqual({snapshot: 10, live: 10});
+    expect(map.net).toEqual({snapshot: 60, live: 60});
+    expect(mech(a, 'lunaria').income.live).toBe(30);
+    expect(mech(a, 'lunaria').net.live).toBe(30);
+
+    expect(a.totals.income.live).toBe(100);
+    expect(a.totals.cost.live).toBe(10);
+    expect(a.totals.net.live).toBe(90);
+    expect(a.mechanics.reduce((s, m) => s + m.net.live, 0)).toBe(90);
+    expect(a.mechanics.reduce((s, m) => s + m.net.snapshot, 0)).toBe(90);
+    expect(a.perMap[0].mapIncome.live).toBe(70);
+    expect(a.perMap[0].net.live).toBe(90);
+    expect(overlapWarnings(a)).toHaveLength(0);
+  });
+
+  it('exclusive era (parent already holds only its own 70) gives the same numbers', () => {
+    const a = analyze(
+      makeSession({attribution: 'exclusive', drops: {'1': 100}, spent: {'2': 1}}),
+      [mapRow(300, {'1': 70}, {'2': 1}), overlapRow('lunaria', 60, 1, {'1': 30})],
+    );
+
+    expect(mech(a, 'map').income.live).toBe(70);
+    expect(mech(a, 'map').cost.live).toBe(10);
+    expect(mech(a, 'map').net.live).toBe(60);
+    expect(mech(a, 'lunaria').income.live).toBe(30);
+    expect(a.totals.net.live).toBe(90);
+    expect(a.mechanics.reduce((s, m) => s + m.net.live, 0)).toBe(90);
+    expect(a.perMap[0].net.live).toBe(90);
+    expect(overlapWarnings(a)).toHaveLength(0);
+  });
+
+  it('mechanics map income equals perMap mapIncome (one fold, no second one)', () => {
+    const a = analyze(
+      makeSession({drops: {'1': 230}, spent: {'2': 2}, mapCount: 2}),
+      [
+        mapRow(300, {'1': 100}, {'2': 1}), overlapRow('lunaria', 60, 1, {'1': 30}),
+        mapRow(300, {'1': 130}, {'2': 1}), overlapRow('hunting', 60, 2, {'1': 50}),
+      ],
+    );
+    const perMapIncome = a.perMap.reduce((s, p) => s + p.mapIncome.live, 0);
+    expect(perMapIncome).toBe(150);
+    expect(mech(a, 'map').income.live).toBe(perMapIncome);
+  });
+
+  it('overlap > parent: own income is negative on both legs (not clamped), exactly one warning', () => {
+    const a = analyze(
+      makeSession({drops: {'1': 10}, spent: {}}),
+      [mapRow(300, {'1': 10}), overlapRow('lunaria', 60, 1, {'1': 30})],
+    );
+
+    expect(mech(a, 'map').income).toEqual({snapshot: -20, live: -20});
+    expect(a.perMap[0].mapIncome).toEqual({snapshot: -20, live: -20});
+    expect(mech(a, 'lunaria').income.live).toBe(30);
+    // The fold is computed once; mechanics + perMap must not each warn.
+    expect(overlapWarnings(a)).toHaveLength(1);
+    expect(overlapWarnings(a)[0]).toMatchObject({mapIndex: 1});
+  });
+
+  it('an item both spent and looted: income 100, cost 20, net 80 (everywhere)', () => {
+    const a = analyze(
+      makeSession({drops: {'1': 100}, spent: {'1': 20}}),
+      [mapRow(300, {'1': 100}, {'1': 20})],
+    );
+
+    const map = mech(a, 'map');
+    expect(map.income.live).toBe(100);
+    expect(map.cost.live).toBe(20);
+    expect(map.net.live).toBe(80);
+    expect(a.perMap[0].net.live).toBe(80);
+    expect(a.totals.income.live).toBe(100);
+    expect(a.totals.cost.live).toBe(20);
+    expect(a.totals.net.live).toBe(80);
+  });
+
+  it('negative drops reduce income to 70 in mechanics, perMap, totals and byType', () => {
+    const a = analyze(
+      makeSession({drops: {'1': 100, '2': -3}}),
+      [mapRow(300, {'1': 100, '2': -3})],
+    );
+
+    expect(mech(a, 'map').income.live).toBe(70);
+    expect(a.perMap[0].mapIncome.live).toBe(70);
+    expect(a.totals.income.live).toBe(70);
+    expect(a.totals.net.live).toBe(70);
+    expect(a.byType).toHaveLength(1);
+    expect(a.byType[0].value.live).toBe(70);
+  });
+
+  it('a negative overlap drop adds back to the parent fold (signed, concurrent)', () => {
+    // lunaria nets 30 - 5 x 10 = -20; the parent row held 100 incl. that -20.
+    const a = analyze(
+      makeSession({drops: {'1': 100}}),
+      [mapRow(300, {'1': 100}), overlapRow('lunaria', 60, 1, {'1': 30, '2': -5})],
+    );
+    expect(mech(a, 'lunaria').income.live).toBe(-20);
+    expect(mech(a, 'map').income.live).toBe(120);
+    expect(a.mechanics.reduce((s, m) => s + m.income.live, 0)).toBe(100);
+  });
+
+  it('a standalone seasonal keeps its income in its mechanic and contributes 0 own map income', () => {
+    const a = analyze(
+      makeSession({drops: {'1': 140}, spent: {'2': 1}}),
+      [mapRow(300, {'1': 100}, {'2': 1}), standaloneRow('sandlord', 120, {'1': 40})],
+    );
+    expect(mech(a, 'sandlord').income.live).toBe(40);
+    expect(mech(a, 'map').income.live).toBe(100);
+    expect(a.perMap.find(p => p.mechanic === 'sandlord')!.mapIncome.live).toBe(0);
+    expect(a.mechanics.reduce((s, m) => s + m.net.live, 0)).toBe(a.totals.net.live);
+  });
+
+  it('an interlude overlap is not folded out of its parent but is still part of seasonal income', () => {
+    const a = analyze(
+      makeSession({drops: {'1': 100}}),
+      [mapRow(300, {'1': 70}), overlapRow('arcana', 60, 1, {'1': 30})],
+    );
+    expect(mech(a, 'map').income.live).toBe(70);
+    expect(mech(a, 'arcana').income.live).toBe(30);
+    expect(a.perMap[0].mapIncome.live).toBe(70);
+    expect(a.perMap[0].seasonalIncome.live).toBe(30);
+    expect(a.perMap[0].net.live).toBe(100);
   });
 });

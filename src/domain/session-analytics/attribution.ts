@@ -1,6 +1,7 @@
 import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
 import type {SeasonalPhase, SeasonalType} from '@/shared/contracts/engine';
-import type {AnalyticsWarning, ClassifiedRow, MechanicKey, Valuator} from './types';
+import type {AnalyticsWarning, ClassifiedRow, FoldedRow, MechanicKey, PriceLookup, Valuation} from './types';
+import {ZERO_VAL, addVal, isZeroVal, subVal, valueQty} from '@/domain/valuation';
 
 /** Seasonals that FREEZE the map clock, so their time is NOT inside
  *  session.mapTime — even though the engine still writes them as overlap rows
@@ -36,7 +37,7 @@ export function parentContainsOverlap(attribution: DbSession['attribution']): bo
  *  the two is the bug this split exists to prevent. */
 export function classifyRows(
   maps: DbSessionMap[],
-  valueIncome: Valuator,
+  prices: PriceLookup,
   warnings: AnalyticsWarning[],
 ): ClassifiedRow[] {
   const primaryByIndex = new Map<number, DbSessionMap>();
@@ -74,9 +75,71 @@ export function classifyRows(
       mechanic,
       concurrentWithMap: kind === 'overlap-seasonal' && runsConcurrentlyWithMap(row.seasonalType, row.phase),
       parent,
-      income:  valueIncome(row.drops),
-      cost:    valueIncome(row.spent),
+      income:  valueQty(row.drops, prices),
+      cost:    valueQty(row.spent, prices),
       seconds: Math.max(0, row.duration / 1000),
     };
   });
+}
+
+/** THE fold, computed once per analytics pass: each primary or standalone row
+ *  with its overlaps attached. Outside `exclusive`, a parent map row already
+ *  holds its overlaps' drops, so they are taken back out of it. Only CONCURRENT
+ *  overlaps qualify — drop-through requires an active map, so an interlude
+ *  mechanic's loot never reached its parent and folding it would erase real
+ *  map income. Cost plays no part: it lives on the row's `spent`, never in its
+ *  drops, so there is nothing to add back. Nothing is clamped either — an
+ *  overlap that recorded more than its parent (historical late loot) leaves a
+ *  negative own income and one `overlap-exceeds-parent` warning. */
+export function foldMapRows(
+  classified: ClassifiedRow[],
+  attribution: DbSession['attribution'],
+  warnings: AnalyticsWarning[],
+): FoldedRow[] {
+  const fold = parentContainsOverlap(attribution);
+  const overlapsByParent = new Map<number, ClassifiedRow[]>();
+  for (const c of classified) {
+    if (c.kind !== 'overlap-seasonal' || c.parent === null) continue;
+    const list = overlapsByParent.get(c.parent.mapIndex) ?? [];
+    list.push(c);
+    overlapsByParent.set(c.parent.mapIndex, list);
+  }
+
+  const out: FoldedRow[] = [];
+  for (const c of classified) {
+    if (c.kind === 'overlap-seasonal') continue;
+
+    const bySeasonal: Partial<Record<MechanicKey, Valuation>> = {};
+    let seasonalIncome = ZERO_VAL;
+    let foldedOut      = ZERO_VAL;
+    for (const o of overlapsByParent.get(c.row.mapIndex) ?? []) {
+      bySeasonal[o.mechanic] = addVal(bySeasonal[o.mechanic] ?? ZERO_VAL, o.income);
+      seasonalIncome = addVal(seasonalIncome, o.income);
+      if (fold && o.concurrentWithMap) foldedOut = addVal(foldedOut, o.income);
+    }
+
+    let ownIncome: Valuation;
+    if (c.kind === 'standalone-seasonal') {
+      // The whole row belongs to its mechanic, not to a map.
+      bySeasonal[c.mechanic] = addVal(bySeasonal[c.mechanic] ?? ZERO_VAL, c.income);
+      seasonalIncome = addVal(seasonalIncome, c.income);
+      ownIncome = ZERO_VAL;
+    } else {
+      ownIncome = subVal(c.income, foldedOut);
+      if (!isZeroVal(foldedOut) && (ownIncome.live < -1e-6 || ownIncome.snapshot < -1e-6)) {
+        warnings.push({code: 'overlap-exceeds-parent', mapIndex: c.row.mapIndex});
+      }
+    }
+
+    out.push({
+      row: c,
+      ownIncome,
+      seasonalIncome,
+      bySeasonal,
+      foldedOut,
+      cost: c.cost,
+      net:  subVal(addVal(ownIncome, seasonalIncome), c.cost),
+    });
+  }
+  return out;
 }

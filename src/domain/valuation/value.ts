@@ -1,6 +1,6 @@
 import type {DbItem} from '@/shared/contracts/db';
 import {taxedUnitPrice, type TaxConfig} from './tax';
-import type {PriceLookup, Valuation, Valuator} from './types';
+import type {PriceLookup, Valuation} from './types';
 
 export const ZERO_VAL: Valuation = {snapshot: 0, live: 0};
 
@@ -17,8 +17,9 @@ export function scaleVal(v: Valuation, k: number): Valuation {
   return {snapshot: v.snapshot * k, live: v.live * k};
 }
 
-/** Clamp both legs at zero. Guards the overlap subtraction, where float drift
- *  or an inconsistent legacy row can push a difference just below zero. */
+/** Clamp both legs at zero. For share DENOMINATORS only — a pct column is a
+ *  share of the positive parts. No aggregate value is ever clamped: a negative
+ *  one is real and is shown as such. */
 export function clampVal(v: Valuation): Valuation {
   return {snapshot: Math.max(0, v.snapshot), live: Math.max(0, v.live)};
 }
@@ -63,7 +64,7 @@ export function ratio(a: Valuation, b: Valuation): {snapshot: number | null; liv
  *  unpriced item can't make a whole session look like it lost value.
  *
  *  Both legs come out taxed, which is what makes this the seam for the whole
- *  analytics module: `makeValuator`, `valueOne` and every aggregate built on
+ *  analytics module: `valueQty`, `valueItem` and every aggregate built on
  *  them inherit the auction-house cut without knowing it exists. The snapshot
  *  leg is taxed too — the cut is a property of realising the value, not of when
  *  the haul happened, so a saved session must not read as gross. */
@@ -96,18 +97,35 @@ export function makePriceLookup(
   };
 }
 
-/** `clampNegative` is the income policy: negative quantities are auction-house
- *  conversions, not drops, so aggregates answering "what did this yield" must
- *  exclude them. The raw item table passes false to show them verbatim. */
-export function makeValuator(prices: PriceLookup, opts: {clampNegative: boolean}): Valuator {
-  return (drops: Record<string, number>): Valuation => {
-    let snapshot = 0;
-    let live     = 0;
-    for (const [id, qty] of Object.entries(drops)) {
-      if (opts.clampNegative && qty <= 0) continue;
-      snapshot += qty * prices.snapshot(id);
-      live     += qty * prices.live(id);
-    }
-    return {snapshot, live};
-  };
+/** THE valuation rule, for loot and spent alike: signed Σ qty × taxed price on
+ *  both legs. Nothing is clamped — a negative quantity (in-map consumption, an
+ *  auction-house conversion, legacy entry cost netted into drops) really did
+ *  reduce what the run is worth. Accepts numeric keys (TrackerSnapshot). */
+export function valueQty(quantities: Record<string | number, number>, prices: PriceLookup): Valuation {
+  let snapshot = 0;
+  let live     = 0;
+  for (const [id, qty] of Object.entries(quantities)) {
+    snapshot += qty * prices.snapshot(id);
+    live     += qty * prices.live(id);
+  }
+  return {snapshot, live};
+}
+
+/** The single-item case of `valueQty`, for item tables. */
+export function valueItem(prices: PriceLookup, id: string, qty: number): Valuation {
+  return {snapshot: qty * prices.snapshot(id), live: qty * prices.live(id)};
+}
+
+/** A live tracker's value in FE: the `live` leg of `valueQty` over an
+ *  unsnapshotted lookup — the same code path a saved session is valued
+ *  through, so the overlay and the session page can't disagree on the rule. */
+export function liveValue(
+  tracker: {drops: Record<string | number, number>; spent?: Record<string | number, number>},
+  items: Record<string, DbItem>,
+  tax: TaxConfig,
+): {loot: number; cost: number; net: number} {
+  const prices = makePriceLookup(items, null, tax);
+  const loot   = valueQty(tracker.drops, prices).live;
+  const cost   = valueQty(tracker.spent ?? {}, prices).live;
+  return {loot, cost, net: loot - cost};
 }

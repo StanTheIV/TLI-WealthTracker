@@ -19,6 +19,9 @@ interface EngineState {
   phase:                    'idle' | 'initializing' | 'tracking';
   feed:                     FeedEvent[];
   drops:                    Record<number, number>; // itemId → net session change
+  /** The session tracker's entry-cost total (itemId → qty), replaced by every
+   *  session snapshot. Never part of `drops`. */
+  sessionSpent:             Record<number, number>;
   mapCount:                 number;
   currentZone:              string | null;
   mapTracker:                TrackerSnapshot | null;
@@ -65,6 +68,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
   phase:                     'idle',
   feed:                      [],
   drops:                     {},
+  sessionSpent:              {},
   mapCount:                  0,
   currentZone:               null,
   mapTracker:                 null,
@@ -94,6 +98,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
       const feed = [...s.feed, feedEntry].slice(-MAX_EVENTS);
       let phase                     = s.phase;
       let drops                     = s.drops;
+      let sessionSpent              = s.sessionSpent;
       let mapCount                  = s.mapCount;
       let currentZone               = s.currentZone;
       let mapTracker                 = s.mapTracker;
@@ -115,6 +120,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
         case 'init_started':
           phase                      = 'initializing';
           drops                      = {};
+          sessionSpent               = {};
           mapCount                   = 0;
           mapTracker                 = null;
           seasonalTrackers           = new Map();
@@ -174,6 +180,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
             sessionStatus     = 'running';
             sessionElapsed    = event.tracker.elapsed;
             sessionReceivedAt = Date.now();
+            sessionSpent      = event.tracker.spent ?? {};
             // On session start, seed renderer state from the snapshot so that
             // a continued session carries over its drops, map count, and
             // accumulated map time. Also fires on Engine.reset() so the
@@ -201,6 +208,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           } else if (event.tracker.kind === 'session') {
             phase              = 'idle';
             drops              = event.tracker.drops;
+            sessionSpent       = event.tracker.spent ?? {};
             sessionStatus      = 'idle';
             sessionElapsed     = 0;
             sessionReceivedAt  = null;
@@ -249,7 +257,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
       }
 
       return {
-        feed, phase, drops, mapCount, currentZone,
+        feed, phase, drops, sessionSpent, mapCount, currentZone,
         mapTracker, seasonalTrackers,
         mapTrackerReceivedAt, seasonalTrackersReceivedAt,
         sessionStatus, sessionElapsed, sessionReceivedAt,
@@ -262,7 +270,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
   },
 
   reset: () => set({
-    phase: 'idle', feed: [], drops: {}, mapCount: 0,
+    phase: 'idle', feed: [], drops: {}, sessionSpent: {}, mapCount: 0,
     currentZone: null, mapTracker: null,
     seasonalTrackers: new Map(),
     mapTrackerReceivedAt: null,

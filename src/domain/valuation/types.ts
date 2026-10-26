@@ -10,10 +10,6 @@ export interface Valuation {
   live:     number;
 }
 
-/** Turns a drop dict into a Valuation. Built once per valuation policy so the
- *  snapshot/live duplication lives in a closure rather than at every call site. */
-export type Valuator = (drops: Record<string, number>) => Valuation;
-
 export interface PriceLookup {
   snapshot:    (itemId: string) => number;
   live:        (itemId: string) => number;

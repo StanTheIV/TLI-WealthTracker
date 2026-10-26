@@ -1,7 +1,7 @@
 import {useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
 import type {DbItem, DbSession} from '@/shared/contracts/db';
-import {makePriceLookup, makeValuator, type TaxConfig} from '@/domain/valuation';
+import {makePriceLookup, valueQty, type TaxConfig} from '@/domain/valuation';
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -21,8 +21,8 @@ function formatDuration(totalSeconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function formatIncome(fe: number): string {
-  return fe > 0 ? `${fe.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE` : '—';
+function formatNet(fe: number): string {
+  return fe === 0 ? '—' : `${fe.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE`;
 }
 
 // ---------------------------------------------------------------------------
@@ -40,15 +40,17 @@ interface Props {
 export default function SessionsTable({sessions, selectedId, items, tax, onSelect}: Props) {
   const {t} = useTranslation('sessions');
 
-  /** Valued on the SNAPSHOT leg, the same default SessionDetail opens on, so a
-   *  row and the page it opens can't disagree. (They used to: this column read
-   *  live prices while the detail page read the frozen ones.) Priced per row —
-   *  each session carries its own price snapshot. */
-  const incomes = useMemo(() => {
+  /** Net (loot − spent) on the SNAPSHOT leg: the same rule and default leg
+   *  SessionDetail opens on, so a row and the page it opens can't disagree.
+   *  Priced per row — each session carries its own price snapshot. */
+  const nets = useMemo(() => {
     return new Map(sessions.map((session) => {
       const drops  = session.drops ?? {};
-      const prices = makePriceLookup(items, session.priceSnapshot, tax, Object.keys(drops));
-      return [session.id, makeValuator(prices, {clampNegative: true})(drops).snapshot];
+      const spent  = session.spent ?? {};
+      const prices = makePriceLookup(
+        items, session.priceSnapshot, tax, new Set([...Object.keys(drops), ...Object.keys(spent)]),
+      );
+      return [session.id, valueQty(drops, prices).snapshot - valueQty(spent, prices).snapshot];
     }));
   }, [sessions, items, tax]);
 
@@ -69,12 +71,12 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
             <th className="px-4 py-2 font-semibold">{t('columns.date')}</th>
             <th className="px-4 py-2 font-semibold text-right">{t('columns.duration')}</th>
             <th className="px-4 py-2 font-semibold text-right">{t('columns.maps')}</th>
-            <th className="px-4 py-2 font-semibold text-right">{t('columns.income')}</th>
+            <th className="px-4 py-2 font-semibold text-right">{t('columns.net')}</th>
           </tr>
         </thead>
         <tbody>
           {sessions.map(session => {
-            const income     = incomes.get(session.id) ?? 0;
+            const net        = nets.get(session.id) ?? 0;
             const isSelected = session.id === selectedId;
 
             return (
@@ -103,8 +105,8 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
                 <td className="px-4 py-2.5 text-right tabular-nums text-text-secondary">
                   {session.mapCount}
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums font-medium text-accent">
-                  {formatIncome(income)}
+                <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${net < 0 ? 'text-danger' : 'text-accent'}`}>
+                  {formatNet(net)}
                 </td>
               </tr>
             );
@@ -115,4 +117,4 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
   );
 }
 
-export {formatDate, formatDuration, formatIncome};
+export {formatDate, formatDuration, formatNet};

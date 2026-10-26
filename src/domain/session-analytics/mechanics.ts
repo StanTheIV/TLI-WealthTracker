@@ -1,6 +1,5 @@
 import type {DbSession} from '@/shared/contracts/db';
-import type {AnalyticsWarning, ClassifiedRow, MechanicKey, MechanicStats, Valuation} from './types';
-import {parentContainsOverlap} from './attribution';
+import type {AnalyticsWarning, ClassifiedRow, FoldedRow, MechanicKey, MechanicStats, Valuation} from './types';
 import {ZERO_VAL, addVal, clampVal, perHour, scaleVal, sharePct, subVal} from '@/domain/valuation';
 
 /** Display order. Town last — it is a residual, not a mechanic. */
@@ -28,11 +27,12 @@ export interface MechanicsResult {
 
 /** Time and value come from different authorities on purpose: time from
  *  `session.mapTime` (the map tracker's pause-aware clock) adjusted by row
- *  durations, value from the rows. Deriving either from the other imports that
- *  source's blind spots. */
+ *  durations, value from the rows (a map's own income from the fold). Deriving
+ *  either from the other imports that source's blind spots. */
 export function computeMechanics(
   session: DbSession,
   classified: ClassifiedRow[],
+  folded: FoldedRow[],
   warnings: AnalyticsWarning[],
 ): MechanicsResult {
   const buckets = new Map<MechanicKey, Bucket>();
@@ -77,41 +77,16 @@ export function computeMechanics(
   bucket('town').seconds = townSeconds;
 
   // -- value ---------------------------------------------------------------
-  // The ONLY place attribution era matters: outside `exclusive`, a parent map
-  // row already holds its overlaps' drops, so they are folded back out of it.
-  // Only CONCURRENT overlaps qualify — drop-through requires an active map, so
-  // an interlude mechanic's loot never reached its parent and folding it would
-  // erase real map income.
-  const foldOverlap = parentContainsOverlap(session.attribution);
-  const overlapByParent = new Map<number, Valuation>();
-  for (const c of classified) {
-    if (c.kind !== 'overlap-seasonal' || c.parent === null || !c.concurrentWithMap) continue;
-    const prev = overlapByParent.get(c.parent.mapIndex) ?? ZERO_VAL;
-    overlapByParent.set(c.parent.mapIndex, addVal(prev, c.income));
-  }
-
+  // A map row's own income is the fold's (its concurrent overlaps already taken
+  // out where the era put them in); every seasonal row keeps its own income.
   for (const c of classified) {
     const b = bucket(c.mechanic);
     b.runs += 1;
     b.cost = addVal(b.cost, c.cost);
-
-    if (c.kind === 'map') {
-      const overlap = overlapByParent.get(c.row.mapIndex) ?? ZERO_VAL;
-      if (foldOverlap) {
-        // Fold gross against gross: a map row's drops are NET of what was spent
-        // opening it, an overlap's are gross, so folding directly charged the
-        // map's costs twice and drove nearly every first map negative.
-        const net = subVal(addVal(c.income, c.cost), overlap);
-        if (net.live < -1e-6 || net.snapshot < -1e-6) {
-          warnings.push({code: 'overlap-exceeds-parent', mapIndex: c.row.mapIndex});
-        }
-        b.income = addVal(b.income, clampVal(net));
-      } else {
-        b.income = addVal(b.income, c.income);
-      }
-    } else {
-      b.income = addVal(b.income, c.income);
-    }
+    if (c.kind !== 'map') b.income = addVal(b.income, c.income);
+  }
+  for (const f of folded) {
+    if (f.row.kind === 'map') bucket('map').income = addVal(bucket('map').income, f.ownIncome);
   }
 
   // Town has time but structurally no income: drops outside a loot context are
@@ -122,7 +97,8 @@ export function computeMechanics(
 
   // -- percentages ---------------------------------------------------------
   // Normalise against the bucket sum rather than session.totalTime so the parts
-  // always sum to 100 even when a clamp above absorbed an inconsistency.
+  // always sum to 100 even when a clamp above absorbed an inconsistency. Value
+  // shares are of the positive incomes only; a negative bucket gets none.
   const accounted = [...buckets.values()].reduce((sum, b) => sum + b.seconds, 0);
   const residual  = session.totalTime - accounted;
   if (Math.abs(residual) > 1) {

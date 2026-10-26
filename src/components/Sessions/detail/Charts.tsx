@@ -23,11 +23,18 @@ interface Datum {
   cumulative:     number;
 }
 
+/** Income figures are signed (a map whose overlaps exceeded it, a net-negative
+ *  seasonal), so the sign is rendered, never assumed. */
+function signedFull(value: number): string {
+  return `${value >= 0 ? '+' : ''}${formatFEFull(value)}`;
+}
+
 function PerMapTooltip({active, payload}: {active?: boolean; payload?: {payload: Datum}[]}) {
   const {t} = useTranslation('sessions');
   if (!active || !payload?.length) return null;
   const d   = payload[0].payload;
-  const net = d.mapIncome + d.seasonalIncome - Math.abs(d.cost);
+  // `cost` is already negated for the bar stack.
+  const net = d.mapIncome + d.seasonalIncome + d.cost;
   return (
     <div className="bg-surface border border-border rounded px-3 py-2 text-xs shadow-lg space-y-1">
       <p className="text-text-secondary">
@@ -35,19 +42,19 @@ function PerMapTooltip({active, payload}: {active?: boolean; payload?: {payload:
           ? t('details.tooltipMap', {n: d.firstIndex})
           : t('details.tooltipMapRange', {from: d.firstIndex, to: d.lastIndex})}
       </p>
-      {d.mapIncome > 0 && (
-        <p className="font-mono text-success">{t('details.tooltipIncome')}: +{formatFEFull(d.mapIncome)}</p>
+      {d.mapIncome !== 0 && (
+        <p className={`font-mono ${d.mapIncome > 0 ? 'text-success' : 'text-danger'}`}>{t('details.tooltipIncome')}: {signedFull(d.mapIncome)}</p>
       )}
       {Object.entries(d.bySeasonal)
         .sort((a, b) => b[1] - a[1])
         .map(([key, value]) => (
-          <p key={key} className="font-mono text-gold">
-            {t(`details.source.${key}` as never)}: +{formatFEFull(value)}
+          <p key={key} className={`font-mono ${value >= 0 ? 'text-gold' : 'text-danger'}`}>
+            {t(`details.source.${key}` as never)}: {signedFull(value)}
           </p>
         ))}
       <p className="font-mono text-danger">{t('details.tooltipCost')}: {formatFEFull(d.cost)}</p>
       <p className={`font-mono font-semibold ${net >= 0 ? 'text-gold' : 'text-danger'}`}>
-        {t('details.tooltipNet')}: {net >= 0 ? '+' : ''}{formatFEFull(net)}
+        {t('details.tooltipNet')}: {signedFull(net)}
       </p>
       <p className="font-mono text-text-secondary text-[10px]">
         {t('details.tooltipCumulative')}: {d.cumulative >= 0 ? '+' : ''}{formatFEFull(d.cumulative)}
@@ -137,6 +144,12 @@ interface Slice {
   color: string;
 }
 
+/** Slices carry signed values; a donut can only draw the positive ones, which
+ *  are also exactly what the analytics shares are computed against. */
+function positiveSlices(slices: Slice[]): Slice[] {
+  return slices.filter(s => s.value > 0);
+}
+
 function SliceTooltip({active, payload}: {active?: boolean; payload?: {payload: Slice}[]}) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
@@ -181,12 +194,12 @@ export function ByTypeDonut({analytics, mode}: {analytics: SessionAnalytics; mod
   const theme       = useTheme();
   const colors      = typeColors(theme);
 
-  const data = analytics.byType.map(s => ({
+  const data = positiveSlices(analytics.byType.map(s => ({
     label: tItems(`types.${s.type}` as never),
     value: pick(s.value, mode),
     pct:   pick(s.pct, mode),
     color: colors[s.type],
-  }));
+  })));
 
   return <Donut data={data} empty={t('details.byTypeEmpty')} />;
 }
@@ -196,12 +209,12 @@ export function BySourceDonut({analytics, mode}: {analytics: SessionAnalytics; m
   const theme = useTheme();
   const colors = mechanicColors(theme);
 
-  const data = analytics.bySource.map(s => ({
+  const data = positiveSlices(analytics.bySource.map(s => ({
     label: t(`details.source.${s.source}` as never),
     value: pick(s.value, mode),
     pct:   pick(s.pct, mode),
     color: colors[s.source as MechanicKey] ?? theme.textDisabled,
-  }));
+  })));
 
   return <Donut data={data} empty={t('details.bySourceEmpty')} />;
 }

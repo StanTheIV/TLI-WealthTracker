@@ -157,8 +157,8 @@
         "mechanics": [
           {
             "avgPerRun": {
-              "live": 69.756544,
-              "snapshot": 69.756544
+              "live": 61.164735,
+              "snapshot": 61.164735
             },
             "avgSeconds": 88.166667,
             "cost": {
@@ -166,25 +166,25 @@
               "snapshot": 22.765323
             },
             "fePerHour": {
-              "live": 2848.282312,
-              "snapshot": 2848.282312
+              "live": 2497.463673,
+              "snapshot": 2497.463673
             },
             "income": {
-              "live": 232.034954,
-              "snapshot": 232.034954
+              "live": 206.259529,
+              "snapshot": 206.259529
             },
             "key": "map",
             "nestedInMap": false,
             "net": {
-              "live": 209.269631,
-              "snapshot": 209.269631
+              "live": 183.494206,
+              "snapshot": 183.494206
             },
             "runs": 3,
             "seconds": 264.5,
             "timePct": 23.050109,
             "valuePct": {
-              "live": 51.877914,
-              "snapshot": 51.877914
+              "live": 48.935139,
+              "snapshot": 48.935139
             }
           },
           {
@@ -215,8 +215,8 @@
             "seconds": 93.5,
             "timePct": 8.148148,
             "valuePct": {
-              "live": 1.500319,
-              "snapshot": 1.500319
+              "live": 1.592067,
+              "snapshot": 1.592067
             }
           },
           {
@@ -247,8 +247,8 @@
             "seconds": 230.75,
             "timePct": 20.108932,
             "valuePct": {
-              "live": 37.854624,
-              "snapshot": 37.854624
+              "live": 40.169521,
+              "snapshot": 40.169521
             }
           },
           {
@@ -279,8 +279,8 @@
             "seconds": 311.5,
             "timePct": 27.145969,
             "valuePct": {
-              "live": 8.767143,
-              "snapshot": 8.767143
+              "live": 9.303273,
+              "snapshot": 9.303273
             }
           },
           {
@@ -364,18 +364,18 @@
               "snapshot": 7.588441
             },
             "cumulative": {
-              "live": 356.836468,
-              "snapshot": 356.836468
+              "live": 353.826366,
+              "snapshot": 353.826366
             },
             "mapIncome": {
-              "live": 6.150059,
-              "snapshot": 6.150059
+              "live": 3.139957,
+              "snapshot": 3.139957
             },
             "mapIndex": 2,
             "mechanic": "map",
             "net": {
-              "live": 169.523641,
-              "snapshot": 169.523641
+              "live": 166.513539,
+              "snapshot": 166.513539
             },
             "seasonalIncome": {
               "live": 170.962023,
@@ -395,8 +395,8 @@
               "snapshot": 0
             },
             "cumulative": {
-              "live": 396.04937,
-              "snapshot": 396.04937
+              "live": 393.039268,
+              "snapshot": 393.039268
             },
             "mapIncome": {
               "live": 0,
@@ -426,8 +426,8 @@
               "snapshot": 7.588441
             },
             "cumulative": {
-              "live": 401.740525,
-              "snapshot": 401.740525
+              "live": 398.730423,
+              "snapshot": 398.730423
             },
             "mapIncome": {
               "live": 10.429266,
@@ -463,28 +463,28 @@
           "efficiencyPct": 78.453159,
           "exclusiveSeasonalSeconds": 542.25,
           "income": {
-            "live": 424.505848,
-            "snapshot": 424.505848
+            "live": 421.495746,
+            "snapshot": 421.495746
           },
           "incomePerHour": {
-            "live": 1331.783053,
-            "snapshot": 1331.783053
+            "live": 1322.339595,
+            "snapshot": 1322.339595
           },
           "mapCount": 3,
           "mapSeconds": 358,
           "mapsUnprofitable": 0,
           "net": {
-            "live": 401.740525,
-            "snapshot": 401.740525
+            "live": 398.730423,
+            "snapshot": 398.730423
           },
           "netPerHour": {
-            "live": 1260.362431,
-            "snapshot": 1260.362431
+            "live": 1250.918974,
+            "snapshot": 1250.918974
           },
           "plainMapSeconds": 264.5,
           "roiMultiple": {
-            "live": 18.647038,
-            "snapshot": 18.647038
+            "live": 18.514815,
+            "snapshot": 18.514815
           },
           "totalQty": 1118,
           "totalSeconds": 1147.5,
@@ -496,6 +496,12 @@
       "id": "replay-1",
       "invariants": {
         "dropsBySourceSumsToDrops": {
+          "ok": true
+        },
+        "liveMatchesAnalytics": {
+          "ok": true
+        },
+        "mechanicsNetReconciles": {
           "ok": true
         },
         "netReconciles": {
