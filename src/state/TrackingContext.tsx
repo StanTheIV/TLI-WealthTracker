@@ -1,8 +1,6 @@
 import {type ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState} from 'react';
-import {useSettingsStore} from './settingsStore';
 import {useEngineStore} from './engineStore';
 import {useSessionsStore} from './sessionsStore';
-import {LOG_SUBPATH} from '@/shared/paths';
 
 export type TrackingStatus = 'idle' | 'running' | 'paused';
 
@@ -22,11 +20,6 @@ interface TrackingContextValue extends TrackingState {
 }
 
 const TrackingContext = createContext<TrackingContextValue | null>(null);
-
-function getLogPath(): string {
-  const {torchlightPath} = useSettingsStore.getState();
-  return `${torchlightPath}/${LOG_SUBPATH}`;
-}
 
 export function TrackingProvider({children}: {children: ReactNode}) {
   const [state, setState] = useState<TrackingState>({status: 'idle', elapsedMs: 0, sessionId: null});
@@ -52,7 +45,7 @@ export function TrackingProvider({children}: {children: ReactNode}) {
   }, [clearTick]);
 
   const start = useCallback(() => {
-    window.electronAPI.engine.start(getLogPath());
+    window.electronAPI.engine.start();
     accumulatedRef.current = 0;
     statusRef.current = 'running';
     setState({status: 'running', elapsedMs: 0, sessionId: crypto.randomUUID()});
@@ -61,7 +54,7 @@ export function TrackingProvider({children}: {children: ReactNode}) {
   }, []);
 
   const continueSession = useCallback((sessionId: string) => {
-    window.electronAPI.engine.startWithSession(getLogPath(), sessionId);
+    window.electronAPI.engine.startWithSession(sessionId);
     accumulatedRef.current = 0;
     statusRef.current = 'running';
     setState({status: 'running', elapsedMs: 0, sessionId});

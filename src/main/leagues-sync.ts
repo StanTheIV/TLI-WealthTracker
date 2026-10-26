@@ -1,7 +1,7 @@
 import {net} from 'electron';
 import {log} from './logger';
 import {leaguesGetAll, leaguesApply, priceBackfillOnce} from './db';
-import {broadcastLeaguesChanged} from './items-broadcast';
+import type {Broadcast} from './tracking-service';
 import {REPO} from './updater';
 import {mergeLeagues, parseLeaguesJson} from '@/lib/leagues';
 import bundledLeagues from '../../resources/leagues.json';
@@ -19,7 +19,7 @@ function applyOfficial(json: unknown, source: 'bundled' | 'remote'): boolean {
   return true;
 }
 
-async function syncRemote(): Promise<void> {
+async function syncRemote(broadcast: Broadcast): Promise<void> {
   try {
     const res = await net.fetch(REMOTE_URL, {
       headers: {'User-Agent': 'TLI-Tracker'},
@@ -29,14 +29,14 @@ async function syncRemote(): Promise<void> {
       log.warn('price', `Remote leagues.json returned ${res.status}`);
       return;
     }
-    if (applyOfficial(await res.json(), 'remote')) broadcastLeaguesChanged();
+    if (applyOfficial(await res.json(), 'remote')) broadcast('leagues:changed');
   } catch (err) {
     log.warn('price', `Remote leagues sync failed: ${err}`);
   }
 }
 
 /** Startup: bundled leagues, one-time price backfill, then a fire-and-forget remote refresh. */
-export function initLeaguesAndPriceHistory(): void {
+export function initLeaguesAndPriceHistory(broadcast: Broadcast): void {
   try {
     applyOfficial(bundledLeagues, 'bundled');
   } catch (err) {
@@ -48,5 +48,5 @@ export function initLeaguesAndPriceHistory(): void {
   } catch (err) {
     log.error('price', `Price backfill failed: ${err}`);
   }
-  void syncRemote();
+  void syncRemote(broadcast);
 }

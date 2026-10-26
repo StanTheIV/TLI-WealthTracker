@@ -42,7 +42,7 @@ function generateSessionName(): string {
 
 /**
  * Owns the per-session persistence buffer and the session identity for one
- * tracked run. Constructed in startEngine, fed engine events via
+ * tracked run. Constructed by TrackingService per run, fed engine events via
  * onTrackerFinished, and either commits (autoSave on session-finish) or is
  * thrown away (engine reset / stop / app quit).
  *

@@ -17,21 +17,7 @@ interface BreakdownEntry {
  * excluded from both the breakdown and the totalValue.
  */
 export class WealthRecorder {
-  private readonly _getEngine:    () => Engine | null;
-  private readonly _getSessionId: () => string | null;
-
-  constructor(deps: {
-    getEngine:    () => Engine | null;
-    getSessionId: () => string | null;
-  }) {
-    this._getEngine    = deps.getEngine;
-    this._getSessionId = deps.getSessionId;
-  }
-
-  snapshot(): void {
-    const engine = this._getEngine();
-    if (!engine) return;
-
+  snapshot(engine: Engine, sessionId: string | null): void {
     const inventory = engine.getInventory();
     const itemMap   = new Map(itemsGetAll().map(i => [i.id, i]));
     const filter    = engine.getFilter();
@@ -52,7 +38,7 @@ export class WealthRecorder {
     wealthInsert({
       timestamp: Date.now(),
       value:     totalValue,
-      sessionId: this._getSessionId(),
+      sessionId,
       breakdown: JSON.stringify(breakdown),
     });
 

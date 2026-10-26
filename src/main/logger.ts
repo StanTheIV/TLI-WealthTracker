@@ -160,3 +160,6 @@ export const log = {
     _config = loadConfig();
   },
 };
+
+/** The logger's shape — for code that receives it as an injected dependency. */
+export type Logger = typeof log;

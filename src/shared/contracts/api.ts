@@ -40,8 +40,8 @@ export interface ElectronAPI {
   };
 
   engine: {
-    start:           (logPath: string) => void;
-    startWithSession:(logPath: string, sessionId: string) => void;
+    start:           () => void;
+    startWithSession:(sessionId: string) => void;
     stop:            () => void;
     pause:           () => void;
     resume:          () => void;

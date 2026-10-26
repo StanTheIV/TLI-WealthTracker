@@ -1,7 +1,10 @@
 import {app, BrowserWindow, ipcMain, dialog, Menu, screen} from 'electron';
 import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
-import {initDb, itemsCount, itemsImportBatch, settingsGetAll, settingsSet} from './db';
+import {
+  initDb, itemsCount, itemsImportBatch, itemsGetAll, itemsGetLocked, itemsInsertIfMissing, priceRecord,
+  filtersGetAll, settingsGetAll, settingsSet,
+} from './db';
 import {backupDb} from './db/backup';
 import {openBetterSqlite3} from './db/drivers/better-sqlite3';
 import {SqliteSessionStore} from './db/session-store';
@@ -10,10 +13,14 @@ import {initLogger, log} from './logger';
 import type {DbItem} from '@/shared/contracts/db';
 import {registerDbHandlers} from './ipc/db';
 import {registerOverlayHandlers} from './ipc/overlay';
-import {registerEngineHandlers, stopEngineForShutdown, notifyEngineItemTypeChanged} from './ipc/engine';
+import {registerEngineHandlers} from './ipc/engine';
 import {registerUpdaterHandlers} from './ipc/updater';
 import {registerLoggingHandlers} from './ipc/logging';
 import {initLeaguesAndPriceHistory} from './leagues-sync';
+import {TrackingService} from './tracking-service';
+import {createEngine} from './engine/create-engine';
+import {WorkerProcess} from './worker-process';
+import {WealthRecorder} from './wealth-recorder';
 import {LOG_SUBPATH} from '@/shared/paths';
 
 const DEV = !app.isPackaged;
@@ -28,6 +35,13 @@ if (DEV) {
 
 let mainWindow: BrowserWindow | null = null;
 let trackerWindow: BrowserWindow | null = null;
+
+/** Send to both renderer windows; a closed or destroyed window is skipped. */
+function broadcast(channel: string, payload?: unknown): void {
+  for (const win of [mainWindow, trackerWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Main window
@@ -58,7 +72,7 @@ function readSavedMainBounds(settings: Record<string, string>) {
   return {x, y, width: Math.max(width, MAIN_MIN_WIDTH), height: Math.max(height, MAIN_MIN_HEIGHT)};
 }
 
-function createMainWindow() {
+function createMainWindow(tracking: TrackingService) {
   const settings = settingsGetAll();
   const saved    = readSavedMainBounds(settings);
 
@@ -99,7 +113,7 @@ function createMainWindow() {
       settingsSet('main_window_height',    String(b.height));
       settingsSet('main_window_maximized', mainWindow.isMaximized() ? 'true' : 'false');
     }
-    stopEngineForShutdown();
+    tracking.shutdown();
   });
 
   mainWindow.on('closed', () => {
@@ -227,12 +241,28 @@ app.whenReady().then(() => {
   const sessions = new SqliteSessionStore(openDatabase());
   seedItemsIfEmpty();
   initLogger(settingsGetAll);
-  initLeaguesAndPriceHistory();
+  initLeaguesAndPriceHistory(broadcast);
+
+  const tracking = new TrackingService({
+    createEngine,
+    store:          sessions,
+    broadcast,
+    createWorker:   onEvent => new WorkerProcess(onEvent),
+    settings:       {getAll: settingsGetAll},
+    filters:        {getAll: filtersGetAll},
+    items: {
+      getAll:             itemsGetAll,
+      getLocked:          itemsGetLocked,
+      insertIfMissing:    itemsInsertIfMissing,
+      recordScrapedPrice: (id, price, listings, opts) => priceRecord(id, 'scrape', price, listings, opts),
+    },
+    wealthRecorder: new WealthRecorder(),
+    log,
+  });
 
   registerDbHandlers({
-    getMainWindow:    () => mainWindow,
-    getTrackerWindow: () => trackerWindow,
-    onItemTypeChanged: (id, type) => notifyEngineItemTypeChanged(id, type),
+    broadcast,
+    onItemTypeChanged: (id, type) => tracking.setItemType(id, type),
     sessions,
   });
   registerOverlayHandlers(
@@ -240,17 +270,14 @@ app.whenReady().then(() => {
     (w) => { trackerWindow = w; },
     createTrackerWindow,
   );
-  registerEngineHandlers(
-    () => mainWindow,
-    () => trackerWindow,
-    sessions,
-  );
+  registerEngineHandlers(tracking);
+  tracking.startWorker(); // tail the game log now if the torchlight path is already set
   registerUpdaterHandlers(() => mainWindow);
   registerLoggingHandlers();
 
   log.debug('app', 'IPC handlers registered');
 
-  createMainWindow();
+  createMainWindow(tracking);
 });
 
 app.on('window-all-closed', () => {

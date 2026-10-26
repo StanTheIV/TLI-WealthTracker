@@ -25,7 +25,7 @@ export interface ReplayOptions {
   pollMs?:   number;
   /** Defaults to a single `start` just before the first line. */
   controls?: ControlOp[];
-  /** Runs after every `start()`, as production's startEngine configures settings. */
+  /** Runs after every `start()`, as production's TrackingService configures settings. */
   configure?: (engine: Engine) => void;
   /** Log time to run on after the last line so pending windows close. Default 60 s. */
   settleMs?: number;

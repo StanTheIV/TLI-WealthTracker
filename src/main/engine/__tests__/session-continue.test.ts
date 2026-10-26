@@ -6,7 +6,7 @@
  * Mirrors the real save→quit→reopen→continue flow:
  *   1. Run a session, accumulate drops + elapsed, hit stop.
  *   2. Capture the tracker_finished snapshot (what autoSaveSession persists).
- *   3. Build a LoadedSessionData from that snapshot (what startEngine does).
+ *   3. Build a LoadedSessionData from that snapshot (what TrackingService does).
  *   4. Boot a fresh engine with that loaded data.
  *   5. Inspect the tracker_started event fired on init.
  */

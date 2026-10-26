@@ -39,12 +39,12 @@ const api = {
   },
 
   engine: {
-    start:           (logPath: string)                    => ipcRenderer.send('engine:start', logPath),
-    startWithSession:(logPath: string, sessionId: string) => ipcRenderer.send('engine:start-with-session', logPath, sessionId),
-    stop:            ()                                   => ipcRenderer.send('engine:stop'),
-    pause:           ()                                   => ipcRenderer.send('engine:pause'),
-    resume:          ()                                   => ipcRenderer.send('engine:resume'),
-    reset:           ()                                   => ipcRenderer.send('engine:reset'),
+    start:           ()                  => ipcRenderer.send('engine:start'),
+    startWithSession:(sessionId: string) => ipcRenderer.send('engine:start-with-session', sessionId),
+    stop:            ()                  => ipcRenderer.send('engine:stop'),
+    pause:           ()                  => ipcRenderer.send('engine:pause'),
+    resume:          ()                  => ipcRenderer.send('engine:resume'),
+    reset:           ()                  => ipcRenderer.send('engine:reset'),
     updateFilterRules: (rules: FilterRule[] | null) => ipcRenderer.send('engine:update-filter-rules', rules),
     dismissMaterial:   (itemId: number) => ipcRenderer.send('engine:dismiss-material', itemId),
     setLowStockThreshold: (n: number)   => ipcRenderer.send('engine:set-low-stock-threshold', n),

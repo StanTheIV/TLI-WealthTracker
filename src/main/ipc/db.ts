@@ -1,4 +1,4 @@
-import {ipcMain, BrowserWindow} from 'electron';
+import {ipcMain} from 'electron';
 import {log} from '@/main/logger';
 import {
   settingsGetAll, settingsSet,
@@ -11,42 +11,42 @@ import {
 } from '@/main/db';
 import type {DbItem} from '@/shared/contracts/db';
 import type {SqliteSessionStore} from '@/main/db/session-store';
-import {broadcastItemsChanged, broadcastLeaguesChanged, setItemBroadcastWindows} from '@/main/items-broadcast';
+import type {Broadcast} from '@/main/tracking-service';
 
 interface RegisterDeps {
-  getMainWindow:    () => BrowserWindow | null;
-  getTrackerWindow: () => BrowserWindow | null;
+  /** Fan-out to both renderer windows (items:changed, leagues:changed). */
+  broadcast:        Broadcast;
   sessions:         SqliteSessionStore;
   /** Notify the engine that an item's type changed so its filter cache stays in sync. */
   onItemTypeChanged?: (id: string, type: string) => void;
 }
 
 export function registerDbHandlers(deps: RegisterDeps): void {
-  setItemBroadcastWindows(deps.getMainWindow, deps.getTrackerWindow);
+  const {broadcast} = deps;
   ipcMain.handle('db:settings:get-all',  ()               => settingsGetAll());
   ipcMain.handle('db:settings:set',      (_e, k, v)       => settingsSet(k, v));
 
   ipcMain.handle('db:items:get-all',     ()               => itemsGetAll());
   ipcMain.handle('db:items:upsert',      (_e, item: DbItem) => {
     itemsUpsert(item);
-    broadcastItemsChanged({id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
+    broadcast('items:changed', {id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
   });
   ipcMain.handle('db:items:set-name',    (_e, id: string, name: string)   => {
     itemsSetName(id, name);
-    broadcastItemsChanged({id, changes: {name}});
+    broadcast('items:changed', {id, changes: {name}});
   });
   ipcMain.handle('db:items:set-type',    (_e, id: string, type: string)   => {
     itemsSetType(id, type);
-    broadcastItemsChanged({id, changes: {type}});
+    broadcast('items:changed', {id, changes: {type}});
     deps.onItemTypeChanged?.(id, type);
   });
   ipcMain.handle('db:items:set-price',   (_e, id: string, price: number)  => {
     const {priceDate} = priceRecord(id, 'manual', price, undefined, {updateItem: true});
-    broadcastItemsChanged({id, changes: {price, ...(priceDate !== null && {priceDate})}});
+    broadcast('items:changed', {id, changes: {price, ...(priceDate !== null && {priceDate})}});
   });
   ipcMain.handle('db:items:set-locked',  (_e, id: string, locked: boolean) => {
     itemsSetLocked(id, locked);
-    broadcastItemsChanged({id, changes: {locked}});
+    broadcast('items:changed', {id, changes: {locked}});
   });
   ipcMain.handle('db:items:lookup-name',  async (_e, id: string) => {
     const result = await lookupName(id);
@@ -63,7 +63,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
         changes.type = result.type;
         deps.onItemTypeChanged?.(id, result.type);
       }
-      if (Object.keys(changes).length > 0) broadcastItemsChanged({id, changes});
+      if (Object.keys(changes).length > 0) broadcast('items:changed', {id, changes});
     }
     return result;
   });
@@ -73,7 +73,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
     // Rows skipped by INSERT OR IGNORE keep their DB values, so they're not broadcast.
     for (const item of items) {
       if (!insertedIds.has(item.id)) continue;
-      broadcastItemsChanged({id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
+      broadcast('items:changed', {id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
     }
     return insertedIds.size;
   });
@@ -82,13 +82,13 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:leagues:start-now', (_e, name?: string) => {
     const trimmed = typeof name === 'string' ? name.trim().slice(0, 100) : '';
     const league = leaguesInsertUser(trimmed || 'New league', Date.now());
-    broadcastLeaguesChanged();
+    broadcast('leagues:changed');
     return league;
   });
   ipcMain.handle('db:leagues:set-start', (_e, id: string, ts: number) => {
     if (typeof id !== 'string' || !Number.isFinite(ts)) return false;
     const changed = leaguesSetStart(id, ts);
-    if (changed) broadcastLeaguesChanged();
+    if (changed) broadcast('leagues:changed');
     return changed;
   });
 
