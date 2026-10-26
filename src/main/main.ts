@@ -21,7 +21,7 @@ import {TrackingService} from './tracking-service';
 import {createEngine} from './engine/create-engine';
 import {WorkerProcess} from './worker-process';
 import {WealthRecorder} from './wealth-recorder';
-import {LOG_SUBPATH} from '@/shared/paths';
+import {LOG_FILENAME, LOG_SUBPATH} from '@/shared/paths';
 
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER = 'http://localhost:5173';
@@ -240,7 +240,7 @@ app.whenReady().then(() => {
 
   const sessions = new SqliteSessionStore(openDatabase());
   seedItemsIfEmpty();
-  initLogger(settingsGetAll);
+  initLogger({logFile: join(app.getPath('userData'), LOG_FILENAME), settings: settingsGetAll});
   initLeaguesAndPriceHistory(broadcast);
 
   const tracking = new TrackingService({

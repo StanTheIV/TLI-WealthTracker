@@ -6,14 +6,13 @@
  * Configuration is read from the SQLite settings table on init and on
  * explicit reloadConfig() calls (triggered via IPC when the user saves settings).
  *
- * The logger is intentionally kept dependency-free (no imports from db.ts)
- * to avoid circular dependencies. Instead it receives a config-reader
- * function during initialisation.
+ * The logger is intentionally kept dependency-free (no imports from db.ts,
+ * none from electron) so it loads anywhere main-process code does — the app,
+ * vitest, the Bun replay CLI. Instead it receives the log file path and a
+ * config-reader function during initialisation.
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
-import {app} from 'electron';
 import type {LogFeature, LogTargetConfig, LogType} from '@/shared/logging';
 
 // ---------------------------------------------------------------------------
@@ -23,6 +22,13 @@ import type {LogFeature, LogTargetConfig, LogType} from '@/shared/logging';
 export interface LogConfig {
   console: LogTargetConfig;
   file:    LogTargetConfig;
+}
+
+export interface LoggerOptions {
+  /** Absolute path of the log file. Null: the file target never writes (replay CLI). */
+  logFile:  string | null;
+  /** Reads the raw settings table — `settingsGetAll()` in the app. */
+  settings: () => Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -47,6 +53,7 @@ const DEFAULT_CONFIG: LogConfig = {
 
 let _configReader: (() => Record<string, string>) | null = null;
 let _config: LogConfig = DEFAULT_CONFIG;
+/** '' before init and when initialised without a file — the file target is then off. */
 let _logFilePath = '';
 
 // ---------------------------------------------------------------------------
@@ -125,7 +132,7 @@ function write(type: LogType, feature: LogFeature, message: string): void {
 
   // File target
   const fil = _config.file;
-  if (fil.enabled && fil.types.includes(type) && fil.features.includes(feature)) {
+  if (_logFilePath && fil.enabled && fil.types.includes(type) && fil.features.includes(feature)) {
     try {
       fs.appendFileSync(_logFilePath, line + '\n', 'utf8');
     } catch {
@@ -138,15 +145,17 @@ function write(type: LogType, feature: LogFeature, message: string): void {
 // Public API
 // ---------------------------------------------------------------------------
 
-/**
- * Must be called once in main.ts, immediately after initDb().
- * @param configReader  A reference to settingsGetAll() from db.ts
- */
-export function initLogger(configReader: () => Record<string, string>): void {
-  _configReader = configReader;
-  _logFilePath  = path.join(app.getPath('userData'), 'tli-tracker.log');
-  rotateIfNeeded();
+/** Must be called once in main.ts, immediately after initDb(). */
+export function initLogger(opts: LoggerOptions): void {
+  _configReader = opts.settings;
+  _logFilePath  = opts.logFile ?? '';
+  if (_logFilePath) rotateIfNeeded();
   _config = loadConfig();
+}
+
+/** The file target's path; '' before init or when initialised without a file. */
+export function getLogFilePath(): string {
+  return _logFilePath;
 }
 
 export const log = {

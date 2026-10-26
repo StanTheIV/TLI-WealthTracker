@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "lint": "eslint src",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "replay": "bun --preload ./scripts/bun-preload.ts scripts/replay.ts"
+    "replay": "bun scripts/replay.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",

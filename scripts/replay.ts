@@ -80,10 +80,13 @@ if (args.extract) {
 
 const levels = args.verbose ? ['info', 'warn', 'error', 'debug'] : ['warn', 'error'];
 const features = ['engine', 'worker', 'database', 'ipc', 'overlay', 'session', 'price', 'wealth', 'app', 'filter', 'update'];
-initLogger(() => ({
-  'logging.console': JSON.stringify({enabled: true, features, types: levels}),
-  'logging.file':    JSON.stringify({enabled: false}),
-}));
+initLogger({
+  logFile:  null,
+  settings: () => ({
+    'logging.console': JSON.stringify({enabled: true, features, types: levels}),
+    'logging.file':    JSON.stringify({enabled: false}),
+  }),
+});
 
 const controls: ControlOp[] = [];
 for (const op of ['start', 'pause', 'resume', 'stop'] as const) {

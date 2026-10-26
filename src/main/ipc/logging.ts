@@ -1,10 +1,9 @@
-import {app, ipcMain} from 'electron';
-import {join} from 'path';
-import {log} from '@/main/logger';
+import {ipcMain} from 'electron';
+import {getLogFilePath, log} from '@/main/logger';
 
 export function registerLoggingHandlers(): void {
   ipcMain.handle('logging:reload-config', () => { log.reloadConfig(); });
-  ipcMain.handle('logging:get-log-path',  () => join(app.getPath('userData'), 'tli-tracker.log'));
+  ipcMain.handle('logging:get-log-path',  () => getLogFilePath());
 
   log.debug('ipc', 'Logging handlers registered');
 }
