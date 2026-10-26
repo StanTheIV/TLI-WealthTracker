@@ -4,9 +4,8 @@
  *
  * Everything runs the production chain (dispatcher -> engine -> handlers) under
  * fake timers, except the few registry-level edge cases that need a stamp the
- * log chain cannot place precisely. The last block PINS TODAY'S BEHAVIOUR for a
- * late in-map arming marker that lands while the player is in a seasonal scene
- * (Arcana/Vorex/Tartarus): it documents what happens, it does not endorse it.
+ * log chain cannot place precisely. The last block covers an in-map window that
+ * finishes while the player is in a seasonal scene (Arcana fight).
  */
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
@@ -1064,31 +1063,10 @@ describe('a woken terminal window refreshed by pickups still finishes', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 13. PINNED CURRENT BEHAVIOUR (not a desired one): late in-map arming marker
-//     while the player is in a seasonal scene.
+// 13. An in-map window that finishes while the player is in an Arcana fight
 // ---------------------------------------------------------------------------
 
-/**
- * In-map seasonals are only finished at town entry, so they survive into an
- * Arcana fight scene (`location === 'seasonal-scene'`, map frozen by the
- * interlude). A late in-map arming marker arriving there takes the writer role
- * (an ACTIVE tracker via `_takeOwnership` since before 1.4, a DORMANT one via
- * the wake since 1.4) - so the fight's loot is booked to the in-map mechanic
- * rather than to Arcana. These tests pin that as TODAY'S behaviour; whether it
- * should change is a separate decision.
- */
-const LATE_MARKERS = [
-  {name: 'carjack Stop',          type: 'carjack' as SeasonalType,    setup: [log.s11Start],          marker: log.s11End,                 parkMs: 5_100},
-  {name: 'carjack wave',          type: 'carjack' as SeasonalType,    setup: [log.s11Start],          marker: log.s11Wave,                parkMs: 5_100},
-  {name: 'afterlight end',        type: 'afterlight' as SeasonalType, setup: [log.afterlightStart],   marker: log.afterlightEnd,          parkMs: 5_100},
-  {name: 'afterlight special',    type: 'afterlight' as SeasonalType, setup: [log.afterlightStart],   marker: log.afterlightSpecialStart, parkMs: 5_100},
-  {name: 'afterlight wave',       type: 'afterlight' as SeasonalType, setup: [log.afterlightStart],   marker: log.afterlightWave,         parkMs: 5_100},
-  {name: 'lunaria strum',         type: 'lunaria' as SeasonalType,    setup: [log.s14Strum],          marker: log.s14Strum,               parkMs: 5_100},
-  {name: 'sandlord-map quench',   type: 'sandlord' as SeasonalType,   setup: [log.s10Wave],           marker: log.s10Quench,              parkMs: 10_100},
-  {name: 'sandlord-map wave',     type: 'sandlord' as SeasonalType,   setup: [log.s10Wave],           marker: log.s10Wave,                parkMs: 10_100},
-  {name: 'clockwork turn-in',     type: 'clockwork' as SeasonalType,  setup: [log.s7Podium],          marker: log.s7Turnin,               parkMs: 0},
-];
-
+// In-map markers never arrive outside their map, so there is no cross-zone gate.
 function enterArcanaFight(h: ReturnType<typeof setup>) {
   h.line(log.s9Minigame);
   h.line(log.zoneTransition(MAP, ARCANA_FIGHT));
@@ -1098,66 +1076,14 @@ function enterArcanaFight(h: ReturnType<typeof setup>) {
   expect(h.reg().writer()).toBe('arcana');
 }
 
-describe('CURRENT BEHAVIOUR (not desired): a late in-map arming marker inside an Arcana fight scene takes the fight\'s loot', () => {
-  describe.each(LATE_MARKERS)('$name', ({type, setup: lines, marker, parkMs}) => {
-    it('DORMANT tracker: the marker wakes it and it owns the fight loot; Arcana and the frozen map get none', () => {
-      const h = setup();
-      for (const l of lines) h.line(l);
-      h.adv(parkMs);
-      expect(h.reg().seasonal(type)?.active).toBe(false);
-      enterArcanaFight(h);
-      h.bag(1);                                        // fight loot before the marker: Arcana's
-      const arcanaBefore = h.reg().seasonal('arcana')!.snapshot().drops[ITEM];
-      expect(arcanaBefore).toBe(1);
-
-      h.events.length = 0;
-      h.line(marker);
-      expect(h.reg().seasonal(type)?.active).toBe(true);
-      expect(h.reg().writer()).toBe(type === 'clockwork' && marker === log.s7Turnin ? 'clockwork' : type);
-      h.bag(2);
-
-      expect(h.reg().seasonal(type)?.snapshot().drops[ITEM]).toBe(2);
-      expect(h.reg().seasonal('arcana')?.snapshot().drops[ITEM]).toBe(1);
-      expect(h.reg().map?.snapshot().drops[ITEM]).toBeUndefined();
-      expect(h.reg().session?.snapshot().drops[ITEM]).toBe(3);
-      expect(h.reg().session?.snapshot().dropsBySource?.[type]?.[ITEM]).toBe(2);
-      expect(h.reg().session?.snapshot().dropsBySource?.arcana?.[ITEM]).toBe(1);
-    });
-  });
-
-  // An ACTIVE tracker (window still in flight) is overtaken the same way: arming
-  // is `_takeOwnership`. Only markers that re-arm an active window apply.
-  describe.each(LATE_MARKERS.filter(m => m.name !== 'clockwork turn-in'))('$name', ({type, setup: lines, marker}) => {
-    it('ACTIVE tracker: the marker re-arms it and it owns the fight loot; Arcana and the frozen map get none', () => {
-      const h = setup();
-      for (const l of lines) h.line(l);
-      expect(h.reg().seasonal(type)?.active).toBe(true);
-      enterArcanaFight(h);
-      h.adv(2_000);
-      h.bag(1);
-      expect(h.reg().seasonal('arcana')?.snapshot().drops[ITEM]).toBe(1);
-
-      // wave markers are rate-limited: step past the 1s throttle so the marker re-arms
-      h.adv(1_100);
-      h.line(marker);
-      expect(h.reg().seasonal(type)?.active).toBe(true);
-      expect(h.reg().writer()).toBe(type);
-      h.bag(2);
-
-      expect(h.reg().seasonal(type)?.snapshot().drops[ITEM]).toBe(2);
-      expect(h.reg().seasonal('arcana')?.snapshot().drops[ITEM]).toBe(1);
-      expect(h.reg().map?.snapshot().drops[ITEM]).toBeUndefined();
-      expect(h.reg().session?.snapshot().dropsBySource?.[type]?.[ITEM]).toBe(2);
-    });
-  });
-
-  it('the in-map mechanic then finishes inside the fight scene and Arcana owns the loot again', () => {
+describe('a window armed in the map finishes inside an Arcana fight scene', () => {
+  it('the in-map mechanic finishes inside the fight scene and Arcana owns the loot again', () => {
     const h = setup();
     h.line(log.s11Start);
     h.adv(5_100);
-    enterArcanaFight(h);
-    h.line(log.s11End);                                // wake, terminal window
+    h.line(log.s11End);                                // in the map: wake, terminal window
     h.bag(2);
+    enterArcanaFight(h);
     h.adv(5_100);
     expect(h.reg().seasonal('carjack')).toBeNull();
     expect(finishedSnap(h.events, 'carjack').drops[ITEM]).toBe(2);
