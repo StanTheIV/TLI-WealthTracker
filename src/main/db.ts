@@ -1,5 +1,5 @@
 import {log} from './logger';
-import {MIGRATIONS, runMigrations, type MigrateOptions} from './db/migrations';
+import {MIGRATIONS, runMigrations, type MigrateOptions, type MigrationResult} from './db/migrations';
 import type {SqlConn} from './db/sql-conn';
 import type {League, LeagueSource} from '@/lib/leagues';
 import type {
@@ -18,13 +18,17 @@ export function getDb(): SqlConn {
   return db;
 }
 
-/** Adopt an open connection: pragmas, schema migrations, start-up data fixes. */
-export function initDb(conn: SqlConn, opts: MigrateOptions): void {
+/**
+ * Adopt an open connection: pragmas, schema migrations, start-up data fixes.
+ * Returns the migration result so the caller can warn about a newer-than-app schema.
+ */
+export function initDb(conn: SqlConn, opts: MigrateOptions): MigrationResult {
   db = conn;
   db.setPragma('journal_mode', 'WAL');
   db.setPragma('foreign_keys', 'ON');
-  runMigrations(db, MIGRATIONS, opts);
+  const result = runMigrations(db, MIGRATIONS, opts);
   normalizeItemTypes();
+  return result;
 }
 
 // ---------------------------------------------------------------------------

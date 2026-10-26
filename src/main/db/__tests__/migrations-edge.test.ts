@@ -2,6 +2,7 @@
 import {describe, it, expect, vi, afterEach} from 'vitest';
 import {MIGRATIONS, runMigrations, type Migration} from '@/main/db/migrations';
 import {initDb, getDb, settingsGet, settingsSet, itemsGetAll} from '@/main/db';
+import {log} from '@/main/logger';
 import type {SqlConn} from '@/main/db/sql-conn';
 import {openNodeSqlite} from '@/test/sql/node-sqlite';
 import {LEGACY_CREATE_SQL, LEGACY_ALTERS} from './fixtures/legacy-v019-schema';
@@ -29,28 +30,35 @@ describe('runner edge cases', () => {
     expect(backup).not.toHaveBeenCalled();
   });
 
-  it('a DB newer than the app (user_version above the latest migration) is left alone, silently', () => {
-    // Documents current behaviour: no error, no backup, no writes. The older app then
-    // runs against a schema it may not understand; a hard stop would be a design choice.
+  it('a DB newer than the app (user_version above the latest migration) is left alone and reported', () => {
+    // Warn and continue: no error, no backup, no writes — the result tells the caller to warn the user.
     const conn = open();
     runMigrations(conn, MIGRATIONS, {backup: () => {}});
     conn.setPragma('user_version', 99);
     conn.exec('CREATE TABLE future_table (x)');
+    const warn   = vi.spyOn(log, 'warn').mockImplementation(() => {});
     const backup = vi.fn();
-    runMigrations(conn, MIGRATIONS, {backup});
+    const result = runMigrations(conn, MIGRATIONS, {backup});
+    expect(result).toEqual({from: 99, to: 99, latest: MIGRATIONS[MIGRATIONS.length - 1].version, newerThanApp: true});
     expect(version(conn)).toBe(99);
     expect(backup).not.toHaveBeenCalled();
     expect(tables(conn)).toContainEqual({name: 'future_table'});
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 
-  it('initDb on a newer-than-known DB does not crash or alter it', () => {
+  it('initDb on a newer-than-known DB reports it, does not crash or alter it, and the app keeps working', () => {
     const conn = open();
     runMigrations(conn, MIGRATIONS, {backup: () => {}});
     conn.setPragma('user_version', 7);
-    initDb(conn, {backup: () => { throw new Error('no backup expected'); }});
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const result = initDb(conn, {backup: () => { throw new Error('no backup expected'); }});
+    expect(result.newerThanApp).toBe(true);
+    expect(result.from).toBe(7);
     expect(version(conn)).toBe(7);
     settingsSet('k', 'v');
     expect(settingsGet('k')).toBe('v');
+    warn.mockRestore();
   });
 
   it('a step may use conn.transaction itself (nested -> savepoint), including a caught inner failure', () => {

@@ -7,6 +7,7 @@ import {
 } from './db';
 import {backupDb} from './db/backup';
 import {openBetterSqlite3} from './db/drivers/better-sqlite3';
+import {newerSchemaMessage} from './db/schema-newer';
 import {SqliteSessionStore} from './db/session-store';
 import type {SqlConn} from './db/sql-conn';
 import {initLogger, log} from './logger';
@@ -225,8 +226,11 @@ function openDatabase(): SqlConn {
   const userData = app.getPath('userData');
   const dbPath   = join(userData, 'tli-tracker.db');
   const conn     = openBetterSqlite3(dbPath);
-  initDb(conn, {backup: reason => backupDb(conn, userData, reason)});
+  const result   = initDb(conn, {backup: reason => backupDb(conn, userData, reason)});
   log.info('database', `Database initialized at ${dbPath}`);
+  // Warn and continue (user decision). No window exists yet, so the box is parentless.
+  const message = newerSchemaMessage(result);
+  if (message) dialog.showMessageBoxSync({type: 'warning', title: 'TLI Tracker', message, buttons: ['Continue']});
   return conn;
 }
 

@@ -36,17 +36,38 @@ function hasUserTables(conn: SqlConn): boolean {
   return (row?.n ?? 0) > 0;
 }
 
-/** Apply every migration above the DB's `user_version`, in order. Throws on the first failure. */
-export function runMigrations(conn: SqlConn, migrations: readonly Migration[], opts: MigrateOptions): void {
+/** What one `runMigrations` call found and did. */
+export interface MigrationResult {
+  /** `user_version` before the run. */
+  from:         number;
+  /** `user_version` after the run (`from` when nothing was pending or the DB is newer). */
+  to:           number;
+  /** Highest version this app knows (0 for an empty migration list). */
+  latest:       number;
+  /** `from > latest`: a newer app wrote this DB. Nothing was run, written or backed up. */
+  newerThanApp: boolean;
+}
+
+/**
+ * Apply every migration above the DB's `user_version`, in order. Throws on the first failure.
+ * A DB newer than the latest known version is left untouched and reported via `newerThanApp`
+ * (warn and continue — the caller tells the user).
+ */
+export function runMigrations(conn: SqlConn, migrations: readonly Migration[], opts: MigrateOptions): MigrationResult {
   for (let i = 1; i < migrations.length; i++) {
     if (migrations[i].version <= migrations[i - 1].version) {
       throw new Error(`Migration versions must be strictly increasing: ${migrations[i - 1].version} → ${migrations[i].version}`);
     }
   }
 
-  const current = Number(conn.getPragma('user_version'));
-  const pending = migrations.filter(m => m.version > current);
-  if (pending.length === 0) return;
+  const from   = Number(conn.getPragma('user_version'));
+  const latest = migrations.length > 0 ? migrations[migrations.length - 1].version : 0;
+  if (from > latest) {
+    log.warn('database', `Schema v${from} is newer than this app knows (v${latest}); not migrating`);
+    return {from, to: from, latest, newerThanApp: true};
+  }
+  const pending = migrations.filter(m => m.version > from);
+  if (pending.length === 0) return {from, to: from, latest, newerThanApp: false};
 
   const backupStep = pending.find(m => m.backup);
   if (backupStep?.backup && hasUserTables(conn)) opts.backup(backupStep.backup);
@@ -72,6 +93,7 @@ export function runMigrations(conn: SqlConn, migrations: readonly Migration[], o
     }
     log.info('database', `Migrated schema to v${m.version} (${m.name})`);
   }
+  return {from, to: latest, latest, newerThanApp: false};
 }
 
 // ---------------------------------------------------------------------------
