@@ -138,7 +138,8 @@ export class SeasonalTracker extends Tracker {
    *  writer, not creation order and not merely waking from dormancy. Without
    *  this a mechanic started later keeps owning loot from a fight the player has
    *  since gone back to. Skipped while inactive: a dormant tracker rejects drops
-   *  anyway, and its resume path bumps the order itself. */
+   *  anyway, and its resume path bumps the order itself — so after a wake this
+   *  bump is a no-op, and re-arming the current owner publishes nothing. */
   private _takeOwnership(): void {
     if (!this.active || !this._claimsDrops) return;
     this._registry._onSeasonalReactivated(this, this._emit);

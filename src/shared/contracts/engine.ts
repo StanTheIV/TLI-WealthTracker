@@ -23,8 +23,10 @@ export interface TrackerSnapshot {
    *  active seasonals. */
   active:        boolean;
   /** True on the seasonal that currently owns incoming drops — the one whose
-   *  window was armed or re-armed most recently. Set by the registry at emit
-   *  time, since ownership is registry state rather than tracker state. */
+   *  window was armed or re-armed most recently. Stamped by the registry on
+   *  every seasonal tracker_started / tracker_update (ownership is registry
+   *  state, not tracker state). Never set on map/session snapshots, nor on
+   *  tracker_finished. */
   owner?:        boolean;
   /** Per-source breakdown — populated only on the session tracker's snapshot.
    *  Each drop is attributed to exactly one source (newest active tracker at

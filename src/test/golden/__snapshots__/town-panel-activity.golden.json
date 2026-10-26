@@ -18,7 +18,6 @@
       "+14.000s tracker_update seasonal arcana active=false",
       "+18.000s tracker_update seasonal arcana active=true owner",
       "+20.000s zone_change unknown XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200 -> SuMingTaLuo000.SuMingTaLuo000",
-      "+25.000s tracker_update seasonal arcana active=true",
       "+40.000s zone_change town SuMingTaLuo000.SuMingTaLuo000 -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
       "+40.000s tracker_finished seasonal arcana elapsed=26.000s items=2",
       "+110.000s tracker_finished session elapsed=109.250s items=2"

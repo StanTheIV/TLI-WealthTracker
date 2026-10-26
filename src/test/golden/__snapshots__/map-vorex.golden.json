@@ -28,7 +28,6 @@
       "+60.750s zone_change unknown JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000 -> DiXiaZhenSuo.DiXiaZhenSuo",
       "+60.750s tracker_update map active=false",
       "+60.750s tracker_update seasonal vorex active=true owner",
-      "+70.000s tracker_update seasonal vorex active=true",
       "+90.000s zone_change town DiXiaZhenSuo.DiXiaZhenSuo -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
       "+90.000s tracker_finished seasonal vorex elapsed=44.250s items=3",
       "+90.000s tracker_finished map elapsed=24.750s items=2",

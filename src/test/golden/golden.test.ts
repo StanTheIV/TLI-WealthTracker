@@ -81,6 +81,52 @@ describe('golden accounting invariants', () => {
   });
 });
 
+/** Seasonals whose owner flag dropped while still active and came back with no
+ *  other seasonal taking ownership in between — the overlay's owner ring
+ *  blinking with no hand-off behind it. */
+function ownerFlaps(events: PipelineResult['events']): string[] {
+  const flaps: string[] = [];
+  const lastOwner = new Map<string, boolean>();
+  const lost      = new Set<string>();   // lost the flag while active, no taker seen yet
+  for (const {event, at} of events) {
+    if (event.type === 'tracker_finished' && event.tracker.seasonalType) {
+      lastOwner.delete(event.tracker.seasonalType);
+      lost.delete(event.tracker.seasonalType);
+    }
+    if (event.type !== 'tracker_update' && event.type !== 'tracker_started') continue;
+    const type = event.tracker.seasonalType;
+    if (!type) continue;
+    const owner = event.tracker.owner === true;
+    // A hand-off publishes both sides, in either order: a loss is explained if
+    // another seasonal already holds the flag, or takes it before the regain.
+    const takenBy = (t: string) => [...lastOwner].some(([other, o]) => o && other !== t);
+    if (owner) {
+      if (lost.has(type)) flaps.push(`${type} @${at}`);
+      lost.clear();
+    } else if (!event.tracker.active) {
+      lost.delete(type);
+    } else if (lastOwner.get(type) && !takenBy(type)) {
+      lost.add(type);
+    }
+    lastOwner.set(type, owner);
+  }
+  return flaps;
+}
+
+describe('golden event shape', () => {
+  it.each(SCENARIOS)('%s: owner is stamped on every seasonal snapshot and never on map/session', async (name) => {
+    const {events} = await result(name);
+    const published = events.flatMap(({event}) =>
+      event.type === 'tracker_update' || event.type === 'tracker_started' ? [event.tracker] : []);
+    expect(published.filter(t => t.kind === 'seasonal' && typeof t.owner !== 'boolean')).toEqual([]);
+    expect(published.filter(t => t.kind !== 'seasonal' && 'owner' in t)).toEqual([]);
+  });
+
+  it.each(SCENARIOS)('%s: no seasonal owner flag flaps', async (name) => {
+    expect(ownerFlaps((await result(name)).events)).toEqual([]);
+  });
+});
+
 describe('golden scenario shapes', () => {
   it('plain-map-cost: one map, its entry cost on the map row', async () => {
     const rows = await savedRows('plain-map-cost');

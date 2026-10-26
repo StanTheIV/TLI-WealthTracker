@@ -6,6 +6,12 @@ import type {ItemFilterEngine} from './item-filter';
 import type {FilterScope} from '@/shared/item-filter';
 import {log} from '@/main/logger';
 
+/** The flags a seasonal's row renders from: running vs frozen, and the owner ring. */
+interface PublishedFlags {
+  active: boolean;
+  owner:  boolean;
+}
+
 export interface DistributeResult {
   sessionAccepted:  boolean;
   mapChanged:       boolean;
@@ -22,9 +28,10 @@ export class TrackerRegistry {
   map:     Tracker | null = null;
 
   private _seasonals:  Map<SeasonalType, SeasonalTracker> = new Map();
-  // Last `owner` flag published per seasonal, so ownership churn only emits for
-  // trackers whose flag actually flipped.
-  private _lastEmittedOwner: Map<SeasonalType, boolean> = new Map();
+  // The `{active, owner}` pair last published per seasonal (tracker_started or
+  // tracker_update) — what the renderer currently shows. _emitOwnership diffs
+  // against it, so a seasonal is republished only when that pair changed.
+  private _published: Map<SeasonalType, PublishedFlags> = new Map();
   // ACTIVATION order — start pushes, gameplay reactivation bumps to the end.
   // writer() scans it from the end for the drop owner.
   private _startOrder: SeasonalType[]                     = [];
@@ -151,11 +158,10 @@ export class TrackerRegistry {
     this._seasonals.set(type, tracker);
     this._startOrder.push(type);
     this._currentWriter = undefined;
-    // Starting normally makes it the newest → owner, but a timing-only tracker
-    // never holds the flag, and seeding `true` would suppress the corrective
-    // update that _emitOwnership only sends on a CHANGE.
-    this._lastEmittedOwner.set(type, tracker.claimsDrops);
-    emit({type: 'tracker_started', tracker: this._snapshotWithOwner(tracker), timestamp: Date.now()});
+    // Newest → owner, unless timing-only (claimsDrops): the stamp reads writer().
+    const snap = this._snapshotWithOwner(tracker);
+    this._record(snap);
+    emit({type: 'tracker_started', tracker: snap, timestamp: Date.now()});
     this._emitOwnership(emit);              // whoever held it before must drop the flag
     return tracker;
   }
@@ -174,27 +180,32 @@ export class TrackerRegistry {
     this._seasonals.delete(type);
     const idx = this._startOrder.indexOf(type);
     if (idx >= 0) this._startOrder.splice(idx, 1);
-    this._lastEmittedOwner.delete(type);
+    this._published.delete(type);
     this._sessionFrozen.delete(type);
     this._currentWriter = undefined;
     emit({type: 'tracker_finished', tracker: snap, timestamp: Date.now()});
     this._emitOwnership(emit); // ownership falls to whoever is now newest
   }
 
-  /** Internal: a seasonal paused or resumed. The renderer freezes a row's clock
-   *  on `active: false`, so this state MUST reach it — hence the forced emit.
-   *  Ownership alone would not do it: a tracker that never owns drops (a
-   *  timing-only one, see SeasonalTracker.claimsDrops) has no ownership change
-   *  to publish, so it would park silently and its row keep ticking. */
-  _onSeasonalStateChanged(tracker: SeasonalTracker, emit: EmitFn): void {
+  /** Internal: a seasonal paused, or resumed without a reactivation (session
+   *  resume). The renderer freezes a row's clock on `active: false`, so the
+   *  flip MUST reach it — and does, because _emitOwnership diffs `active` as
+   *  well as `owner`: a timing-only tracker (see SeasonalTracker.claimsDrops),
+   *  which has no ownership to change, still publishes its park and its wake. */
+  _onSeasonalStateChanged(_tracker: SeasonalTracker, emit: EmitFn): void {
     this._currentWriter = undefined;
-    this._emitOwnership(emit, tracker.seasonalType);
+    this._emitOwnership(emit);
   }
 
   /** Internal: a seasonal was re-activated by gameplay (e.g. a fresh Lunaria
    *  strum while an Overrealm run is live). Ownership follows recency of
    *  ACTIVATION, not creation — bump it to newest in the activation order so
-   *  writer() picks it. Session-resume restores state without calling this. */
+   *  writer() picks it. Session-resume restores state without calling this.
+   *
+   *  Idempotent: bumping the tracker that is already newest changes nothing,
+   *  so re-arming the current owner publishes no tracker_update (its
+   *  loot_window_started carries the new deadline). A wake publishes once —
+   *  the resume flips `active`; the arm's ownership bump after it is a no-op. */
   _onSeasonalReactivated(tracker: SeasonalTracker, emit: EmitFn): void {
     const type = tracker.seasonalType;
     const idx = this._startOrder.indexOf(type);
@@ -203,9 +214,7 @@ export class TrackerRegistry {
       this._startOrder.push(type);
     }
     this._currentWriter = undefined;
-    // Forced for the same reason as the pause path: waking a timing-only
-    // tracker changes no ownership, but the row must start ticking again.
-    this._emitOwnership(emit, type);
+    this._emitOwnership(emit);
   }
 
   /** Turn drop ownership on or off for a live seasonal without touching its
@@ -224,29 +233,53 @@ export class TrackerRegistry {
     this._emitOwnership(emit);
   }
 
-  /** Emit a tracker_update for every live seasonal whose `owner` flag changed.
-   *  Ownership is a property of the SET — one seasonal gaining it means another
-   *  lost it, and the loser needs a snapshot too or the UI would show two owners.
-   *
-   *  `force` names a seasonal to emit even when its ownership is unchanged, for
-   *  callers publishing some OTHER state on it (pause/resume). Routing that
-   *  through here rather than emitting separately is what keeps it to exactly
-   *  one update per tracker. */
-  private _emitOwnership(emit: EmitFn, force?: SeasonalType): void {
+  // -----------------------------------------------------------------------
+  // Publishing seasonal state
+  // -----------------------------------------------------------------------
+  //
+  // The renderer REPLACES a seasonal's snapshot on every tracker_update, so
+  // each one must carry the true `owner` flag — an update without it reads as
+  // "not the owner", and the overlay's owner ring would blink off on every
+  // drop. Hence a single emitter: every seasonal tracker_update goes through
+  // emitUpdate, which stamps the flag and records what was published. Updates
+  // are sent on a real change only — drops/elapsed (publishDrops) or a changed
+  // `{active, owner}` pair (_emitOwnership). Map/session snapshots never carry
+  // `owner` (no consumer; see TrackerSnapshot.owner).
+
+  /** THE seasonal tracker_update emitter: the snapshot stamped with `owner`
+   *  (= this tracker is the current writer()), recorded as the pair the
+   *  renderer now shows. */
+  emitUpdate(tracker: SeasonalTracker, emit: EmitFn): void {
+    const snap = this._snapshotWithOwner(tracker);
+    this._record(snap);
+    emit({type: 'tracker_update', tracker: snap, timestamp: Date.now()});
+  }
+
+  /** The change detector: republish every live seasonal whose `{active,
+   *  owner}` pair differs from what it last published. Ownership is a property
+   *  of the SET — one seasonal gaining it means another lost it, and the loser
+   *  needs a snapshot too or the UI would show two owners — so every seasonal
+   *  is checked, not only the one whose change triggered the call. A call that
+   *  changed nothing publishes nothing. */
+  private _emitOwnership(emit: EmitFn): void {
     const owner = this.writer();
     for (const t of this._seasonals.values()) {
-      const isOwner = t.seasonalType === owner;
-      if (this._lastEmittedOwner.get(t.seasonalType) === isOwner && t.seasonalType !== force) continue;
-      this._lastEmittedOwner.set(t.seasonalType, isOwner);
-      emit({type: 'tracker_update', tracker: this._snapshotWithOwner(t, owner), timestamp: Date.now()});
+      const last = this._published.get(t.seasonalType);
+      if (last && last.active === t.active && last.owner === (t.seasonalType === owner)) continue;
+      this.emitUpdate(t, emit);
     }
   }
 
   /** Snapshot stamped with the drop-ownership flag. */
-  _snapshotWithOwner(tracker: SeasonalTracker, owner?: Source | null): TrackerSnapshot {
+  private _snapshotWithOwner(tracker: SeasonalTracker): TrackerSnapshot {
     const snap = tracker.snapshot();
-    snap.owner = tracker.seasonalType === (owner === undefined ? this.writer() : owner);
+    snap.owner = tracker.seasonalType === this.writer();
     return snap;
+  }
+
+  private _record(snap: TrackerSnapshot): void {
+    if (!snap.seasonalType) return;
+    this._published.set(snap.seasonalType, {active: snap.active, owner: snap.owner === true});
   }
 
   // -----------------------------------------------------------------------
@@ -374,20 +407,27 @@ export class TrackerRegistry {
     tracker.freezeLootTimer();
   }
 
-  /** Session pause: freeze every live seasonal. */
+  /** Session pause: freeze every live seasonal, oldest activation first, so
+   *  the owner is frozen last and ownership never passes to a tracker that is
+   *  about to freeze — each publishes only its `active: false`. */
   freezeAllForSessionPause(): void {
-    for (const t of this._seasonals.values()) this.freezeForSessionPause(t);
+    for (const type of [...this._startOrder]) {
+      const t = this._seasonals.get(type);
+      if (t) this.freezeForSessionPause(t);
+    }
   }
 
   /** Session resume: continue every frozen loot window, then resume only the
    *  seasonals the session pause froze. Frozen windows can't expire during a
    *  pause, so a tracker self-paused at pause time is still self-paused here.
    *  The resume is mechanical — it restores the pre-pause ownership order
-   *  rather than bumping the tracker to newest. */
+   *  rather than bumping the tracker to newest — and runs newest first, so the
+   *  pre-pause owner is back before any older tracker could claim the flag in
+   *  between. */
   thawSessionPause(): void {
     for (const t of this._seasonals.values()) t.unfreezeLootTimer();
-    for (const type of this._sessionFrozen) {
-      this._seasonals.get(type)?.resumeTracker({reactivate: false});
+    for (const type of [...this._startOrder].reverse()) {
+      if (this._sessionFrozen.has(type)) this._seasonals.get(type)?.resumeTracker({reactivate: false});
     }
     this._sessionFrozen.clear();
   }
@@ -423,6 +463,7 @@ export class TrackerRegistry {
     this.map     = null;
     this._seasonals.clear();
     this._startOrder = [];
+    this._published.clear();
     this._sessionFrozen.clear();
     this._currentWriter = undefined;
   }

@@ -12,7 +12,7 @@
       "map_started": 1,
       "tracker_finished": 3,
       "tracker_started": 3,
-      "tracker_update": 30,
+      "tracker_update": 22,
       "zone_change": 2
     },
     "lines": [
@@ -31,12 +31,10 @@
       "+45.000s loot_window_started afterlight for=5.000s",
       "+48.000s loot_window_started afterlight for=5.000s",
       "+50.000s loot_window_started afterlight for=5.000s",
-      "+52.000s tracker_update seasonal afterlight active=true",
       "+55.000s loot_window_ended afterlight",
       "+55.000s tracker_update seasonal afterlight active=false",
       "+64.000s tracker_update seasonal afterlight active=true owner",
       "+64.000s loot_window_started afterlight for=5.000s",
-      "+65.000s tracker_update seasonal afterlight active=true",
       "+69.000s loot_window_ended afterlight",
       "+69.000s tracker_finished seasonal afterlight elapsed=20.000s items=3",
       "+90.000s zone_change town JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000 -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
