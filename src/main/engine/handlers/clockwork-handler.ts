@@ -34,7 +34,8 @@ const COGWHEEL_IDLE_MS = 10_000;
  *
  * The cogwheel timeout is an abandonment guard, re-armed by each pulse, and its
  * expiry only parks the tracker (`pauseOnLootExpiry`) so a later cogwheel
- * resumes the same run. Only the turn-in window is terminal. Pickups move the
+ * resumes the same run — arming wakes it (TrackerRegistry.wakeForLoot), as does
+ * the turn-in's window. Only the turn-in window is terminal. Pickups move the
  * TERMINAL window only (decaying refresh, as for Carjack) — mid-fight a pickup
  * is not evidence the cogwheel is still turning, and the tracker owns nothing
  * then anyway.
@@ -97,11 +98,9 @@ export class ClockworkHandler implements EventHandler {
         // leaving a phantom tracker mid-map.
         const t = ctx.registry.seasonal('clockwork');
         if (!t || this._terminal) break;
-        if (!t.active) t.resumeTracker();
-        // Every pulse re-arms: the loop repeats every ~2.8s, so a fight that
-        // outlives the timeout keeps the row lit. Unthrottled and unconditional
-        // — a throttled call on a tracker whose window just expired would leave
-        // it active with no timer at all.
+        // Every pulse re-arms (waking a greyed-out row): the loop repeats every
+        // ~2.8s, so a fight that outlives the timeout keeps the row lit.
+        // Unthrottled and unconditional.
         t.armLootTimer();
         break;
       }
@@ -118,14 +117,13 @@ export class ClockworkHandler implements EventHandler {
       }
 
       case 's7_turnin': {
-        // Fires for wins and losses alike, and both drop loot. Claiming drops
-        // and flipping expiry must both happen BEFORE arming: the tracker owns
-        // nothing during the fight phase, and a park-on-expiry window would
-        // never end the run.
+        // Fires for wins and losses alike, and both drop loot. Claiming drops,
+        // the window length and expiry must all be set BEFORE arming (which
+        // wakes the usually greyed-out tracker): it owns nothing during the
+        // fight phase, and a park-on-expiry window would never end the run.
         const t = ctx.registry.seasonal('clockwork');
         if (t && !this._terminal) {
           this._terminal = true;
-          t.resumeTracker();
           ctx.registry.setSeasonalClaimsDrops(t, true, emit);
           t.setLootDurationMs(this._lootMs);
           t.setPauseOnLootExpiry(false);

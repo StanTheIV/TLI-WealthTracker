@@ -12,7 +12,7 @@
       "map_started": 1,
       "tracker_finished": 3,
       "tracker_started": 3,
-      "tracker_update": 26,
+      "tracker_update": 30,
       "zone_change": 2
     },
     "lines": [
@@ -34,9 +34,11 @@
       "+52.000s tracker_update seasonal afterlight active=true",
       "+55.000s loot_window_ended afterlight",
       "+55.000s tracker_update seasonal afterlight active=false",
+      "+64.000s tracker_update seasonal afterlight active=true owner",
       "+64.000s loot_window_started afterlight for=5.000s",
+      "+65.000s tracker_update seasonal afterlight active=true",
       "+69.000s loot_window_ended afterlight",
-      "+69.000s tracker_finished seasonal afterlight elapsed=15.000s items=2",
+      "+69.000s tracker_finished seasonal afterlight elapsed=20.000s items=3",
       "+90.000s zone_change town JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000 -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
       "+90.000s tracker_finished map elapsed=69.000s items=4",
       "+90.000s map_ended elapsed=69.000s",
@@ -50,66 +52,66 @@
         "mechanics": [
           {
             "avgPerRun": {
-              "live": 39.003127,
-              "snapshot": 39.003127
+              "live": 16.417343,
+              "snapshot": 16.417343
             },
-            "avgSeconds": 54,
+            "avgSeconds": 49,
             "cost": {
               "live": 3.558441,
               "snapshot": 3.558441
             },
             "fePerHour": {
-              "live": 2600.208467,
-              "snapshot": 2600.208467
+              "live": 1206.172139,
+              "snapshot": 1206.172139
             },
             "income": {
-              "live": 42.561568,
-              "snapshot": 42.561568
+              "live": 19.975784,
+              "snapshot": 19.975784
             },
             "key": "map",
             "nestedInMap": false,
             "net": {
-              "live": 39.003127,
-              "snapshot": 39.003127
+              "live": 16.417343,
+              "snapshot": 16.417343
             },
             "runs": 1,
-            "seconds": 54,
-            "timePct": 36.180905,
+            "seconds": 49,
+            "timePct": 32.830821,
             "valuePct": {
-              "live": 67.935932,
-              "snapshot": 67.935932
+              "live": 31.884951,
+              "snapshot": 31.884951
             }
           },
           {
             "avgPerRun": {
-              "live": 20.088,
-              "snapshot": 20.088
+              "live": 42.673784,
+              "snapshot": 42.673784
             },
-            "avgSeconds": 15,
+            "avgSeconds": 20,
             "cost": {
               "live": 0,
               "snapshot": 0
             },
             "fePerHour": {
-              "live": 4821.12,
-              "snapshot": 4821.12
+              "live": 7681.28112,
+              "snapshot": 7681.28112
             },
             "income": {
-              "live": 20.088,
-              "snapshot": 20.088
+              "live": 42.673784,
+              "snapshot": 42.673784
             },
             "key": "afterlight",
             "nestedInMap": true,
             "net": {
-              "live": 20.088,
-              "snapshot": 20.088
+              "live": 42.673784,
+              "snapshot": 42.673784
             },
             "runs": 1,
-            "seconds": 15,
-            "timePct": 10.050251,
+            "seconds": 20,
+            "timePct": 13.400335,
             "valuePct": {
-              "live": 32.064068,
-              "snapshot": 32.064068
+              "live": 68.115049,
+              "snapshot": 68.115049
             }
           },
           {
@@ -149,8 +151,8 @@
           {
             "bySeasonal": {
               "afterlight": {
-                "live": 20.088,
-                "snapshot": 20.088
+                "live": 42.673784,
+                "snapshot": 42.673784
               }
             },
             "cost": {
@@ -162,8 +164,8 @@
               "snapshot": 59.091127
             },
             "mapIncome": {
-              "live": 42.561568,
-              "snapshot": 42.561568
+              "live": 19.975784,
+              "snapshot": 19.975784
             },
             "mapIndex": 1,
             "mechanic": "map",
@@ -172,8 +174,8 @@
               "snapshot": 59.091127
             },
             "seasonalIncome": {
-              "live": 20.088,
-              "snapshot": 20.088
+              "live": 42.673784,
+              "snapshot": 42.673784
             },
             "seconds": 69
           }
@@ -213,7 +215,7 @@
             "live": 1425.313616,
             "snapshot": 1425.313616
           },
-          "plainMapSeconds": 54,
+          "plainMapSeconds": 49,
           "roiMultiple": {
             "live": 17.605903,
             "snapshot": 17.605903
@@ -268,15 +270,16 @@
         {
           "drops": {
             "5210": 4,
-            "100300": 20
+            "6153": 1,
+            "100300": 35
           },
-          "duration": 15000,
+          "duration": 20000,
           "mapIndex": 1,
           "parentMapIndex": 1,
           "phase": null,
           "seasonalType": "afterlight",
           "spent": {},
-          "startedAtMs": 54000
+          "startedAtMs": 49000
         }
       ],
       "saved": true,
@@ -291,12 +294,13 @@
         "dropsBySource": {
           "afterlight": {
             "5210": 4,
-            "100300": 20
+            "6153": 1,
+            "100300": 35
           },
           "map": {
             "5028": 3,
-            "6153": 2,
-            "100300": 27
+            "6153": 1,
+            "100300": 12
           }
         },
         "mapCount": 1,

@@ -115,6 +115,43 @@ describe('golden scenario shapes', () => {
     expect(seasonal(rows, 'sandlord')).toEqual([expect.objectContaining({phase: 'map', parentMapIndex: map.mapIndex})]);
   });
 
+  // 1.4: a loot window armed on a dormant tracker wakes it, so the terminal
+  // window's drops credit the seasonal (single owner) instead of the map.
+  it('sandlord-quench: the quench wakes the dormant tile, so its window credits the run', async () => {
+    const rows = await savedRows('sandlord-quench');
+    const {sessions} = await result('sandlord-quench');
+    const [tile] = seasonal(rows, 'sandlord');
+    expect(tile.duration).toBe(25_000);
+    expect(tile.drops).toEqual({'5028': 1, '100200': 9, '100300': 2});
+    const bySource = sessions[0].session!.dropsBySource;
+    expect(bySource.sandlord?.['5028']).toBe(1);
+    expect(bySource.map?.['5028']).toBe(14);
+  });
+
+  it('afterlight-special-no-win: the Special Stop wakes the dormant run and credits its window', async () => {
+    const rows = await savedRows('afterlight-special-no-win');
+    const {sessions} = await result('afterlight-special-no-win');
+    const [run] = seasonal(rows, 'afterlight');
+    expect(run.duration).toBe(20_000);
+    expect(run.drops).toEqual({'5210': 4, '6153': 1, '100300': 35});
+    const bySource = sessions[0].session!.dropsBySource;
+    expect(bySource.afterlight).toMatchObject({'6153': 1, '100300': 35});
+    expect(bySource.map?.['6153']).toBe(1);
+    expect(bySource.map?.['100300']).toBe(12);
+  });
+
+  it('carjack-stop-after-dormancy: the Stop wakes the dormant run and credits its window', async () => {
+    const rows = await savedRows('carjack-stop-after-dormancy');
+    const {sessions} = await result('carjack-stop-after-dormancy');
+    const [run] = seasonal(rows, 'carjack');
+    expect(run.duration).toBe(21_000);
+    expect(run.drops).toEqual({'5210': 3, '6004': 2, '100300': 35});
+    const bySource = sessions[0].session!.dropsBySource;
+    expect(bySource.carjack).toMatchObject({'6004': 2, '100300': 35});
+    expect(bySource.map?.['6004']).toBeUndefined();
+    expect(bySource.map?.['100300']).toBe(12);
+  });
+
   it.each([
     ['map-vorex', 'vorex'],
     ['afterlight-special-no-win', 'afterlight'],

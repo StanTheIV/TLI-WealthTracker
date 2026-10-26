@@ -11,8 +11,8 @@ const DEFAULT_WAVE_MS = 10_000;
  * 'map': an in-map mechanic, so the map keeps running and drops fall through.
  * Multiple tiles in one map fold into the same tracker, dormant between them.
  *   s10_wave (first)  : start tracker + arm the wave window
- *   s10_wave (dormant): resume + arm a fresh window
- *   s10_wave (active) : reset the window (full re-arm, rate-limited)
+ *   s10_wave (later)  : reset the window (full re-arm, rate-limited; a dormant
+ *                       tracker wakes and re-arms unthrottled)
  *   s10_quench        : re-arm the window so the last wave's loot still credits
  *
  * s10_wave covers both a machine engaging AND every mob landing — a machine
@@ -28,7 +28,9 @@ const DEFAULT_WAVE_MS = 10_000;
  *
  * Before the first quench the window is pure wave activity, so expiry only parks
  * the tracker: the player may have walked away mid-tile and a later wave must
- * resume the same run. Town entry remains the backstop for both.
+ * resume the same run. A quench on a parked tracker wakes it too
+ * (TrackerRegistry.wakeForLoot), so its window still credits. Town entry remains
+ * the backstop for both.
  *
  * The timer is a WAVE-ACTIVITY window, not a loot window — it repurposes the
  * loot-timer machinery so expiry pauses the tracker (`pauseOnLootExpiry`). Hence
@@ -84,18 +86,11 @@ export class SandlordMapHandler implements EventHandler {
       return;
     }
 
-    if (!existing.active) {
-      existing.setPauseOnLootExpiry(true);
-      existing.resumeTracker();
-      existing.armLootTimer();
-      return;
-    }
-
     // A wave means the tile is still running, so expiry goes back to parking the
-    // tracker. The window in flight may be the terminal one a quench armed —
-    // that must be replaced outright, never merely throttled, or it expires
-    // under the new park-flag and leaves a dormant tracker with no timer.
-    existing.setPauseOnLootExpiry(true);
-    existing.resetLootTimerThrottled();
+    // tracker — but only with the window it re-arms. A swallowed (throttled)
+    // reset leaves the in-flight window untouched, which may be the terminal
+    // one a quench just armed: flipping the flag under it would park the run
+    // instead of finishing it. A dormant tracker wakes and re-arms unthrottled.
+    if (existing.resetLootTimerThrottled()) existing.setPauseOnLootExpiry(true);
   }
 }

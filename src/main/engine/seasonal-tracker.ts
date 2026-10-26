@@ -73,9 +73,12 @@ export class SeasonalTracker extends Tracker {
   // -------------------------------------------------------------------------
 
   /** Arm a fresh post-mechanic loot window. Cancels any in-flight timer.
-   *  Arming is gameplay engagement, so it also takes ownership — see
-   *  `_takeOwnership`. */
+   *  Arming is gameplay engagement, so it wakes a dormant tracker first and
+   *  takes ownership — see `TrackerRegistry.wakeForLoot` and `_takeOwnership`.
+   *  When the wake is blocked (session paused, run already finished) this is a
+   *  no-op: no timer, no emit. */
   armLootTimer(): void {
+    if (!this.active && !this._registry.wakeForLoot(this)) return;
     this._lootTimer?.cancel();
     this._lootTimer = new LootCollectionTimer(this._lootDurationMs, () => this._onLootExpire());
     this._lootTimer.start();
@@ -84,7 +87,8 @@ export class SeasonalTracker extends Tracker {
     this._takeOwnership();
   }
 
-  /** Pickup-driven refresh — decaying 80% rule with 1s floor. */
+  /** Pickup-driven refresh — decaying 80% rule with 1s floor. Never wakes a
+   *  dormant tracker: a pickup is not evidence the mechanic is being played. */
   refreshLootTimer(): void {
     if (!this._lootTimer) return;
     if (this._lootTimer.refresh()) {
@@ -93,9 +97,10 @@ export class SeasonalTracker extends Tracker {
     }
   }
 
-  /** Strum/wave-driven reset — full re-arm, undoes any decay. Also takes
-   *  ownership: see `_takeOwnership`. */
+  /** Strum/wave-driven reset — full re-arm, undoes any decay. Wakes a dormant
+   *  tracker and takes ownership, under the same rule as `armLootTimer`. */
   resetLootTimer(): void {
+    if (!this.active && !this._registry.wakeForLoot(this)) return;
     if (!this._lootTimer) {
       this.armLootTimer();
       return;
@@ -107,15 +112,21 @@ export class SeasonalTracker extends Tracker {
   }
 
   /** Wave-driven reset, rate-limited: spawn bursts fire 30+ markers/sec and each
-   *  reset publishes a new deadline to the overlay. Only for the ACTIVE branch —
-   *  a dormant tracker has no timer to keep alive, so waking it must arm
-   *  unthrottled or it resumes with no window at all.
+   *  reset publishes a new deadline to the overlay. The throttle only applies to
+   *  an ACTIVE tracker — a dormant one has no window to keep alive, so its wake
+   *  arms unthrottled or it would resume with no window at all. A blocked wake
+   *  (see `TrackerRegistry.wakeForLoot`) arms nothing and leaves the throttle
+   *  unstamped.
    *
-   *  Returns true when it actually re-armed, so callers can keep state that
-   *  must move with the window (e.g. the expiry mode) in step with it. */
+   *  Returns true only when it actually re-armed, so callers can keep state
+   *  that must move with the window (e.g. the expiry mode) in step with it. */
   resetLootTimerThrottled(minIntervalMs: number = 1_000): boolean {
     const now = Date.now();
-    if (now - this._lastWaveResetAt < minIntervalMs) return false;
+    if (this.active) {
+      if (now - this._lastWaveResetAt < minIntervalMs) return false;
+    } else if (!this._registry.wakeForLoot(this)) {
+      return false;
+    }
     this._lastWaveResetAt = now;
     this.resetLootTimer();
     return true;

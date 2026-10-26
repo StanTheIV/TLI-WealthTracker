@@ -8,7 +8,7 @@ const DEFAULT_LOOT_COLLECTION_MS = 5_000;
  * CarjackHandler — Carjack (S11) translator.
  *
  *   s11_start  : start tracker (idempotent), arm the activity window
- *   s11_wave   : keep the run alive — resume if dormant, else reset
+ *   s11_wave   : keep the run alive — reset the window (rate-limited)
  *   s11_end    : make the window terminal, then arm it
  *   bag_update : decaying refresh, but only once terminal
  *   zone_transition (town): handled centrally by ZoneHandler.finishAll.
@@ -17,7 +17,8 @@ const DEFAULT_LOOT_COLLECTION_MS = 5_000;
  * signal — one measured encounter ran 24s past its last mob marker. So the
  * window tracks combat instead: expiry parks the tracker dormant (a real fight
  * contained a 7.89s lull, so ending there would drop the last kill's loot) and
- * a later mob marker resumes the same run. Stop flips expiry to finish.
+ * a later arm — mob marker or Stop — wakes the same run
+ * (TrackerRegistry.wakeForLoot). Stop flips expiry to finish.
  */
 export class CarjackHandler implements EventHandler {
   readonly name    = 'carjack';
@@ -42,33 +43,23 @@ export class CarjackHandler implements EventHandler {
 
     switch (event.type) {
       case 's11_start': {
-        // startSeasonal returns a lingering tracker WITHOUT resuming it, so a
-        // fresh Play line landing on a dormant one has to wake it explicitly.
+        // startSeasonal returns a lingering tracker untouched; the reset below
+        // wakes it if a fresh Play line lands on a dormant one.
         const t = ctx.registry.startSeasonal({
           type:              'carjack',
           lootDurationMs:    this._lootMs,
           pauseOnLootExpiry: true,
         }, emit);
         this._terminal = false;
-        if (t && !t.active) t.resumeTracker();
         t?.setPauseOnLootExpiry(true);
         t?.resetLootTimer();
         break;
       }
 
-      case 's11_wave': {
-        const t = ctx.registry.seasonal('carjack');
-        if (!t) return;
-        // Waking a dormant tracker must arm unthrottled: expiry already nulled
-        // the timer, so a throttled call would leave it active with no window.
-        if (!t.active) {
-          t.resumeTracker();
-          t.armLootTimer();
-        } else {
-          t.resetLootTimerThrottled();
-        }
+      case 's11_wave':
+        // A dormant tracker wakes and re-arms unthrottled (see resetLootTimerThrottled).
+        ctx.registry.seasonal('carjack')?.resetLootTimerThrottled();
         break;
-      }
 
       case 's11_end': {
         // De-dupe on _terminal: Stop fires twice per encounter (6-34s apart) and

@@ -93,6 +93,24 @@ export class TrackerRegistry {
   }
 
   /**
+   * The loot-window wake rule, and THE place the pause rule for loot windows
+   * lives. Every arm/reset on a dormant tracker comes through here: arming is
+   * gameplay engagement, so the tracker wakes (a reactivation) and credits the
+   * window, rather than holding a live window that rejects every drop.
+   *
+   * Blocked (false → the caller arms nothing) while the session is paused, and
+   * for a tracker no longer registered for its type, so a finished run is never
+   * revived. A missing session counts as not paused.
+   */
+  wakeForLoot(t: SeasonalTracker): boolean {
+    if (t.active) return true;
+    if (this._seasonals.get(t.seasonalType) !== t) return false;
+    if (this.session && !this.session.active) return false;
+    t.resumeTracker();
+    return true;
+  }
+
+  /**
    * Start a seasonal tracker. Idempotent for the same type. Bubble rule:
    *   - Starting a bubble seasonal evicts every active non-bubble seasonal.
    *   - Starting a non-bubble while a bubble is up is a silent no-op.
