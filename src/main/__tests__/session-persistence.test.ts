@@ -68,6 +68,7 @@ describe('SessionPersistence.onEngineEvent — unit rows', () => {
       sessionId:      's1',
       mapIndex:       1,
       startedAt:      940_000,
+      endedAt:        1_000_000,
       duration:       60_000,
       drops:          {'100': 5},
       spent:          {'42': 3},
@@ -149,6 +150,26 @@ describe('SessionPersistence.onEngineEvent — unit rows', () => {
     finish(p);
 
     expect(rows().map(r => [r.startedAt, r.duration])).toEqual([[700_000, 60_000], [650_000, 20_000], [800_000, 10_000]]);
+  });
+
+  it('every row ends at its OWN finish: the primary at the unit timestamp, each overlap at its entry timestamp', () => {
+    const p = make();
+
+    // None of these is startedAt + duration: each run froze or went dormant.
+    onEngineEvent(p, unitFinished(
+      snap('map', {100: 1}, 60_000, {startedAt: 700_000}),
+      [
+        {tracker: snap('seasonal', {300: 1}, 20_000, {seasonalType: 'arcana',  startedAt: 650_000}), timestamp: 940_000},
+        {tracker: snap('seasonal', {400: 1}, 10_000, {seasonalType: 'lunaria', startedAt: 800_000}), timestamp: 990_000},
+      ],
+      1_000_000,
+    ));
+    onEngineEvent(p, unitFinished(snap('seasonal', {500: 1}, 30_000, {seasonalType: 'vorex', startedAt: 1_100_000}), [], 1_200_000));
+    finish(p);
+
+    expect(rows().map(r => [r.seasonalType, r.endedAt])).toEqual([
+      [null, 1_000_000], ['arcana', 940_000], ['lunaria', 990_000], ['vorex', 1_200_000],
+    ]);
   });
 
   it('an overlap seasonal records no spend — the primary map row owns the cost', () => {
@@ -279,8 +300,8 @@ describe('SessionPersistence — auto-save', () => {
       spent: {},
     });
     store.insertRows([
-      {sessionId: 's1', mapIndex: 1, startedAt: 1, duration: 1, drops: {'100': 1}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null},
-      {sessionId: 's1', mapIndex: 2, startedAt: 2, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null},
+      {sessionId: 's1', mapIndex: 1, startedAt: 1, endedAt: 2, duration: 1, drops: {'100': 1}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null},
+      {sessionId: 's1', mapIndex: 2, startedAt: 2, endedAt: 3, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null},
     ]);
     const p = make({sessionName: 'My Run', isOverride: true}, () => ({'200': 4}));
     // Renamed while the continued run is in progress — Stop must not revert it.

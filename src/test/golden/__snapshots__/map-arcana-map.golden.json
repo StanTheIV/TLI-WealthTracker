@@ -313,6 +313,7 @@
             "200029": 9
           },
           "duration": 131250,
+          "endedAtMs": 465500,
           "mapIndex": 1,
           "parentMapIndex": null,
           "phase": null,
@@ -333,6 +334,7 @@
             "200028": 2
           },
           "duration": 31250,
+          "endedAtMs": 134750,
           "mapIndex": 1,
           "parentMapIndex": 1,
           "phase": "map",
@@ -355,6 +357,7 @@
             "350019": 1
           },
           "duration": 268500,
+          "endedAtMs": 451000,
           "mapIndex": 1,
           "parentMapIndex": 1,
           "phase": null,

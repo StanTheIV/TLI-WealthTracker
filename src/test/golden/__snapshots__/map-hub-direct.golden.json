@@ -242,6 +242,7 @@
             "100300": 12
           },
           "duration": 24000,
+          "endedAtMs": 70000,
           "mapIndex": 1,
           "parentMapIndex": null,
           "phase": null,
@@ -258,6 +259,7 @@
             "100300": 20
           },
           "duration": 25000,
+          "endedAtMs": 70000,
           "mapIndex": 1,
           "parentMapIndex": 1,
           "phase": "hub",

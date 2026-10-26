@@ -20,6 +20,7 @@ type SessionMapRow = {
   session_id:       string;
   map_index:        number;
   started_at:       number;
+  ended_at:         number;
   duration:         number;
   drops:            string;
   spent:            string;
@@ -143,8 +144,8 @@ export class SqliteSessionStore {
   insertRows(rows: DbSessionMap[]): void {
     if (rows.length === 0) return;
     const stmt = this.conn.prepare(`
-      INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase)
-      VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType, @parentMapIndex, @phase)
+      INSERT INTO session_maps (session_id, map_index, started_at, ended_at, duration, drops, spent, seasonal_type, parent_map_index, phase)
+      VALUES (@sessionId, @mapIndex, @startedAt, @endedAt, @duration, @drops, @spent, @seasonalType, @parentMapIndex, @phase)
     `);
     this.conn.transaction(() => {
       for (const r of rows) {
@@ -163,12 +164,13 @@ export class SqliteSessionStore {
   /** A session's per-map rows in insertion order. */
   getRows(sessionId: string): DbSessionMap[] {
     const rows = this.conn.prepare(
-      'SELECT session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase FROM session_maps WHERE session_id = ? ORDER BY id ASC'
+      'SELECT session_id, map_index, started_at, ended_at, duration, drops, spent, seasonal_type, parent_map_index, phase FROM session_maps WHERE session_id = ? ORDER BY id ASC'
     ).all<SessionMapRow>(sessionId);
     return rows.map(r => ({
       sessionId:      r.session_id,
       mapIndex:       r.map_index,
       startedAt:      r.started_at,
+      endedAt:        r.ended_at,
       duration:       r.duration,
       drops:          JSON.parse(r.drops),
       spent:          JSON.parse(r.spent),

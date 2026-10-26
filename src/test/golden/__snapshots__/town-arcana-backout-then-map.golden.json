@@ -263,6 +263,7 @@
         {
           "drops": {},
           "duration": 4000,
+          "endedAtMs": 60000,
           "mapIndex": 1,
           "parentMapIndex": null,
           "phase": null,
@@ -276,6 +277,7 @@
             "100300": 12
           },
           "duration": 34000,
+          "endedAtMs": 60000,
           "mapIndex": 2,
           "parentMapIndex": null,
           "phase": null,

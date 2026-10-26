@@ -66,7 +66,11 @@ export type SessionAttribution = 'legacy' | 'exclusive' | 'drop-through';
 export interface DbSessionMap {
   sessionId:    string;
   mapIndex:     number;
-  startedAt:    number;        // ms epoch
+  startedAt:    number;        // ms epoch — the run's real start
+  /** ms epoch — the run's finish. Not `startedAt + duration` for a run that
+   *  froze or went dormant (`duration` is pause-aware). Rows saved before v3
+   *  were backfilled with that sum, which was exact for them. */
+  endedAt:      number;
   duration:     number;        // ms
   drops:        Record<string, number>;
   spent:        Record<string, number>;

@@ -130,6 +130,7 @@ describe('replay persistence', () => {
       sessionId:      'replay-1',
       mapIndex:       1,
       startedAt:      T0 + 9_500,
+      endedAt:        T0 + 40_000,   // never frozen: startedAt + duration
       duration:       30_500,
       drops:          {'100': 3},
       spent:          {'300': 1},
@@ -203,7 +204,7 @@ describe('replay raw-event routing', () => {
 
 describe('compareRows', () => {
   const row = (over: Partial<DbSessionMap>): DbSessionMap => ({
-    sessionId: 's', mapIndex: 1, startedAt: T0, duration: 60_000, drops: {'100': 3}, spent: {},
+    sessionId: 's', mapIndex: 1, startedAt: T0, endedAt: T0 + 60_000, duration: 60_000, drops: {'100': 3}, spent: {},
     seasonalType: null, parentMapIndex: null, phase: null, ...over,
   });
 
@@ -212,6 +213,26 @@ describe('compareRows', () => {
     expect(cmp).toHaveLength(1);
     expect(cmp[0].stored).not.toBeNull();
     expect(cmp[0]).toMatchObject({drops: [], spent: [], fields: []});
+  });
+
+  it('pairs a frozen run saved with a derived start against its replay on the stored finish', () => {
+    // A map frozen 120 s by an interlude, 60 s of elapsed, finishing at T0 + 180 s.
+    // Saved before real starts (start = finish − elapsed, finish backfilled by v3)
+    // vs replayed with its real start: both starts AND start + duration are 120 s
+    // apart — only the stored finish pairs them.
+    const stored   = row({startedAt: T0 + 120_000, endedAt: T0 + 180_000, duration: 60_000});
+    const replayed = row({startedAt: T0,           endedAt: T0 + 180_000, duration: 60_000});
+    const cmp = compareRows([replayed], [stored]);
+    expect(cmp).toHaveLength(1);
+    expect(cmp[0]).toMatchObject({replay: replayed, stored, drops: [], spent: [], fields: []});
+  });
+
+  it('does not pair runs whose finishes and starts are both too far apart', () => {
+    const cmp = compareRows(
+      [row({startedAt: T0,          endedAt: T0 + 180_000})],
+      [row({startedAt: T0 + 20_000, endedAt: T0 + 80_000})],
+    );
+    expect(cmp.map(c => [c.replay !== null, c.stored !== null])).toEqual([[true, false], [false, true]]);
   });
 
   it('reports unpaired rows on both sides', () => {

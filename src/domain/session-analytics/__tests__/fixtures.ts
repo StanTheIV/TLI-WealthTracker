@@ -37,11 +37,13 @@ export function makeRow(over: Partial<DbSessionMap> = {}): DbSessionMap {
     phase:          null,
     ...over,
   };
-  const mapIndex = merged.mapIndex ?? nextIndex++;
+  const mapIndex  = merged.mapIndex ?? nextIndex++;
+  const startedAt = merged.startedAt ?? 1_000_000 + mapIndex * 1000;
   return {
     ...merged,
     mapIndex,
-    startedAt: merged.startedAt ?? 1_000_000 + mapIndex * 1000,
+    startedAt,
+    endedAt: merged.endedAt ?? startedAt + merged.duration,
   } as DbSessionMap;
 }
 

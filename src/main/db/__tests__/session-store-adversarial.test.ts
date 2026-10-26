@@ -16,7 +16,7 @@ const session = (id: string, savedAt = 'x', extra: Partial<DbSession> = {}): DbS
   drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, ...extra,
 });
 const mapRow = (sessionId: string, mapIndex: number, extra: Partial<DbSessionMap> = {}): DbSessionMap => ({
-  sessionId, mapIndex, startedAt: mapIndex, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null, ...extra,
+  sessionId, mapIndex, startedAt: mapIndex, endedAt: mapIndex + 1, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null, ...extra,
 });
 const count = (c: SqlConn, t: string) => c.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get<{n: number}>()!.n;
 
@@ -98,15 +98,17 @@ describe('equivalence with the pre-0.3 db.ts SQL (inlined)', () => {
     expect(raw(conn, 'a')).toMatchObject({price_snapshot: '{}'});
   });
 
-  it('insertRows writes raw columns identical to the old statement', () => {
+  it('insertRows writes raw columns identical to the old statement, plus ended_at (v3)', () => {
     const other = openMigratedNodeSqlite();
     const OLD = `INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase)
       VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType, @parentMapIndex, @phase)`;
-    const r = mapRow('a', 3, {drops: {'1': 2}, spent: {'9': 1}, seasonalType: 'sandlord', parentMapIndex: 2, phase: 'hub', startedAt: -5, duration: 1.5});
+    const r = mapRow('a', 3, {drops: {'1': 2}, spent: {'9': 1}, seasonalType: 'sandlord', parentMapIndex: 2, phase: 'hub', startedAt: -5, endedAt: 7.25, duration: 1.5});
     other.prepare(OLD).run({...r, drops: JSON.stringify(r.drops), spent: JSON.stringify(r.spent)});
     store.insertRows([r]);
     const q = 'SELECT * FROM session_maps';
-    expect(conn.prepare(q).all()).toEqual(other.prepare(q).all());
+    const withoutEnd = (rows: Record<string, unknown>[]) => rows.map(({ended_at: _e, ...rest}) => rest);
+    expect(withoutEnd(conn.prepare(q).all())).toEqual(withoutEnd(other.prepare(q).all()));
+    expect(conn.prepare('SELECT ended_at FROM session_maps').all()).toEqual([{ended_at: 7.25}]);
   });
 });
 

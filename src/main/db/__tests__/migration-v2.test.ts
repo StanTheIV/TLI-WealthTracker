@@ -334,7 +334,9 @@ function seededDb(version: 0 | 1, sessions: FxSession[] = FIXTURE): SqlConn {
 const version = (c: SqlConn) => Number(c.getPragma('user_version'));
 const rawRows = (c: SqlConn) => c.prepare('SELECT id, drops, spent FROM session_maps ORDER BY id').all<{id: number; drops: string; spent: string}>();
 const rawSessions = (c: SqlConn) => c.prepare('SELECT * FROM sessions ORDER BY id').all();
-const migrate = (c: SqlConn, backup: (r: string) => void = () => {}) => runMigrations(c, MIGRATIONS, {backup});
+/** v1 + v2 only: later steps (v3 adds a row column) are pinned in their own files. */
+const UP_TO_V2 = MIGRATIONS.slice(0, 2);
+const migrate = (c: SqlConn, backup: (r: string) => void = () => {}) => runMigrations(c, UP_TO_V2, {backup});
 
 describe('MIGRATIONS[1]', () => {
   it('is v2 cost-on-map with the pre-cost-migration backup', () => {
@@ -354,7 +356,8 @@ describe('v1 -> v2 on the fixture', () => {
 
   it.each(FIXTURE.map(s => [s.id, s] as const))('session %s: every row and the session record', (_id, s) => {
     const conn  = seededDb(1);
-    migrate(conn);
+    // Read back through the store, which speaks the latest schema (v3 adds a row column).
+    runMigrations(conn, MIGRATIONS, {backup: () => {}});
     const store = new SqliteSessionStore(conn);
 
     const rows = store.getRows(s.id);
@@ -418,7 +421,7 @@ describe('v0 and fresh databases', () => {
     expect(backup.mock.calls).toEqual([['pre-versioned-migrations']]);
     expect(version(conn)).toBe(2);
     const store = new SqliteSessionStore(conn);
-    same(store.getRows('main')[0].drops, '{"101":2,"102":3,"103":5,"200":7}');
+    same(JSON.parse(rawRows(conn)[0].drops), '{"101":2,"102":3,"103":5,"200":7}');   // main's first row
     same((store.getSession('main') as unknown as {spent: Nums}).spent, FIXTURE[0].after.spent);
   });
 

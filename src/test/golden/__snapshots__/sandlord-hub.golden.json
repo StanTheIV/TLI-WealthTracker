@@ -360,6 +360,7 @@
             "400028": 1
           },
           "duration": 76250,
+          "endedAtMs": 82750,
           "mapIndex": 1,
           "parentMapIndex": null,
           "phase": null,
@@ -378,6 +379,7 @@
             "100200": 1
           },
           "duration": 14000,
+          "endedAtMs": 36750,
           "mapIndex": 1,
           "parentMapIndex": 1,
           "phase": "map",
@@ -406,6 +408,7 @@
             "350324": 1
           },
           "duration": 236500,
+          "endedAtMs": 323000,
           "mapIndex": 2,
           "parentMapIndex": null,
           "phase": null,
@@ -433,6 +436,7 @@
             "200029": 3
           },
           "duration": 185750,
+          "endedAtMs": 517500,
           "mapIndex": 3,
           "parentMapIndex": null,
           "phase": "hub",

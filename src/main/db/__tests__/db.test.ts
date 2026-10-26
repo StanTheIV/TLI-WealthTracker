@@ -75,7 +75,7 @@ describe('db.ts on SqlConn', () => {
   it('wealthClear removes farming history in one transaction', () => {
     const sessions = new SqliteSessionStore(getDb());
     sessions.insertSession(SESSION);
-    sessions.insertRows([{sessionId: 's1', mapIndex: 1, startedAt: 1, duration: 2, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null}]);
+    sessions.insertRows([{sessionId: 's1', mapIndex: 1, startedAt: 1, endedAt: 3, duration: 2, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null}]);
     wealthInsert({timestamp: 1, value: 10, sessionId: 's1', breakdown: '{}'});
     expect(wealthGetLatest(10)).toHaveLength(1);
     wealthClear();

@@ -142,7 +142,7 @@ function savedSession(over: Partial<DbSession> = {}): DbSession {
 
 function oldRows() {
   return [1, 2].map(mapIndex => ({
-    sessionId: 'old', mapIndex, startedAt: 1_000 * mapIndex, duration: 50_000,
+    sessionId: 'old', mapIndex, startedAt: 1_000 * mapIndex, endedAt: 1_000 * mapIndex + 50_000, duration: 50_000,
     drops: {'300': 2}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null,
   }));
 }

@@ -255,6 +255,7 @@
             "100300": 47
           },
           "duration": 69000,
+          "endedAtMs": 90000,
           "mapIndex": 1,
           "parentMapIndex": null,
           "phase": null,
@@ -272,6 +273,7 @@
             "100300": 35
           },
           "duration": 20000,
+          "endedAtMs": 69000,
           "mapIndex": 1,
           "parentMapIndex": 1,
           "phase": null,

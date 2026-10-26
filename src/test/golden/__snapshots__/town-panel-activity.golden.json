@@ -195,6 +195,7 @@
             "100300": 12
           },
           "duration": 26000,
+          "endedAtMs": 40000,
           "mapIndex": 1,
           "parentMapIndex": null,
           "phase": null,

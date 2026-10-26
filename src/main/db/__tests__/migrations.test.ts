@@ -20,7 +20,7 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
   wealth_datapoints:  ['id', 'timestamp', 'value', 'session_id', 'breakdown'],
   api_lookups:        ['id', 'date', 'item_id', 'timestamp'],
   item_filters:       ['id', 'name', 'enabled', 'rules'],
-  session_maps:       ['id', 'session_id', 'map_index', 'started_at', 'duration', 'drops', 'spent', 'seasonal_type', 'parent_map_index', 'phase'],
+  session_maps:       ['id', 'session_id', 'map_index', 'started_at', 'duration', 'drops', 'spent', 'seasonal_type', 'parent_map_index', 'phase', 'ended_at'],
   price_observations: ['id', 'item_id', 'timestamp', 'source', 'price', 'n', 'p10', 'p25', 'p75', 'p90', 'min_price'],
   price_listings:     ['observation_id', 'rank', 'price'],
   leagues:            ['id', 'name', 'starts_at', 'source'],
@@ -111,7 +111,7 @@ describe('v1 baseline', () => {
     expect(backup).toHaveBeenCalledWith('pre-versioned-migrations');
   });
 
-  it('takes a v0.19-shaped DB to the latest version in one run, backing up once (v1 + v2 share it)', () => {
+  it('takes a v0.19-shaped DB to the latest version in one run, backing up once (v1, v2 and v3 share it)', () => {
     const conn = v019Db();
     seed(conn);
     const backup = vi.fn();
@@ -122,6 +122,8 @@ describe('v1 baseline', () => {
     expect(backup.mock.calls).toEqual([['pre-versioned-migrations']]);
     // v2 only adds sessions.spent here: the seed has no row cost to move.
     expect(conn.prepare('SELECT drops, spent FROM sessions').all()).toEqual([{drops: '{"100":3}', spent: '{}'}]);
+    // v3 backfills the row's finish from its derived start.
+    expect(conn.prepare('SELECT started_at, duration, ended_at FROM session_maps').all()).toEqual([{started_at: 1, duration: 2, ended_at: 3}]);
   });
 
   it('adds the ALTER-era columns to an ancient DB with their defaults', () => {
@@ -155,8 +157,8 @@ describe('v1 baseline', () => {
     expect(conn.prepare('SELECT * FROM items').get()).toEqual({id: '100', name: 'Ember', type: '', price: 1.5, price_date: 0, locked: 0});
     expect(conn.prepare('SELECT drops_by_source, attribution, price_snapshot, spent FROM sessions').get())
       .toEqual({drops_by_source: '{}', attribution: '', price_snapshot: '{}', spent: '{}'});
-    expect(conn.prepare('SELECT seasonal_type, parent_map_index, phase FROM session_maps').get())
-      .toEqual({seasonal_type: null, parent_map_index: null, phase: null});
+    expect(conn.prepare('SELECT seasonal_type, parent_map_index, phase, ended_at FROM session_maps').get())
+      .toEqual({seasonal_type: null, parent_map_index: null, phase: null, ended_at: 3});   // v3: started_at + duration
     expect(conn.prepare('SELECT breakdown FROM wealth_datapoints').get()).toEqual({breakdown: '{}'});
   });
 

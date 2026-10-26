@@ -245,7 +245,7 @@ export function serializeGolden(result: PipelineResult): string {
           spent:         session.spent,
         },
       }),
-      rows: rows.map(({sessionId: _sessionId, startedAt, ...row}) => ({...row, startedAtMs: rel(startedAt)})),
+      rows: rows.map(({sessionId: _sessionId, startedAt, endedAt, ...row}) => ({...row, startedAtMs: rel(startedAt), endedAtMs: rel(endedAt)})),
       ...(analytics && {
         analytics: {
           totals:    analytics.totals,

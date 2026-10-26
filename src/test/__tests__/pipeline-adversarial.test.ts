@@ -23,7 +23,7 @@ const session = (over: Partial<DbSession> = {}): DbSession => ({
 });
 
 const row = (over: Partial<DbSessionMap> = {}): DbSessionMap => ({
-  sessionId: 's', mapIndex: 1, startedAt: 1000, duration: 10, drops: {}, spent: {},
+  sessionId: 's', mapIndex: 1, startedAt: 1000, endedAt: 1010, duration: 10, drops: {}, spent: {},
   seasonalType: null, parentMapIndex: null, phase: null, ...over,
 });
 
@@ -314,7 +314,7 @@ describe('serializeGolden determinism', () => {
 
   it('is relative to the first line: shifting every absolute time leaves it unchanged', () => {
     const at = (shift: number) => ({
-      ...result(session(), [row({startedAt: 5000 + shift})], null), firstTs: 1000 + shift, lastTs: 9000 + shift,
+      ...result(session(), [row({startedAt: 5000 + shift, endedAt: 5010 + shift})], null), firstTs: 1000 + shift, lastTs: 9000 + shift,
     });
     expect(serializeGolden(at(0))).toBe(serializeGolden(at(86_400_000 * 123)));
   });

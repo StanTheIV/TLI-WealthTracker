@@ -14,7 +14,7 @@ const session = (id: string, savedAt: string, extra: Partial<DbSession> = {}): D
 });
 
 const mapRow = (sessionId: string, mapIndex: number, extra: Partial<DbSessionMap> = {}): DbSessionMap => ({
-  sessionId, mapIndex, startedAt: mapIndex, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null, ...extra,
+  sessionId, mapIndex, startedAt: mapIndex, endedAt: mapIndex + 1, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null, ...extra,
 });
 
 const countRows = (conn: SqlConn, table: 'sessions' | 'session_maps') =>
@@ -169,8 +169,9 @@ describe('SqliteSessionStore — mergePriceSnapshot', () => {
 describe('SqliteSessionStore — session maps', () => {
   it('insertRows / getRows round-trip every column in insertion (id) order', () => {
     const rows: DbSessionMap[] = [
-      mapRow('a', 2, {startedAt: 1_000, duration: 60_000, drops: {'100': 5}, spent: {'42': 3}}),
-      mapRow('a', 1, {startedAt: 2_000, duration: 5_000, drops: {'200': 1}, seasonalType: 'sandlord', parentMapIndex: 1, phase: 'map'}),
+      // A frozen run: its finish is well past startedAt + duration.
+      mapRow('a', 2, {startedAt: 1_000, endedAt: 181_000, duration: 60_000, drops: {'100': 5}, spent: {'42': 3}}),
+      mapRow('a', 1, {startedAt: 2_000, endedAt: 7_000, duration: 5_000, drops: {'200': 1}, seasonalType: 'sandlord', parentMapIndex: 1, phase: 'map'}),
       mapRow('a', 3, {seasonalType: 'sandlord', phase: 'hub'}),
     ];
     store.insertRows(rows);
@@ -178,6 +179,13 @@ describe('SqliteSessionStore — session maps', () => {
     store.insertRows([mapRow('a', 0)]);
     expect(store.getRows('a')).toEqual([...rows, mapRow('a', 0)]);
     expect(store.getRows('other')).toEqual([mapRow('other', 1)]);
+  });
+
+  it('a row without endedAt is rejected (NOT NULL ended_at), so no read ever sees a null finish', () => {
+    // `undefined` binds as NULL (SqlConn contract).
+    const noEnd = {...mapRow('a', 2), endedAt: undefined} as unknown as DbSessionMap;
+    expect(() => store.insertRows([mapRow('a', 1), noEnd])).toThrow(/NOT NULL/);
+    expect(countRows(conn, 'session_maps')).toBe(0);
   });
 
   it('insertRows with no rows is a no-op', () => {

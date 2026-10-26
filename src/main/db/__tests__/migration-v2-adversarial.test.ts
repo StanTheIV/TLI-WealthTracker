@@ -425,6 +425,9 @@ function v1Db(sessions: SeedSession[]): SqlConn {
 const dumpRows = (c: SqlConn) => c.prepare('SELECT * FROM session_maps ORDER BY id').all<Record<string, unknown>>();
 const dumpSessions = (c: SqlConn) => c.prepare('SELECT * FROM sessions ORDER BY id').all<Record<string, unknown>>();
 
+/** v1 + v2 only: later steps (v3 adds a row column) are pinned in their own files. */
+const UP_TO_V2 = MIGRATIONS.slice(0, 2);
+
 describe('MIGRATIONS[1].up over a v1 DB with many sessions', () => {
   const SEEDS = seedSessions(80);
 
@@ -434,7 +437,7 @@ describe('MIGRATIONS[1].up over a v1 DB with many sessions', () => {
     const beforeSessions = dumpSessions(conn);
 
     const backups: string[] = [];
-    runMigrations(conn, MIGRATIONS, {backup: r => backups.push(r)});
+    runMigrations(conn, UP_TO_V2, {backup: r => backups.push(r)});
     expect(backups).toEqual(['pre-cost-migration']);
 
     const afterRows = dumpRows(conn);
@@ -496,21 +499,21 @@ describe('MIGRATIONS[1].up over a v1 DB with many sessions', () => {
 
   it('rerunning the migrations is a no-op: nothing rewritten, no backup, version stays', () => {
     const conn = v1Db(SEEDS);
-    runMigrations(conn, MIGRATIONS, {backup: () => {}});
+    runMigrations(conn, UP_TO_V2, {backup: () => {}});
     const rows = dumpRows(conn), sessions = dumpSessions(conn);
     const backups: string[] = [];
-    runMigrations(conn, MIGRATIONS, {backup: r => backups.push(r)});
-    runMigrations(conn, MIGRATIONS, {backup: r => backups.push(r)});
+    runMigrations(conn, UP_TO_V2, {backup: r => backups.push(r)});
+    runMigrations(conn, UP_TO_V2, {backup: r => backups.push(r)});
     expect(backups).toEqual([]);
     expect(dumpRows(conn)).toEqual(rows);
     expect(dumpSessions(conn)).toEqual(sessions);
-    expect(Number(conn.getPragma('user_version'))).toBe(MIGRATIONS[MIGRATIONS.length - 1].version);
+    expect(Number(conn.getPragma('user_version'))).toBe(2);
   });
 
   it('DB-level conservation: session drops delta = session spent = Σ primary row spent', () => {
     const conn = v1Db(SEEDS);
     const before = dumpSessions(conn);
-    runMigrations(conn, MIGRATIONS, {backup: () => {}});
+    runMigrations(conn, UP_TO_V2, {backup: () => {}});
     for (const s of dumpSessions(conn)) {
       const b = before.find(x => x.id === s.id)!;
       const spent = JSON.parse(s.spent as string) as Counts;
@@ -526,7 +529,7 @@ describe('MIGRATIONS[1].up over a v1 DB with many sessions', () => {
 
   it('a DB with zero sessions migrates cleanly', () => {
     const conn = v1Db([]);
-    expect(() => runMigrations(conn, MIGRATIONS, {backup: () => {}})).not.toThrow();
+    expect(() => runMigrations(conn, UP_TO_V2, {backup: () => {}})).not.toThrow();
     expect(Number(conn.getPragma('user_version'))).toBe(2);
   });
 });

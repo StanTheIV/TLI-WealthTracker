@@ -91,11 +91,11 @@ export class SessionPersistence {
    */
   onEngineEvent(event: EngineEvent): AutoSaveOutcome | null {
     if (event.type === 'unit_finished') {
-      const {tracker, overlaps} = event;
+      const {tracker, overlaps, timestamp} = event;
       const mapIndex = ++this._lastPrimaryMapIndex;
-      this._pendingRows.push(this._buildRow(tracker, mapIndex, null));
+      this._pendingRows.push(this._buildRow(tracker, timestamp, mapIndex, null));
       for (const o of overlaps) {
-        this._pendingRows.push(this._buildRow(o.tracker, mapIndex, mapIndex));
+        this._pendingRows.push(this._buildRow(o.tracker, o.timestamp, mapIndex, mapIndex));
       }
       return null;
     }
@@ -122,13 +122,14 @@ export class SessionPersistence {
 
   // -- private --------------------------------------------------------------
 
-  /** One row from a finished snapshot. `startedAt` is the tracker's real start
-   *  (its creation time), `duration` its pause-aware elapsed — so for a run
-   *  that froze or went dormant `startedAt + duration` falls before its finish.
-   *  `seasonalType` and `phase` come from the snapshot (null for a map); only a
-   *  map has an entry cost, so a seasonal's `spent` is {}. */
+  /** One row from a finished snapshot and its own finish time. `startedAt` is
+   *  the tracker's real start (its creation time), `duration` its pause-aware
+   *  elapsed — so for a run that froze or went dormant `startedAt + duration`
+   *  falls before `endedAt`. `seasonalType` and `phase` come from the snapshot
+   *  (null for a map); only a map has an entry cost, so a seasonal's `spent` is {}. */
   private _buildRow(
     tracker: TrackerSnapshot,
+    endedAt: number,
     mapIndex: number,
     parentMapIndex: number | null,
   ): DbSessionMap {
@@ -136,6 +137,7 @@ export class SessionPersistence {
       sessionId:    this._meta.sessionId,
       mapIndex,
       startedAt:    tracker.startedAt,
+      endedAt,
       duration:     tracker.elapsed,
       drops:        stringKeyed(tracker.drops),
       spent:        stringKeyed(tracker.spent ?? {}),

@@ -493,6 +493,7 @@
             "200029": 6
           },
           "duration": 114750,
+          "endedAtMs": 249000,
           "mapIndex": 1,
           "parentMapIndex": null,
           "phase": null,
@@ -512,6 +513,7 @@
             "100300": 2
           },
           "duration": 31250,
+          "endedAtMs": 209750,
           "mapIndex": 1,
           "parentMapIndex": 1,
           "phase": "map",
@@ -534,6 +536,7 @@
             "400022": 1
           },
           "duration": 130500,
+          "endedAtMs": 618750,
           "mapIndex": 2,
           "parentMapIndex": null,
           "phase": null,
@@ -553,6 +556,7 @@
             "200028": 1
           },
           "duration": 24250,
+          "endedAtMs": 305500,
           "mapIndex": 2,
           "parentMapIndex": 2,
           "phase": "map",
@@ -577,6 +581,7 @@
             "200029": 16
           },
           "duration": 230750,
+          "endedAtMs": 618750,
           "mapIndex": 2,
           "parentMapIndex": 2,
           "phase": null,
@@ -598,6 +603,7 @@
             "200029": 8
           },
           "duration": 311500,
+          "endedAtMs": 934250,
           "mapIndex": 3,
           "parentMapIndex": null,
           "phase": null,
@@ -620,6 +626,7 @@
             "200029": 2
           },
           "duration": 112750,
+          "endedAtMs": 1087250,
           "mapIndex": 4,
           "parentMapIndex": null,
           "phase": null,
@@ -642,6 +649,7 @@
             "100300": 1
           },
           "duration": 38000,
+          "endedAtMs": 1040000,
           "mapIndex": 4,
           "parentMapIndex": 4,
           "phase": "map",

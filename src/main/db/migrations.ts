@@ -279,4 +279,19 @@ export const MIGRATIONS: readonly Migration[] = [
         `Cost migration: ${rowsMigrated} rows migrated, ${staleRowsCleared} stale rows cleared, ${sessionsTouched} sessions touched`);
     },
   },
+  {
+    // A row stores its run's finish: with real start times, `started_at +
+    // duration` falls short of it for a run that froze or went dormant. Rows
+    // written before this step derived their start as `finish − duration`, so
+    // for them the sum IS the finish. ALTER needs a default for NOT NULL; the
+    // backfill overwrites it on every existing row in this same step.
+    version: 3,
+    name:    'row-ended-at',
+    backup:  'pre-row-ended-at',
+    up(conn) {
+      ensureColumn(conn, 'session_maps', 'ended_at', 'INTEGER NOT NULL DEFAULT 0');
+      const {changes} = conn.prepare('UPDATE session_maps SET ended_at = started_at + duration').run();
+      log.info('database', `Row finish migration: ${changes} rows backfilled`);
+    },
+  },
 ];
