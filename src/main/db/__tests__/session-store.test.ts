@@ -147,6 +147,16 @@ describe('SqliteSessionStore — mergePriceSnapshot', () => {
     expect(store.getSession('a')?.priceSnapshot).toEqual({'100': 3});
   });
 
+  it('treats only own keys as present (prototype names are ordinary ids)', () => {
+    store.insertSession(session('a', 'x', {priceSnapshot: {constructor: 7}}));
+    // JSON.parse makes "__proto__" an own key; a literal would set the prototype.
+    store.mergePriceSnapshot('a', JSON.parse('{"constructor": 1, "toString": 2, "__proto__": 3}'));
+    const snap = store.getSession('a')!.priceSnapshot;
+    expect(Object.keys(snap).sort()).toEqual(['__proto__', 'constructor', 'toString']);
+    expect(snap.constructor).toBe(7);
+    expect(Object.getOwnPropertyDescriptor(snap, '__proto__')?.value).toBe(3);
+  });
+
   it('is a no-op for an unknown session', () => {
     expect(() => store.mergePriceSnapshot('nope', {'100': 3})).not.toThrow();
     expect(countRows(conn, 'sessions')).toBe(0);

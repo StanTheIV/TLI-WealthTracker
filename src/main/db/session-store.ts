@@ -125,14 +125,12 @@ export class SqliteSessionStore {
       const row = this.conn.prepare('SELECT price_snapshot FROM sessions WHERE id = ?').get<{price_snapshot: string}>(id);
       if (!row) return;
       const snapshot: Record<string, number> = JSON.parse(row.price_snapshot ?? '{}');
-      let added = 0;
-      for (const [itemId, price] of Object.entries(prices)) {
-        if (itemId in snapshot) continue;
-        snapshot[itemId] = price;
-        added++;
-      }
-      if (added === 0) return;
-      this.conn.prepare('UPDATE sessions SET price_snapshot = ? WHERE id = ?').run(JSON.stringify(snapshot), id);
+      // Own keys only, and rebuilt via fromEntries (data properties), so ids
+      // like "constructor" or "__proto__" behave like any other.
+      const missing = Object.entries(prices).filter(([itemId]) => !Object.prototype.hasOwnProperty.call(snapshot, itemId));
+      if (missing.length === 0) return;
+      const merged = Object.fromEntries([...Object.entries(snapshot), ...missing]);
+      this.conn.prepare('UPDATE sessions SET price_snapshot = ? WHERE id = ?').run(JSON.stringify(merged), id);
     });
   }
 
