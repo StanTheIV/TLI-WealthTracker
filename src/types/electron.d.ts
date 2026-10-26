@@ -163,6 +163,8 @@ export interface DbSeasonalStat {
 }
 
 export interface DbWealthDatapoint {
+  /** Row id — present on every read, absent when inserting. */
+  id?:       number;
   timestamp: number;
   value:     number;
   sessionId: string | null;
@@ -287,6 +289,7 @@ interface ElectronAPI {
       insert:    (point: DbWealthDatapoint) => Promise<void>;
       getRange:  (from: number, to: number) => Promise<DbWealthDatapoint[]>;
       getLatest: (limit: number) => Promise<DbWealthDatapoint[]>;
+      delete:    (id: number) => Promise<void>;
       clear:     () => Promise<void>;
     };
     filters: {

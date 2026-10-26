@@ -10,6 +10,10 @@
       "7d":  "7T",
       "1m":  "1M",
       "all": "Alle"
+    },
+    "contextMenu": {
+      "delete":  "Messwert löschen",
+      "confirm": "Den Vermögensmesswert vom {{time}} ({{value}}) löschen? Das kann nicht rückgängig gemacht werden."
     }
   },
   "breakdown": {

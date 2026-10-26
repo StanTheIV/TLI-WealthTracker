@@ -62,9 +62,10 @@ interface WealthState {
 }
 
 interface WealthActions {
-  load:     () => Promise<void>;
-  refresh:  () => Promise<void>;
-  setRange: (range: WealthRange) => Promise<void>;
+  load:        () => Promise<void>;
+  refresh:     () => Promise<void>;
+  setRange:    (range: WealthRange) => Promise<void>;
+  deletePoint: (id: number) => Promise<void>;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -144,5 +145,12 @@ export const useWealthStore = create<WealthState & WealthActions>((set, get) => 
     );
     const points = await fetchPoints(range);
     set({datapoints: points});
+  },
+
+  // Refetch rather than splice locally: deleting the newest reading also moves
+  // latestBreakdown / latestTimestamp back to the one before it.
+  deletePoint: async (id) => {
+    await window.electronAPI.db.wealth.delete(id);
+    await get().refresh();
   },
 }));

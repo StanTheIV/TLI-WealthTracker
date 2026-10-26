@@ -121,6 +121,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       insert:    (point: DbWealthDatapoint)  => ipcRenderer.invoke('db:wealth:insert', point),
       getRange:  (from: number, to: number)  => ipcRenderer.invoke('db:wealth:get-range', from, to),
       getLatest: (limit: number)             => ipcRenderer.invoke('db:wealth:get-latest', limit),
+      delete:    (id: number)                => ipcRenderer.invoke('db:wealth:delete', id),
       clear:     ()                          => ipcRenderer.invoke('db:wealth:clear'),
     },
     filters: {

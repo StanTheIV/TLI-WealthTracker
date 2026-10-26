@@ -583,31 +583,40 @@ export function seasonalStatsUpsert(stat: DbSeasonalStat): void {
 // ---------------------------------------------------------------------------
 
 export interface DbWealthDatapoint {
+  /** Row id — present on every read, absent when inserting. */
+  id?:       number;
   timestamp: number;
   value:     number;
   sessionId: string | null;
   breakdown: string; // JSON: Record<itemId, {qty, price, total}>
 }
 
-function rowToDatapoint(r: {timestamp: number; value: number; session_id: string | null; breakdown: string}): DbWealthDatapoint {
-  return {timestamp: r.timestamp, value: r.value, sessionId: r.session_id, breakdown: r.breakdown};
+type WealthRow = {id: number; timestamp: number; value: number; session_id: string | null; breakdown: string};
+
+function rowToDatapoint(r: WealthRow): DbWealthDatapoint {
+  return {id: r.id, timestamp: r.timestamp, value: r.value, sessionId: r.session_id, breakdown: r.breakdown};
 }
 
 export function wealthInsert(point: DbWealthDatapoint): void {
   db.prepare('INSERT INTO wealth_datapoints (timestamp, value, session_id, breakdown) VALUES (@timestamp, @value, @sessionId, @breakdown)')
-    .run(point);
+    .run({timestamp: point.timestamp, value: point.value, sessionId: point.sessionId, breakdown: point.breakdown});
 }
 
 export function wealthGetRange(from: number, to: number): DbWealthDatapoint[] {
-  const rows = db.prepare('SELECT timestamp, value, session_id, breakdown FROM wealth_datapoints WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp')
-    .all(from, to) as {timestamp: number; value: number; session_id: string | null; breakdown: string}[];
+  const rows = db.prepare('SELECT id, timestamp, value, session_id, breakdown FROM wealth_datapoints WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp')
+    .all(from, to) as WealthRow[];
   return rows.map(rowToDatapoint);
 }
 
 export function wealthGetLatest(limit: number): DbWealthDatapoint[] {
-  const rows = db.prepare('SELECT timestamp, value, session_id, breakdown FROM wealth_datapoints ORDER BY timestamp DESC LIMIT ?')
-    .all(limit) as {timestamp: number; value: number; session_id: string | null; breakdown: string}[];
+  const rows = db.prepare('SELECT id, timestamp, value, session_id, breakdown FROM wealth_datapoints ORDER BY timestamp DESC LIMIT ?')
+    .all(limit) as WealthRow[];
   return rows.map(rowToDatapoint).reverse();
+}
+
+/** Remove one reading — e.g. a snapshot taken while the inventory was miscounted. */
+export function wealthDelete(id: number): void {
+  db.prepare('DELETE FROM wealth_datapoints WHERE id = ?').run(id);
 }
 
 export function wealthClear(): void {

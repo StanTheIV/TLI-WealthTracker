@@ -7,7 +7,7 @@ import {
   sessionsGetAll, sessionsInsert, sessionsUpdate, sessionsDelete, sessionsRename, sessionsGetOne,
   sessionMapsGetForSession,
   seasonalStatsGetAll, seasonalStatsUpsert,
-  wealthInsert, wealthGetRange, wealthGetLatest, wealthClear,
+  wealthInsert, wealthGetRange, wealthGetLatest, wealthDelete, wealthClear,
   getLookupCountToday, recordLookup,
   filtersGetAll, filtersInsert, filtersUpdate, filtersDelete, filtersSetEnabled,
   type DbItem,
@@ -110,6 +110,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:wealth:insert',     (_e, point)      => wealthInsert(point));
   ipcMain.handle('db:wealth:get-range',  (_e, from, to)   => wealthGetRange(from, to));
   ipcMain.handle('db:wealth:get-latest', (_e, limit)      => wealthGetLatest(limit));
+  ipcMain.handle('db:wealth:delete',     (_e, id)         => wealthDelete(id));
   ipcMain.handle('db:wealth:clear',      ()               => wealthClear());
 
   ipcMain.handle('db:lookups:get-today', ()               => getLookupCountToday());

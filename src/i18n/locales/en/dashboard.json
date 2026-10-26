@@ -10,6 +10,10 @@
       "7d":  "7D",
       "1m":  "1M",
       "all": "All"
+    },
+    "contextMenu": {
+      "delete":  "Delete reading",
+      "confirm": "Delete the wealth reading from {{time}} ({{value}})? This cannot be undone."
     }
   },
   "breakdown": {

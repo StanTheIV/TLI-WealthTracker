@@ -1,4 +1,4 @@
-import {useMemo} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent} from 'react';
 import {useTranslation} from 'react-i18next';
 import {
   ResponsiveContainer,
@@ -8,10 +8,12 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  type MouseHandlerDataParam,
 } from 'recharts';
 import {pointValue, useWealthStore, type WealthRange} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useTaxConfig} from '@/state/settingsStore';
+import {activePointIndex} from '@/lib/chartPointer';
 import {useTheme} from '@/theme/ThemeContext';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 
@@ -61,6 +63,10 @@ interface TooltipEntry {
   payload?: {time: number; value: number};
 }
 
+function formatValue(value: number): string {
+  return `${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE`;
+}
+
 function CustomTooltip({active, payload}: {active?: boolean; payload?: TooltipEntry[]}) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
@@ -68,7 +74,84 @@ function CustomTooltip({active, payload}: {active?: boolean; payload?: TooltipEn
   return (
     <div className="bg-surface border border-border rounded px-3 py-2 text-xs shadow-lg">
       <p className="text-text-secondary mb-1">{formatDateFull(entry.payload.time)}</p>
-      <p className="font-mono font-semibold text-gold">{(entry.value ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE</p>
+      <p className="font-mono font-semibold text-gold">{formatValue(entry.value ?? 0)}</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Right-click menu on a reading
+// ---------------------------------------------------------------------------
+
+interface ChartPoint {
+  id?:   number;
+  time:  number;
+  value: number;
+}
+
+interface MenuState {
+  x:     number;
+  y:     number;
+  point: ChartPoint & {id: number};
+}
+
+/** Fixed-position menu at the cursor. Closes on outside click, Escape, scroll
+ *  or resize — anything that would leave it pointing at the wrong spot. */
+function PointMenu({menu, onDelete, onClose}: {menu: MenuState; onDelete: () => void; onClose: () => void}) {
+  const {t}  = useTranslation('dashboard');
+  const ref  = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({left: menu.x, top: menu.y});
+
+  // Keep the whole menu on screen when opened near the right or bottom edge.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const {width, height} = el.getBoundingClientRect();
+    setPos({
+      left: Math.min(menu.x, window.innerWidth  - width  - 4),
+      top:  Math.min(menu.y, window.innerHeight - height - 4),
+    });
+  }, [menu.x, menu.y]);
+
+  useEffect(() => {
+    const onPointer = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onClose, true);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('blur', onClose);
+    return () => {
+      window.removeEventListener('pointerdown', onPointer, true);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onClose, true);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('blur', onClose);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      role="menu"
+      className="fixed z-50 min-w-44 bg-surface-elevated border border-border rounded-lg shadow-lg py-1 text-xs"
+      style={{left: pos.left, top: pos.top}}
+    >
+      <div className="px-3 py-1.5 border-b border-border">
+        <p className="text-text-secondary">{formatDateFull(menu.point.time)}</p>
+        <p className="font-mono font-semibold text-gold">{formatValue(menu.point.value)}</p>
+      </div>
+      <button
+        role="menuitem"
+        onClick={onDelete}
+        className="w-full text-left px-3 py-1.5 text-danger hover:bg-danger/15 transition-colors"
+      >
+        {t('chart.contextMenu.delete')}
+      </button>
     </div>
   );
 }
@@ -83,13 +166,36 @@ export default function WealthChart() {
   const datapoints  = useWealthStore(s => s.datapoints);
   const range       = useWealthStore(s => s.range);
   const setRange    = useWealthStore(s => s.setRange);
+  const deletePoint = useWealthStore(s => s.deletePoint);
   const items       = useItemsStore(s => s.items);
   const tax         = useTaxConfig();
+  const [menu, setMenu] = useState<MenuState | null>(null);
 
-  const data = useMemo(
-    () => datapoints.map(dp => ({time: dp.timestamp, value: pointValue(dp, items, tax)})),
+  const data = useMemo<ChartPoint[]>(
+    () => datapoints.map(dp => ({id: dp.id, time: dp.timestamp, value: pointValue(dp, items, tax)})),
     [datapoints, items, tax],
   );
+
+  // A right-click with no active point under the cursor (or on a row without
+  // an id) leaves the native menu alone.
+  const openMenu = (state: MouseHandlerDataParam, e: MouseEvent<SVGGraphicsElement>) => {
+    const index = activePointIndex(state);
+    const point = index === null ? undefined : data[index];
+    if (point?.id === undefined) return;
+    e.preventDefault();
+    setMenu({x: e.clientX, y: e.clientY, point: {...point, id: point.id}});
+  };
+
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  const confirmDelete = () => {
+    if (!menu) return;
+    const {point} = menu;
+    setMenu(null);
+    if (window.confirm(t('chart.contextMenu.confirm', {time: formatDateFull(point.time), value: formatValue(point.value)}))) {
+      deletePoint(point.id).catch((err: unknown) => console.error('[wealth] delete failed:', err));
+    }
+  };
 
   const rangeSegments = RANGE_OPTIONS.map(r => ({value: r, label: t(`chart.range.${r}`)}));
 
@@ -117,7 +223,7 @@ export default function WealthChart() {
     <div className="flex flex-col gap-2">
       {header}
       <ResponsiveContainer width="100%" height={200}>
-        <AreaChart data={data} margin={{top: 4, right: 4, bottom: 0, left: 0}}>
+        <AreaChart data={data} margin={{top: 4, right: 4, bottom: 0, left: 0}} onContextMenu={openMenu}>
           <defs>
             <linearGradient id="wealthGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor={theme.gold} stopOpacity={0.25} />
@@ -156,6 +262,7 @@ export default function WealthChart() {
           />
         </AreaChart>
       </ResponsiveContainer>
+      {menu && <PointMenu menu={menu} onDelete={confirmDelete} onClose={closeMenu} />}
     </div>
   );
 }
