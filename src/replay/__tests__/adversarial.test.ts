@@ -3,6 +3,8 @@ import {createDispatcher} from '@/worker/create-dispatcher';
 import {formatLogTimestamp, parseLogTimestamp, readLogText, type LogLine} from '@/replay/log-source';
 import {createScrubber, REDACTED_RUN_ID} from '@/replay/scrub';
 import {SYNTHETIC_FIXTURES} from '@/test/golden/synthetic';
+import {GOLDEN_ITEMS} from '@/test/golden/items';
+import {runPipeline} from '@/test/pipeline';
 
 const T0 = Date.UTC(2026, 9, 25, 12, 0, 0, 0);
 const ts = (ms: number) => formatLogTimestamp(T0 + ms);
@@ -142,6 +144,68 @@ describe('scrubber vs the stateful dispatcher', () => {
     const arr = [NOISE(0), ZONE(1), NOISE(2)];
     const {s} = scrubAll(arr);
     expect(s.stats.kept + s.stats.dropped).toBe(arr.length);
+  });
+});
+
+/** A market price scrape (Send + Recv block): one price_update, on the Recv END
+ *  line. Production routes it to the item table, never to the engine. */
+const PRICE_ITEM = 6153;
+const priceBlock = (ms: number): string[] => {
+  const net = (dt: number, body: string) => `${ts(ms + dt)}[1]LogNet: ${body}`;
+  return [
+    net(0,   'Socket SendMessage STT----XchgSearchPrice----SynId = 77'),
+    net(1,   `+typ3 [${PRICE_ITEM}]`),
+    net(2,   'Socket SendMessage End'),
+    net(500, 'Socket RecvMessage STT----XchgSearchPrice----SynId = 77'),
+    net(501, '+unitPrices+1 [999.0]'),
+    net(502, '+currency [100300]'),
+    net(503, 'Socket RecvMessage End'),
+  ];
+};
+
+/** The map-vorex scenario with a price block mid-map (31.0–31.503 s). */
+function vorexWithPriceBlock(): {plain: string[]; withBlock: string[]; block: string[]} {
+  const plain = SYNTHETIC_FIXTURES['map-vorex'].split('\n').filter(Boolean);
+  const block = priceBlock(31_000);
+  const at = plain.findIndex(l => (parseLogTimestamp(l) ?? 0) >= T0 + 35_000);
+  return {plain, block, withBlock: [...plain.slice(0, at), ...block, ...plain.slice(at)]};
+}
+
+describe('scrubber on a price block', () => {
+  const priceUpdates = (arr: string[]) => {
+    const d = createDispatcher();
+    return arr.flatMap(l => d.dispatch(l)).filter(e => e.type === 'price_update');
+  };
+
+  it('the raw slice yields one price_update', () => {
+    expect(priceUpdates(priceBlock(0))).toEqual([{type: 'price_update', itemId: PRICE_ITEM, price: 999, listings: [999]}]);
+  });
+
+  it('the scrubbed slice keeps no line of the block, END included', () => {
+    const block = priceBlock(0);
+    const {out, s} = scrubAll([ZONE(-1), ...block, ZONE(1_000)]);
+    expect(out).toEqual([ZONE(-1), ...block.map(() => null), ZONE(1_000)]);
+    expect(s.stats).toEqual({kept: 2, dropped: block.length, unstamped: 0, anchors: 0});
+  });
+
+  it('a block mid-log scrubs to exactly the log without it', () => {
+    const {plain, withBlock} = vorexWithPriceBlock();
+    expect(scrubAll(withBlock).text).toEqual(scrubAll(plain).text);
+  });
+
+  it('a replay with the block gives the same engine events and saved session as one without', async () => {
+    const {plain, withBlock} = vorexWithPriceBlock();
+    expect(priceUpdates(withBlock)).toHaveLength(1);
+    // One at a time: each replay installs the global fake clock.
+    const a = await runPipeline(withBlock.join('\n'), {items: GOLDEN_ITEMS});
+    const b = await runPipeline(plain.join('\n'), {items: GOLDEN_ITEMS});
+    // Line numbers shift by the block's length; the events and their times must not.
+    const stream = (r: typeof a) => r.events.map(({event, at}) => ({event, at}));
+    expect(stream(a)).toEqual(stream(b));
+    expect(a.sessions[0].session).not.toBeNull();
+    expect(a.sessions).toEqual(b.sessions);
+    // The scraped 999 never reaches the run: its snapshot is the item table's.
+    expect(a.sessions[0].session!.priceSnapshot[String(PRICE_ITEM)]).toBe(GOLDEN_ITEMS[String(PRICE_ITEM)].price);
   });
 });
 

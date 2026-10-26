@@ -1,5 +1,7 @@
-import {describe, it, expect, vi} from 'vitest';
+import {describe, it, expect, vi, type MockInstance} from 'vitest';
 import {SqliteSessionStore} from '@/main/db/session-store';
+import type {Engine} from '@/main/engine/engine';
+import {createDispatcher} from '@/worker/create-dispatcher';
 import {parseLogTimestamp, readLogText, type LogLine} from '@/replay/log-source';
 import {replay, type ReplayOptions} from '@/replay/replay';
 import {compareRows} from '@/replay/report';
@@ -171,6 +173,30 @@ describe('replay persistence', () => {
   it('leaves an unfinished run unsaved without stopAtEnd', async () => {
     const r = await run({source: linesOf(mapRun), stopAtEnd: false});
     expect(r.sessions).toEqual([{id: 'replay-1', session: null, rows: []}]);
+  });
+});
+
+describe('replay raw-event routing', () => {
+  const net = (ms: number, body: string) => `${stamp(ms)}LogNet: ${body}`;
+  const log = [
+    initLine(0, 1, 100, 5),
+    net(100, 'Socket SendMessage STT----XchgSearchPrice----SynId = 3'),
+    net(101, '+typ3 [100]'),
+    net(102, 'Socket SendMessage End'),
+    net(200, 'Socket RecvMessage STT----XchgSearchPrice----SynId = 3'),
+    net(201, '+unitPrices+1 [7.0]'),
+    net(202, '+currency [100300]'),
+    net(203, 'Socket RecvMessage End'),
+    modifyLine(1_000, 1, 100, 6),
+  ];
+
+  it('never hands a price_update to the engine, as TrackingService does not', async () => {
+    const d = createDispatcher();
+    expect(log.flatMap(l => d.dispatch(l).map(e => e.type))).toEqual(['bag_init', 'price_update', 'bag_update']);
+
+    let spy: MockInstance<Engine['onRawEvent']> | undefined;
+    await run({source: linesOf(log), configure: engine => { spy = vi.spyOn(engine, 'onRawEvent'); }});
+    expect(spy!.mock.calls.map(([raw]) => raw.type)).toEqual(['bag_init', 'bag_update']);
   });
 });
 

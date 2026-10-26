@@ -162,7 +162,8 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
       linesDelivered++;
       for (const raw of dispatcher.dispatch(line.text)) {
         monitor.onRawEvent(raw, line.ts, line.lineNo);
-        engine?.onRawEvent(raw);
+        // As TrackingService._onWorkerEvent: prices go to the item table (none here), never to the engine.
+        if (raw.type !== 'price_update') engine?.onRawEvent(raw);
       }
     }
   };

@@ -1,4 +1,5 @@
 import {createDispatcher} from '@/worker/create-dispatcher';
+import type {RawEvent} from '@/worker/processors/types';
 import {formatLogTimestamp, parseLogTimestamp, type LogLine} from './log-source';
 
 /** Tartarus board lines carry a server-side run id; fixtures get a constant. */
@@ -25,14 +26,23 @@ export interface Scrubber {
 
 /**
  * Reduces a log slice to the lines the tracker reads: a line is kept when the
- * production processor chain yields at least one event for it — one stateful
- * dispatcher over the whole slice, exactly as a replay of it runs.
+ * production processor chain yields at least one event for it that reaches the
+ * engine — one stateful dispatcher over the whole slice, exactly as a replay of
+ * it runs.
+ *
+ * Worker price-scrape blocks (`XchgSearchPrice` socket messages) are excluded
+ * by design, END line included: their `price_update` never reaches the engine
+ * (TrackingService records it in the item table; replay drops it), and a
+ * fixture's prices come from its item table.
  *
  * The slice's first line anchors the replay's 250 ms poll grid and its last
  * line starts the settle period (the session's end time), so a dropped first
  * or last line is replaced by its bare timestamp — matched by no processor —
  * and the scrubbed slice replays on the raw slice's clock.
  */
+/** Raw events the engine receives: see `replay()` and TrackingService._onWorkerEvent. */
+const reachesEngine = (e: RawEvent): boolean => e.type !== 'price_update';
+
 export function createScrubber(): Scrubber {
   const dispatcher = createDispatcher();
   const stats: ScrubStats = {kept: 0, dropped: 0, unstamped: 0, anchors: 0};
@@ -50,7 +60,7 @@ export function createScrubber(): Scrubber {
     scrub(line) {
       const isFirst = first;
       first = false;
-      if (dispatcher.dispatch(line.text).length === 0) {
+      if (!dispatcher.dispatch(line.text).some(reachesEngine)) {
         stats.dropped++;
         droppedLastTs = line.ts;
         return isFirst ? anchor(line.ts) : null;

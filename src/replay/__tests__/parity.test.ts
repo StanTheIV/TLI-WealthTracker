@@ -139,7 +139,7 @@ describe('replay vs TrackingService parity (exact delivery)', () => {
     expect(b).toEqual([a[0]]);
   });
 
-  it('price_update raw events (forwarded by replay, intercepted by the service) change nothing', async () => {
+  it('price_update raw events (withheld from the engine by both) change nothing', async () => {
     const text = withPriceBlock(SYNTHETIC_FIXTURES['map-vorex']);
     const l = lines(text);
     expect(l.length).toBeGreaterThan(lines(SYNTHETIC_FIXTURES['map-vorex']).length);

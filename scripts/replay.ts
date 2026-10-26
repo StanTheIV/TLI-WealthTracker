@@ -47,7 +47,8 @@ Replay:
 
 Extract (opens no DB when <log> is given):
   --extract <file>          Write the slice's raw lines to <file>
-  --scrub                   With --extract: keep only lines the tracker parses, redact Tartarus run ids;
+  --scrub                   With --extract: keep only lines that feed the engine (market price scrapes are
+                            dropped; fixture prices come from the item table), redact Tartarus run ids;
                             a dropped first/last line becomes a bare timestamp so the replay clock is unchanged
 
   --db <file>               App DB for settings, items and filters, opened read-only
