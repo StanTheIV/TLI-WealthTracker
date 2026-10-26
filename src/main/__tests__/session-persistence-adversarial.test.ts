@@ -1,20 +1,27 @@
 /**
- * Adversarial cases for SessionPersistence over the real store: atomicity on
- * both branches, buffer state after a failed save, price filtering.
+ * Adversarial cases for SessionPersistence over the real store, fed through
+ * `onEngineEvent` with hand-built units: atomicity on both branches, buffer
+ * state after a failed save, price filtering.
  */
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import {SessionPersistence, type PriceReader, type SessionMeta} from '@/main/session-persistence';
 import {SqliteSessionStore} from '@/main/db/session-store';
 import type {EngineEvent} from '@/shared/contracts/engine';
-import type {Engine} from '@/main/engine/engine';
 import type {DbSession} from '@/shared/contracts/db';
 import type {SqlConn} from '@/main/db/sql-conn';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
+import {onEngineEvent, snap, unitFinished} from '@/test/unit-events';
 
-const engine = (hasMap = true) => ({hasActiveMapTracker: () => hasMap}) as unknown as Engine;
+/** A map unit (no overlaps) with the given drops, spend and duration. */
+const mapUnit = (drops: Record<number, number>, elapsed: number, spent?: Record<number, number>) =>
+  unitFinished(snap('map', drops, elapsed, {spent}));
 
-function tf(kind: 'session' | 'map' | 'seasonal', drops: Record<number, number>, elapsed: number, extra: Record<string, unknown> = {}) {
-  return {type: 'tracker_finished', timestamp: 1_000_000, tracker: {kind, drops, elapsed, active: true, ...extra}} as Extract<EngineEvent, {type: 'tracker_finished'}>;
+function sessionFinished(drops: Record<number, number>, elapsed: number, spent?: Record<number, number>) {
+  const e: Extract<EngineEvent, {type: 'tracker_finished'}> = {
+    type: 'tracker_finished', timestamp: 1_000_000, tracker: snap('session', drops, elapsed, {spent}),
+  };
+  e.sessionMeta = {mapTime: 50_000, mapCount: 1};
+  return e;
 }
 
 let conn: SqlConn;
@@ -26,9 +33,7 @@ const make = (meta: Partial<SessionMeta> = {}, readPrices: PriceReader = () => (
   new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false, ...meta}, {store, readPrices});
 
 function finish(p: SessionPersistence, drops: Record<number, number> = {}, elapsed = 60_000) {
-  const e = tf('session', drops, elapsed);
-  e.sessionMeta = {mapTime: 50_000, mapCount: 1};
-  return p.onTrackerFinished(e, engine(false));
+  return onEngineEvent(p, sessionFinished(drops, elapsed));
 }
 
 const existing: DbSession = {
@@ -41,7 +46,7 @@ describe('atomicity', () => {
   it('update branch: old row unchanged and no rows added when insertRows fails', () => {
     store.insertSession(existing);
     const p = make({sessionName: 'My Run', isOverride: true});
-    p.onTrackerFinished(tf('map', {200: 1}, 60_000), engine());
+    onEngineEvent(p, mapUnit({200: 1}, 60_000));
     vi.spyOn(store, 'insertRows').mockImplementation(() => { throw new Error('disk full'); });
 
     expect(() => finish(p, {200: 1})).toThrow('disk full');
@@ -51,8 +56,7 @@ describe('atomicity', () => {
 
   it('insert branch: a real constraint failure inside rows rolls the session insert back', () => {
     const p = make();
-    const ev = tf('map', {100: 1}, 60_000);
-    p.onTrackerFinished(ev, engine());
+    onEngineEvent(p, mapUnit({100: 1}, 60_000));
     // Poison the buffered row so the real INSERT fails (NOT NULL started_at).
     (p as unknown as {_pendingRows: {startedAt: unknown}[]})._pendingRows[0].startedAt = null;
 
@@ -64,7 +68,7 @@ describe('atomicity', () => {
   it('insert branch with isOverride=false on an id that already exists throws and writes no rows', () => {
     store.insertSession(existing);
     const p = make();
-    p.onTrackerFinished(tf('map', {100: 1}, 60_000), engine());
+    onEngineEvent(p, mapUnit({100: 1}, 60_000));
     expect(() => finish(p, {100: 1})).toThrow();
     expect(store.getSession('s1')).toEqual(existing);
     expect(store.getRows('s1')).toEqual([]);
@@ -72,7 +76,7 @@ describe('atomicity', () => {
 
   it('update branch on a vanished session row silently writes only the rows (characterization)', () => {
     const p = make({sessionName: 'Gone', isOverride: true});
-    p.onTrackerFinished(tf('map', {100: 1}, 60_000), engine());
+    onEngineEvent(p, mapUnit({100: 1}, 60_000));
     expect(finish(p, {100: 1})).toEqual({savedId: 's1'});
     expect(store.getSession('s1')).toBeNull();
     expect(store.getRows('s1')).toHaveLength(1);   // orphan rows
@@ -82,7 +86,7 @@ describe('atomicity', () => {
 describe('buffer after a failed save (characterization)', () => {
   it('buffer and index survive the throw; a retry commits the same rows', () => {
     const p = make();
-    p.onTrackerFinished(tf('map', {100: 1}, 60_000), engine());
+    onEngineEvent(p, mapUnit({100: 1}, 60_000));
     const spy = vi.spyOn(store, 'insertRows').mockImplementationOnce(() => { throw new Error('boom'); });
 
     expect(() => finish(p, {100: 1})).toThrow('boom');
@@ -93,16 +97,6 @@ describe('buffer after a failed save (characterization)', () => {
     expect(finish(p, {100: 1})).toEqual({savedId: 's1'});
     expect(store.getRows('s1').map(r => r.mapIndex)).toEqual([1]);
 
-  });
-
-  it('a failed save does not clear staged overlaps that were already promoted', () => {
-    const p = make();
-    p.onTrackerFinished(tf('seasonal', {300: 1}, 20_000, {seasonalType: 'overrealm'}), engine());
-    vi.spyOn(store, 'insertSession').mockImplementationOnce(() => { throw new Error('boom'); });
-    expect(() => finish(p, {300: 1})).toThrow('boom');
-    // Promotion loop emptied _pendingOverlaps into _pendingRows before the throw.
-    expect(finish(p, {300: 1})).toEqual({savedId: 's1'});
-    expect(store.getRows('s1').map(r => [r.mapIndex, r.parentMapIndex])).toEqual([[1, null]]);
   });
 });
 
@@ -122,17 +116,15 @@ describe('price capture filtering', () => {
   it('needed ids include map-row spent ids and the session spent ids; a standalone seasonal adds none', () => {
     const reader = vi.fn<PriceReader>(() => ({}));
     const p = make({}, reader);
-    p.onTrackerFinished(tf('map', {}, 60_000, {spent: {11: 1}}), engine(true));
-    p.onTrackerFinished(tf('seasonal', {}, 60_000, {seasonalType: 'sandlord'}), engine(false));
-    const e = tf('session', {33: 1}, 60_000, {spent: {22: 1}});
-    e.sessionMeta = {mapTime: 50_000, mapCount: 1};
-    p.onTrackerFinished(e, engine(false));
+    onEngineEvent(p, mapUnit({}, 60_000, {11: 1}));
+    onEngineEvent(p, unitFinished(snap('seasonal', {}, 60_000, {seasonalType: 'sandlord'})));
+    onEngineEvent(p, sessionFinished({33: 1}, 60_000, {22: 1}));
     expect([...reader.mock.calls[0][0]].sort()).toEqual(['11', '22', '33']);
   });
 
   it('a throwing reader aborts the save before anything is written', () => {
     const p = make({}, () => { throw new Error('items down'); });
-    p.onTrackerFinished(tf('map', {100: 1}, 60_000), engine());
+    onEngineEvent(p, mapUnit({100: 1}, 60_000));
     expect(() => finish(p, {100: 1})).toThrow('items down');
     expect(store.getSession('s1')).toBeNull();
     expect(store.getRows('s1')).toEqual([]);
@@ -140,9 +132,9 @@ describe('price capture filtering', () => {
 });
 
 describe('misc persistence', () => {
-  it('non tracker_finished events are ignored', () => {
+  it('events that are neither a unit nor the session finish are ignored', () => {
     const p = make();
-    expect(p.onTrackerFinished({type: 'session_saved', sessionId: 'x'} as EngineEvent, engine())).toBeNull();
+    expect(onEngineEvent(p, {type: 'session_saved', sessionId: 'x'})).toBeNull();
   });
 
   it('dropsBySource missing on the tracker saves {} ; drops with number keys become string keys', () => {
@@ -153,8 +145,8 @@ describe('misc persistence', () => {
   it('two persistences sharing a store write independent sessions', () => {
     const a = make({sessionId: 'A'});
     const b = make({sessionId: 'B'});
-    a.onTrackerFinished(tf('map', {1: 1}, 60_000), engine());
-    b.onTrackerFinished(tf('map', {2: 1}, 60_000), engine());
+    onEngineEvent(a, mapUnit({1: 1}, 60_000));
+    onEngineEvent(b, mapUnit({2: 1}, 60_000));
     finish(a, {1: 1});
     finish(b, {2: 1});
     expect(store.getRows('A')).toHaveLength(1);

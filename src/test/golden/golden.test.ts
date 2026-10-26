@@ -198,6 +198,20 @@ describe('golden scenario shapes', () => {
     expect(bySource.map?.['100300']).toBe(12);
   });
 
+  it('town-arcana-backout-then-map: the dormant town arcana is standalone, ahead of the map', async () => {
+    const rows = await savedRows('town-arcana-backout-then-map');
+    const [arcana] = seasonal(rows, 'arcana');
+    expect(arcana.parentMapIndex).toBeNull();
+    expect(mapRows(rows)).toEqual([expect.objectContaining({parentMapIndex: null, mapIndex: arcana.mapIndex + 1})]);
+  });
+
+  it('map-hub-direct: the hub run is an overlap of the frozen map it was entered from', async () => {
+    const rows = await savedRows('map-hub-direct');
+    const [map] = mapRows(rows);
+    expect(mapRows(rows)).toHaveLength(1);
+    expect(seasonal(rows, 'sandlord')).toEqual([expect.objectContaining({phase: 'hub', parentMapIndex: map.mapIndex})]);
+  });
+
   it.each([
     ['map-vorex', 'vorex'],
     ['afterlight-special-no-win', 'afterlight'],

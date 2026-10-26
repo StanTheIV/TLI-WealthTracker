@@ -1,6 +1,6 @@
 import {Tracker} from './tracker';
 import {SeasonalTracker} from './seasonal-tracker';
-import type {SeasonalPhase, SeasonalType, Source, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {SeasonalPhase, SeasonalType, Source, TrackerSnapshot, UnitOverlap} from '@/shared/contracts/engine';
 import type {EmitFn} from './types';
 import type {ItemFilterEngine} from './item-filter';
 import type {FilterScope} from '@/shared/item-filter';
@@ -20,8 +20,9 @@ export interface DistributeResult {
 
 /**
  * TrackerRegistry — owns the collection of trackers, the writer rule, fan-out
- * to active scopes, bubble exclusivity, and which seasonals the session pause
- * froze. Knows nothing about log events.
+ * to active scopes, bubble exclusivity, which seasonals the session pause
+ * froze, and the saved unit (which map a seasonal run belongs to). Knows
+ * nothing about log events.
  */
 export class TrackerRegistry {
   session: Tracker | null = null;
@@ -40,6 +41,12 @@ export class TrackerRegistry {
   // Seasonals the SESSION pause froze — whoever paused a tracker resumes it,
   // so only these are resumed by the session resume. See freezeForSessionPause.
   private _sessionFrozen: Set<SeasonalType> = new Set();
+  // The last map ordinal handed out (Tracker.seq); 0 before the run's first map.
+  private _mapSeq = 0;
+  // Finished children of the CURRENT map, in finish order — its unit's overlaps.
+  private _mapChildren: UnitOverlap[] = [];
+  // False only inside discardForReset: a reset run saves nothing.
+  private _emitUnits = true;
 
   // -----------------------------------------------------------------------
   // Lookup
@@ -72,9 +79,15 @@ export class TrackerRegistry {
     return this.session;
   }
 
+  /** Every seasonal ACTIVE as the map starts (a town panel left open into it)
+   *  becomes its child; a dormant one only if it wakes under it. */
   startMap(): Tracker | null {
     if (this.hasBubble()) return null;
     this.map = new Tracker('map');
+    this.map.seq = ++this._mapSeq;
+    for (const t of this._seasonals.values()) {
+      if (t.active) this._stampParent(t);
+    }
     this._currentWriter = undefined;
     return this.map;
   }
@@ -155,6 +168,9 @@ export class TrackerRegistry {
       pauseOnLootExpiry: opts.pauseOnLootExpiry,
       claimsDrops:       opts.claimsDrops,
     });
+    // Stamped at creation whatever follows: a run started under a map is its
+    // child even if the map then freezes (Clockwork podium, hub while paused).
+    this._stampParent(tracker);
     this._seasonals.set(type, tracker);
     this._startOrder.push(type);
     this._currentWriter = undefined;
@@ -183,7 +199,9 @@ export class TrackerRegistry {
     this._published.delete(type);
     this._sessionFrozen.delete(type);
     this._currentWriter = undefined;
-    emit({type: 'tracker_finished', tracker: snap, timestamp: Date.now()});
+    const now = Date.now();
+    emit({type: 'tracker_finished', tracker: snap, timestamp: now});
+    this._unitForSeasonal(tracker, snap, now, emit);
     this._emitOwnership(emit); // ownership falls to whoever is now newest
   }
 
@@ -192,7 +210,8 @@ export class TrackerRegistry {
    *  flip MUST reach it — and does, because _emitOwnership diffs `active` as
    *  well as `owner`: a timing-only tracker (see SeasonalTracker.claimsDrops),
    *  which has no ownership to change, still publishes its park and its wake. */
-  _onSeasonalStateChanged(_tracker: SeasonalTracker, emit: EmitFn): void {
+  _onSeasonalStateChanged(tracker: SeasonalTracker, emit: EmitFn): void {
+    if (tracker.active) this._stampParent(tracker);   // a session thaw under a map
     this._currentWriter = undefined;
     this._emitOwnership(emit);
   }
@@ -207,6 +226,7 @@ export class TrackerRegistry {
    *  loot_window_started carries the new deadline). A wake publishes once —
    *  the resume flips `active`; the arm's ownership bump after it is a no-op. */
   _onSeasonalReactivated(tracker: SeasonalTracker, emit: EmitFn): void {
+    this._stampParent(tracker);
     const type = tracker.seasonalType;
     const idx = this._startOrder.indexOf(type);
     if (idx >= 0) {
@@ -231,6 +251,44 @@ export class TrackerRegistry {
     }
     this._currentWriter = undefined;
     this._emitOwnership(emit);
+  }
+
+  // -----------------------------------------------------------------------
+  // The saved unit
+  // -----------------------------------------------------------------------
+  //
+  // A seasonal run is a CHILD of the map it was created or active under —
+  // `this.map !== null` then, so a map frozen for an interlude or a session
+  // pause still counts — and rides that map's `unit_finished` as an overlap.
+  // Any other run is a STANDALONE unit. A seasonal sits under at most one map
+  // (town finishes every seasonal, a bubble start the rest). Stamping emits
+  // nothing.
+
+  /** Record the current map, if any, as `t`'s parent. */
+  private _stampParent(t: SeasonalTracker): void {
+    if (this.map) t.parentMapSeq = this.map.seq;
+  }
+
+  /** A seasonal just finished: held for the current map's unit if it is that
+   *  map's child, else emitted as a standalone unit now. */
+  private _unitForSeasonal(t: SeasonalTracker, snap: TrackerSnapshot, timestamp: number, emit: EmitFn): void {
+    if (!this._emitUnits) return;
+    if (this.map !== null && t.parentMapSeq === this.map.seq) {
+      this._mapChildren.push({tracker: snap, timestamp});
+      return;
+    }
+    emit({type: 'unit_finished', tracker: snap, overlaps: [], timestamp});
+  }
+
+  /** Session stop mid-map: the live map is dropped, so its already-finished
+   *  children are saved as standalone units, each at its own finish time.
+   *  Must run before the session's tracker_finished. */
+  promoteMapChildren(emit: EmitFn): void {
+    const children = this._mapChildren;
+    this._mapChildren = [];
+    for (const c of children) {
+      emit({type: 'unit_finished', tracker: c.tracker, overlaps: [], timestamp: c.timestamp});
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -326,10 +384,6 @@ export class TrackerRegistry {
     if (writer === null && this.map !== null && this.map.active) writer = 'map';
     this._currentWriter = writer;
     return writer;
-  }
-
-  invalidateWriter(): void {
-    this._currentWriter = undefined;
   }
 
   /**
@@ -443,20 +497,47 @@ export class TrackerRegistry {
     }
   }
 
-  /** Finish all seasonals, then the map tracker. ZoneHandler town path. */
+  /** Finish all seasonals, then the map tracker. ZoneHandler town path.
+   *  Seasonals first, so every child is collected before the map's unit. */
   finishAll(emit: EmitFn): void {
     this.finishAllSeasonals();
-    if (this.map) {
-      const snap = this.map.snapshot();
-      this.map = null;
-      this._currentWriter = undefined;
-      emit({type: 'tracker_finished', tracker: snap, timestamp: Date.now()});
-    }
+    if (this.map) this._finishMap(this.map, emit);
   }
 
-  /** Drop every tracker silently (no events). Used by Engine.stop()/reset()
-   *  where the engine has its own emission policy. Cancels seasonal loot
-   *  timers as a side-effect so no callbacks fire after teardown. */
+  /** The map's own tracker_finished, then its unit: the same snapshot (entry
+   *  cost on its `spent`) with the children collected while it ran. */
+  private _finishMap(map: Tracker, emit: EmitFn): void {
+    const snap = map.snapshot();
+    this.map = null;
+    this._currentWriter = undefined;
+    const now = Date.now();
+    emit({type: 'tracker_finished', tracker: snap, timestamp: now});
+    const overlaps = this._mapChildren;
+    this._mapChildren = [];
+    emit({type: 'unit_finished', tracker: snap, overlaps, timestamp: now});
+  }
+
+  /** Engine.reset: the plain tracker_finished of every seasonal and the map,
+   *  which the renderer needs to drop their rows, but NO unit — the reset run
+   *  is discarded, nothing of it is saved. */
+  discardForReset(emit: EmitFn, timestamp: number): void {
+    this._emitUnits = false;
+    try {
+      this.finishAllSeasonals();
+    } finally {
+      this._emitUnits = true;
+    }
+    this._mapChildren = [];
+    if (this.map) {
+      emit({type: 'tracker_finished', tracker: this.map.snapshot(), timestamp});
+      this.map = null;
+    }
+    this._currentWriter = undefined;
+  }
+
+  /** Drop every tracker silently (no events) — EngineContext.reset(), where
+   *  the engine has its own emission policy. Cancels seasonal loot timers as a
+   *  side-effect so no callbacks fire after teardown. */
   reset(): void {
     for (const t of this._seasonals.values()) t.cancelLootTimer();
     this.session = null;
@@ -466,5 +547,7 @@ export class TrackerRegistry {
     this._published.clear();
     this._sessionFrozen.clear();
     this._currentWriter = undefined;
+    this._mapSeq        = 0;
+    this._mapChildren   = [];
   }
 }

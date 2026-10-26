@@ -153,9 +153,8 @@ export function createEngine(events: EngineEvent[]): Engine {
   return createProductionEngine((e) => events.push(e));
 }
 
-/** Variant of createEngine that takes a custom emit function — used by the
- *  Sandlord hasActiveMapTracker discriminator tests where the captor needs
- *  closure access to the Engine instance to call hasActiveMapTracker(). */
+/** Variant of createEngine that takes a custom emit function — for captors
+ *  that need more than an array (e.g. an OwnerWatcher fed every event). */
 export function createEngineWithEmit(emit: EmitFn): Engine {
   return createProductionEngine(emit);
 }

@@ -15,8 +15,11 @@ export class SeasonalTracker extends Tracker {
   readonly ownsBubble:   boolean;
   /** Sandlord only — 'map' coin tile vs 'hub' bubble. See SeasonalPhase. */
   readonly phase?:       SeasonalPhase;
+  /** `seq` of the map this run was created or active under; null when it
+   *  never was (a standalone run). Written only by the registry. */
+  parentMapSeq: number | null = null;
 
-  private _registry:          TrackerRegistry;
+  private _registry:         TrackerRegistry;
   private _emit:              EmitFn;
   private _lootTimer:         LootCollectionTimer | null = null;
   private _lootDurationMs:    number;

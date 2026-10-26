@@ -5,7 +5,7 @@ import {ZERO_VAL, addVal, isZeroVal, subVal, valueQty} from '@/domain/valuation'
 
 /** Seasonals that FREEZE the map clock, so their time is NOT inside
  *  session.mapTime — even though the engine still writes them as overlap rows
- *  (hasActiveMapTracker() tests `map !== null`, true while merely paused).
+ *  (a run is a child of the map it ran under, frozen or not).
  *  Mirrors the callers of `pauseMapForInterlude`; add a mechanic here when it
  *  starts calling that, or its time is subtracted from map time it never
  *  belonged to. Sandlord's entry covers its HUB phase only — its in-map coin
@@ -50,9 +50,9 @@ export function classifyRows(
     const parent    = isOverlap ? primaryByIndex.get(row.parentMapIndex!) ?? null : null;
 
     if (isOverlap && parent === null) {
-      // Parent never resolved (partial delete, or the defensive window in
-      // SessionPersistence before any primary row exists). Treat as standalone
-      // so its time and value stay in the aggregates instead of vanishing.
+      // Parent row missing (a partial delete, or rows written by an older
+      // build). Treat as standalone so its time and value stay in the
+      // aggregates instead of vanishing.
       warnings.push({code: 'orphan-overlap-row', mapIndex: row.mapIndex});
     }
 

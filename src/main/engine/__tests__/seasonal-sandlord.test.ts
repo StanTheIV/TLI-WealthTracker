@@ -1,16 +1,15 @@
 /**
  * Sandlord (S10) — pure zone-transition trigger, whole bubble in one tracker.
  *
- * Also includes the load-bearing `hasActiveMapTracker()` discriminator tests:
- * the IPC layer reads that flag at the moment a seasonal tracker_finished
- * arrives to decide whether to write a standalone session_maps row (Sandlord)
- * or fold the seasonal's drops into the upcoming map row (Vorex/Dream/etc.).
+ * Also pins, as `unit_finished` assertions, what used to be the
+ * `hasActiveMapTracker()` discriminator: a hub run is its own standalone unit,
+ * an in-map seasonal (Vorex) is an overlap of the map's unit.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
-import {Engine}            from '@/main/engine/engine';
 import type {EngineEvent}  from '@/shared/contracts/engine';
+import {unitsOf} from '@/test/unit-events';
 import {
-  boot, createDispatcher, createEngine, createEngineWithEmit, ctx, feed, log,
+  boot, createDispatcher, createEngine, ctx, feed, log,
   MAP, SANDLORD_HUB, SANDLORD_SUB_MAP, TOWN,
 } from './seasonal-fixtures';
 
@@ -140,51 +139,35 @@ describe('Sandlord integration', () => {
     expect(starts).toHaveLength(1);
   });
 
-  // The IPC layer uses engine.hasActiveMapTracker() at the moment a seasonal
-  // tracker_finished arrives to discriminate "Sandlord-style standalone run"
-  // (write a session_maps row) from "Vorex/Dream/etc. inside a map" (skip,
-  // because the upcoming map row already covers it). These two tests pin
-  // that discriminator's behaviour.
-
-  it('hasActiveMapTracker is false when sandlord seasonal finishes', () => {
-    let activeMapAtSeasonalFinish: boolean | null = null;
+  it('a hub run finishing in town is a standalone unit with no overlaps', () => {
     const events: EngineEvent[] = [];
-    let engine: Engine;
-    const captureEmit = (ev: EngineEvent) => {
-      events.push(ev);
-      if (ev.type === 'tracker_finished' && ev.tracker.kind === 'seasonal') {
-        activeMapAtSeasonalFinish = engine.hasActiveMapTracker();
-      }
-    };
-    engine = createEngineWithEmit(captureEmit);
     const d = createDispatcher();
+    const e = createEngine(events);
 
-    boot(d, engine, [{slotId: 1, itemId: 800, quantity: 0}]);
-    feed(d, engine, log.zoneTransition(TOWN, SANDLORD_HUB));
-    feed(d, engine, log.zoneTransition(SANDLORD_HUB, TOWN));
+    boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, SANDLORD_HUB));
+    feed(d, e, log.zoneTransition(SANDLORD_HUB, TOWN));
 
-    expect(activeMapAtSeasonalFinish).toBe(false);
+    const units = unitsOf(events);
+    expect(units).toHaveLength(1);
+    expect(units[0].tracker).toMatchObject({kind: 'seasonal', seasonalType: 'sandlord', phase: 'hub'});
+    expect(units[0].overlaps).toEqual([]);
   });
 
-  it('hasActiveMapTracker is true when in-map seasonal (vorex) finishes via town entry', () => {
-    let activeMapAtSeasonalFinish: boolean | null = null;
+  it('an in-map seasonal (vorex) finishing via town entry is an overlap of the map unit', () => {
     const events: EngineEvent[] = [];
-    let engine: Engine;
-    const captureEmit = (ev: EngineEvent) => {
-      events.push(ev);
-      if (ev.type === 'tracker_finished' && ev.tracker.kind === 'seasonal') {
-        activeMapAtSeasonalFinish = engine.hasActiveMapTracker();
-      }
-    };
-    engine = createEngineWithEmit(captureEmit);
     const d = createDispatcher();
+    const e = createEngine(events);
 
-    boot(d, engine, [{slotId: 1, itemId: 800, quantity: 0}]);
-    feed(d, engine, log.zoneTransition(TOWN, MAP));
-    feed(d, engine, log.s13Start);
-    feed(d, engine, log.zoneTransition(MAP, TOWN));
+    boot(d, e, [{slotId: 1, itemId: 800, quantity: 0}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    feed(d, e, log.s13Start);
+    feed(d, e, log.zoneTransition(MAP, TOWN));
 
-    expect(activeMapAtSeasonalFinish).toBe(true);
+    const units = unitsOf(events);
+    expect(units).toHaveLength(1);
+    expect(units[0].tracker.kind).toBe('map');
+    expect(units[0].overlaps.map(o => o.tracker.seasonalType)).toEqual(['vorex']);
   });
 });
 

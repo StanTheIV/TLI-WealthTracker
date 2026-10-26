@@ -109,9 +109,7 @@ export class ZoneHandler implements EventHandler {
       ctx.accumulatedMapTime += elapsed;
 
       // Finish all seasonals (each cancels its loot timer + emits tracker_finished)
-      // then the map tracker. SessionPersistence sees the seasonals first while
-      // the map tracker is still alive, so each becomes an overlap row tied to
-      // the current parent map.
+      // then the map tracker, whose unit_finished carries the map's children.
       ctx.registry.finishAll(emit);
 
       ctx.inMap = false;

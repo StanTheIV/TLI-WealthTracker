@@ -39,8 +39,16 @@ export interface TrackerSnapshot {
   spent?:        Record<number, number>;
 }
 
+/** One seasonal run that finished inside a map unit, stamped with its OWN
+ *  finish time (it may end long before the map does). */
+export interface UnitOverlap {
+  tracker:   TrackerSnapshot;
+  timestamp: number;
+}
+
 // ---------------------------------------------------------------------------
-// EngineEvents — sent from the main-process engine to every renderer via IPC
+// EngineEvents — sent from the main-process engine to every renderer via IPC,
+// except `unit_finished`, which stays in the main process (persistence only).
 // ---------------------------------------------------------------------------
 
 export type EngineEvent =
@@ -54,6 +62,12 @@ export type EngineEvent =
   | {type: 'tracker_started';  tracker: TrackerSnapshot; timestamp: number; sessionMeta?: {mapTime: number; mapCount: number}}
   | {type: 'tracker_update';   tracker: TrackerSnapshot; timestamp: number}
   | {type: 'tracker_finished'; tracker: TrackerSnapshot; timestamp: number; sessionMeta?: {mapTime: number; mapCount: number}}
+  /** The saved unit, built by the engine: a map with the seasonal runs that
+   *  were its children (`overlaps`, in finish order), or a STANDALONE seasonal
+   *  run (`overlaps` empty). Emitted after the primary's own tracker_finished;
+   *  `timestamp` is the primary's finish time. Persistence-only — never
+   *  broadcast to the renderer, which keeps reading each tracker_finished. */
+  | {type: 'unit_finished';    tracker: TrackerSnapshot; overlaps: UnitOverlap[]; timestamp: number}
   | {type: 'session_status';   status: 'running' | 'paused'; elapsed: number; timestamp: number}
   | {type: 'session_saved';    sessionId: string}
   | {type: 'price_update';     itemId: number; price: number; timestamp: number}

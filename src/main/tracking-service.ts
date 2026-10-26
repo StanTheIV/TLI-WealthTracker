@@ -302,15 +302,14 @@ export class TrackingService {
   }
 
   /**
-   * Route tracker_finished events through SessionPersistence — it owns the
-   * per-map / per-seasonal row buffer and the auto-save logic. Returns an
-   * outcome only for kind=session (the auto-save commit point); other kinds
-   * produce a null outcome and just buffer internally. `session_saved` goes
-   * out before the session's own tracker_finished.
+   * Route every engine event through SessionPersistence — it owns the row
+   * buffer (fed by `unit_finished`) and the auto-save logic. Returns an
+   * outcome only for the session's tracker_finished (the auto-save commit
+   * point). `session_saved` goes out before the session's own tracker_finished.
    */
   private _persist(event: EngineEvent): void {
-    if (!this._engine || !this._persistence) return;
-    const outcome = this._persistence.onTrackerFinished(event, this._engine);
+    if (!this._persistence) return;
+    const outcome = this._persistence.onEngineEvent(event);
     if (outcome?.savedId) {
       this._log.info('engine', `Session auto-saved: id=${outcome.savedId}`);
       this._send({type: 'session_saved', sessionId: outcome.savedId});
@@ -338,6 +337,9 @@ export class TrackingService {
   }
 
   private _send(event: EngineEvent): void {
+    // `unit_finished` is persistence-only and stays in-process: the renderer
+    // reads each tracker's own tracker_finished instead.
+    if (event.type === 'unit_finished') return;
     this._isolate('broadcast', event, () => this._deps.broadcast('engine:event', event));
   }
 

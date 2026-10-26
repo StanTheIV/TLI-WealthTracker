@@ -268,6 +268,8 @@ function eventLines(events: ReplayEvent[], origin: number): {lines: string[]; co
   const counts: Record<string, number> = {};
   const flags = new Map<string, string>();
   for (const {event, at} of events) {
+    // Persistence-only, never reaches the renderer; a golden pins its effect as `rows`.
+    if (event.type === 'unit_finished') continue;
     counts[event.type] = (counts[event.type] ?? 0) + 1;
     const desc = describeEvent(event, flags);
     if (desc !== null) lines.push(`${fmtSeconds(at - origin)} ${desc}`);
@@ -293,6 +295,7 @@ function describeEvent(e: EngineEvent, flags: Map<string, string>): string | nul
     case 'drop':
     case 'price_update':
     case 'wealth_recorded':
+    case 'unit_finished':
       return null;
     case 'tracker_update': {
       const name = trackerName(e.tracker);

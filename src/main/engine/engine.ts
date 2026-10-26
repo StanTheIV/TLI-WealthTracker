@@ -76,7 +76,10 @@ export class Engine {
   stop(): void {
     // Emit final session snapshot before tearing down, including map/session
     // metadata for auto-save. Active map / seasonals are silently dropped —
-    // session-level finish is the renderer's signal that the run is over.
+    // session-level finish is the renderer's signal that the run is over. The
+    // live map's already-finished children go out first as standalone units,
+    // so they are saved with the session.
+    this._ctx.registry.promoteMapChildren(this._emit);
     if (this._ctx.registry.session) {
       this._emit({
         type:        'tracker_finished',
@@ -109,20 +112,14 @@ export class Engine {
     // (finishing a seasonal also drops it from the registry's session-frozen set).
     this._ctx.mapPausedForInterludeAt = null;
 
-    // Tear down map/seasonal trackers so the renderer drops their UI state.
-    // Deliberately do NOT emit tracker_finished for the session — that would
-    // flip the renderer's phase to 'idle'. Each seasonal's finish() emits
-    // its own tracker_finished; the registry handles map separately below.
-    this._ctx.registry.finishAllSeasonals();
     // The materials were consumed to open the map the player is still in, so
     // its rebuilt tracker (and the new session) keep the entry cost.
-    let carriedCost: ReadonlyMap<number, number> = new Map();
-    if (this._ctx.registry.map) {
-      carriedCost = new Map(this._ctx.registry.map.entryCost);
-      this._emit({type: 'tracker_finished', tracker: this._ctx.registry.map.snapshot(), timestamp: now});
-      this._ctx.registry.map = null;
-    }
-    this._ctx.registry.invalidateWriter();
+    const carriedCost: ReadonlyMap<number, number> = new Map(this._ctx.registry.map?.entryCost ?? []);
+    // Tear down map/seasonal trackers so the renderer drops their UI state,
+    // emitting no unit (the reset run is never saved). Deliberately do NOT
+    // emit tracker_finished for the session — that would flip the renderer's
+    // phase to 'idle'.
+    this._ctx.registry.discardForReset(this._emit, now);
     this._ctx.registry.session = null;
 
     this._ctx.mapCount           = 0;

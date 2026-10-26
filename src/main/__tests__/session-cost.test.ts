@@ -1,50 +1,34 @@
 /**
- * Step 1.2 (test-first) — persistence of the entry cost.
+ * Persistence of the entry cost, fed through `onEngineEvent` with unit events.
  *
- * The row `spent` now comes from the finished tracker's own snapshot
- * (`TrackerSnapshot.spent`, string keys on the row), never from the engine;
- * the session record carries `DbSession.spent` from the session snapshot.
- * The engine stub below still offers `getLastMapSpends` returning a poison
- * basket: SessionPersistence must ignore it (the engine param stays until 1.6).
- *
- * APIs expected (absent today, reached via casts so this file typechecks):
- *   - `TrackerSnapshot.spent?: Record<number, number>`
- *   - `DbSession.spent: Record<string, number>` (required; round-trips through
- *     `SqliteSessionStore.insertSession / updateSessionTotals / getSession`)
+ * The row `spent` comes from the unit's own tracker snapshot
+ * (`TrackerSnapshot.spent`, string keys on the row) — the map's entry cost —
+ * and is empty for every overlap and standalone seasonal; the session record
+ * carries `DbSession.spent` from the session snapshot.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import {SessionPersistence, type PriceReader, type SessionMeta} from '@/main/session-persistence';
 import {SqliteSessionStore} from '@/main/db/session-store';
-import type {EngineEvent, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
-import type {Engine} from '@/main/engine/engine';
+import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
 import type {DbSession} from '@/shared/contracts/db';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
-
-/** What a stale implementation would read; row spent must never come from here. */
-const POISON = {'999': 99};
-
-function makeEngine(hasMap: boolean): Engine {
-  return {
-    hasActiveMapTracker: () => hasMap,
-    getLastMapSpends:    () => POISON,
-  } as unknown as Engine;
-}
+import {onEngineEvent, snap, unitFinished} from '@/test/unit-events';
 
 type Finished = Extract<EngineEvent, {type: 'tracker_finished'}>;
 
-function trackerFinished(
-  kind: 'session' | 'map' | 'seasonal',
-  opts: {drops?: Record<number, number>; spent?: Record<number, number>; elapsed?: number; seasonalType?: SeasonalType} = {},
-): Finished {
-  const tracker: TrackerSnapshot & {spent?: Record<number, number>} = {
-    kind,
-    drops:   opts.drops ?? {},
-    elapsed: opts.elapsed ?? 60_000,
-    active:  true,
-    ...(opts.seasonalType ? {seasonalType: opts.seasonalType} : {}),
-    ...(opts.spent ? {spent: opts.spent} : {}),
+function sessionFinished(opts: {drops?: Record<number, number>; spent?: Record<number, number>} = {}): Finished {
+  return {
+    type: 'tracker_finished', timestamp: 1_000_000,
+    tracker: snap('session', opts.drops ?? {}, 60_000, {spent: opts.spent}),
   };
-  return {type: 'tracker_finished', timestamp: 1_000_000, tracker};
+}
+
+/** A map unit; `overlap` rides inside it. */
+function mapUnit(opts: {drops?: Record<number, number>; spent?: Record<number, number>; overlap?: SeasonalType} = {}) {
+  return unitFinished(
+    snap('map', opts.drops ?? {}, 60_000, {spent: opts.spent}),
+    opts.overlap ? [{tracker: snap('seasonal', {300: 1}, 20_000, {seasonalType: opts.overlap})}] : [],
+  );
 }
 
 const sessionSpent = (s: DbSession | null) => (s as (DbSession & {spent?: Record<string, number>}) | null)?.spent;
@@ -60,31 +44,31 @@ function make(meta: Partial<SessionMeta> = {}, readPrices: PriceReader = () => (
 }
 
 function finish(p: SessionPersistence, spent?: Record<number, number>, drops: Record<number, number> = {}) {
-  const event = trackerFinished('session', {drops, spent});
+  const event = sessionFinished({drops, spent});
   event.sessionMeta = {mapTime: 50_000, mapCount: 1};
-  return p.onTrackerFinished(event, makeEngine(false));
+  return onEngineEvent(p, event);
 }
 
 describe('row spent comes from the finished tracker', () => {
-  it('a map row stores the snapshot spent with string keys (engine poison ignored)', () => {
+  it('a map row stores the snapshot spent with string keys', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('map', {drops: {200: 5}, spent: {100: 3, 300: 2}}), makeEngine(true));
+    onEngineEvent(p, mapUnit({drops: {200: 5}, spent: {100: 3, 300: 2}}));
     finish(p);
 
     expect(store.getRows('s1')[0].spent).toEqual({'100': 3, '300': 2});
   });
 
-  it('a map without cost stores {} (not the engine basket)', () => {
+  it('a map without cost stores {}', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('map', {drops: {200: 5}}), makeEngine(true));
+    onEngineEvent(p, mapUnit({drops: {200: 5}}));
     finish(p);
 
     expect(store.getRows('s1')[0].spent).toEqual({});
   });
 
-  it('a standalone seasonal row is {} even if the engine still holds a basket', () => {
+  it('a standalone seasonal row is {}', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('seasonal', {drops: {200: 1}, seasonalType: 'sandlord'}), makeEngine(false));
+    onEngineEvent(p, unitFinished(snap('seasonal', {200: 1}, 60_000, {seasonalType: 'sandlord'})));
     finish(p);
 
     const [row] = store.getRows('s1');
@@ -94,8 +78,7 @@ describe('row spent comes from the finished tracker', () => {
 
   it('an overlap seasonal row is {} while its parent map row carries the cost', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('seasonal', {drops: {300: 1}, seasonalType: 'overrealm'}), makeEngine(true));
-    p.onTrackerFinished(trackerFinished('map', {drops: {200: 1}, spent: {100: 3}}), makeEngine(true));
+    onEngineEvent(p, mapUnit({drops: {200: 1}, spent: {100: 3}, overlap: 'overrealm'}));
     finish(p);
 
     const saved = store.getRows('s1');
@@ -105,8 +88,8 @@ describe('row spent comes from the finished tracker', () => {
 
   it('two maps each keep their own cost', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('map', {spent: {100: 3}}), makeEngine(true));
-    p.onTrackerFinished(trackerFinished('map', {spent: {100: 1, 300: 2}}), makeEngine(true));
+    onEngineEvent(p, mapUnit({spent: {100: 3}}));
+    onEngineEvent(p, mapUnit({spent: {100: 1, 300: 2}}));
     finish(p);
 
     expect(store.getRows('s1').map(r => r.spent)).toEqual([{'100': 3}, {'100': 1, '300': 2}]);
@@ -116,7 +99,7 @@ describe('row spent comes from the finished tracker', () => {
 describe('session spent', () => {
   it('is saved from the session snapshot and round-trips through the store', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('map', {spent: {100: 3}}), makeEngine(true));
+    onEngineEvent(p, mapUnit({spent: {100: 3}}));
     finish(p, {100: 4, 300: 2});
 
     expect(sessionSpent(store.getSession('s1'))).toEqual({'100': 4, '300': 2});
@@ -159,11 +142,11 @@ describe('price snapshot covers spent ids', () => {
     const readPrices = vi.fn<PriceReader>(() => ({'100': 5, '42': 2, '43': 3, '999': 7}));
     const p = make({}, readPrices);
 
-    p.onTrackerFinished(trackerFinished('map', {drops: {100: 1}, spent: {42: 3}}), makeEngine(true));
+    onEngineEvent(p, mapUnit({drops: {100: 1}, spent: {42: 3}}));
     finish(p, {43: 1}, {100: 1});
 
     expect(readPrices).toHaveBeenCalledTimes(1);
-    // 100 dropped, 42 only in a row's spent, 43 only in the session spent. Never the poison 999.
+    // 100 dropped, 42 only in a row's spent, 43 only in the session spent. Never the reader's extra 999.
     expect([...readPrices.mock.calls[0][0]].sort()).toEqual(['100', '42', '43']);
     expect(store.getSession('s1')?.priceSnapshot).toEqual({'100': 5, '42': 2, '43': 3});
   });

@@ -19,7 +19,7 @@ const T0 = Date.UTC(2026, 9, 25, 12, 0, 0, 0);
 export const TOWN = '/Game/Art/Maps/01SD/XZ_YuJinZhiXiBiNanSuo200/XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200';
 export const MAP  = '/Game/Art/Maps/05JH/JH_ShengDeLanXiuDaoYuan000/JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000';
 const VOREX_REWARD = '/Game/Art/Season/S13/Maps/DiXiaZhenSuo/DiXiaZhenSuo.DiXiaZhenSuo';
-const ARCANA_FIGHT = '/Game/Art/Season/S9/Maps/SuMingTaLuo/SuMingTaLuo000.SuMingTaLuo000';
+export const ARCANA_FIGHT = '/Game/Art/Season/S9/Maps/SuMingTaLuo/SuMingTaLuo000.SuMingTaLuo000';
 
 export const FE         = 100300; // fuel
 export const COMPASS    = 10240;  // entry material
@@ -113,7 +113,9 @@ export class Script {
 }
 
 export const TOWN_LEVEL: [number, number] = [110, 0];
-const ARCANA_LEVEL: [number, number] = [203018, 19];
+export const ARCANA_LEVEL: [number, number] = [203018, 19];
+export const SANDLORD_HUB = '/Game/Art/Season/S10/Maps/YunDuanLvZhou/YunDuanLvZhou.YunDuanLvZhou';
+export const HUB_LEVEL: [number, number] = [9999999, 21];
 const VOREX_LEVEL: [number, number] = [9999997, 22];
 
 /** Map → Vorex window → DiXiaZhenSuo reward zone → town (the reward zone
@@ -194,9 +196,37 @@ const townPanelActivity = new Script()
   .bag(50, FE, 3)        // town activity
   .text();
 
+/** A town Arcana panel opened and backed out (the run goes dormant), never reopened;
+ *  then a paid map entry and a plain map. The dormant run is STANDALONE: it
+ *  never ran inside the map it is finished beside. */
+const townArcanaBackoutThenMap = new Script()
+  .dump(0, [[FE, 500], [COMPASS, 10], [PROBE, 5], [MATERIAL, 50], [CARD, 3], [CUBE, 20]])
+  .line(10, BODY.s9Minigame)
+  .line(14, BODY.s9Close)
+  .bag(25, COMPASS, -1)
+  .bag(25.4, PROBE, -1)
+  .zone(26, TOWN, MAP, [5318, 3])
+  .bag(35, FE, 12)
+  .bag(40, RARE_CARD, 1)
+  .zone(60, MAP, TOWN, TOWN_LEVEL)
+  .bag(65, MATERIAL, -8) // town activity, not loot
+  .text();
+
+/** Map -> Sandlord hub direct: the map freezes for the whole hub run, which is
+ *  a child of that map; town return finishes both. */
+const mapHubDirect = Script.townToMap()
+  .zone(45, MAP, SANDLORD_HUB, HUB_LEVEL)
+  .bag(50, FE, 20)
+  .bag(52, MATERIAL, 4)
+  .zone(70, SANDLORD_HUB, TOWN, TOWN_LEVEL)
+  .bag(75, MATERIAL, -4) // town activity, not loot
+  .text();
+
 export const SYNTHETIC_FIXTURES = {
   'map-vorex':                   mapVorex,
   'afterlight-special-no-win':   afterlightSpecialNoWin,
   'carjack-stop-after-dormancy': carjackStopAfterDormancy,
   'town-panel-activity':         townPanelActivity,
+  'town-arcana-backout-then-map': townArcanaBackoutThenMap,
+  'map-hub-direct':              mapHubDirect,
 } as const;

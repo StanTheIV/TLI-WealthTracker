@@ -1,6 +1,5 @@
 import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
-import type {EngineEvent, Source} from '@/shared/contracts/engine';
-import type {Engine} from './engine/engine';
+import type {EngineEvent, Source, TrackerSnapshot} from '@/shared/contracts/engine';
 import type {SqliteSessionStore} from './db/session-store';
 import {log} from './logger';
 
@@ -47,9 +46,13 @@ function generateSessionName(): string {
 
 /**
  * Owns the per-session persistence buffer and the session identity for one
- * tracked run. Constructed by TrackingService per run, fed engine events via
- * onTrackerFinished, and either commits (autoSave on session-finish) or is
+ * tracked run. Constructed by TrackingService per run, fed every engine event
+ * via onEngineEvent, and either commits (autoSave on session-finish) or is
  * thrown away (engine reset / stop / app quit).
+ *
+ * The engine decides what a saved unit is (`unit_finished`: a map with its
+ * child seasonal runs, or a standalone run); this class only numbers the
+ * units and turns them into rows.
  *
  * Buffering is deliberate: a discarded short run shouldn't leak per-map rows
  * into the DB. The class enforces that — once instances are gone, so are
@@ -60,16 +63,8 @@ export class SessionPersistence {
   private readonly _store: SqliteSessionStore;
   private readonly _readPrices: PriceReader;
   private _pendingRows: DbSessionMap[] = [];
-  /** mapIndex of the most-recently-buffered primary row (regular map or
-   *  standalone seasonal). Standalone seasonals bump this. 0 before any
-   *  primary row exists. */
+  /** mapIndex of the most recently buffered unit; 0 before the first. */
   private _lastPrimaryMapIndex: number = 0;
-  /** In-map seasonal rows awaiting their parent's mapIndex. `finishAll` emits
-   *  every seasonal BEFORE the map they ran in, so at the moment an overlap
-   *  arrives its parent row does not exist yet and `_lastPrimaryMapIndex` still
-   *  names the PREVIOUS map. Staging them here and stamping the index when the
-   *  map row lands is what keeps an overlap tied to the map it actually ran in. */
-  private _pendingOverlaps: DbSessionMap[] = [];
 
   constructor(meta: SessionMeta, deps: SessionPersistenceDeps) {
     this._meta       = meta;
@@ -82,56 +77,30 @@ export class SessionPersistence {
   }
 
   /**
-   * Consume a `tracker_finished` event from the engine. Routes by tracker kind:
-   *   map      -> buffer a primary map row (seasonalType=null), bumps map index.
-   *   seasonal -> standalone (no active map): primary row, bumps map index.
-   *               overlap (active map):       buffer with parentMapIndex set —
-   *                                           under drop-through those drops
-   *                                           also live in the parent map row,
-   *                                           so the overlap row is a per-
-   *                                           seasonal breakdown of it.
-   *   session  -> commit (autoSave) and return whether anything was saved.
-   *
-   * For non-`tracker_finished` events this is a no-op; callers can pipe every
-   * engine event through without filtering.
+   * Consume an engine event:
+   *   unit_finished             -> buffer `[primary, ...overlaps]`. The primary
+   *                                (a map, or a standalone seasonal) takes the
+   *                                next mapIndex; every overlap shares it and
+   *                                points at it — under drop-through its drops
+   *                                also live in the parent map row, so it is a
+   *                                per-seasonal breakdown of it.
+   *   session tracker_finished  -> commit (autoSave) and return whether
+   *                                anything was saved.
+   * Anything else (a map's or seasonal's own tracker_finished included) is a
+   * no-op; callers can pipe every engine event through without filtering.
    */
-  onTrackerFinished(event: EngineEvent, engine: Engine): AutoSaveOutcome | null {
-    if (event.type !== 'tracker_finished') return null;
-
-    const {tracker, timestamp} = event;
-
-    if (tracker.kind === 'map') {
+  onEngineEvent(event: EngineEvent): AutoSaveOutcome | null {
+    if (event.type === 'unit_finished') {
+      const {tracker, overlaps, timestamp} = event;
       const mapIndex = ++this._lastPrimaryMapIndex;
-      this._pendingRows.push(this._buildRow(tracker, timestamp, null, mapIndex, null));
-      this._claimOverlaps(mapIndex);
-      return null;
-    }
-
-    if (tracker.kind === 'seasonal') {
-      if (engine.hasActiveMapTracker()) {
-        // Overlap row — a breakdown of the parent map row, which already
-        // includes these drops (drop-through attribution). The parent's index
-        // is unknown until its row is buffered, so stage it.
-        this._pendingOverlaps.push(this._buildRow(tracker, timestamp, tracker.seasonalType ?? null, 0, 0));
-      } else {
-        // Standalone seasonal (Sandlord, etc.) — primary row. Only a town → map
-        // entry has a cost, so its `spent` is {}.
-        const mapIndex = ++this._lastPrimaryMapIndex;
-        this._pendingRows.push(this._buildRow(tracker, timestamp, tracker.seasonalType ?? null, mapIndex, null));
+      this._pendingRows.push(this._buildRow(tracker, timestamp, mapIndex, null));
+      for (const o of overlaps) {
+        this._pendingRows.push(this._buildRow(o.tracker, o.timestamp, mapIndex, mapIndex));
       }
       return null;
     }
 
-    if (tracker.kind === 'session') {
-      // A session ending mid-map leaves overlaps whose parent row never
-      // arrived. Promote them to standalones so their drops are still saved.
-      for (const row of this._pendingOverlaps) {
-        row.mapIndex       = ++this._lastPrimaryMapIndex;
-        row.parentMapIndex = null;
-        this._pendingRows.push(row);
-      }
-      this._pendingOverlaps = [];
-
+    if (event.type === 'tracker_finished' && event.tracker.kind === 'session') {
       const savedId = this._autoSave(event);
       // Whatever path autoSave took (saved or skipped), the buffer is gone.
       this._pendingRows = [];
@@ -142,33 +111,23 @@ export class SessionPersistence {
     return null;
   }
 
-  /** Stamp staged in-map seasonals with the parent map row's index. */
-  private _claimOverlaps(mapIndex: number): void {
-    if (this._pendingOverlaps.length === 0) return;
-    for (const row of this._pendingOverlaps) {
-      row.mapIndex       = mapIndex;
-      row.parentMapIndex = mapIndex;
-      this._pendingRows.push(row);
-    }
-    this._pendingOverlaps = [];
-  }
-
   /**
    * Drop any buffered per-run rows. Call when the engine is being reset or
    * stopped without a natural session-finish flow (e.g. user clicked Reset).
    */
   discard(): void {
     this._pendingRows = [];
-    this._pendingOverlaps = [];
     this._lastPrimaryMapIndex = 0;
   }
 
   // -- private --------------------------------------------------------------
 
+  /** One row from a snapshot finished at `timestamp`. `seasonalType` and
+   *  `phase` come from the snapshot (null for a map); only a map has an entry
+   *  cost, so a seasonal's `spent` is {}. */
   private _buildRow(
-    tracker: Extract<EngineEvent, {type: 'tracker_finished'}>['tracker'],
+    tracker: TrackerSnapshot,
     timestamp: number,
-    seasonalType: DbSessionMap['seasonalType'],
     mapIndex: number,
     parentMapIndex: number | null,
   ): DbSessionMap {
@@ -178,9 +137,8 @@ export class SessionPersistence {
       startedAt:    timestamp - tracker.elapsed,
       duration:     tracker.elapsed,
       drops:        stringKeyed(tracker.drops),
-      // The tracker's own entry cost: a map's, or absent (seasonals never have one).
       spent:        stringKeyed(tracker.spent ?? {}),
-      seasonalType,
+      seasonalType: tracker.seasonalType ?? null,
       parentMapIndex,
       phase:        tracker.phase ?? null,
     };

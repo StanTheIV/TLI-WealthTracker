@@ -1,0 +1,305 @@
+{
+  "anomalies": [],
+  "events": {
+    "counts": {
+      "drop": 4,
+      "init_complete": 1,
+      "init_started": 1,
+      "map_ended": 1,
+      "map_material_warning": 1,
+      "map_started": 1,
+      "tracker_finished": 3,
+      "tracker_started": 3,
+      "tracker_update": 12,
+      "zone_change": 3
+    },
+    "lines": [
+      "-0.001s init_started",
+      "+0.750s init_complete items=6",
+      "+0.750s tracker_started session active=true",
+      "+21.000s zone_change map XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200 -> JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000",
+      "+21.000s map_started count=1",
+      "+21.000s tracker_started map active=true",
+      "+21.000s map_material_warning items=[]",
+      "+45.000s tracker_update map active=false",
+      "+45.000s tracker_started seasonal sandlord/hub active=true owner",
+      "+45.000s zone_change map JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000 -> YunDuanLvZhou.YunDuanLvZhou",
+      "+70.000s tracker_update map active=true",
+      "+70.000s tracker_finished seasonal sandlord/hub elapsed=25.000s items=2",
+      "+70.000s zone_change town YunDuanLvZhou.YunDuanLvZhou -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
+      "+70.000s tracker_finished map elapsed=24.000s items=2",
+      "+70.000s map_ended elapsed=24.000s",
+      "+135.000s tracker_finished session elapsed=134.250s items=3"
+    ]
+  },
+  "linesDelivered": 20,
+  "sessions": [
+    {
+      "analytics": {
+        "mechanics": [
+          {
+            "avgPerRun": {
+              "live": 16.027343,
+              "snapshot": 16.027343
+            },
+            "avgSeconds": 24,
+            "cost": {
+              "live": 3.558441,
+              "snapshot": 3.558441
+            },
+            "fePerHour": {
+              "live": 2404.10145,
+              "snapshot": 2404.10145
+            },
+            "income": {
+              "live": 19.585784,
+              "snapshot": 19.585784
+            },
+            "key": "map",
+            "nestedInMap": false,
+            "net": {
+              "live": 16.027343,
+              "snapshot": 16.027343
+            },
+            "runs": 1,
+            "seconds": 24,
+            "timePct": 17.877095,
+            "valuePct": {
+              "live": 48.83531,
+              "snapshot": 48.83531
+            }
+          },
+          {
+            "avgPerRun": {
+              "live": 20.52,
+              "snapshot": 20.52
+            },
+            "avgSeconds": 25,
+            "cost": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "fePerHour": {
+              "live": 2954.88,
+              "snapshot": 2954.88
+            },
+            "income": {
+              "live": 20.52,
+              "snapshot": 20.52
+            },
+            "key": "sandlord",
+            "nestedInMap": false,
+            "net": {
+              "live": 20.52,
+              "snapshot": 20.52
+            },
+            "runs": 1,
+            "seconds": 25,
+            "timePct": 18.621974,
+            "valuePct": {
+              "live": 51.16469,
+              "snapshot": 51.16469
+            }
+          },
+          {
+            "avgPerRun": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "avgSeconds": 0,
+            "cost": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "fePerHour": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "income": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "key": "town",
+            "nestedInMap": false,
+            "net": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "runs": 0,
+            "seconds": 85.25,
+            "timePct": 63.500931,
+            "valuePct": {
+              "live": 0,
+              "snapshot": 0
+            }
+          }
+        ],
+        "perMap": [
+          {
+            "bySeasonal": {
+              "sandlord": {
+                "live": 20.52,
+                "snapshot": 20.52
+              }
+            },
+            "cost": {
+              "live": 3.558441,
+              "snapshot": 3.558441
+            },
+            "cumulative": {
+              "live": 36.547343,
+              "snapshot": 36.547343
+            },
+            "mapIncome": {
+              "live": 19.585784,
+              "snapshot": 19.585784
+            },
+            "mapIndex": 1,
+            "mechanic": "map",
+            "net": {
+              "live": 36.547343,
+              "snapshot": 36.547343
+            },
+            "seasonalIncome": {
+              "live": 20.52,
+              "snapshot": 20.52
+            },
+            "seconds": 24
+          }
+        ],
+        "totals": {
+          "breakEvenYield": {
+            "live": 3.558441,
+            "snapshot": 3.558441
+          },
+          "cost": {
+            "live": 3.558441,
+            "snapshot": 3.558441
+          },
+          "costPerMap": {
+            "live": 3.558441,
+            "snapshot": 3.558441
+          },
+          "driftPct": 0,
+          "efficiencyPct": 36.499069,
+          "exclusiveSeasonalSeconds": 25,
+          "income": {
+            "live": 40.105784,
+            "snapshot": 40.105784
+          },
+          "incomePerHour": {
+            "live": 1075.462364,
+            "snapshot": 1075.462364
+          },
+          "mapCount": 1,
+          "mapSeconds": 24,
+          "mapsUnprofitable": 0,
+          "net": {
+            "live": 36.547343,
+            "snapshot": 36.547343
+          },
+          "netPerHour": {
+            "live": 980.040483,
+            "snapshot": 980.040483
+          },
+          "plainMapSeconds": 24,
+          "roiMultiple": {
+            "live": 11.270605,
+            "snapshot": 11.270605
+          },
+          "totalQty": 37,
+          "totalSeconds": 134.25,
+          "townSeconds": 85.25,
+          "uniqueItems": 3
+        },
+        "warnings": []
+      },
+      "id": "replay-1",
+      "invariants": {
+        "dropsBySourceSumsToDrops": {
+          "ok": true
+        },
+        "liveMatchesAnalytics": {
+          "ok": true
+        },
+        "mechanicsNetReconciles": {
+          "ok": true
+        },
+        "netReconciles": {
+          "ok": true
+        },
+        "overlapHasParent": {
+          "ok": true
+        },
+        "primaryMapIndexUnique": {
+          "ok": true
+        }
+      },
+      "rows": [
+        {
+          "drops": {
+            "6153": 1,
+            "100300": 12
+          },
+          "duration": 24000,
+          "mapIndex": 1,
+          "parentMapIndex": null,
+          "phase": null,
+          "seasonalType": null,
+          "spent": {
+            "10240": 1,
+            "400015": 1
+          },
+          "startedAtMs": 46000
+        },
+        {
+          "drops": {
+            "5028": 4,
+            "100300": 20
+          },
+          "duration": 25000,
+          "mapIndex": 1,
+          "parentMapIndex": 1,
+          "phase": "hub",
+          "seasonalType": "sandlord",
+          "spent": {},
+          "startedAtMs": 45000
+        }
+      ],
+      "saved": true,
+      "totals": {
+        "attribution": "drop-through",
+        "drops": {
+          "5028": 4,
+          "6153": 1,
+          "100300": 32
+        },
+        "dropsBySource": {
+          "map": {
+            "6153": 1,
+            "100300": 12
+          },
+          "sandlord": {
+            "5028": 4,
+            "100300": 20
+          }
+        },
+        "mapCount": 1,
+        "mapTime": 24,
+        "priceSnapshot": {
+          "5028": 0.13,
+          "6153": 7.585784,
+          "10240": 1.563492,
+          "100300": 1,
+          "400015": 1.994949
+        },
+        "spent": {
+          "10240": 1,
+          "400015": 1
+        },
+        "totalTime": 134.25
+      }
+    }
+  ],
+  "spanMs": 75000
+}

@@ -107,6 +107,8 @@ const SCENARIOS: Array<[string, () => string]> = [
   ['afterlight', () => SYNTHETIC_FIXTURES['afterlight-special-no-win']],
   ['plain-map-cost', () => real('plain-map-cost')],
   ['map-arcana-map', () => real('map-arcana-map')],
+  ['map-hub-direct', () => SYNTHETIC_FIXTURES['map-hub-direct']],
+  ['town-arcana-backout-then-map', () => SYNTHETIC_FIXTURES['town-arcana-backout-then-map']],
 ];
 
 afterEach(() => { vi.useRealTimers(); });
@@ -165,6 +167,16 @@ describe('replay vs TrackingService parity (exact delivery)', () => {
     const a = await viaReplay(l, controls);
     const b = await viaService(l, controls);
     expect(a[0].session).not.toBeNull();
+    expect(b).toEqual([a[0]]);
+  });
+
+  it('stop mid-map after an in-map child finished: the child is saved standalone, both agree', async () => {
+    const l = lines(SYNTHETIC_FIXTURES['carjack-stop-after-dormancy']);
+    const controls: ControlOp[] = [{at: T0 + 100_000, op: 'stop'}];   // carjack's run is over by 90 s; the map ends at 110 s
+    const a = await viaReplay(l, controls);
+    const b = await viaService(l, controls);
+    expect(a[0].rows.map(r => r.seasonalType)).toEqual(['carjack']);
+    expect(a[0].rows[0].parentMapIndex).toBeNull();
     expect(b).toEqual([a[0]]);
   });
 

@@ -1,45 +1,25 @@
 /**
- * Tests for SessionPersistence over the real SqliteSessionStore (node:sqlite).
- * Row routing for the three tracker_finished kinds:
- *   map      -> primary row (parentMapIndex=null), bumps mapIndex.
- *   seasonal (no active map) -> primary standalone row (Sandlord case).
- *   seasonal (active map)    -> overlap row pointing at the parent map's mapIndex.
+ * SessionPersistence over the real SqliteSessionStore (node:sqlite), fed engine
+ * events through `onEngineEvent`. The engine builds the saved unit; persistence
+ * only turns a `unit_finished` into rows:
+ *   unit      -> [primary, ...overlaps]; the primary takes the next mapIndex
+ *                (parentMapIndex null), every overlap shares it and points at it.
+ *   session   -> commit (autoSave) and return the outcome.
+ *   anything else, including the per-tracker `tracker_finished` of a map or a
+ *   seasonal -> no-op.
  * Rows are only observable once the session event commits them, so routing
  * tests end with `finish()` and read back through the store.
  */
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import {SessionPersistence, type PriceReader, type SessionMeta} from '@/main/session-persistence';
 import {SqliteSessionStore} from '@/main/db/session-store';
-import type {EngineEvent, SeasonalPhase, SeasonalType, Source} from '@/shared/contracts/engine';
-import type {Engine} from '@/main/engine/engine';
+import type {EngineEvent, Source} from '@/shared/contracts/engine';
 import type {DbSession} from '@/shared/contracts/db';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
+import {onEngineEvent, snap, unitFinished} from '@/test/unit-events';
 
-function makeEngine(opts: {hasMap: boolean}): Engine {
-  return {
-    hasActiveMapTracker: () => opts.hasMap,
-  } as unknown as Engine;
-}
-
-/** The finished tracker's own entry cost (TrackerSnapshot.spent). */
-function withSpent<E extends Extract<EngineEvent, {type: 'tracker_finished'}>>(event: E, spent: Record<number, number>): E {
-  event.tracker.spent = spent;
-  return event;
-}
-
-function trackerFinished(
-  kind: 'session' | 'map' | 'seasonal',
-  drops: Record<number, number>,
-  elapsed: number,
-  seasonalType?: SeasonalType,
-  timestamp = 1_000_000,
-  phase?: SeasonalPhase,
-): Extract<EngineEvent, {type: 'tracker_finished'}> {
-  return {
-    type:      'tracker_finished',
-    timestamp,
-    tracker:   {kind, drops, elapsed, active: true, ...(seasonalType ? {seasonalType} : {}), ...(phase ? {phase} : {})},
-  };
+function trackerFinished(tracker: ReturnType<typeof snap>, timestamp = 1_000_000): Extract<EngineEvent, {type: 'tracker_finished'}> {
+  return {type: 'tracker_finished', timestamp, tracker};
 }
 
 let store: SqliteSessionStore;
@@ -62,24 +42,25 @@ function finish(
   opts: {
     drops?:         Record<number, number>;
     elapsed?:       number;
+    spent?:         Record<number, number>;
     dropsBySource?: Partial<Record<Source, Record<number, number>>>;
     sessionMeta?:   {mapTime: number; mapCount: number} | null;
   } = {},
 ) {
-  const event = trackerFinished('session', opts.drops ?? {}, opts.elapsed ?? 60_000);
+  const event = trackerFinished(snap('session', opts.drops ?? {}, opts.elapsed ?? 60_000, {spent: opts.spent}));
   if (opts.dropsBySource) event.tracker.dropsBySource = opts.dropsBySource as Record<Source, Record<number, number>>;
   if (opts.sessionMeta !== null) event.sessionMeta = opts.sessionMeta ?? {mapTime: 50_000, mapCount: 1};
-  return p.onTrackerFinished(event, makeEngine({hasMap: false}));
+  return onEngineEvent(p, event);
 }
 
 const rows = (sessionId = 's1') => store.getRows(sessionId);
+const shape = () => rows().map(r => ({mi: r.mapIndex, st: r.seasonalType, p: r.parentMapIndex}));
 
-describe('SessionPersistence.onTrackerFinished — row routing', () => {
-  it('saves a map tracker_finished as a primary map row (mapIndex=1)', () => {
+describe('SessionPersistence.onEngineEvent — unit rows', () => {
+  it('saves a bare map unit as one primary row (mapIndex=1)', () => {
     const p = make();
-    const engine = makeEngine({hasMap: true});
 
-    p.onTrackerFinished(withSpent(trackerFinished('map', {100: 5}, 60_000), {42: 3}), engine);
+    onEngineEvent(p, unitFinished(snap('map', {100: 5}, 60_000, {spent: {42: 3}})));
     expect(rows()).toEqual([]);   // nothing in the DB before the session event
     finish(p);
 
@@ -96,178 +77,165 @@ describe('SessionPersistence.onTrackerFinished — row routing', () => {
     }]);
   });
 
-  it('saves a standalone seasonal (no active map) as a primary row', () => {
+  it('a unit with N overlaps saves N+1 rows in order; overlaps share the primary index', () => {
     const p = make();
 
-    p.onTrackerFinished(trackerFinished('seasonal', {200: 1}, 30_000, 'sandlord'), makeEngine({hasMap: false}));
+    onEngineEvent(p, unitFinished(snap('map', {100: 5}, 60_000), [
+      {tracker: snap('seasonal', {300: 2}, 20_000, {seasonalType: 'overrealm'})},
+      {tracker: snap('seasonal', {400: 1}, 10_000, {seasonalType: 'lunaria'})},
+      {tracker: snap('seasonal', {500: 3}, 5_000,  {seasonalType: 'hunting'})},
+    ]));
+    finish(p);
+
+    expect(shape()).toEqual([
+      {mi: 1, st: null,        p: null},
+      {mi: 1, st: 'overrealm', p: 1},
+      {mi: 1, st: 'lunaria',   p: 1},
+      {mi: 1, st: 'hunting',   p: 1},
+    ]);
+    expect(rows()[1]).toMatchObject({drops: {'300': 2}, duration: 20_000});
+  });
+
+  it('a standalone seasonal unit is a primary row and bumps the index', () => {
+    const p = make();
+
+    onEngineEvent(p, unitFinished(snap('seasonal', {200: 1}, 30_000, {seasonalType: 'sandlord'})));
+    finish(p);
+
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]).toMatchObject({mapIndex: 1, drops: {'200': 1}, seasonalType: 'sandlord', parentMapIndex: null});
+  });
+
+  it('mapIndex advances once per unit and stays contiguous over a mix of units', () => {
+    const p = make();
+
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
+    onEngineEvent(p, unitFinished(snap('map', {100: 2}, 70_000), [
+      {tracker: snap('seasonal', {300: 1}, 20_000, {seasonalType: 'overrealm'})},
+    ]));
+    onEngineEvent(p, unitFinished(snap('seasonal', {500: 1}, 90_000, {seasonalType: 'sandlord'})));
+    onEngineEvent(p, unitFinished(snap('map', {100: 3}, 50_000), [
+      {tracker: snap('seasonal', {600: 1}, 5_000, {seasonalType: 'vorex'})},
+      {tracker: snap('seasonal', {700: 1}, 5_000, {seasonalType: 'carjack'})},
+    ]));
+    onEngineEvent(p, unitFinished(snap('seasonal', {800: 1}, 15_000, {seasonalType: 'arcana'})));
+    finish(p);
+
+    expect(shape()).toEqual([
+      {mi: 1, st: null,        p: null},
+      {mi: 2, st: null,        p: null},
+      {mi: 2, st: 'overrealm', p: 2},
+      {mi: 3, st: 'sandlord',  p: null},
+      {mi: 4, st: null,        p: null},
+      {mi: 4, st: 'vorex',     p: 4},
+      {mi: 4, st: 'carjack',   p: 4},
+      {mi: 5, st: 'arcana',    p: null},
+    ]);
+  });
+
+  it('every overlap row is built with its OWN timestamp; the primary uses the unit timestamp', () => {
+    const p = make();
+
+    onEngineEvent(p, unitFinished(
+      snap('map', {100: 1}, 60_000),
+      [
+        {tracker: snap('seasonal', {300: 1}, 20_000, {seasonalType: 'arcana'}),   timestamp: 940_000},
+        {tracker: snap('seasonal', {400: 1}, 10_000, {seasonalType: 'lunaria'}),  timestamp: 1_000_000},
+      ],
+      1_000_000,
+    ));
+    finish(p);
+
+    expect(rows().map(r => r.startedAt)).toEqual([1_000_000 - 60_000, 940_000 - 20_000, 1_000_000 - 10_000]);
+  });
+
+  it('an overlap seasonal records no spend — the primary map row owns the cost', () => {
+    const p = make();
+
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000, {spent: {42: 2}}), [
+      {tracker: snap('seasonal', {300: 1}, 20_000, {seasonalType: 'overrealm'})},
+    ]));
     finish(p);
 
     const saved = rows();
-    expect(saved.length).toBe(1);
-    expect(saved[0]).toMatchObject({
-      mapIndex:       1,
-      drops:          {'200': 1},
-      seasonalType:   'sandlord',
-      parentMapIndex: null,
-    });
+    expect(saved[0].spent).toEqual({'42': 2});
+    expect(saved[1].spent).toEqual({});
   });
 
-  it('a standalone seasonal has no entry cost — only a town -> map entry has one', () => {
+  it('a standalone seasonal has no entry cost', () => {
     const p = make();
 
-    p.onTrackerFinished(trackerFinished('seasonal', {200: 1}, 30_000, 'sandlord'), makeEngine({hasMap: false}));
+    onEngineEvent(p, unitFinished(snap('seasonal', {200: 1}, 30_000, {seasonalType: 'sandlord'})));
     finish(p);
 
     expect(rows()[0].spent).toEqual({});
   });
 
-  it('an overlap seasonal records no spend — its parent map row owns the cost', () => {
-    const p = make();
-    const engine = makeEngine({hasMap: true});
-
-    p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), engine);
-    p.onTrackerFinished(withSpent(trackerFinished('map', {100: 1}, 60_000), {42: 2}), engine);
-    finish(p);
-
-    const saved   = rows();
-    const map     = saved.find(r => r.seasonalType === null)!;
-    const overlap = saved.find(r => r.seasonalType === 'overrealm')!;
-    expect(map.spent).toEqual({'42': 2});
-    expect(overlap.spent).toEqual({});
-  });
-
-  it('saves an overlap seasonal (active map) pointing at the parent mapIndex', () => {
+  it("carries a snapshot's phase onto the saved row (in-map sandlord overlap, standalone hub)", () => {
     const p = make();
 
-    // finishAll() emits the seasonal first, while the map tracker is still live.
-    p.onTrackerFinished(trackerFinished('seasonal', {300: 2}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
-    p.onTrackerFinished(trackerFinished('map', {100: 5}, 60_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000), [
+      {tracker: snap('seasonal', {200: 4}, 15_000, {seasonalType: 'sandlord', phase: 'map'})},
+    ]));
+    onEngineEvent(p, unitFinished(snap('seasonal', {200: 1}, 30_000, {seasonalType: 'sandlord', phase: 'hub'})));
     finish(p);
 
-    const saved = rows();
-    expect(saved.length).toBe(2);
-    expect(saved.find(r => r.seasonalType === null)).toMatchObject({
-      mapIndex: 1, parentMapIndex: null,
-    });
-    expect(saved.find(r => r.seasonalType === 'overrealm')).toMatchObject({
-      mapIndex:       1,
-      drops:          {'300': 2},
-      parentMapIndex: 1,
-    });
-  });
-
-  it('mapIndex only advances on primary rows (overlap rows reuse parent mapIndex)', () => {
-    const p = make();
-
-    // map #1 (bare), then map #2 with an overlap, then a standalone Sandlord.
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
-    p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
-    p.onTrackerFinished(trackerFinished('map', {100: 2}, 70_000), makeEngine({hasMap: true}));
-    p.onTrackerFinished(trackerFinished('seasonal', {500: 1}, 90_000, 'sandlord'), makeEngine({hasMap: false}));
-    finish(p);
-
-    expect(rows().map(r => ({mi: r.mapIndex, st: r.seasonalType, p: r.parentMapIndex}))).toEqual([
-      {mi: 1, st: null,        p: null},
-      {mi: 2, st: null,        p: null},
-      {mi: 2, st: 'overrealm', p: 2},
-      {mi: 3, st: 'sandlord',  p: null},
+    expect(rows().map(r => ({mi: r.mapIndex, p: r.parentMapIndex, phase: r.phase}))).toEqual([
+      {mi: 1, p: null, phase: null},
+      {mi: 1, p: 1,    phase: 'map'},
+      {mi: 2, p: null, phase: 'hub'},
     ]);
-  });
-
-  it("carries a snapshot's phase onto the saved row (in-map sandlord)", () => {
-    const p = make();
-
-    // The in-map coin tile finishes first, then the map it ran in.
-    p.onTrackerFinished(
-      trackerFinished('seasonal', {200: 4}, 15_000, 'sandlord', 1_000_000, 'map'),
-      makeEngine({hasMap: true}),
-    );
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
-    finish(p);
-
-    const saved = rows();
-    expect(saved.find(r => r.seasonalType === null)!.phase).toBe(null);
-    expect(saved.find(r => r.seasonalType === 'sandlord')).toMatchObject({
-      mapIndex:       1,
-      parentMapIndex: 1,
-      phase:          'map',
-    });
-  });
-
-  it("carries phase 'hub' onto a standalone sandlord row", () => {
-    const p = make();
-
-    p.onTrackerFinished(
-      trackerFinished('seasonal', {200: 1}, 30_000, 'sandlord', 1_000_000, 'hub'),
-      makeEngine({hasMap: false}),
-    );
-    finish(p);
-
-    expect(rows()[0]).toMatchObject({
-      mapIndex:       1,
-      seasonalType:   'sandlord',
-      parentMapIndex: null,
-      phase:          'hub',
-    });
   });
 
   it('a snapshot without phase saves phase null (non-sandlord seasonals, map rows)', () => {
     const p = make();
 
-    p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000), [
+      {tracker: snap('seasonal', {300: 1}, 20_000, {seasonalType: 'overrealm'})},
+    ]));
     finish(p);
 
     expect(rows().map(r => r.phase)).toEqual([null, null]);
   });
 
-  // ZoneHandler's town path calls registry.finishAll(), which finishes every
-  // seasonal BEFORE the map tracker. So for an in-map mechanic the seasonal's
-  // tracker_finished always arrives while `_lastPrimaryMapIndex` still names the
-  // PREVIOUS map — the map it actually ran in has not been buffered yet.
-  it('attaches an in-map seasonal to the map it ran in, not the previous one', () => {
+  it('seasonalType comes from the snapshot: null for the map primary, set for every overlap', () => {
     const p = make();
-    const engine = makeEngine({hasMap: true});
 
-    // Map 1 completes cleanly, no seasonals.
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), engine);
-    // Map 2 runs a Hunting arena. finishAll() emits the seasonal first.
-    p.onTrackerFinished(trackerFinished('seasonal', {10054: 2}, 5_000, 'hunting'), engine);
-    p.onTrackerFinished(trackerFinished('map', {10054: 2}, 60_000), engine);
+    onEngineEvent(p, unitFinished(snap('map', {}, 60_000), [
+      {tracker: snap('seasonal', {}, 1_000, {seasonalType: 'dream'})},
+    ]));
     finish(p);
 
-    const saved   = rows();
-    const hunting = saved.find(r => r.seasonalType === 'hunting')!;
-    const mapTwo  = saved.filter(r => r.seasonalType === null)[1];
-
-    // The hunting run's loot is in map 2's row, so it must point at map 2.
-    expect(mapTwo.drops['10054']).toBe(2);
-    expect(hunting.parentMapIndex).toBe(mapTwo.mapIndex);
+    expect(rows().map(r => r.seasonalType)).toEqual([null, 'dream']);
   });
 
-  it('discard() drops staged overlaps whose parent map never arrived', () => {
+  it('the per-tracker tracker_finished of a map or a seasonal buffers nothing — only units do', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
 
-    p.discard();
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, trackerFinished(snap('seasonal', {300: 1}, 20_000, {seasonalType: 'overrealm'})));
+    onEngineEvent(p, trackerFinished(snap('map', {100: 1}, 60_000)));
     finish(p);
 
-    // The discarded overlap must not resurface when the next map row lands.
-    const saved = rows();
-    expect(saved.length).toBe(1);
-    expect(saved[0].seasonalType).toBe(null);
+    expect(rows()).toEqual([]);
   });
 
-  it('discard() resets pending rows and primary-index counter', () => {
+  it('events that are not units or the session finish are ignored', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    expect(onEngineEvent(p, {type: 'session_saved', sessionId: 'x'})).toBeNull();
+    expect(onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)))).toBeNull();
+  });
+
+  it('discard() resets the pending rows and the primary-index counter', () => {
+    const p = make();
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000), [
+      {tracker: snap('seasonal', {300: 1}, 20_000, {seasonalType: 'overrealm'})},
+    ]));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
 
     p.discard();
 
-    // Next map after discard should start back at mapIndex=1.
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    // The next unit after a discard starts back at mapIndex=1, with nothing carried over.
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
     finish(p);
     expect(rows().map(r => r.mapIndex)).toEqual([1]);
   });
@@ -316,7 +284,7 @@ describe('SessionPersistence — auto-save', () => {
     // Renamed while the continued run is in progress — Stop must not revert it.
     store.renameSession('s1', 'Renamed');
 
-    p.onTrackerFinished(trackerFinished('map', {200: 2}, 60_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {200: 2}, 60_000)));
     finish(p, {drops: {200: 2}, elapsed: 160_000, dropsBySource: {map: {200: 2}}, sessionMeta: {mapTime: 140_000, mapCount: 3}});
 
     // Known continue defects (fixed in 2.1), pinned as-is: dropsBySource holds
@@ -338,7 +306,7 @@ describe('SessionPersistence — auto-save', () => {
     const readPrices = vi.fn<PriceReader>(() => ({'100': 5, '42': 2, '300': 0, '999': 7}));
     const p = make({}, readPrices);
 
-    p.onTrackerFinished(withSpent(trackerFinished('map', {100: 1}, 60_000), {42: 3}), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000, {spent: {42: 3}})));
     finish(p, {drops: {100: 1, 300: 1}});
 
     expect(readPrices).toHaveBeenCalledTimes(1);
@@ -355,7 +323,7 @@ describe('SessionPersistence — auto-save', () => {
 
   it('discards a run under 30 s with no drops, rows included', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('map', {}, 20_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {}, 20_000)));
 
     expect(finish(p, {elapsed: 29_999})).toEqual({savedId: null});
     expect(store.getSession('s1')).toBeNull();
@@ -374,26 +342,25 @@ describe('SessionPersistence — auto-save', () => {
 
   it('saves a 0 s run whose only content is an entry cost (it used to arrive as a negative drop)', () => {
     const p = make();
-    const event = withSpent(trackerFinished('session', {}, 0), {42: 3});
-    event.sessionMeta = {mapTime: 0, mapCount: 1};
-    expect(p.onTrackerFinished(event, makeEngine({hasMap: false}))).toEqual({savedId: 's1'});
+    expect(finish(p, {elapsed: 0, spent: {42: 3}, sessionMeta: {mapTime: 0, mapCount: 1}})).toEqual({savedId: 's1'});
     expect(store.getSession('s1')).toMatchObject({drops: {}, spent: {'42': 3}});
   });
 
   it('saves nothing without sessionMeta', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
 
     expect(finish(p, {drops: {100: 1}, sessionMeta: null})).toEqual({savedId: null});
     expect(store.listSessions()).toEqual([]);
     expect(rows()).toEqual([]);
   });
 
-  it('a session ending mid-map promotes staged overlaps to standalone rows', () => {
+  it('standalone units emitted by a stop (finished children promoted) save like any standalone', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
-    // Map 2 is still running when the session ends; its overlap never gets a parent.
-    p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), makeEngine({hasMap: true}));
+    // The engine's stop emits each already-finished child as a standalone unit
+    // before the session finish; persistence needs no special case.
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
+    onEngineEvent(p, unitFinished(snap('seasonal', {300: 1}, 20_000, {seasonalType: 'overrealm'})));
     finish(p);
 
     expect(rows().map(r => ({mi: r.mapIndex, st: r.seasonalType, p: r.parentMapIndex, d: r.drops}))).toEqual([
@@ -408,11 +375,11 @@ describe('SessionPersistence — auto-save', () => {
       drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, spent: {},
     });
     const p = make({sessionName: 'Run', isOverride: true});
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
     finish(p);
 
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
     finish(p);
 
     // Rows from the first commit are not written twice; the index restarts.
@@ -421,10 +388,10 @@ describe('SessionPersistence — auto-save', () => {
 
   it('clears the buffer and index after a discarded session event', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('map', {}, 10_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {}, 10_000)));
     finish(p, {elapsed: 10_000});   // too short — discarded
 
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
     finish(p);
 
     expect(rows().map(r => ({mi: r.mapIndex, d: r.drops}))).toEqual([{mi: 1, d: {'100': 1}}]);
@@ -432,7 +399,7 @@ describe('SessionPersistence — auto-save', () => {
 
   it('writes the session and its rows atomically', () => {
     const p = make();
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
+    onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));
     vi.spyOn(store, 'insertRows').mockImplementation(() => { throw new Error('disk full'); });
 
     expect(() => finish(p)).toThrow('disk full');

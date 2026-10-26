@@ -17,8 +17,12 @@ export class Tracker {
   readonly kind:          TrackerKind;
   readonly seasonalType?: SeasonalType;
   readonly ownsBubble:    boolean;
+  /** Map trackers: the run's map ordinal, stamped by TrackerRegistry.startMap
+   *  (from 1). Internal identity for parenting seasonals — never persisted,
+   *  never on a snapshot. 0 on session/seasonal trackers. */
+  seq: number = 0;
 
-  private _drops:       Map<number, number> = new Map();
+  private _drops:      Map<number, number> = new Map();
   private _startTime:   number;
   private _accumulated: number = 0;
   private _pausedAt:    number | null = null;

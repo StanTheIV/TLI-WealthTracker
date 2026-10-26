@@ -103,9 +103,8 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
   const emit = (event: EngineEvent): void => {
     events.push({event, at: Date.now(), lineNo: lastLineNo});
     monitor.onEngineEvent(event, lastLineNo);
-    // Synchronous, against the live engine — as TrackingService persists, so
-    // overlap detection reads the registry mid-transition.
-    if (engine && persistence) persistence.onTrackerFinished(event, engine);
+    // Synchronous, as TrackingService persists: every event, units included.
+    persistence?.onEngineEvent(event);
   };
 
   const controls = [...(opts.controls ?? [])].sort((a, b) => a.at - b.at);
