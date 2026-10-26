@@ -1,6 +1,6 @@
 import {create} from 'zustand';
 import i18n from '@/i18n';
-import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/domain/tax';
+import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/domain/valuation';
 
 export type RateTimeframe = 'hour' | 'minute';
 export type ThemeMode = 'system' | 'dark' | 'light';

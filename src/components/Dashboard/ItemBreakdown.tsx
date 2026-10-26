@@ -4,7 +4,7 @@ import {ChevronUp, ChevronDown, ArrowUpRight} from 'lucide-react';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useTaxConfig} from '@/state/settingsStore';
-import {taxedUnitPrice, taxedValue} from '@/domain/tax';
+import {taxedUnitPrice, taxedValue} from '@/domain/valuation';
 import {ITEM_TYPES} from '@/shared/items';
 
 // ---------------------------------------------------------------------------

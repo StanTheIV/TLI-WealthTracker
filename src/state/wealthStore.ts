@@ -1,6 +1,6 @@
 import {create} from 'zustand';
 import type {DbItem, DbWealthDatapoint} from '@/shared/contracts/db';
-import {taxedValue, type TaxConfig} from '@/domain/tax';
+import {taxedValue, type TaxConfig} from '@/domain/valuation';
 
 export interface BreakdownEntry {
   qty:   number;

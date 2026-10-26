@@ -1,7 +1,7 @@
 import type {DbSession} from '@/shared/contracts/db';
 import type {AnalyticsWarning, ClassifiedRow, MechanicKey, MechanicStats, Valuation} from './types';
 import {parentContainsOverlap} from './attribution';
-import {ZERO_VAL, addVal, clampVal, perHour, scaleVal, sharePct, subVal} from './valuation';
+import {ZERO_VAL, addVal, clampVal, perHour, scaleVal, sharePct, subVal} from '@/domain/valuation';
 
 /** Display order. Town last — it is a residual, not a mechanic. */
 const ORDER: MechanicKey[] = [

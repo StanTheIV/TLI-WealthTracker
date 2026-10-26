@@ -1,5 +1,5 @@
 import type {DbItem} from '@/shared/contracts/db';
-import {taxedUnitPrice, type TaxConfig} from '@/domain/tax';
+import {taxedUnitPrice, type TaxConfig} from './tax';
 import type {PriceLookup, Valuation, Valuator} from './types';
 
 export const ZERO_VAL: Valuation = {snapshot: 0, live: 0};

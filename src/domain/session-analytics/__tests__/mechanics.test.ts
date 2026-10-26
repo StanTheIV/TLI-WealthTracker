@@ -11,8 +11,7 @@
 import {beforeEach, describe, expect, it} from 'vitest';
 import {classifyRows} from '../attribution';
 import {computeMechanics} from '../mechanics';
-import {makePriceLookup, makeValuator} from '../valuation';
-import {NO_TAX} from '@/domain/tax';
+import {NO_TAX, makePriceLookup, makeValuator} from '@/domain/valuation';
 import type {AnalyticsWarning, MechanicKey} from '../types';
 import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
 import {makeItems, makeSession, mapRow, overlapRow, resetRowIndex, standaloneRow} from './fixtures';

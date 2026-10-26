@@ -3,7 +3,7 @@ import type {
   ClassifiedRow, HistogramBucket, MapNetStats, MechanicKey, PerMapPoint, Valuation,
 } from './types';
 import {parentContainsOverlap} from './attribution';
-import {ZERO_VAL, addVal, clampVal, scaleVal, subVal} from './valuation';
+import {ZERO_VAL, addVal, clampVal, scaleVal, subVal} from '@/domain/valuation';
 
 const HISTOGRAM_BUCKETS = 12;
 

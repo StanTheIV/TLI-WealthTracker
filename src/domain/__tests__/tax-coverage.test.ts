@@ -1,11 +1,12 @@
-import {readFileSync, readdirSync, statSync} from 'node:fs';
+import {existsSync, readFileSync, readdirSync, statSync} from 'node:fs';
 import {join, relative, sep} from 'node:path';
 import {describe, it, expect} from 'vitest';
 
 /**
  * Tripwire for the auction-house tax.
  *
- * Every FE figure the app displays must be valued through `@/domain/tax`. Nothing
+ * Every FE figure the app displays must be valued through the tax module
+ * (`domain/valuation/tax.ts`, imported via `@/domain/valuation`). Nothing
  * in the type system enforces that — `makePriceLookup` has only three callers,
  * so the sites that multiply `qty * price` inline stay green while showing
  * untaxed values. This test is the guard that catches them.
@@ -17,11 +18,13 @@ import {describe, it, expect} from 'vitest';
 
 const SRC = join(__dirname, '..', '..');
 
+const TAX_MODULE = 'domain/valuation/tax.ts';
+
 /** Files allowed to multiply a quantity by a price. Everything here except the
- *  main-process recorder must import from '@/domain/tax'. */
+ *  exclusions below must import the tax module. */
 const VALUATION_SITES = [
-  'domain/tax.ts',
-  'domain/session-analytics/valuation.ts',
+  TAX_MODULE,
+  'domain/valuation/value.ts',
   'domain/session-analytics/items.ts',
   'components/Dashboard/TrackerPanel.tsx',
   'components/Dashboard/DropTable.tsx',
@@ -34,13 +37,13 @@ const VALUATION_SITES = [
 ];
 
 /** Sites that must apply the tax themselves. Excluded:
- *   - `domain/tax.ts` — it IS the module.
+ *   - `domain/valuation/tax.ts` — it IS the module.
  *   - `main/wealth-recorder.ts` — persists gross on purpose.
  *   - `replay/report.ts` — gross diagnostics for the replay CLI.
  *   - `session-analytics/items.ts` — values through the `PriceLookup` it is handed, so
  *     the prices reach it already taxed and importing the module would be wrong. */
 const MUST_IMPORT_TAX = VALUATION_SITES.filter(f => ![
-  'domain/tax.ts',
+  TAX_MODULE,
   'main/wealth-recorder.ts',
   'replay/report.ts',
   'domain/session-analytics/items.ts',
@@ -55,6 +58,22 @@ const WEALTH_READERS = [
 ];
 
 const MULT = /\b(?:qty|quantity|amount)\b\s*\*|\*\s*\b(?:price|unitPrice|prices)\b/;
+
+/** The tax module's own exports. The `@/domain/valuation` barrel also carries the
+ *  Valuation arithmetic, so an import from it only counts when it names one of these. */
+const TAX_EXPORTS = [...readFileSync(join(SRC, TAX_MODULE), 'utf8')
+  .matchAll(/^export\s+(?:const|function|interface|type)\s+(\w+)/gm)].map(m => m[1]);
+
+/** Whether `file` imports a tax-module export: via the barrel from outside the
+ *  module, or from `./tax` for a sibling inside it. */
+function importsTax(file: string, src: string): boolean {
+  const importRe = file.startsWith('domain/valuation/')
+    ? /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'\.\/tax'/g
+    : /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'@\/domain\/valuation'/g;
+  return [...src.matchAll(importRe)].some(m => m[1].split(',')
+    .map(s => s.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0])
+    .some(name => TAX_EXPORTS.includes(name)));
+}
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -74,6 +93,14 @@ function stripComments(src: string): string {
 const rel = (f: string) => relative(SRC, f).split(sep).join('/');
 
 describe('auction tax coverage', () => {
+  // A stale path would silently allowlist nothing and exempt nothing.
+  it('lists only files that exist, and reads the tax module exports', () => {
+    for (const f of [...VALUATION_SITES, ...WEALTH_READERS]) {
+      expect(existsSync(join(SRC, f)), `${f} is listed but does not exist`).toBe(true);
+    }
+    expect(TAX_EXPORTS).toEqual(expect.arrayContaining(['taxedValue', 'taxedUnitPrice', 'TaxConfig']));
+  });
+
   it('has no price multiplication outside the known valuation sites', () => {
     const offenders = sourceFiles(SRC)
       .filter(f => MULT.test(stripComments(readFileSync(f, 'utf8'))))
@@ -83,7 +110,7 @@ describe('auction tax coverage', () => {
 
     expect(
       offenders,
-      'New FE valuation site(s). Route the value through @/domain/tax (taxedValue / '
+      'New FE valuation site(s). Route the value through @/domain/valuation (taxedValue / '
       + 'taxedUnitPrice, or a taxed PriceLookup), then add the file to VALUATION_SITES.',
     ).toEqual([]);
   });
@@ -91,8 +118,8 @@ describe('auction tax coverage', () => {
   it('every valuation site applies the tax', () => {
     for (const f of MUST_IMPORT_TAX) {
       const src = readFileSync(join(SRC, f), 'utf8');
-      expect(src, `${f} multiplies qty by price but never imports @/domain/tax`)
-        .toMatch(/from '@\/domain\/tax'/);
+      expect(importsTax(f, src), `${f} multiplies qty by price but never imports the tax module`)
+        .toBe(true);
     }
   });
 
@@ -101,8 +128,8 @@ describe('auction tax coverage', () => {
   it('the wealth read path taxes the stored gross totals', () => {
     for (const f of WEALTH_READERS) {
       const src = readFileSync(join(SRC, f), 'utf8');
-      expect(src, `${f} renders stored wealth values but never imports @/domain/tax`)
-        .toMatch(/from '@\/domain\/tax'/);
+      expect(importsTax(f, src), `${f} renders stored wealth values but never imports the tax module`)
+        .toBe(true);
     }
   });
 });

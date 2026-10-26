@@ -1,5 +1,4 @@
 import type {DbItem, DbSession, DbSessionMap} from '@/shared/contracts/db';
-import type {TaxConfig} from '@/domain/tax';
 import type {AnalyticsWarning, SessionAnalytics, SessionTotals} from './types';
 import {classifyRows} from './attribution';
 import {computeBySource, computeByType, computeConsumed, computeDropped} from './items';
@@ -7,12 +6,12 @@ import {computeMechanics} from './mechanics';
 import {computeMapNetStats, computePerMap} from './perMap';
 import {computeTimeline} from './timeline';
 import {
-  ZERO_VAL, addVal, driftPct, makePriceLookup, makeValuator, perHour, ratio, scaleVal, subVal,
-} from './valuation';
+  ZERO_VAL, addVal, driftPct, makePriceLookup, makeValuator, perHour, ratio, scaleVal, subVal, type TaxConfig,
+} from '@/domain/valuation';
 
 export * from './types';
 export {MAP_FREEZING_SEASONALS} from './attribution';
-export {ZERO_VAL, driftPct, isZeroVal} from './valuation';
+export {ZERO_VAL, driftPct, isZeroVal} from '@/domain/valuation';
 
 export interface SessionAnalyticsInput {
   session: DbSession;

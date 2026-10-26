@@ -4,7 +4,7 @@ import {PackageOpen, ChevronDown} from 'lucide-react';
 import {useEngineStore} from '@/state/engineStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useSettingsStore, useTaxConfig} from '@/state/settingsStore';
-import {taxedValue} from '@/domain/tax';
+import {taxedValue} from '@/domain/valuation';
 import {useTrackerElapsed} from '@/hooks/useTrackerElapsed';
 import {useLootWindowCountdown} from '@/hooks/useLootWindowCountdown';
 import {useAnimatedPresence} from '@/hooks/useAnimatedPresence';

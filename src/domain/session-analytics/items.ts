@@ -5,7 +5,7 @@ import {ITEM_TYPES, mapRawType} from '@/shared/items';
 import type {
   ClassifiedRow, ConsumedItemRow, DroppedItemRow, PriceLookup, SourceSlice, TypeSlice, Valuation,
 } from './types';
-import {ZERO_VAL, addVal, clampVal, perHour, scaleVal, sharePct} from './valuation';
+import {ZERO_VAL, addVal, clampVal, perHour, scaleVal, sharePct} from '@/domain/valuation';
 
 function nameOf(items: Record<string, DbItem>, id: string): {name: string; known: boolean} {
   const item = items[id];
