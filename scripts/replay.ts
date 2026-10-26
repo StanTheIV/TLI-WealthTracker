@@ -47,7 +47,8 @@ Replay:
 
 Extract (opens no DB when <log> is given):
   --extract <file>          Write the slice's raw lines to <file>
-  --scrub                   With --extract: keep only lines the tracker parses, redact Tartarus run ids
+  --scrub                   With --extract: keep only lines the tracker parses, redact Tartarus run ids;
+                            a dropped first/last line becomes a bare timestamp so the replay clock is unchanged
 
   --db <file>               App DB for settings, items and filters, opened read-only
                             (default: ${DEFAULT_DB})
@@ -143,14 +144,16 @@ async function extract(outPath: string): Promise<void> {
   const scrubber = args.scrub ? createScrubber() : null;
   const out: string[] = [];
   for await (const line of readLogFile(logPath, slice)) {
-    const text = scrubber ? scrubber.scrub(line.text) : line.text;
+    const text = scrubber ? scrubber.scrub(line) : line.text;
     if (text !== null) out.push(text);
   }
+  const closing = scrubber?.finish() ?? null;
+  if (closing !== null) out.push(closing);
   writeFileSync(outPath, out.join('\n') + '\n', 'utf8');
   console.log(`Wrote ${out.length} lines to ${outPath}`);
   if (scrubber) {
-    const {kept, dropped, unstamped} = scrubber.stats;
-    console.log(`Scrubbed: kept ${kept}, dropped ${dropped}`);
+    const {kept, dropped, unstamped, anchors} = scrubber.stats;
+    console.log(`Scrubbed: kept ${kept}, dropped ${dropped} (${anchors} replaced by a bare time anchor)`);
     if (unstamped > 0) console.log(`Warning: ${unstamped} kept line(s) have no timestamp and inherit the previous kept line's`);
   }
 }

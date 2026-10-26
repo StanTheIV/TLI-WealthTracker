@@ -221,19 +221,47 @@ describe('createScrubber', () => {
   it('keeps only lines the processor chain parses and redacts Tartarus run ids', () => {
     const board = `${stamp(5)}TLLua: Display: [Game] [S16BGM] board Begin runId=cbd0465f-c985-11f1-858f-000000000137 IsSettled=false Result=-1`;
     const scrubber = createScrubber();
-    const out = [initLine(0, 1, 100, 5), noise(1), board, noise(6)].map(l => scrubber.scrub(l));
+    const out = linesOf([initLine(0, 1, 100, 5), noise(1), board, noise(6), modifyLine(7, 1, 100, 6)]).map(l => scrubber.scrub(l));
     expect(out).toEqual([
       initLine(0, 1, 100, 5),
       null,
       `${stamp(5)}TLLua: Display: [Game] [S16BGM] board Begin ${REDACTED_RUN_ID} IsSettled=false Result=-1`,
       null,
+      modifyLine(7, 1, 100, 6),
     ]);
-    expect(scrubber.stats).toEqual({kept: 2, dropped: 2, unstamped: 0});
+    expect(scrubber.finish()).toBeNull();
+    expect(scrubber.stats).toEqual({kept: 3, dropped: 2, unstamped: 0, anchors: 0});
+  });
+
+  it('replaces a dropped first and last line with bare time anchors', () => {
+    const scrubber = createScrubber();
+    const out = linesOf([noise(0), initLine(3, 1, 100, 5), noise(6), noise(9)]).map(l => scrubber.scrub(l));
+    expect([...out, scrubber.finish()]).toEqual([
+      '[2026.10.25-11.00.00:000]', initLine(3, 1, 100, 5), null, null, '[2026.10.25-11.00.00:009]',
+    ]);
+    expect(scrubber.stats).toEqual({kept: 1, dropped: 3, unstamped: 0, anchors: 2});
+  });
+
+  it('keeps a scrubbed slice on the raw slice clock', async () => {
+    const raw = [
+      noise(-1_400), initLine(0, 1, 100, 5), initLine(1, 2, 200, 7),
+      modifyLine(9_000, 2, 200, 6), zoneLine(9_500, TOWN, MAP), modifyLine(20_100, 1, 100, 8),
+      zoneLine(40_000, MAP, TOWN), noise(45_900),
+    ];
+    const scrubber = createScrubber();
+    const kept = linesOf(raw).map(l => scrubber.scrub(l)).filter((t): t is string => t !== null);
+    const closing = scrubber.finish();
+    const scrubbed = closing === null ? kept : [...kept, closing];
+    // One at a time: each replay installs the global fake clock.
+    const a = await run({source: linesOf(raw)});
+    const b = await run({source: linesOf(scrubbed)});
+    expect(a.sessions[0].rows).toHaveLength(1);
+    expect(b.sessions).toEqual(a.sessions);
   });
 
   it('counts kept lines that carry no timestamp of their own', () => {
     const scrubber = createScrubber();
-    scrubber.scrub(`PageApplyBase@ _UpdateGameEnd: LastSceneName = World'${TOWN}' NextSceneName = World'${MAP}'`);
-    expect(scrubber.stats).toEqual({kept: 1, dropped: 0, unstamped: 1});
+    scrubber.scrub({lineNo: 1, ts: T0, text: `PageApplyBase@ _UpdateGameEnd: LastSceneName = World'${TOWN}' NextSceneName = World'${MAP}'`});
+    expect(scrubber.stats).toEqual({kept: 1, dropped: 0, unstamped: 1, anchors: 0});
   });
 });

@@ -1,0 +1,353 @@
+[2026.10.25-07.49.17:290]
+[2026.10.25-07.49.18:747][ 36]TLLua: Display: [Game] ItemChange@ Reset PageId=103
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 1 ConfigBaseId = 350712 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 2 ConfigBaseId = 4518 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 3 ConfigBaseId = 71003 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 4 ConfigBaseId = 261003 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 5 ConfigBaseId = 360502 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 6 ConfigBaseId = 396301 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 7 ConfigBaseId = 4534 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 8 ConfigBaseId = 71002 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 9 ConfigBaseId = 4522 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 10 ConfigBaseId = 3308 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 11 ConfigBaseId = 71002 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 12 ConfigBaseId = 350012 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 13 ConfigBaseId = 350017 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 14 ConfigBaseId = 350019 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 16 ConfigBaseId = 350007 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 21 ConfigBaseId = 261003 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 17 ConfigBaseId = 350009 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 100 SlotId = 0 ConfigBaseId = 1419 Num = 1
+[2026.10.25-07.49.18:753][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 1 ConfigBaseId = 3970551 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 2 ConfigBaseId = 3970541 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 3 ConfigBaseId = 3970541 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 4 ConfigBaseId = 3970511 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 5 ConfigBaseId = 3970311 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 6 ConfigBaseId = 8307 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 7 ConfigBaseId = 8307 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 8 ConfigBaseId = 8300 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 9 ConfigBaseId = 8300 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 10 ConfigBaseId = 8029 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 11 ConfigBaseId = 8012 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 12 ConfigBaseId = 8000 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 13 ConfigBaseId = 8006 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 14 ConfigBaseId = 7973 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 15 ConfigBaseId = 7971 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 16 ConfigBaseId = 7732 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 17 ConfigBaseId = 7510 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 18 ConfigBaseId = 7651 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 19 ConfigBaseId = 7648 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 20 ConfigBaseId = 7633 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 21 ConfigBaseId = 7408 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 22 ConfigBaseId = 7621 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 23 ConfigBaseId = 7613 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 24 ConfigBaseId = 7613 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 25 ConfigBaseId = 7606 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 26 ConfigBaseId = 7656 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 27 ConfigBaseId = 7534 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 28 ConfigBaseId = 7521 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 29 ConfigBaseId = 7521 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 30 ConfigBaseId = 7513 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 31 ConfigBaseId = 7513 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 32 ConfigBaseId = 7478 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 33 ConfigBaseId = 7504 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 34 ConfigBaseId = 7478 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 35 ConfigBaseId = 7464 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 36 ConfigBaseId = 7463 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 37 ConfigBaseId = 7463 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 38 ConfigBaseId = 7420 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 39 ConfigBaseId = 7647 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 40 ConfigBaseId = 7441 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 41 ConfigBaseId = 7418 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 42 ConfigBaseId = 7405 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 43 ConfigBaseId = 7128 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 44 ConfigBaseId = 7221 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 45 ConfigBaseId = 7129 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 46 ConfigBaseId = 7657 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 47 ConfigBaseId = 7127 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 48 ConfigBaseId = 7101 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 49 ConfigBaseId = 7060 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 50 ConfigBaseId = 7180 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 51 ConfigBaseId = 7033 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 54 ConfigBaseId = 7089 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 56 ConfigBaseId = 7405 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 57 ConfigBaseId = 8022 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 58 ConfigBaseId = 7087 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 59 ConfigBaseId = 8024 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 60 ConfigBaseId = 7878 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 63 ConfigBaseId = 7407 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 64 ConfigBaseId = 7726 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 0 ConfigBaseId = 3970621 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 65 ConfigBaseId = 7638 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 101 SlotId = 66 ConfigBaseId = 7642 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 265
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 2 ConfigBaseId = 101200 Num = 595
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4063
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 4 ConfigBaseId = 100400 Num = 372
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 5 ConfigBaseId = 5029 Num = 60
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 6 ConfigBaseId = 5011 Num = 23
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 7 ConfigBaseId = 5028 Num = 643
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 8 ConfigBaseId = 384000 Num = 9
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 9 ConfigBaseId = 5080 Num = 493
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 10 ConfigBaseId = 200029 Num = 466
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 11 ConfigBaseId = 201003 Num = 130
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 12 ConfigBaseId = 200028 Num = 859
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 13 ConfigBaseId = 200003 Num = 27
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 14 ConfigBaseId = 300006 Num = 5
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 15 ConfigBaseId = 200021 Num = 24
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 16 ConfigBaseId = 3000003 Num = 1
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 17 ConfigBaseId = 210001 Num = 2
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 18 ConfigBaseId = 5311 Num = 3
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 19 ConfigBaseId = 5310 Num = 13
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 20 ConfigBaseId = 5300 Num = 10
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 21 ConfigBaseId = 5230 Num = 55
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 22 ConfigBaseId = 5210 Num = 220
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 23 ConfigBaseId = 5143 Num = 71
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 24 ConfigBaseId = 5220 Num = 974
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 25 ConfigBaseId = 5201 Num = 1025
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 26 ConfigBaseId = 5142 Num = 67
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 27 ConfigBaseId = 5140 Num = 472
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 28 ConfigBaseId = 5141 Num = 67
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 29 ConfigBaseId = 339001 Num = 136
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 30 ConfigBaseId = 330001 Num = 188
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 31 ConfigBaseId = 338001 Num = 4
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 32 ConfigBaseId = 360103 Num = 28
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 33 ConfigBaseId = 360102 Num = 56
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 34 ConfigBaseId = 360101 Num = 342
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 35 ConfigBaseId = 382243 Num = 2
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 36 ConfigBaseId = 382224 Num = 4
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 37 ConfigBaseId = 382192 Num = 10
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 38 ConfigBaseId = 382170 Num = 4
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 39 ConfigBaseId = 382156 Num = 2
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 40 ConfigBaseId = 382144 Num = 4
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 41 ConfigBaseId = 382143 Num = 2
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 42 ConfigBaseId = 382141 Num = 4
+[2026.10.25-07.49.18:754][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 43 ConfigBaseId = 382133 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 44 ConfigBaseId = 382132 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 45 ConfigBaseId = 382116 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 46 ConfigBaseId = 382093 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 47 ConfigBaseId = 382084 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 48 ConfigBaseId = 382077 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 49 ConfigBaseId = 382055 Num = 10
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 50 ConfigBaseId = 382054 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 51 ConfigBaseId = 382044 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 52 ConfigBaseId = 382034 Num = 4
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 53 ConfigBaseId = 382021 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 54 ConfigBaseId = 382012 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 55 ConfigBaseId = 382010 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 56 ConfigBaseId = 382007 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 57 ConfigBaseId = 380202 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 58 ConfigBaseId = 380109 Num = 4
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 59 ConfigBaseId = 380103 Num = 37
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 60 ConfigBaseId = 394114 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 61 ConfigBaseId = 394111 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 62 ConfigBaseId = 394108 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 63 ConfigBaseId = 394302 Num = 4
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 64 ConfigBaseId = 502105 Num = 200
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 0 ConfigBaseId = 5144 Num = 4
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 65 ConfigBaseId = 502102 Num = 70
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 66 ConfigBaseId = 502101 Num = 200
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 67 ConfigBaseId = 502104 Num = 370
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 68 ConfigBaseId = 502100 Num = 610
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 69 ConfigBaseId = 990007 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 102 SlotId = 70 ConfigBaseId = 200030 Num = 10
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 1 ConfigBaseId = 400028 Num = 23
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 2 ConfigBaseId = 400022 Num = 21
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 3 ConfigBaseId = 400015 Num = 14
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 4 ConfigBaseId = 400007 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 5 ConfigBaseId = 400032 Num = 4
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 6 ConfigBaseId = 400027 Num = 7
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 7 ConfigBaseId = 400021 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 8 ConfigBaseId = 400014 Num = 18
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 9 ConfigBaseId = 400006 Num = 6
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 10 ConfigBaseId = 10122 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 11 ConfigBaseId = 10104 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 12 ConfigBaseId = 10103 Num = 6
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 13 ConfigBaseId = 12050 Num = 99
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 14 ConfigBaseId = 12050 Num = 9
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 15 ConfigBaseId = 12030 Num = 24
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 16 ConfigBaseId = 12020 Num = 21
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 17 ConfigBaseId = 12010 Num = 4
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 18 ConfigBaseId = 10331 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 19 ConfigBaseId = 10311 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 20 ConfigBaseId = 10303 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 21 ConfigBaseId = 10301 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 22 ConfigBaseId = 10281 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 23 ConfigBaseId = 10241 Num = 13
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 24 ConfigBaseId = 10231 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 25 ConfigBaseId = 10211 Num = 6
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 26 ConfigBaseId = 10191 Num = 5
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 27 ConfigBaseId = 10181 Num = 3
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 28 ConfigBaseId = 10161 Num = 10
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 29 ConfigBaseId = 10151 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 30 ConfigBaseId = 10142 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 31 ConfigBaseId = 10102 Num = 24
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 32 ConfigBaseId = 10082 Num = 3
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 33 ConfigBaseId = 10071 Num = 3
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 34 ConfigBaseId = 10053 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 35 ConfigBaseId = 10051 Num = 22
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 36 ConfigBaseId = 10046 Num = 3
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 37 ConfigBaseId = 10033 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 38 ConfigBaseId = 10023 Num = 35
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 39 ConfigBaseId = 10011 Num = 7
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 40 ConfigBaseId = 10330 Num = 65
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 41 ConfigBaseId = 10320 Num = 51
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 42 ConfigBaseId = 10310 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 43 ConfigBaseId = 10300 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 44 ConfigBaseId = 10290 Num = 54
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 45 ConfigBaseId = 10280 Num = 12
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 46 ConfigBaseId = 10270 Num = 4
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 47 ConfigBaseId = 10260 Num = 13
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 48 ConfigBaseId = 10250 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 49 ConfigBaseId = 10240 Num = 2
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 50 ConfigBaseId = 10230 Num = 10
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 51 ConfigBaseId = 10220 Num = 99
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 52 ConfigBaseId = 10220 Num = 32
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 53 ConfigBaseId = 10210 Num = 10
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 54 ConfigBaseId = 10200 Num = 16
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 55 ConfigBaseId = 10190 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 56 ConfigBaseId = 10180 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 57 ConfigBaseId = 10160 Num = 1
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 58 ConfigBaseId = 10150 Num = 13
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 59 ConfigBaseId = 10140 Num = 11
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 60 ConfigBaseId = 10130 Num = 18
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 61 ConfigBaseId = 10052 Num = 50
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 62 ConfigBaseId = 10050 Num = 55
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 63 ConfigBaseId = 10042 Num = 51
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 64 ConfigBaseId = 10032 Num = 37
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 65 ConfigBaseId = 10022 Num = 99
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 66 ConfigBaseId = 10022 Num = 24
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 67 ConfigBaseId = 10010 Num = 12
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 68 ConfigBaseId = 6153 Num = 3
+[2026.10.25-07.49.18:755][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 69 ConfigBaseId = 6125 Num = 2
+[2026.10.25-07.49.18:756][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 70 ConfigBaseId = 6008 Num = 2
+[2026.10.25-07.49.18:756][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 71 ConfigBaseId = 6007 Num = 1
+[2026.10.25-07.49.18:756][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 72 ConfigBaseId = 6026 Num = 2
+[2026.10.25-07.49.18:756][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 73 ConfigBaseId = 6004 Num = 1
+[2026.10.25-07.49.18:756][ 36]TLLua: Display: [Game] BagMgr@:InitBagData PageId = 103 SlotId = 0 ConfigBaseId = 400033 Num = 16
+[2026.10.25-07.49.28:345][600]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 103 SlotId = 31
+[2026.10.25-07.49.34:998][999]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 103 SlotId = 22
+[2026.10.25-07.49.44:981][598]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 103 SlotId = 30
+[2026.10.25-07.50.05:488][809]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 100 SlotId = 20
+[2026.10.25-07.50.05:488][809]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 70 ConfigBaseId = 200030 Num = 9
+[2026.10.25-07.50.05:488][809]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 235
+[2026.10.25-07.50.09:467][ 45]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.09:471][ 45]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.09:530][ 48]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 100 SlotId = 20
+[2026.10.25-07.50.09:530][ 48]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 205
+[2026.10.25-07.50.09:530][ 48]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 70 ConfigBaseId = 200030 Num = 8
+[2026.10.25-07.50.17:726][536]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.17:737][536]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.17:826][538]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 100 SlotId = 20
+[2026.10.25-07.50.17:826][538]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 175
+[2026.10.25-07.50.17:826][538]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 70 ConfigBaseId = 200030 Num = 7
+[2026.10.25-07.50.24:440][933]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.24:443][933]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.24:499][936]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 100 SlotId = 20
+[2026.10.25-07.50.24:500][936]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 70 ConfigBaseId = 200030 Num = 6
+[2026.10.25-07.50.24:500][936]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 145
+[2026.10.25-07.50.26:260][ 41]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.26:264][ 41]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.26:320][ 44]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 100 SlotId = 20
+[2026.10.25-07.50.26:320][ 44]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 70 ConfigBaseId = 200030 Num = 5
+[2026.10.25-07.50.26:320][ 44]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 115
+[2026.10.25-07.50.28:129][152]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.28:133][152]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.28:190][155]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 100 SlotId = 20
+[2026.10.25-07.50.28:191][155]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 70 ConfigBaseId = 200030 Num = 4
+[2026.10.25-07.50.28:191][155]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 85
+[2026.10.25-07.50.30:151][272]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.30:155][272]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.30:213][275]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 100 SlotId = 20
+[2026.10.25-07.50.30:213][275]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 55
+[2026.10.25-07.50.30:214][275]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 70 ConfigBaseId = 200030 Num = 3
+[2026.10.25-07.50.31:725][365]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.31:729][365]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.31:787][368]TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 100 SlotId = 20
+[2026.10.25-07.50.31:788][368]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 25
+[2026.10.25-07.50.31:788][368]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 70 ConfigBaseId = 200030 Num = 2
+[2026.10.25-07.50.42:531][ 12]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.42:535][ 12]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 100 SlotId = 20 ConfigBaseId = 4411 Num = 1
+[2026.10.25-07.50.53:522][608]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 103 SlotId = 3 ConfigBaseId = 400015 Num = 13
+[2026.10.25-07.50.53:523][608]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 103 SlotId = 49 ConfigBaseId = 10240 Num = 1
+[2026.10.25-07.50.53:523][608]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 7 ConfigBaseId = 5028 Num = 612
+[2026.10.25-07.50.53:590][612]TLShipping: Display: [Game] Loading@ PreLoadLevelId = 5318 PreloadLevelType = 3
+[2026.10.25-07.50.53:637][612]TLLua: Display: [Game] PageApplyBase@ _UpdateGameEnd: LastSceneName = World'/Game/Art/Maps/01SD/XZ_YuJinZhiXiBiNanSuo200/XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200' NextSceneName = World'/Game/Art/Maps/05JH/JH_ShengDeLanXiuDaoYuan000/JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000'
+[2026.10.25-07.50.58:548][880]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 7 ConfigBaseId = 5028 Num = 614
+[2026.10.25-07.51.01:303][ 45]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_Machine_PaLu_Active_Lp' requested row 'Play_Obj_Season_S10_Machine_PaLu_Active_Lp' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.01:986][ 86]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_MeiYing_Land' requested row 'Play_Obj_Season_S10_MeiYing_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.02:554][120]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_KuangFeng_Land' requested row 'Play_Obj_Season_S10_KuangFeng_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.03:819][196]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.03:837][197]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.03:872][199]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.03:904][201]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.03:938][203]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.03:971][205]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.04:003][207]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.04:397][231]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 7 ConfigBaseId = 5028 Num = 615
+[2026.10.25-07.51.05:071][271]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_MeiYing_Land' requested row 'Play_Obj_Season_S10_MeiYing_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:071][271]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_MeiYing_Land' requested row 'Play_Obj_Season_S10_MeiYing_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:071][271]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_MeiYing_Land' requested row 'Play_Obj_Season_S10_MeiYing_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:105][273]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:105][273]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:136][275]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:170][277]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:204][279]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:237][281]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:271][283]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:305][285]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:338][287]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:372][289]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.05:405][291]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.08:298][465]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 27 ConfigBaseId = 5140 Num = 473
+[2026.10.25-07.51.08:741][491]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_Machine_Resource_Active_Lp' requested row 'Play_Obj_Season_S10_Machine_Resource_Active_Lp' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:382][530]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4066
+[2026.10.25-07.51.09:405][531]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:439][533]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:474][535]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:506][537]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:540][539]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:572][541]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:606][543]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:640][545]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_LieRen_Land' requested row 'Play_Obj_Season_S10_LieRen_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:673][547]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:706][549]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:739][551]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:773][553]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:807][555]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:839][557]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:848][558]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4070
+[2026.10.25-07.51.09:873][559]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:907][561]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:939][563]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.09:974][565]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.10:007][567]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.10:041][569]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.10:075][571]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_WuZhuangZhe_Land' requested row 'Play_Obj_Season_S10_WuZhuangZhe_Land' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.11:242][641]LogDataTable: Warning: UDataTable::FindRow : 'Play_Obj_Season_S10_Machine_Resource_Quench' requested row 'Play_Obj_Season_S10_Machine_Resource_Quench' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.
+[2026.10.25-07.51.13:066][751]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 22 ConfigBaseId = 5210 Num = 233
+[2026.10.25-07.51.23:467][375]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4071
+[2026.10.25-07.51.26:114][532]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 103 SlotId = 56 ConfigBaseId = 10180 Num = 2
+[2026.10.25-07.51.27:381][608]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 7 ConfigBaseId = 5028 Num = 616
+[2026.10.25-07.51.27:382][608]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 9 ConfigBaseId = 5080 Num = 494
+[2026.10.25-07.51.27:382][608]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4073
+[2026.10.25-07.51.32:948][942]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 103 SlotId = 68 ConfigBaseId = 6153 Num = 7
+[2026.10.25-07.51.33:248][960]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 103 SlotId = 73 ConfigBaseId = 6004 Num = 6
+[2026.10.25-07.51.33:251][960]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 103 SlotId = 22 ConfigBaseId = 6002 Num = 1
+[2026.10.25-07.51.33:665][985]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4075
+[2026.10.25-07.51.33:665][985]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 7 ConfigBaseId = 5028 Num = 617
+[2026.10.25-07.51.36:697][167]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 7 ConfigBaseId = 5028 Num = 618
+[2026.10.25-07.51.42:547][518]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4076
+[2026.10.25-07.51.55:331][285]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 7 ConfigBaseId = 5028 Num = 619
+[2026.10.25-07.52.02:047][688]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4080
+[2026.10.25-07.52.02:682][726]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 27 ConfigBaseId = 5140 Num = 474
+[2026.10.25-07.52.03:565][779]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4083
+[2026.10.25-07.52.05:149][874]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4178
+[2026.10.25-07.52.05:149][874]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 12 ConfigBaseId = 200028 Num = 873
+[2026.10.25-07.52.05:151][874]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 1 ConfigBaseId = 100300 Num = 29
+[2026.10.25-07.52.05:398][889]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 10 ConfigBaseId = 200029 Num = 470
+[2026.10.25-07.52.17:865][637]TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 102 SlotId = 3 ConfigBaseId = 100200 Num = 4180
+[2026.10.25-07.52.19:705][746]TLShipping: Display: [Game] Loading@ PreLoadLevelId = 110 PreloadLevelType = 0
+[2026.10.25-07.52.19:721][746]TLLua: Display: [Game] PageApplyBase@ _UpdateGameEnd: LastSceneName = World'/Game/Art/Maps/05JH/JH_ShengDeLanXiuDaoYuan000/JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000' NextSceneName = World'/Game/Art/Maps/01SD/XZ_YuJinZhiXiBiNanSuo200/XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200'
+[2026.10.25-07.52.20:584]
