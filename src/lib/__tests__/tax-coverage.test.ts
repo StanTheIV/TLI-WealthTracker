@@ -29,16 +29,20 @@ const VALUATION_SITES = [
   // Persists GROSS values on purpose — net is derived at read time, so that a
   // toggle rescales the whole wealth history instead of stepping it.
   'main/wealth-recorder.ts',
+  // Replay CLI diagnostics — gross FE beside a debugging report, never shown in the app.
+  'replay/report.ts',
 ];
 
 /** Sites that must apply the tax themselves. Excluded:
  *   - `lib/tax.ts` — it IS the module.
  *   - `main/wealth-recorder.ts` — persists gross on purpose.
+ *   - `replay/report.ts` — gross diagnostics for the replay CLI.
  *   - `analytics/items.ts` — values through the `PriceLookup` it is handed, so
  *     the prices reach it already taxed and importing the module would be wrong. */
 const MUST_IMPORT_TAX = VALUATION_SITES.filter(f => ![
   'lib/tax.ts',
   'main/wealth-recorder.ts',
+  'replay/report.ts',
   'components/Sessions/analytics/items.ts',
 ].includes(f));
 

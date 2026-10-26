@@ -6,42 +6,14 @@
  */
 
 import {Watcher} from './watcher';
-import {Dispatcher} from './dispatcher';
-import {BagProcessor} from './processors/bag';
-import {ZoneProcessor} from './processors/zone';
-import {LevelTypeProcessor} from './processors/level-type';
-import {PriceProcessor} from './processors/price';
-import {S13Processor} from './processors/s13';
-import {S16Processor} from './processors/s16';
-import {S12Processor} from './processors/s12';
-import {S9Processor} from './processors/s9';
-import {S11Processor} from './processors/s11';
-import {S7Processor} from './processors/s7';
-import {S14Processor} from './processors/s14';
-import {S10Processor} from './processors/s10';
-import {HuntingProcessor} from './processors/hunting';
-import {AfterlightProcessor} from './processors/afterlight';
+import {createDispatcher} from './create-dispatcher';
 import type {RawEvent} from './processors/types';
 
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
 
-const dispatcher = new Dispatcher();
-dispatcher.register(new BagProcessor());
-dispatcher.register(new ZoneProcessor());
-dispatcher.register(new LevelTypeProcessor());
-dispatcher.register(new PriceProcessor());
-dispatcher.register(new S13Processor());
-dispatcher.register(new S16Processor());
-dispatcher.register(new S12Processor());
-dispatcher.register(new S9Processor());
-dispatcher.register(new S11Processor());
-dispatcher.register(new S7Processor());
-dispatcher.register(new S14Processor());
-dispatcher.register(new S10Processor());
-dispatcher.register(new HuntingProcessor());
-dispatcher.register(new AfterlightProcessor());
+const dispatcher = createDispatcher();
 
 const watcher = new Watcher(
   (lines) => {

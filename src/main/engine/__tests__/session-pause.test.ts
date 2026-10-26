@@ -366,3 +366,44 @@ describe('Loot windows freeze during a session pause', () => {
     expect(after).toBe(before + 1); // fresh deadline emitted on unfreeze
   });
 });
+
+// ---------------------------------------------------------------------------
+// Pause keeps bag bookkeeping in step — paused pickups never leak on resume
+// ---------------------------------------------------------------------------
+
+describe('Session pause keeps slot bookkeeping current', () => {
+  it('credits only the post-resume change to a slot that grew while paused', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 100, quantity: 10}]);
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+
+    e.pause();
+    feed(d, e, log.bagUpdate(1, 100, 110)); // 100 picked up while paused
+    e.resume();
+    feed(d, e, log.bagUpdate(1, 100, 111)); // 1 more after resume
+
+    const drops = events.filter((ev): ev is Extract<EngineEvent, {type: 'drop'}> => ev.type === 'drop' && ev.itemId === 100);
+    expect(drops.map(dr => dr.change)).toEqual([1]);
+    expect(e.getInventory().get(100)).toBe(111);
+  });
+});
+
+describe('Bag deltas are scoped to the event that produced them', () => {
+  it('a later event that changes nothing exposes no deltas — paused ones never leak past resume', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 100, quantity: 10}]);
+    e.pause();
+    feed(d, e, log.bagUpdate(1, 100, 5));          // consumed 5 while paused
+    expect(ctx(e).bagDeltas).toEqual([{itemId: 100, change: -5}]);
+
+    e.resume();
+    feed(d, e, log.bagRemove(42));                 // a slot BagState never knew
+    expect(ctx(e).bagDeltas).toEqual([]);
+  });
+});

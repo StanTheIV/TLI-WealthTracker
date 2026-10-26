@@ -4,7 +4,6 @@ import {BagInitHandler} from '@/main/engine/handlers/bag-init';
 import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {ItemHandler} from '@/main/engine/handlers/item';
 import {ErrorHandler} from '@/main/engine/handlers/error';
-import {ItemFilterEngine} from '@/main/engine/item-filter';
 import type {EngineEvent} from '@/main/engine/types';
 
 function createEngine(events: EngineEvent[]): Engine {
@@ -150,22 +149,20 @@ describe('Engine (integration)', () => {
   });
 
   describe('setItemType', () => {
-    it('updates the filter engine type map live', () => {
+    it('reaches an existing filter live', () => {
       const events: EngineEvent[] = [];
       const engine = createEngine(events);
-      const filter = new ItemFilterEngine([], new Map([['42', 'other']]));
-      engine.setFilter(filter);
-
-      engine.setItemType('42', 'equipment');
-
-      // Access the private map indirectly — call shouldInclude with a type rule
-      filter.setRules([{
+      engine.setItemTypes([['42', 'other']]);
+      engine.setFilterRules([{
         id: 'r1',
         action: 'hide',
         scopes: ['session'],
         kind: {type: 'by-type', itemType: 'equipment'},
       }]);
-      expect(filter.shouldInclude(42, 'session')).toBe(false);
+      expect(engine.getFilter()!.shouldInclude(42, 'session')).toBe(true);
+
+      engine.setItemType('42', 'equipment');
+      expect(engine.getFilter()!.shouldInclude(42, 'session')).toBe(false);
     });
 
     it('is a no-op when no filter is set', () => {

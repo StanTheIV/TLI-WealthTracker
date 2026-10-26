@@ -70,7 +70,7 @@ export class MapMaterialHandler implements EventHandler {
     if (ctx.phase !== 'tracking' || ctx.paused) return;
 
     if (event.type === 'bag_update' || event.type === 'bag_remove') {
-      const deltas = ctx.bag.getLastDeltas();
+      const deltas = ctx.bagDeltas;
       let recovered = false;
       for (const d of deltas) {
         if (d.change < 0 && !ctx.inMap) {

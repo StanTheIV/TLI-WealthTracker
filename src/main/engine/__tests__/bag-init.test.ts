@@ -26,15 +26,29 @@ describe('BagInitHandler', () => {
     expect(events[0].type).toBe('init_started');
   });
 
-  it('feeds bag slots to BagState during init', () => {
+  it('applies the init dump to BagState as one unit once it settles', () => {
     const handler = new BagInitHandler();
     const ctx = makeCtx();
     handler.onStart(ctx, () => {});
 
     handler.handle({type: 'bag_init', pageId: 0, slotId: 1, itemId: 111, quantity: 10}, ctx, () => {});
     handler.handle({type: 'bag_init', pageId: 0, slotId: 2, itemId: 222, quantity: 5},  ctx, () => {});
+    expect(ctx.bag.slotCount).toBe(0);
 
+    vi.advanceTimersByTime(600);
     expect(ctx.bag.slotCount).toBe(2);
+  });
+
+  it('applies the init dump at the next dump marker without waiting for the debounce', () => {
+    const handler = new BagInitHandler();
+    const ctx = makeCtx();
+    handler.onStart(ctx, () => {});
+
+    handler.handle({type: 'bag_init', pageId: 0, slotId: 1, itemId: 111, quantity: 10}, ctx, () => {});
+    handler.handle({type: 'bag_snapshot_start'}, ctx, () => {});
+
+    expect(ctx.phase).toBe('tracking');
+    expect(ctx.bag.getTotalForItem(111)).toBe(10);
   });
 
   it('emits init_complete and transitions to tracking after debounce', async () => {
@@ -236,8 +250,7 @@ describe('BagInitHandler', () => {
     function trackingCtx(init: Array<{pageId: number; slotId: number; itemId: number; quantity: number}>): EngineContext {
       const ctx = new EngineContext();
       ctx.phase = 'initializing';
-      for (const s of init) ctx.bag.processInit(s.pageId, s.slotId, s.itemId, s.quantity);
-      ctx.bag.finishInit();
+      ctx.bag.init(init);
       ctx.phase = 'tracking';
       return ctx;
     }

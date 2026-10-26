@@ -11,7 +11,7 @@
  * cannot corrupt delta computation.
  *
  * Dual-baseline:
- *   _initialBaselines — frozen at finishInit(), never changes
+ *   _initialBaselines — frozen at init(), never changes
  *   _baseline         — updated after each emitted delta, avoids double-counting
  */
 
@@ -35,7 +35,6 @@ export class BagState {
   private _initialBaselines = new Map<number, number>();
   private _baseline = new Map<number, number>();
   private _initialized = false;
-  private _lastDeltas: SlotChange[] = [];
 
   get initialized(): boolean { return this._initialized; }
   get slotCount():   number  { return this._slots.size; }
@@ -45,15 +44,9 @@ export class BagState {
   // Initialization
   // ---------------------------------------------------------------------
 
-  /** Called during init phase for each bag_init event. */
-  processInit(pageId: number, slotId: number, itemId: number, quantity: number): void {
-    const key = slotKey(pageId, slotId);
-    this._slots.set(key, {itemId, quantity});
-    this._addToTotal(itemId, quantity);
-  }
-
-  /** Freeze baselines after all bag_init events are received. */
-  finishInit(): void {
+  /** Take a full bag dump as the starting inventory and freeze the baselines. */
+  init(entries: Iterable<SlotSnapshotEntry>): void {
+    this._load(entries);
     this._initialBaselines = new Map(this._totals);
     this._baseline         = new Map(this._totals);
     this._initialized      = true;
@@ -102,24 +95,11 @@ export class BagState {
    *
    * Pure resorts (slots shuffled, totals conserved) return an empty array.
    */
-  processResort(entries: SlotSnapshotEntry[]): SlotChange[] {
+  processResort(entries: Iterable<SlotSnapshotEntry>): SlotChange[] {
     if (!this._initialized) return [];
-
-    // Rebuild slots and totals from scratch
-    const newSlots  = new Map<string, Slot>();
-    const newTotals = new Map<number, number>();
-    for (const e of entries) {
-      newSlots.set(slotKey(e.pageId, e.slotId), {itemId: e.itemId, quantity: e.quantity});
-      if (e.quantity !== 0) {
-        newTotals.set(e.itemId, (newTotals.get(e.itemId) ?? 0) + e.quantity);
-      }
-    }
-
-    this._slots  = newSlots;
-    this._totals = newTotals;
-
+    this._load(entries);
     // Compare every item present in either new totals or old baseline
-    const touched = new Set<number>([...newTotals.keys(), ...this._baseline.keys()]);
+    const touched = new Set<number>([...this._totals.keys(), ...this._baseline.keys()]);
     return this._diffTouched(touched);
   }
 
@@ -135,13 +115,9 @@ export class BagState {
     return new Map(this._totals);
   }
 
-  /**
-   * The SlotChange[] returned by the most recent processUpdate/processRemove/
-   * processResort call. Lets a second handler consume the same deltas that
-   * ItemHandler already processed, without re-applying them.
-   */
-  getLastDeltas(): SlotChange[] {
-    return this._lastDeltas;
+  /** Copy of the slot layout, keyed `pageId_slotId` — for consistency checks. */
+  getSlots(): Map<string, Readonly<Slot>> {
+    return new Map(this._slots);
   }
 
   reset(): void {
@@ -150,12 +126,25 @@ export class BagState {
     this._initialBaselines.clear();
     this._baseline.clear();
     this._initialized = false;
-    this._lastDeltas  = [];
   }
 
   // ---------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------
+
+  /** Replace the slot layout with a full dump and rebuild totals from it.
+   *  Totals are summed over the de-duplicated slot map, never over the raw
+   *  entries: a slot listed twice must count once, or every stack doubles. */
+  private _load(entries: Iterable<SlotSnapshotEntry>): void {
+    const slots = new Map<string, Slot>();
+    for (const e of entries) slots.set(slotKey(e.pageId, e.slotId), {itemId: e.itemId, quantity: e.quantity});
+    const totals = new Map<number, number>();
+    for (const s of slots.values()) {
+      if (s.quantity !== 0) totals.set(s.itemId, (totals.get(s.itemId) ?? 0) + s.quantity);
+    }
+    this._slots  = slots;
+    this._totals = totals;
+  }
 
   private _addToTotal(itemId: number, delta: number): void {
     const next = (this._totals.get(itemId) ?? 0) + delta;
@@ -175,11 +164,11 @@ export class BagState {
       else             this._baseline.set(itemId, total);
       out.push({itemId, change});
     }
-    this._lastDeltas = out;
     return out;
   }
 }
 
-function slotKey(pageId: number, slotId: number): string {
+/** Identity of one inventory slot. Shared so every dump reader keys slots alike. */
+export function slotKey(pageId: number, slotId: number): string {
   return `${pageId}_${slotId}`;
 }

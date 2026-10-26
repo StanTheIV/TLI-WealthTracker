@@ -3,6 +3,9 @@ import {ItemHandler} from '@/main/engine/handlers/item';
 import {EngineContext} from '@/main/engine/context';
 import type {EmitFn} from '@/main/engine/types';
 
+/** The one slot every context starts with. */
+const BASE_SLOT = {pageId: 0, slotId: 1, itemId: 111, quantity: 10};
+
 function makeCtx(inMap = false): EngineContext {
   const ctx = new EngineContext();
   ctx.phase   = 'tracking';
@@ -10,8 +13,7 @@ function makeCtx(inMap = false): EngineContext {
   ctx.registry.startSession();
   if (inMap) ctx.registry.startMap();
   // Pre-init the bag with one slot so processUpdate works
-  ctx.bag.processInit(0, 1, 111, 10);
-  ctx.bag.finishInit();
+  ctx.bag.init([BASE_SLOT]);
   return ctx;
 }
 
@@ -54,8 +56,7 @@ describe('ItemHandler', () => {
 
   it('does not credit session tracker for town deltas after debounce', () => {
     const ctx = makeCtx(false);
-    ctx.bag.processInit(0, 2, 111, 5);
-    ctx.bag.finishInit();
+    ctx.bag.init([BASE_SLOT, {pageId: 0, slotId: 2, itemId: 111, quantity: 5}]);
 
     const handler = new ItemHandler();
     const events: Parameters<EmitFn>[0][] = [];
@@ -159,8 +160,7 @@ describe('ItemHandler', () => {
       ctx.knownItems = new Set(['111']);
 
       // Add a new bag slot for an unknown item 222
-      ctx.bag.processInit(0, 5, 222, 0);
-      ctx.bag.finishInit();
+      ctx.bag.init([BASE_SLOT, {pageId: 0, slotId: 5, itemId: 222, quantity: 0}]);
 
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
@@ -190,8 +190,7 @@ describe('ItemHandler', () => {
       const handler = new ItemHandler();
       const ctx = makeCtx(true);
       ctx.knownItems = new Set();
-      ctx.bag.processInit(0, 7, 999, 0);
-      ctx.bag.finishInit();
+      ctx.bag.init([BASE_SLOT, {pageId: 0, slotId: 7, itemId: 999, quantity: 0}]);
 
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
@@ -209,8 +208,7 @@ describe('ItemHandler', () => {
       const handler = new ItemHandler();
       const ctx = makeCtx(true);
       ctx.knownItems = new Set();
-      ctx.bag.processInit(0, 4, 333, 0);
-      ctx.bag.finishInit();
+      ctx.bag.init([BASE_SLOT, {pageId: 0, slotId: 4, itemId: 333, quantity: 0}]);
 
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);

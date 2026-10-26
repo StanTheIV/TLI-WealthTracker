@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "replay": "bun --preload ./scripts/bun-preload.ts scripts/replay.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
@@ -28,10 +29,12 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
+    "@sinonjs/fake-timers": "15.0.0",
     "@tailwindcss/vite": "^4.1.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
+    "@types/sinonjs__fake-timers": "^15.0.1",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
     "@vitejs/plugin-react": "^4.3.4",

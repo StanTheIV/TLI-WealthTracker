@@ -9,36 +9,11 @@
  * `*.test.ts` per the project's vitest.config.ts include glob.
  */
 import {vi} from 'vitest';
-import {Dispatcher}        from '@/worker/dispatcher';
-import {BagProcessor}      from '@/worker/processors/bag';
-import {ZoneProcessor}     from '@/worker/processors/zone';
-import {LevelTypeProcessor} from '@/worker/processors/level-type';
-import {S13Processor}      from '@/worker/processors/s13';
-import {S16Processor}      from '@/worker/processors/s16';
-import {S12Processor}      from '@/worker/processors/s12';
-import {S9Processor}       from '@/worker/processors/s9';
-import {S11Processor}      from '@/worker/processors/s11';
-import {S7Processor}       from '@/worker/processors/s7';
-import {S14Processor}      from '@/worker/processors/s14';
-import {S10Processor}      from '@/worker/processors/s10';
-import {HuntingProcessor}  from '@/worker/processors/hunting';
-import {AfterlightProcessor} from '@/worker/processors/afterlight';
-import {Engine}            from '@/main/engine/engine';
-import {BagInitHandler}    from '@/main/engine/handlers/bag-init';
-import {ZoneHandler}       from '@/main/engine/handlers/zone';
-import {DreamHandler}      from '@/main/engine/handlers/dream-handler';
-import {VorexHandler}      from '@/main/engine/handlers/vorex-handler';
-import {TartarusHandler}   from '@/main/engine/handlers/tartarus-handler';
-import {OverrealmHandler}  from '@/main/engine/handlers/overrealm-handler';
-import {CarjackHandler}    from '@/main/engine/handlers/carjack-handler';
-import {ClockworkHandler}  from '@/main/engine/handlers/clockwork-handler';
-import {LunariaHandler}    from '@/main/engine/handlers/lunaria-handler';
-import {ArcanaHandler}     from '@/main/engine/handlers/arcana-handler';
-import {SandlordHandler}   from '@/main/engine/handlers/sandlord-handler';
-import {SandlordMapHandler} from '@/main/engine/handlers/sandlord-map-handler';
-import {HuntingHandler}    from '@/main/engine/handlers/hunting-handler';
-import {AfterlightHandler} from '@/main/engine/handlers/afterlight-handler';
-import {ItemHandler}       from '@/main/engine/handlers/item';
+import type {Dispatcher} from '@/worker/dispatcher';
+import {createDispatcher as createProductionDispatcher} from '@/worker/create-dispatcher';
+import type {Engine} from '@/main/engine/engine';
+import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
+import type {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import type {EngineEvent, EmitFn}  from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 
@@ -54,6 +29,9 @@ export const log = {
 
   bagUpdate: (slotId: number, itemId: number, qty: number) =>
     `${ts}TLLua: Display: [Game] BagMgr@:Modfy BagItem PageId = 0 SlotId = ${slotId} ConfigBaseId = ${itemId} Num = ${qty}`,
+
+  bagRemove: (slotId: number) =>
+    `${ts}TLLua: Display: [Game] BagMgr@:RemoveBagItem PageId = 0 SlotId = ${slotId}`,
 
   zoneTransition: (from: string, to: string) =>
     `PageApplyBase@ _UpdateGameEnd: LastSceneName = World'${from}' NextSceneName = World'${to}'`,
@@ -163,57 +141,22 @@ export const TARTARUS_FIGHT    = '/Game/Art/Season/S16/Maps/ZhongZuiDiYu/ZhongZu
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Build a Dispatcher pre-registered with every processor used by the
- *  seasonal integration tests. */
+/** The production processor chain (shared with the worker). */
 export function createDispatcher(): Dispatcher {
-  const d = new Dispatcher();
-  d.register(new BagProcessor());
-  d.register(new ZoneProcessor());
-  d.register(new LevelTypeProcessor());
-  d.register(new S13Processor());
-  d.register(new S16Processor());
-  d.register(new S12Processor());
-  d.register(new S9Processor());
-  d.register(new S11Processor());
-  d.register(new S7Processor());
-  d.register(new S14Processor());
-  d.register(new S10Processor());
-  d.register(new HuntingProcessor());
-  d.register(new AfterlightProcessor());
-  return d;
+  return createProductionDispatcher();
 }
 
-/** Standard handler chain — registration order matches production
- *  (ipc/engine.ts). The `events` array is mutated in place via the engine's
- *  emit closure; tests inspect it for assertion. */
+/** The production handler chain. The `events` array is mutated in place via
+ *  the engine's emit closure; tests inspect it for assertion. */
 export function createEngine(events: EngineEvent[]): Engine {
-  return registerHandlers(new Engine((e) => events.push(e)));
+  return createProductionEngine((e) => events.push(e));
 }
 
 /** Variant of createEngine that takes a custom emit function — used by the
  *  Sandlord hasActiveMapTracker discriminator tests where the captor needs
  *  closure access to the Engine instance to call hasActiveMapTracker(). */
 export function createEngineWithEmit(emit: EmitFn): Engine {
-  return registerHandlers(new Engine(emit));
-}
-
-function registerHandlers(engine: Engine): Engine {
-  return engine
-    .register(new BagInitHandler())
-    .register(new SandlordHandler())  // before ZoneHandler — sets ctx.seasonals.get('sandlord').ownsBubble
-    .register(new ZoneHandler())
-    .register(new DreamHandler())
-    .register(new VorexHandler())
-    .register(new TartarusHandler())
-    .register(new OverrealmHandler())
-    .register(new CarjackHandler())
-    .register(new ClockworkHandler())
-    .register(new LunariaHandler())
-    .register(new ArcanaHandler())
-    .register(new SandlordMapHandler())
-    .register(new HuntingHandler())
-    .register(new AfterlightHandler())  // before ItemHandler — shares bag_update
-    .register(new ItemHandler());
+  return createProductionEngine(emit);
 }
 
 /** Feed a log line through the full dispatcher → engine pipeline. */

@@ -67,33 +67,33 @@ export class ItemHandler implements EventHandler {
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
     if (ctx.phase !== 'tracking') return;
 
-    // Paused = crediting frozen. bag_update / bag_remove are pure crediting →
-    // skip. A zone_transition is structural, but its buffer holds town deltas
-    // that must not be credited across a pause-time transition, so discard
-    // (not flush) so they can't leak into the next map on resume.
+    if (event.type === 'bag_update' || event.type === 'bag_remove') {
+      // Bookkeeping is structural and runs even while paused (as a paused
+      // resort does), so BagState's slots always match the bag — skipping it
+      // would leave a stale slot whose first post-resume change credits
+      // everything picked up during the pause. Only crediting is paused:
+      // BagState has already advanced its baseline past these deltas.
+      const changes = event.type === 'bag_update'
+        ? ctx.bag.processUpdate(event.pageId, event.slotId, event.itemId, event.quantity)
+        : ctx.bag.processRemove(event.pageId, event.slotId);
+      ctx.bagDeltas = changes;
+      if (ctx.paused) return;
+
+      for (const change of changes) {
+        this._buffer.set(change.itemId, (this._buffer.get(change.itemId) ?? 0) + change.change);
+      }
+      this._scheduleFlush(ctx, emit);
+      return;
+    }
+
+    // A zone_transition is structural, but while paused its buffer holds town
+    // deltas that must not be credited across the transition — discard (not
+    // flush) so they can't leak into the next map on resume.
     if (ctx.paused) {
       if (event.type === 'zone_transition') {
         this._clearTimer();
         this._buffer.clear();
       }
-      return;
-    }
-
-    if (event.type === 'bag_update') {
-      const changes = ctx.bag.processUpdate(event.pageId, event.slotId, event.itemId, event.quantity);
-      for (const change of changes) {
-        this._buffer.set(change.itemId, (this._buffer.get(change.itemId) ?? 0) + change.change);
-      }
-      this._scheduleFlush(ctx, emit);
-      return;
-    }
-
-    if (event.type === 'bag_remove') {
-      const changes = ctx.bag.processRemove(event.pageId, event.slotId);
-      for (const change of changes) {
-        this._buffer.set(change.itemId, (this._buffer.get(change.itemId) ?? 0) + change.change);
-      }
-      this._scheduleFlush(ctx, emit);
       return;
     }
 

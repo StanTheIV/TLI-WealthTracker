@@ -9,69 +9,74 @@ const INIT_DEBOUNCE_MS   = 500;
 const RESORT_DEBOUNCE_MS = 300;
 
 /**
- * BagInitHandler — handles `bag_init` events in both engine phases.
+ * BagInitHandler — turns full bag dumps (`bag_init` bursts) into BagState
+ * snapshots, in both engine phases.
  *
- * Phase 'initializing':
- *   Collects the initial bag dump, debounces 500ms of silence, then freezes
- *   BagState baselines and transitions the engine to 'tracking'.
+ * The game writes a dump — one InitBagData line per occupied slot, absolute
+ * stack sizes — after an Arrange click and on login / character load. Every
+ * dump is preceded by an `ItemChange@ Reset PageId=` line (`bag_snapshot_start`).
+ * A dump is collected whole and applied as one unit:
  *
- * Phase 'tracking':
- *   The game re-emits InitBagData in bulk when the player resorts their
- *   inventory (or when the server pushes a fresh layout after stash/trade
- *   interactions). We buffer the burst, then apply it as a full slot snapshot
- *   — `BagState.processResort` returns any aggregate-delta changes, which are
- *   fed into the normal drop pipeline. Pure slot reshuffles produce no drops.
+ *   initializing — the first dump becomes the baseline; the engine moves to
+ *                  'tracking' and the session starts.
+ *   tracking     — the dump replaces the slot layout (`processResort`); any
+ *                  aggregate change goes through the drop pipeline. A pure
+ *                  reshuffle produces no drops.
+ *
+ * A dump ends at the next `bag_snapshot_start`, or after a quiet debounce when
+ * none follows. The marker matters: double-clicking Arrange writes two
+ * complete dumps ~220 ms apart, inside one debounce window, and they must be
+ * applied one after the other — never as one merged buffer.
  */
 export class BagInitHandler implements EventHandler {
   readonly name    = 'bag-init';
-  readonly handles = ['bag_init'] as const;
+  readonly handles = ['bag_init', 'bag_snapshot_start'] as const;
 
-  private _initTimer:   ReturnType<typeof setTimeout> | null = null;
-  private _resortTimer: ReturnType<typeof setTimeout> | null = null;
-  private _resortBuffer: SlotSnapshotEntry[] = [];
+  private _dump:  SlotSnapshotEntry[] = [];
+  private _timer: ReturnType<typeof setTimeout> | null = null;
 
   onStart(_ctx: EngineContext, emit: EmitFn): void {
-    this._clearInit();
-    this._clearResort();
+    this._discardDump();
     emit({type: 'init_started'});
   }
 
   onStop(_ctx: EngineContext): void {
-    this._clearInit();
-    this._clearResort();
+    this._discardDump();
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
+    if (ctx.phase === 'idle') return;
+
+    if (event.type === 'bag_snapshot_start') {
+      this._applyDump(ctx, emit);
+      return;
+    }
     if (event.type !== 'bag_init') return;
 
-    if (ctx.phase === 'initializing') {
-      this._handleInit(event, ctx, emit);
-      return;
-    }
+    this._dump.push({pageId: event.pageId, slotId: event.slotId, itemId: event.itemId, quantity: event.quantity});
+    this._clearTimer();
+    const debounce = ctx.phase === 'initializing' ? INIT_DEBOUNCE_MS : RESORT_DEBOUNCE_MS;
+    this._timer = setTimeout(() => this._applyDump(ctx, emit), debounce);
+  }
 
-    if (ctx.phase === 'tracking') {
-      this._handleResort(event, ctx, emit);
-      return;
-    }
+  /** Close the dump in progress and apply it. A boundary with nothing
+   *  collected (a Reset line no dump followed) is a no-op. */
+  private _applyDump(ctx: EngineContext, emit: EmitFn): void {
+    this._clearTimer();
+    const entries = this._dump;
+    this._dump = [];
+    if (entries.length === 0) return;
+
+    if (ctx.phase === 'initializing') this._initialize(entries, ctx, emit);
+    else if (ctx.phase === 'tracking') this._resort(entries, ctx, emit);
   }
 
   // ---------------------------------------------------------------------
-  // Initializing phase
+  // Initializing — the first dump is the baseline
   // ---------------------------------------------------------------------
 
-  private _handleInit(
-    event: RawEvent & {type: 'bag_init'},
-    ctx:   EngineContext,
-    emit:  EmitFn,
-  ): void {
-    ctx.bag.processInit(event.pageId, event.slotId, event.itemId, event.quantity);
-
-    this._clearInit();
-    this._initTimer = setTimeout(() => this._finalizeInit(ctx, emit), INIT_DEBOUNCE_MS);
-  }
-
-  private _finalizeInit(ctx: EngineContext, emit: EmitFn): void {
-    ctx.bag.finishInit();
+  private _initialize(entries: SlotSnapshotEntry[], ctx: EngineContext, emit: EmitFn): void {
+    ctx.bag.init(entries);
     ctx.phase   = 'tracking';
     const session = ctx.registry.startSession();
 
@@ -109,32 +114,10 @@ export class BagInitHandler implements EventHandler {
   }
 
   // ---------------------------------------------------------------------
-  // Tracking phase — resort burst
+  // Tracking — a later dump replaces the layout
   // ---------------------------------------------------------------------
 
-  private _handleResort(
-    event: RawEvent & {type: 'bag_init'},
-    ctx:   EngineContext,
-    emit:  EmitFn,
-  ): void {
-    this._resortBuffer.push({
-      pageId:   event.pageId,
-      slotId:   event.slotId,
-      itemId:   event.itemId,
-      quantity: event.quantity,
-    });
-
-    this._clearResort();
-    this._resortTimer = setTimeout(() => this._finalizeResort(ctx, emit), RESORT_DEBOUNCE_MS);
-  }
-
-  private _finalizeResort(ctx: EngineContext, emit: EmitFn): void {
-    const entries = this._resortBuffer;
-    this._resortBuffer = [];
-    this._resortTimer  = null;
-
-    if (entries.length === 0) return;
-
+  private _resort(entries: SlotSnapshotEntry[], ctx: EngineContext, emit: EmitFn): void {
     const changes = ctx.bag.processResort(entries);
     log.debug('engine', `Resort applied: ${entries.length} slots, ${changes.length} aggregate deltas`);
 
@@ -147,20 +130,18 @@ export class BagInitHandler implements EventHandler {
   }
 
   // ---------------------------------------------------------------------
-  // Timers
+  // Internals
   // ---------------------------------------------------------------------
 
-  private _clearInit(): void {
-    if (this._initTimer !== null) {
-      clearTimeout(this._initTimer);
-      this._initTimer = null;
-    }
+  private _discardDump(): void {
+    this._clearTimer();
+    this._dump = [];
   }
 
-  private _clearResort(): void {
-    if (this._resortTimer !== null) {
-      clearTimeout(this._resortTimer);
-      this._resortTimer = null;
+  private _clearTimer(): void {
+    if (this._timer !== null) {
+      clearTimeout(this._timer);
+      this._timer = null;
     }
   }
 }

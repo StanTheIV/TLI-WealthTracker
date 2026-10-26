@@ -26,7 +26,6 @@ import {VorexHandler}      from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler}  from '@/main/engine/handlers/overrealm-handler';
 import {LunariaHandler}    from '@/main/engine/handlers/lunaria-handler';
 import {ItemHandler}       from '@/main/engine/handlers/item';
-import {ItemFilterEngine}  from '@/main/engine/item-filter';
 import type {EngineEvent}  from '@/main/engine/types';
 import type {FilterRule}   from '@/types/itemFilter';
 import type {EngineContext} from '@/main/engine/context';
@@ -119,10 +118,8 @@ describe('filter-integration — session scope only', () => {
     boot(engine, [{slotId: 1, itemId: 100, quantity: 10}]);
 
     const types = new Map([['100', 'equipment' as const]]);
-    engine.setFilter(new ItemFilterEngine(
-      [makeRule('hide', {type: 'by-item', itemId: '100'}, ['session'])],
-      types,
-    ));
+    engine.setItemTypes(types);
+    engine.setFilterRules([makeRule('hide', {type: 'by-item', itemId: '100'}, ['session'])]);
 
     enterMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 14});
@@ -150,10 +147,8 @@ describe('filter-integration — hide by type, all scopes', () => {
       ['100', 'equipment' as const],
       ['200', 'cube'      as const],
     ]);
-    engine.setFilter(new ItemFilterEngine(
-      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session', 'map', 'vorex', 'dream', 'overrealm', 'wealth'])],
-      types,
-    ));
+    engine.setItemTypes(types);
+    engine.setFilterRules([makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session', 'map', 'vorex', 'dream', 'overrealm', 'wealth'])]);
 
     enterMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
@@ -176,10 +171,8 @@ describe('filter-integration — hide by type, all scopes', () => {
       ['100', 'equipment' as const],
       ['200', 'cube'      as const],
     ]);
-    engine.setFilter(new ItemFilterEngine(
-      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session', 'map'])],
-      types,
-    ));
+    engine.setItemTypes(types);
+    engine.setFilterRules([makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session', 'map'])]);
 
     enterMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
@@ -196,12 +189,10 @@ describe('filter-integration — hide by type, all scopes', () => {
     boot(engine, [{slotId: 1, itemId: 100, quantity: 0}]);
 
     const types = new Map([['100', 'equipment' as const]]);
-    engine.setFilter(new ItemFilterEngine(
-      // Hide from map only — session still tracks it, so the dashboard
+    engine.setItemTypes(types);
+    engine.setFilterRules(// Hide from map only — session still tracks it, so the dashboard
       // aggregate must show the drop.
-      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['map'])],
-      types,
-    ));
+      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['map'])]);
 
     enterMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
@@ -232,13 +223,11 @@ describe('filter-integration — whitelist pattern', () => {
       ['100', 'equipment' as const],
       ['200', 'equipment' as const],
     ]);
-    engine.setFilter(new ItemFilterEngine(
-      [
+    engine.setItemTypes(types);
+    engine.setFilterRules([
         makeRule('show', {type: 'by-item',  itemId:   '100'},       ['session', 'map']),
         makeRule('hide', {type: 'by-type',  itemType: 'equipment'}, ['session', 'map']),
-      ],
-      types,
-    ));
+      ]);
 
     enterMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 4});
@@ -250,7 +239,7 @@ describe('filter-integration — whitelist pattern', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Live filter update via engine.updateFilterRules()
+// Live filter update via engine.setFilterRules()
 // ---------------------------------------------------------------------------
 
 describe('filter-integration — live rule update', () => {
@@ -261,7 +250,8 @@ describe('filter-integration — live rule update', () => {
     boot(engine, [{slotId: 1, itemId: 100, quantity: 0}]);
 
     const types = new Map([['100', 'equipment' as const]]);
-    engine.setFilter(new ItemFilterEngine([], types));
+    engine.setItemTypes(types);
+    engine.setFilterRules([]);
 
     enterMap(engine);
 
@@ -270,7 +260,7 @@ describe('filter-integration — live rule update', () => {
     expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(3);
 
     // Push a hide rule
-    engine.updateFilterRules([
+    engine.setFilterRules([
       makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session', 'map']),
     ]);
 
@@ -286,10 +276,8 @@ describe('filter-integration — live rule update', () => {
     boot(engine, [{slotId: 1, itemId: 100, quantity: 0}]);
 
     const types = new Map([['100', 'equipment' as const]]);
-    engine.setFilter(new ItemFilterEngine(
-      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session', 'map'])],
-      types,
-    ));
+    engine.setItemTypes(types);
+    engine.setFilterRules([makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['session', 'map'])]);
 
     enterMap(engine);
 
@@ -298,7 +286,7 @@ describe('filter-integration — live rule update', () => {
     expect(ctx(engine).registry.session?.snapshot().drops[100]).toBeUndefined();
 
     // Disable filter entirely
-    engine.updateFilterRules(null);
+    engine.setFilterRules(null);
 
     // Now passes through
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 6});
@@ -341,10 +329,8 @@ describe('filter-integration — dream seasonal scope', () => {
     boot(engine, [{slotId: 1, itemId: 100, quantity: 0}]);
 
     const types = new Map([['100', 'equipment' as const]]);
-    engine.setFilter(new ItemFilterEngine(
-      [makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['dream'])],
-      types,
-    ));
+    engine.setItemTypes(types);
+    engine.setFilterRules([makeRule('hide', {type: 'by-type', itemType: 'equipment'}, ['dream'])]);
 
     // Enter map then trigger Dream (level_type 3 → 11)
     enterMap(engine);

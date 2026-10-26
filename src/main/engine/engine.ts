@@ -2,8 +2,9 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from './types';
 import {EngineContext} from './context';
 import type {LoadedSessionData} from './context';
-import type {ItemFilterEngine} from './item-filter';
+import {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/types/itemFilter';
+import type {ItemType} from '@/types/itemType';
 import {ItemHandler} from './handlers/item';
 import {MapMaterialHandler} from './handlers/map-material';
 import {OverrealmHandler} from './handlers/overrealm-handler';
@@ -253,24 +254,27 @@ export class Engine {
     }
   }
 
-  setFilter(filter: ItemFilterEngine): void {
-    this._ctx.filter = filter;
-  }
-
   getFilter(): ItemFilterEngine | null {
     return this._ctx.filter;
   }
 
-  updateFilterRules(rules: FilterRule[] | null): void {
-    if (rules === null) {
-      this._ctx.filter = null;
-    } else {
-      this._ctx.filter?.setRules(rules);
-    }
+  /** The one way to change filtering: null clears it, a rule list builds the
+   *  filter on first use and replaces its rules after that. */
+  setFilterRules(rules: FilterRule[] | null): void {
+    if (rules === null)        this._ctx.filter = null;
+    else if (this._ctx.filter) this._ctx.filter.setRules(rules);
+    else                       this._ctx.filter = new ItemFilterEngine(rules, this._ctx.itemTypes);
   }
 
-  setItemType(itemId: string, type: import('@/types/itemType').ItemType): void {
-    this._ctx.filter?.setItemType(itemId, type);
+  /** Replace the item-type map wholesale (engine start). */
+  setItemTypes(types: Iterable<readonly [string, ItemType]>): void {
+    this._ctx.itemTypes.clear();
+    for (const [id, type] of types) this._ctx.itemTypes.set(id, type);
+  }
+
+  /** A single item's type became known or changed mid-session. */
+  setItemType(itemId: string, type: ItemType): void {
+    this._ctx.itemTypes.set(itemId, type);
   }
 
   setKnownItems(ids: Iterable<string>): void {
@@ -279,6 +283,13 @@ export class Engine {
 
   getInventory(): Map<number, number> {
     return this._ctx.bag.getInventory();
+  }
+
+  /** Read-only copies of the bag's slot layout and per-item totals, so the log
+   *  replayer can assert `totals == Σ slots` without reaching into `_ctx`. */
+  getBagDiagnostics(): {initialized: boolean; slots: Map<string, {itemId: number; quantity: number}>; totals: Map<number, number>} {
+    const bag = this._ctx.bag;
+    return {initialized: bag.initialized, slots: bag.getSlots(), totals: bag.getInventory()};
   }
 
   /** True iff a map tracker is currently active. */
@@ -355,6 +366,7 @@ export class Engine {
   onRawEvent(event: RawEvent): void {
     const handlers = this._routes.get(event.type);
     if (!handlers) return;
+    this._ctx.bagDeltas = [];
     for (const h of handlers) {
       h.handle(event, this._ctx, this._emit);
     }
