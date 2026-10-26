@@ -1,13 +1,16 @@
+import type {DbSessionMap} from '@/shared/contracts/db';
 import type {ClassifiedRow, TimelineSegment} from './types';
 
 /** Ordered by `mapIndex`, never `startedAt`: persistence derives the latter as
  *  `end - activeTime`, so a paused run can sort ahead of its own parent. */
 export function computeTimeline(classified: ClassifiedRow[]): TimelineSegment[] {
-  const childrenByParent = new Map<number, TimelineSegment[]>();
+  // Keyed by the resolved parent row, not its mapIndex: duplicate primaries
+  // share an index, and an overlap belongs under exactly one of them.
+  const childrenByParent = new Map<DbSessionMap, TimelineSegment[]>();
 
   for (const c of classified) {
     if (c.kind !== 'overlap-seasonal' || c.parent === null) continue;
-    const list = childrenByParent.get(c.parent.mapIndex) ?? [];
+    const list = childrenByParent.get(c.parent) ?? [];
     list.push({
       key:      `${c.row.mapIndex}:${c.mechanic}:${list.length}`,
       mapIndex: c.row.mapIndex,
@@ -19,7 +22,7 @@ export function computeTimeline(classified: ClassifiedRow[]): TimelineSegment[] 
       cost:     c.cost,
       children: [],
     });
-    childrenByParent.set(c.parent.mapIndex, list);
+    childrenByParent.set(c.parent, list);
   }
 
   return classified
@@ -36,6 +39,6 @@ export function computeTimeline(classified: ClassifiedRow[]): TimelineSegment[] 
       seconds:  c.seconds,
       income:   c.income,
       cost:     c.cost,
-      children: childrenByParent.get(c.row.mapIndex) ?? [],
+      children: childrenByParent.get(c.row) ?? [],
     }));
 }

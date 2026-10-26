@@ -161,6 +161,40 @@ describe('foldMapRows', () => {
   });
 });
 
+describe('duplicate primary rows sharing a mapIndex (continued sessions)', () => {
+  const rows = () => [
+    mapRow(100, {'1': 50}, {'2': 1}, 1),
+    mapRow(100, {'1': 60}, {}, 1),
+    overlapRow('lunaria', 30, 1, {'1': 10}),
+  ];
+
+  it('the fold counts an overlap once across the folded rows, on its resolved parent only', () => {
+    const {folded, classified} = fold(rows());
+    expect(folded.reduce((s, f) => s + f.seasonalIncome.live, 0)).toBe(10);
+    expect(folded.reduce((s, f) => s + f.foldedOut.live, 0)).toBe(10);
+    const parent = classified.find(c => c.kind === 'overlap-seasonal')!.parent;
+    const owner  = folded.filter(f => f.seasonalIncome.live !== 0);
+    expect(owner).toHaveLength(1);
+    expect(owner[0].row.row).toBe(parent);
+  });
+
+  it('the map mechanic income and perMap net are right through a whole analytics pass', () => {
+    const session = makeSession({
+      attribution: 'drop-through', mapCount: 2,
+      drops: {'1': 110}, dropsBySource: {map: {'1': 100}, lunaria: {'1': 10}}, spent: {'2': 1},
+    });
+    const a = computeSessionAnalytics({session, maps: rows(), items: ITEMS, tax: NO_TAX});
+    // Own: 50 on the first, 60 - 10 on the second (the overlap's resolved parent).
+    expect(a.mechanics.find(m => m.key === 'map')!.income.live).toBe(100);
+    expect(a.mechanics.find(m => m.key === 'lunaria')!.income.live).toBe(10);
+    expect(a.perMap.map(p => p.net.live)).toEqual([50 - 10, 50 + 10]);
+    expect(a.perMap.reduce((s, p) => s + p.net.live, 0)).toBe(a.totals.net.live);
+    expect(a.totals.net.live).toBe(100);
+    expect(a.timeline.map(t => t.children.length)).toEqual([0, 1]);
+    expect(overlapWarnings(a.meta.warnings)).toHaveLength(0);
+  });
+});
+
 describe('the overlap-exceeds-parent warning across a whole analytics pass', () => {
   it('is emitted once per offending row, not once per consumer (mechanics, perMap, bySource)', () => {
     const session = makeSession({

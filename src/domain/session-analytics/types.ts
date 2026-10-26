@@ -25,7 +25,9 @@ export interface ClassifiedRow {
    *  Only meaningful for overlap rows. See MAP_FREEZING_SEASONALS. */
   concurrentWithMap: boolean;
   /** Resolved parent row; null when unresolvable (row is then reclassified as
-   *  standalone so its time and value never vanish from the aggregates). */
+   *  standalone so its time and value never vanish from the aggregates).
+   *  Group overlaps by this row's identity, never by its mapIndex: duplicate
+   *  primaries share an index, but an overlap has exactly one parent. */
   parent:   DbSessionMap | null;
   /** Signed drop value (`valueQty`): a negative quantity reduces it. */
   income:   Valuation;

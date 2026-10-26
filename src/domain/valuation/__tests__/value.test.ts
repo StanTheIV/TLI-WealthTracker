@@ -92,6 +92,24 @@ describe('makePriceLookup coveredIds', () => {
   });
 });
 
+describe('makePriceLookup reads own keys only', () => {
+  it('Object.prototype ids never produce NaN on the snapshot leg of a real snapshot', () => {
+    const items = makeItems({'1': 100});
+    const q: Record<string, number> = JSON.parse('{"constructor": 7, "toString": 9, "1": 1}');
+    const prices = makePriceLookup(items, {'1': 100}, NO_TAX, Object.keys(q));
+    const v = valueQty(q, prices);
+    expect(v).toEqual({snapshot: 100, live: 100});
+    expect(prices.isMissing('constructor')).toBe(true);
+  });
+
+  it('a snapshot is not counted as covering an id it only inherits', () => {
+    const prices = makePriceLookup(makeItems({'1': 100}), {'1': 100}, NO_TAX, ['constructor', 'toString']);
+    expect(prices.hasSnapshot).toBe(false);
+    expect(prices.snapshot('constructor')).toBe(0);
+    expect(prices.live('constructor')).toBe(0);
+  });
+});
+
 describe('liveValue', () => {
   it('is loot, cost and net = loot - cost on the live leg', () => {
     expect(liveValue({drops: {1: 5}, spent: {2: 4}}, ITEMS, NO_TAX)).toEqual({loot: 500, cost: 40, net: 460});

@@ -83,7 +83,8 @@ export function classifyRows(
 }
 
 /** THE fold, computed once per analytics pass: each primary or standalone row
- *  with its overlaps attached. Outside `exclusive`, a parent map row already
+ *  with its overlaps attached — each overlap to exactly the one parent row
+ *  `classifyRows` resolved for it. Outside `exclusive`, a parent map row already
  *  holds its overlaps' drops, so they are taken back out of it. Only CONCURRENT
  *  overlaps qualify — drop-through requires an active map, so an interlude
  *  mechanic's loot never reached its parent and folding it would erase real
@@ -97,12 +98,15 @@ export function foldMapRows(
   warnings: AnalyticsWarning[],
 ): FoldedRow[] {
   const fold = parentContainsOverlap(attribution);
-  const overlapsByParent = new Map<number, ClassifiedRow[]>();
+  // Keyed by the resolved parent ROW, never its mapIndex: duplicate primaries
+  // (continued sessions) share an index, and keying by it would attach one
+  // overlap to every one of them — counting its income once per duplicate.
+  const overlapsByParent = new Map<DbSessionMap, ClassifiedRow[]>();
   for (const c of classified) {
     if (c.kind !== 'overlap-seasonal' || c.parent === null) continue;
-    const list = overlapsByParent.get(c.parent.mapIndex) ?? [];
+    const list = overlapsByParent.get(c.parent) ?? [];
     list.push(c);
-    overlapsByParent.set(c.parent.mapIndex, list);
+    overlapsByParent.set(c.parent, list);
   }
 
   const out: FoldedRow[] = [];
@@ -112,7 +116,7 @@ export function foldMapRows(
     const bySeasonal: Partial<Record<MechanicKey, Valuation>> = {};
     let seasonalIncome = ZERO_VAL;
     let foldedOut      = ZERO_VAL;
-    for (const o of overlapsByParent.get(c.row.mapIndex) ?? []) {
+    for (const o of overlapsByParent.get(c.row) ?? []) {
       bySeasonal[o.mechanic] = addVal(bySeasonal[o.mechanic] ?? ZERO_VAL, o.income);
       seasonalIncome = addVal(seasonalIncome, o.income);
       if (fold && o.concurrentWithMap) foldedOut = addVal(foldedOut, o.income);

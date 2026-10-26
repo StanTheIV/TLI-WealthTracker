@@ -80,20 +80,29 @@ export function makePriceLookup(
   coveredIds?: Iterable<string>,
 ): PriceLookup {
   const snap = snapshot ?? {};
+  // Own keys only: item ids are arbitrary strings, and a plain lookup of an id
+  // like 'constructor' would read an inherited function as a price.
+  const snapPrice = (itemId: string): number | undefined => (
+    Object.prototype.hasOwnProperty.call(snap, itemId) ? snap[itemId] : undefined
+  );
+  const item = (itemId: string): DbItem | undefined => (
+    Object.prototype.hasOwnProperty.call(items, itemId) ? items[itemId] : undefined
+  );
   const anySnapshot = Object.keys(snap).length > 0;
   const hasSnapshot = anySnapshot && (
-    coveredIds === undefined || [...coveredIds].some(id => snap[id] !== undefined)
+    coveredIds === undefined || [...coveredIds].some(id => snapPrice(id) !== undefined)
   );
-  const taxed = (itemId: string, price: number) => taxedUnitPrice(price, items[itemId]?.type, tax);
-  const live  = (itemId: string) => taxed(itemId, items[itemId]?.price ?? 0);
+  const taxed = (itemId: string, price: number) => taxedUnitPrice(price, item(itemId)?.type, tax);
+  const live  = (itemId: string) => taxed(itemId, item(itemId)?.price ?? 0);
 
   return {
     live,
     hasSnapshot,
-    snapshot: (itemId: string) => (
-      hasSnapshot && snap[itemId] !== undefined ? taxed(itemId, snap[itemId]) : live(itemId)
-    ),
-    isMissing: (itemId: string) => hasSnapshot && snap[itemId] === undefined,
+    snapshot: (itemId: string) => {
+      const price = hasSnapshot ? snapPrice(itemId) : undefined;
+      return price !== undefined ? taxed(itemId, price) : live(itemId);
+    },
+    isMissing: (itemId: string) => hasSnapshot && snapPrice(itemId) === undefined,
   };
 }
 
