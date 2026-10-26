@@ -11,7 +11,7 @@ const handle = (e: EngineEvent) => useEngineStore.getState().handleEvent(e);
 const state = () => useEngineStore.getState() as unknown as {sessionSpent: Record<number, number>; drops: Record<number, number>};
 
 const session = (over: Partial<TrackerSnapshot> = {}): TrackerSnapshot =>
-  ({kind: 'session', drops: {}, elapsed: 0, active: true, ...over});
+  ({kind: 'session', drops: {}, elapsed: 0, startedAt: 0, active: true, ...over});
 
 beforeEach(() => {
   useEngineStore.getState().reset();
@@ -50,8 +50,8 @@ describe('engineStore.sessionSpent', () => {
 
   it('ignores spent on map and seasonal snapshots', () => {
     handle({type: 'tracker_update', tracker: session({spent: {2: 1}}), timestamp: 1});
-    handle({type: 'tracker_update', tracker: {kind: 'map', drops: {}, elapsed: 0, active: true, spent: {2: 99}}, timestamp: 2});
-    handle({type: 'tracker_update', tracker: {kind: 'seasonal', seasonalType: 'lunaria', drops: {}, elapsed: 0, active: true}, timestamp: 3});
+    handle({type: 'tracker_update', tracker: {kind: 'map', drops: {}, elapsed: 0, startedAt: 0, active: true, spent: {2: 99}}, timestamp: 2});
+    handle({type: 'tracker_update', tracker: {kind: 'seasonal', seasonalType: 'lunaria', drops: {}, elapsed: 0, startedAt: 0, active: true}, timestamp: 3});
     expect(state().sessionSpent).toEqual({2: 1});
   });
 
@@ -114,7 +114,7 @@ describe('engineStore live session state, adversarial', () => {
 
   it('reset mid-map keeps the live map tracker and takes the carried entry cost on the new session snapshot', () => {
     handle({type: 'tracker_started', tracker: session(), timestamp: 1});
-    handle({type: 'tracker_started', tracker: {kind: 'map', drops: {1: 9}, elapsed: 5, active: true, spent: {2: 1}}, timestamp: 2});
+    handle({type: 'tracker_started', tracker: {kind: 'map', drops: {1: 9}, elapsed: 5, startedAt: 0, active: true, spent: {2: 1}}, timestamp: 2});
     handle({type: 'tracker_update', tracker: session({spent: {2: 1}}), timestamp: 3});
     drop(1, 9);
     // Engine.reset while the map is running: a fresh session snapshot carrying the map's cost.
@@ -126,11 +126,11 @@ describe('engineStore live session state, adversarial', () => {
   });
 
   it('a map tracker_started or tracker_update never writes sessionSpent, with or without a session', () => {
-    handle({type: 'tracker_started', tracker: {kind: 'map', drops: {}, elapsed: 0, active: true, spent: {2: 7}}, timestamp: 1});
+    handle({type: 'tracker_started', tracker: {kind: 'map', drops: {}, elapsed: 0, startedAt: 0, active: true, spent: {2: 7}}, timestamp: 1});
     expect(state().sessionSpent).toEqual({});
-    handle({type: 'tracker_update', tracker: {kind: 'map', drops: {}, elapsed: 1, active: true, spent: {2: 8}}, timestamp: 2});
+    handle({type: 'tracker_update', tracker: {kind: 'map', drops: {}, elapsed: 1, startedAt: 0, active: true, spent: {2: 8}}, timestamp: 2});
     expect(state().sessionSpent).toEqual({});
-    handle({type: 'tracker_finished', tracker: {kind: 'map', drops: {}, elapsed: 1, active: false, spent: {2: 8}}, timestamp: 3});
+    handle({type: 'tracker_finished', tracker: {kind: 'map', drops: {}, elapsed: 1, startedAt: 0, active: false, spent: {2: 8}}, timestamp: 3});
     expect(state().sessionSpent).toEqual({});
   });
 
@@ -148,7 +148,7 @@ describe('engineStore live session state, adversarial', () => {
   it('a seasonal tracker never writes sessionSpent or drops', () => {
     handle({type: 'tracker_update', tracker: session({spent: {2: 1}}), timestamp: 1});
     drop(1, 1);
-    handle({type: 'tracker_started', tracker: {kind: 'seasonal', seasonalType: 'lunaria', drops: {1: 50}, elapsed: 0, active: true, spent: {2: 50}}, timestamp: 2});
+    handle({type: 'tracker_started', tracker: {kind: 'seasonal', seasonalType: 'lunaria', drops: {1: 50}, elapsed: 0, startedAt: 0, active: true, spent: {2: 50}}, timestamp: 2});
     expect(state().sessionSpent).toEqual({2: 1});
     expect(state().drops).toEqual({1: 1});
   });

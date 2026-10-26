@@ -60,14 +60,14 @@ describe('SessionPersistence.onEngineEvent — unit rows', () => {
   it('saves a bare map unit as one primary row (mapIndex=1)', () => {
     const p = make();
 
-    onEngineEvent(p, unitFinished(snap('map', {100: 5}, 60_000, {spent: {42: 3}})));
+    onEngineEvent(p, unitFinished(snap('map', {100: 5}, 60_000, {spent: {42: 3}, startedAt: 940_000})));
     expect(rows()).toEqual([]);   // nothing in the DB before the session event
     finish(p);
 
     expect(rows()).toEqual([{
       sessionId:      's1',
       mapIndex:       1,
-      startedAt:      1_000_000 - 60_000,
+      startedAt:      940_000,
       duration:       60_000,
       drops:          {'100': 5},
       spent:          {'42': 3},
@@ -133,20 +133,22 @@ describe('SessionPersistence.onEngineEvent — unit rows', () => {
     ]);
   });
 
-  it('every overlap row is built with its OWN timestamp; the primary uses the unit timestamp', () => {
+  it('every row starts at its OWN snapshot\'s real start, never finish − elapsed; duration stays the elapsed', () => {
     const p = make();
 
+    // Each run froze or went dormant, so finish − elapsed would read late. The
+    // arcana (a town panel reopened in the map) really starts before its map.
     onEngineEvent(p, unitFinished(
-      snap('map', {100: 1}, 60_000),
+      snap('map', {100: 1}, 60_000, {startedAt: 700_000}),
       [
-        {tracker: snap('seasonal', {300: 1}, 20_000, {seasonalType: 'arcana'}),   timestamp: 940_000},
-        {tracker: snap('seasonal', {400: 1}, 10_000, {seasonalType: 'lunaria'}),  timestamp: 1_000_000},
+        {tracker: snap('seasonal', {300: 1}, 20_000, {seasonalType: 'arcana',  startedAt: 650_000}), timestamp: 940_000},
+        {tracker: snap('seasonal', {400: 1}, 10_000, {seasonalType: 'lunaria', startedAt: 800_000}), timestamp: 1_000_000},
       ],
       1_000_000,
     ));
     finish(p);
 
-    expect(rows().map(r => r.startedAt)).toEqual([1_000_000 - 60_000, 940_000 - 20_000, 1_000_000 - 10_000]);
+    expect(rows().map(r => [r.startedAt, r.duration])).toEqual([[700_000, 60_000], [650_000, 20_000], [800_000, 10_000]]);
   });
 
   it('an overlap seasonal records no spend — the primary map row owns the cost', () => {

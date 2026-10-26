@@ -453,3 +453,81 @@ describe('stop and reset', () => {
     expect(o.units()).toEqual([]);
   });
 });
+
+// Every snapshot carries the tracker's REAL start (its creation time). It is
+// not `finish − elapsed`: elapsed is pause-aware, so that reads late for any
+// run that froze or went dormant.
+describe('real start time', () => {
+  it('a map frozen by an Arcana interlude keeps its real start', () => {
+    const o = rig();
+    const mapStart = Date.now();
+    o.go(TOWN, MAP);
+    o.adv(10_000);
+    const arcanaStart = Date.now();
+    o.line(log.s9Minigame);
+    o.go(MAP, ARCANA_FIGHT);           // the map freezes for the fight
+    o.adv(20_000);
+    o.go(ARCANA_FIGHT, MAP);
+    o.adv(5_000);
+    o.go(MAP, TOWN);
+
+    const [unit] = o.units();
+    expect(unit.tracker.elapsed).toBe(15_000);
+    expect(unit.tracker.startedAt).toBe(mapStart);
+    expect(unit.timestamp - unit.tracker.elapsed).toBe(mapStart + 20_000);   // the old, late derivation
+    expect(unit.overlaps[0].tracker.startedAt).toBe(arcanaStart);
+  });
+
+  it('a dormant-then-woken seasonal keeps its real start', () => {
+    const o = rig();
+    o.go(TOWN, MAP);
+    o.adv(1_000);
+    const lunariaStart = Date.now();
+    o.line(log.s14Strum);
+    o.adv(5_100);                      // window expired: parked (dormant)
+    expect(ctx(o.e).registry.seasonal('lunaria')?.active).toBe(false);
+    o.adv(30_000);
+    o.line(log.s14Strum);              // woken
+    o.adv(1_000);
+    o.go(MAP, TOWN);
+
+    const [lunaria] = o.units()[0].overlaps;
+    expect(lunaria.tracker.seasonalType).toBe('lunaria');
+    expect(lunaria.tracker.startedAt).toBe(lunariaStart);
+    expect(lunaria.timestamp - lunaria.tracker.elapsed).toBeGreaterThan(lunariaStart);
+  });
+
+  it("an overlap's start is its own creation: a town panel reopened in the map starts before its map", () => {
+    const o = rig();
+    const arcanaStart = Date.now();
+    o.line(log.s9Minigame);
+    o.line(log.s9Close);               // dormant in town
+    o.adv(4_000);
+    const mapStart = Date.now();
+    o.go(TOWN, MAP);
+    o.adv(5_000);
+    o.line(log.s9Minigame);            // reopened in the map
+    o.line(log.s9Close);
+    o.go(MAP, TOWN);
+
+    const [unit] = o.units();
+    expect(unit.tracker.startedAt).toBe(mapStart);
+    expect(children(o)).toEqual(['arcana']);
+    expect(unit.overlaps[0].tracker.startedAt).toBe(arcanaStart);
+  });
+
+  it('the map Engine.reset rebuilds is a new tracker: it starts at the reset', () => {
+    const o = rig();
+    o.go(TOWN, MAP);
+    o.adv(10_000);
+    const resetAt = Date.now();
+    o.e.reset();
+    o.adv(5_000);
+    o.go(MAP, TOWN);
+
+    const [unit] = o.units();
+    expect(unit.tracker.kind).toBe('map');
+    expect(unit.tracker.startedAt).toBe(resetAt);
+    expect(unit.tracker.elapsed).toBe(5_000);
+  });
+});

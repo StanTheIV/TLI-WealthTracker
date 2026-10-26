@@ -279,7 +279,7 @@
           "phase": null,
           "seasonalType": "carjack",
           "spent": {},
-          "startedAtMs": 53000
+          "startedAtMs": 40000
         }
       ],
       "saved": true,

@@ -28,9 +28,11 @@ export interface RowComparison {
 
 export type Prices = ReadonlyMap<string, number>;
 
-/** Rows this far apart still count as the same run. `startedAt` is derived
- *  from pause-aware elapsed, so a map frozen by an interlude drifts at its
- *  start but not its end — hence matching on whichever end is closer. */
+/** Rows this far apart still count as the same run, matched on whichever end
+ *  is closer. Rows store the run's real start; sessions saved before that
+ *  derived it as `finish − elapsed`, so their frozen or dormant runs start
+ *  late and end at the finish. `startedAt + duration` is the finish only for a
+ *  run that never froze. */
 const MATCH_TOLERANCE_MS = 5_000;
 
 const endOf = (r: DbSessionMap): number => r.startedAt + r.duration;

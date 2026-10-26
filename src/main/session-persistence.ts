@@ -91,11 +91,11 @@ export class SessionPersistence {
    */
   onEngineEvent(event: EngineEvent): AutoSaveOutcome | null {
     if (event.type === 'unit_finished') {
-      const {tracker, overlaps, timestamp} = event;
+      const {tracker, overlaps} = event;
       const mapIndex = ++this._lastPrimaryMapIndex;
-      this._pendingRows.push(this._buildRow(tracker, timestamp, mapIndex, null));
+      this._pendingRows.push(this._buildRow(tracker, mapIndex, null));
       for (const o of overlaps) {
-        this._pendingRows.push(this._buildRow(o.tracker, o.timestamp, mapIndex, mapIndex));
+        this._pendingRows.push(this._buildRow(o.tracker, mapIndex, mapIndex));
       }
       return null;
     }
@@ -122,19 +122,20 @@ export class SessionPersistence {
 
   // -- private --------------------------------------------------------------
 
-  /** One row from a snapshot finished at `timestamp`. `seasonalType` and
-   *  `phase` come from the snapshot (null for a map); only a map has an entry
-   *  cost, so a seasonal's `spent` is {}. */
+  /** One row from a finished snapshot. `startedAt` is the tracker's real start
+   *  (its creation time), `duration` its pause-aware elapsed — so for a run
+   *  that froze or went dormant `startedAt + duration` falls before its finish.
+   *  `seasonalType` and `phase` come from the snapshot (null for a map); only a
+   *  map has an entry cost, so a seasonal's `spent` is {}. */
   private _buildRow(
     tracker: TrackerSnapshot,
-    timestamp: number,
     mapIndex: number,
     parentMapIndex: number | null,
   ): DbSessionMap {
     return {
       sessionId:    this._meta.sessionId,
       mapIndex,
-      startedAt:    timestamp - tracker.elapsed,
+      startedAt:    tracker.startedAt,
       duration:     tracker.elapsed,
       drops:        stringKeyed(tracker.drops),
       spent:        stringKeyed(tracker.spent ?? {}),

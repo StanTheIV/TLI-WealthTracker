@@ -21,11 +21,13 @@ export interface SnapOpts {
   seasonalType?: SeasonalType;
   phase?:        SeasonalPhase;
   spent?:        Record<number, number>;
+  /** The tracker's real start (ms epoch); defaults to 0. */
+  startedAt?:    number;
 }
 
 export function snap(kind: TrackerSnapshot['kind'], drops: Record<number, number>, elapsed: number, opts: SnapOpts = {}): TrackerSnapshot {
   return {
-    kind, drops, elapsed, active: true,
+    kind, drops, elapsed, startedAt: opts.startedAt ?? 0, active: true,
     ...(opts.seasonalType ? {seasonalType: opts.seasonalType} : {}),
     ...(opts.phase        ? {phase: opts.phase}               : {}),
     ...(opts.spent        ? {spent: opts.spent}               : {}),

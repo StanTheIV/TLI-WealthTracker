@@ -1,8 +1,9 @@
 import type {DbSessionMap} from '@/shared/contracts/db';
 import type {ClassifiedRow, TimelineSegment} from './types';
 
-/** Ordered by `mapIndex`, never `startedAt`: persistence derives the latter as
- *  `end - activeTime`, so a paused run can sort ahead of its own parent. */
+/** Ordered by `mapIndex` (unit order), never `startedAt`: a town-opened panel
+ *  reopened in a map really starts before its parent, and older saves derived
+ *  `startedAt` as `end - activeTime`, so a paused run read late. */
 export function computeTimeline(classified: ClassifiedRow[]): TimelineSegment[] {
   // Keyed by the resolved parent row, not its mapIndex: duplicate primaries
   // share an index, and an overlap belongs under exactly one of them.

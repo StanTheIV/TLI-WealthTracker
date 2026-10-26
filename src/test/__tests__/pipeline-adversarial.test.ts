@@ -42,7 +42,7 @@ const ITEMS: Record<string, DbItem> = {
 
 const ev = (event: EngineEvent, at = 0): ReplayEvent => ({event, at, lineNo: null});
 const snap = (drops: Record<number, number>, spent?: Record<number, number>): TrackerSnapshot =>
-  ({kind: 'session', drops, elapsed: 1, active: true, ...(spent && {spent})});
+  ({kind: 'session', drops, elapsed: 1, startedAt: 0, active: true, ...(spent && {spent})});
 
 /** The engine's own view of one finished session: what `liveMatchesAnalytics`
  *  replays through the real store. The loot arrives as `drop` events (what the
@@ -227,7 +227,7 @@ describe('pipelineInvariants on crafted rows', () => {
       const events = [
         ev({type: 'tracker_started',  tracker: snap({}), timestamp: 1}),
         ev({type: 'drop', itemId: 1, change: 5, timestamp: 2} as EngineEvent),
-        ev({type: 'tracker_finished', tracker: {kind: 'map', drops: {1: 5}, elapsed: 1, active: false}, timestamp: 3}),
+        ev({type: 'tracker_finished', tracker: {kind: 'map', drops: {1: 5}, elapsed: 1, startedAt: 0, active: false}, timestamp: 3}),
         ev({type: 'drop', itemId: 1, change: 7, timestamp: 4} as EngineEvent),
         ev({type: 'tracker_finished', tracker: snap({1: 12}), timestamp: 5}),
         ev({type: 'drop', itemId: 1, change: 1000, timestamp: 6} as EngineEvent),   // after stop: not part of the run's Total

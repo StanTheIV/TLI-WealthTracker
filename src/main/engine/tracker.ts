@@ -21,8 +21,12 @@ export class Tracker {
    *  (from 1). Internal identity for parenting seasonals — never persisted,
    *  never on a snapshot. 0 on session/seasonal trackers. */
   seq: number = 0;
+  /** Wall-clock creation time (ms epoch): when the run really began. Fixed for
+   *  the tracker's life — unlike `_startTime` it never moves on resume, so a
+   *  run that froze or went dormant still reports its real start. */
+  readonly startedAt: number;
 
-  private _drops:      Map<number, number> = new Map();
+  private _drops:     Map<number, number> = new Map();
   private _startTime:   number;
   private _accumulated: number = 0;
   private _pausedAt:    number | null = null;
@@ -39,7 +43,8 @@ export class Tracker {
     this.kind         = kind;
     this.seasonalType = seasonalType;
     this.ownsBubble   = ownsBubble;
-    this._startTime   = Date.now();
+    this.startedAt    = Date.now();
+    this._startTime   = this.startedAt;
   }
 
   get active(): boolean {
@@ -113,10 +118,11 @@ export class Tracker {
     const drops: Record<number, number> = {};
     for (const [k, v] of this._drops) drops[k] = v;
     const snap: TrackerSnapshot = {
-      kind:    this.kind,
+      kind:      this.kind,
       drops,
-      elapsed: this.elapsed(),
-      active:  this.active,
+      elapsed:   this.elapsed(),
+      startedAt: this.startedAt,
+      active:    this.active,
       ...(this.seasonalType ? {seasonalType: this.seasonalType} : {}),
     };
     if (this._dropsBySource.size > 0) {

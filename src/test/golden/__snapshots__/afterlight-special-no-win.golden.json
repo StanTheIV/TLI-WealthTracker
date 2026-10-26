@@ -277,7 +277,7 @@
           "phase": null,
           "seasonalType": "afterlight",
           "spent": {},
-          "startedAtMs": 49000
+          "startedAtMs": 40000
         }
       ],
       "saved": true,

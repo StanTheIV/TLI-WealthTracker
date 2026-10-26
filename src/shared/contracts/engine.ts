@@ -14,7 +14,15 @@ export type SeasonalPhase = 'map' | 'hub';
 export interface TrackerSnapshot {
   kind:          TrackerKind;
   drops:         Record<number, number>;
+  /** Active run time (ms), pause-aware: session pauses, interlude freezes and
+   *  dormancy do not count. */
   elapsed:       number;
+  /** Wall-clock time (ms epoch) the tracker was created — the run's REAL
+   *  start, fixed for its life. Not `finish − elapsed`, which reads late for a
+   *  run that froze or went dormant. A map rebuilt by `Engine.reset` is a new
+   *  tracker and starts at the reset; a continued session starts when it is
+   *  continued. */
+  startedAt:     number;
   seasonalType?: SeasonalType;
   /** Which Sandlord phase this tracker covers — see SeasonalPhase. */
   phase?:        SeasonalPhase;

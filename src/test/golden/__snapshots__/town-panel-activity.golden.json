@@ -200,7 +200,7 @@
           "phase": null,
           "seasonalType": "arcana",
           "spent": {},
-          "startedAtMs": 14000
+          "startedAtMs": 10000
         }
       ],
       "saved": true,
