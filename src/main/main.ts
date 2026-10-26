@@ -2,6 +2,8 @@ import {app, BrowserWindow, ipcMain, dialog, Menu, screen} from 'electron';
 import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
 import {initDb, itemsCount, itemsImportBatch, settingsGetAll, settingsSet} from './db';
+import {backupDb} from './db/backup';
+import {openBetterSqlite3} from './db/drivers/better-sqlite3';
 import {initLogger, log} from './logger';
 import type {DbItem} from '@/shared/contracts/db';
 import {registerDbHandlers} from './ipc/db';
@@ -202,6 +204,15 @@ function seedItemsIfEmpty(): void {
   }
 }
 
+/** Open the app database and bring its schema up to date. */
+function openDatabase(): void {
+  const userData = app.getPath('userData');
+  const dbPath   = join(userData, 'tli-tracker.db');
+  const conn     = openBetterSqlite3(dbPath);
+  initDb(conn, {backup: reason => backupDb(conn, userData, reason)});
+  log.info('database', `Database initialized at ${dbPath}`);
+}
+
 // ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
@@ -210,7 +221,7 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   log.info('app', 'App starting');
 
-  initDb();
+  openDatabase();
   seedItemsIfEmpty();
   initLogger(settingsGetAll);
   initLeaguesAndPriceHistory();

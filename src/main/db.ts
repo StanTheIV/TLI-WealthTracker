@@ -1,7 +1,6 @@
-import Database from 'better-sqlite3';
-import {app} from 'electron';
-import {join} from 'path';
 import {log} from './logger';
+import {MIGRATIONS, runMigrations, type MigrateOptions} from './db/migrations';
+import type {SqlConn} from './db/sql-conn';
 import type {SeasonalType, SeasonalPhase} from '@/shared/contracts/engine';
 import type {League, LeagueSource} from '@/lib/leagues';
 import type {
@@ -13,206 +12,20 @@ import {
   type BucketObservation,
 } from './prices/history';
 
-let db: Database.Database;
+let db: SqlConn;
 
-export function getDb(): Database.Database {
+export function getDb(): SqlConn {
   if (!db) throw new Error('Database not initialized');
   return db;
 }
 
-export function initDb(): void {
-  const dbPath = join(app.getPath('userData'), 'tli-tracker.db');
-  db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  createTables();
-  log.info('database', `Database initialized at ${dbPath}`);
-}
-
-function migrateWealth(): void {
-  try {
-    db.exec("ALTER TABLE wealth_datapoints ADD COLUMN breakdown TEXT NOT NULL DEFAULT '{}'");
-  } catch {
-    // Column already exists — ignore
-  }
-}
-
-function createTables(): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key   TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS items (
-      id         TEXT PRIMARY KEY,
-      name       TEXT NOT NULL,
-      type       TEXT NOT NULL DEFAULT '',
-      price      REAL NOT NULL DEFAULT 0,
-      price_date REAL NOT NULL DEFAULT 0,
-      locked     INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-      id              TEXT PRIMARY KEY,
-      name            TEXT NOT NULL,
-      saved_at        TEXT NOT NULL,
-      total_time      REAL NOT NULL DEFAULT 0,
-      map_time        REAL NOT NULL DEFAULT 0,
-      map_count       INTEGER NOT NULL DEFAULT 0,
-      drops           TEXT NOT NULL DEFAULT '{}',
-      drops_by_source TEXT NOT NULL DEFAULT '{}',
-      attribution     TEXT NOT NULL DEFAULT '',
-      price_snapshot  TEXT NOT NULL DEFAULT '{}'
-    );
-
-    CREATE TABLE IF NOT EXISTS seasonal_stats (
-      zone_type    TEXT PRIMARY KEY,
-      zone_count   INTEGER NOT NULL DEFAULT 0,
-      total_time   REAL NOT NULL DEFAULT 0,
-      total_income REAL NOT NULL DEFAULT 0,
-      drop_list    TEXT NOT NULL DEFAULT '{}'
-    );
-
-    CREATE TABLE IF NOT EXISTS wealth_datapoints (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      timestamp  REAL NOT NULL,
-      value      REAL NOT NULL,
-      session_id TEXT
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_wealth_timestamp ON wealth_datapoints (timestamp);
-
-    CREATE TABLE IF NOT EXISTS api_lookups (
-      id        INTEGER PRIMARY KEY AUTOINCREMENT,
-      date      TEXT NOT NULL,
-      item_id   TEXT NOT NULL,
-      timestamp REAL NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS item_filters (
-      id      TEXT PRIMARY KEY,
-      name    TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 0,
-      rules   TEXT NOT NULL DEFAULT '[]'
-    );
-
-    CREATE TABLE IF NOT EXISTS session_maps (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id       TEXT NOT NULL,
-      map_index        INTEGER NOT NULL,
-      started_at       REAL NOT NULL,
-      duration         REAL NOT NULL,
-      drops            TEXT NOT NULL DEFAULT '{}',
-      spent            TEXT NOT NULL DEFAULT '{}',
-      seasonal_type    TEXT,
-      parent_map_index INTEGER,
-      phase            TEXT
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_session_maps_session ON session_maps (session_id);
-
-    -- Price history is market data: wealthClear() must never touch these tables.
-    CREATE TABLE IF NOT EXISTS price_observations (
-      id        INTEGER PRIMARY KEY AUTOINCREMENT,
-      item_id   TEXT NOT NULL,
-      timestamp REAL NOT NULL,              -- ms epoch
-      source    TEXT NOT NULL,              -- 'scrape' | 'manual' | 'backfill'
-      price     REAL NOT NULL,              -- median (what items.price receives)
-      n INTEGER, p10 REAL, p25 REAL, p75 REAL, p90 REAL, min_price REAL  -- scrape only; cache of child rows
-    );
-    CREATE INDEX IF NOT EXISTS idx_price_obs_item_ts ON price_observations (item_id, timestamp);
-    CREATE INDEX IF NOT EXISTS idx_price_obs_ts ON price_observations (timestamp);
-
-    CREATE TABLE IF NOT EXISTS price_listings (
-      observation_id INTEGER NOT NULL REFERENCES price_observations(id) ON DELETE CASCADE,
-      rank           INTEGER NOT NULL,      -- 0 = cheapest (log order is already ascending)
-      price          REAL NOT NULL,
-      PRIMARY KEY (observation_id, rank)
-    ) WITHOUT ROWID;
-
-    CREATE TABLE IF NOT EXISTS leagues (
-      id        TEXT PRIMARY KEY,           -- 'SS14' or 'user-<ts>'
-      name      TEXT NOT NULL,
-      starts_at REAL NOT NULL,
-      source    TEXT NOT NULL               -- 'bundled' | 'remote' | 'user'
-    );
-  `);
-  migrateWealth();
-  migrateItems();
-  migrateFilters();
-  migrateSessionMaps();
-  migrateSessionMapsParent();
-  migrateSessionMapsPhase();
-  migrateSessionsDropsBySource();
-  migrateSessionsAttribution();
-  migrateSessionsPriceSnapshot();
-  log.debug('database', 'Tables created');
-}
-
-function migrateFilters(): void {
-  try {
-    // no-op — placeholder for future migrations
-  } catch {
-    // ignore
-  }
-}
-
-function migrateSessionMaps(): void {
-  try {
-    db.exec("ALTER TABLE session_maps ADD COLUMN seasonal_type TEXT");
-  } catch {
-    // Column already exists — ignore
-  }
-}
-
-function migrateSessionMapsParent(): void {
-  try {
-    db.exec("ALTER TABLE session_maps ADD COLUMN parent_map_index INTEGER");
-  } catch {
-    // Column already exists — ignore
-  }
-}
-
-/** Existing sandlord rows keep phase=NULL, which readers must treat as 'hub':
- *  in-map sandlord tracking didn't exist when they were written. */
-function migrateSessionMapsPhase(): void {
-  try {
-    db.exec("ALTER TABLE session_maps ADD COLUMN phase TEXT");
-  } catch {
-    // Column already exists — ignore
-  }
-}
-
-function migrateSessionsDropsBySource(): void {
-  try {
-    db.exec("ALTER TABLE sessions ADD COLUMN drops_by_source TEXT NOT NULL DEFAULT '{}'");
-  } catch {
-    // Column already exists — ignore
-  }
-}
-
-/** Existing rows keep attribution='' and are classified at read time from
- *  drops_by_source (see rowToSession) — backfilling would be a lie, since the
- *  engine era that wrote them can't be recovered from the row itself. */
-function migrateSessionsAttribution(): void {
-  try {
-    db.exec("ALTER TABLE sessions ADD COLUMN attribution TEXT NOT NULL DEFAULT ''");
-  } catch {
-    // Column already exists — ignore
-  }
-}
-
-/** Existing rows keep price_snapshot='{}', which readers treat as "no snapshot"
- *  and fall back to live prices for. Backfilling from today's prices would be a
- *  lie — it would claim the session was worth at save time what it is worth now,
- *  which is the exact drift the snapshot exists to expose. */
-function migrateSessionsPriceSnapshot(): void {
-  try {
-    db.exec("ALTER TABLE sessions ADD COLUMN price_snapshot TEXT NOT NULL DEFAULT '{}'");
-  } catch {
-    // Column already exists — ignore
-  }
+/** Adopt an open connection: pragmas, schema migrations, start-up data fixes. */
+export function initDb(conn: SqlConn, opts: MigrateOptions): void {
+  db = conn;
+  db.setPragma('journal_mode', 'WAL');
+  db.setPragma('foreign_keys', 'ON');
+  runMigrations(db, MIGRATIONS, opts);
+  normalizeItemTypes();
 }
 
 // ---------------------------------------------------------------------------
@@ -238,21 +51,10 @@ export function settingsSet(key: string, value: string): void {
 // Items (price table)
 // ---------------------------------------------------------------------------
 
-function migrateItems(): void {
-  try {
-    db.exec("ALTER TABLE items ADD COLUMN price_date REAL NOT NULL DEFAULT 0");
-  } catch {
-    // Column already exists — ignore
-  }
-  try {
-    db.exec("ALTER TABLE items ADD COLUMN locked INTEGER NOT NULL DEFAULT 0");
-  } catch {
-    // Column already exists — ignore
-  }
-
-  // Normalize legacy empty-string types to 'other' so the UI never renders
-  // a blank "types." i18n key. Safe to run repeatedly.
-  const result = db.prepare("UPDATE items SET type = 'other' WHERE type = ''").run() as {changes: number};
+/** Normalize legacy empty-string types to 'other' so the UI never renders
+ *  a blank "types." i18n key. Runs every start: insert paths can still write ''. */
+function normalizeItemTypes(): void {
+  const result = db.prepare("UPDATE items SET type = 'other' WHERE type = ''").run();
   if (result.changes > 0) {
     log.info('database', `Migrated ${result.changes} items with empty type to 'other'`);
   }
@@ -286,22 +88,20 @@ export function itemsUpsert(item: DbItem): void {
 export function itemsInsertIfMissing(id: string): boolean {
   const result = db.prepare(
     `INSERT OR IGNORE INTO items (id, name, type, price, price_date) VALUES (?, '', 'other', 0, 0)`
-  ).run(id) as {changes: number};
+  ).run(id);
   return result.changes > 0;
 }
 
 /** Returns the ids actually inserted (rows skipped by INSERT OR IGNORE are omitted). */
 export function itemsImportBatch(items: DbItem[]): string[] {
   const stmt = db.prepare('INSERT OR IGNORE INTO items (id, name, type, price, price_date) VALUES (@id, @name, @type, @price, @priceDate)');
-  const run  = db.transaction((rows: DbItem[]) => {
-    const inserted: string[] = [];
-    for (const row of rows) {
-      const result = stmt.run(row) as {changes: number};
-      if (result.changes > 0) inserted.push(row.id);
+  const inserted = db.transaction(() => {
+    const ids: string[] = [];
+    for (const row of items) {
+      if (stmt.run(row).changes > 0) ids.push(row.id);
     }
-    return inserted;
+    return ids;
   });
-  const inserted = run(items) as string[];
   log.info('database', `Item import: ${inserted.length} of ${items.length} items inserted`);
   return inserted;
 }
@@ -444,8 +244,8 @@ export function sessionMapsInsert(rows: DbSessionMap[]): void {
     INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase)
     VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType, @parentMapIndex, @phase)
   `);
-  const tx = db.transaction((rs: DbSessionMap[]) => {
-    for (const r of rs) {
+  db.transaction(() => {
+    for (const r of rows) {
       stmt.run({
         ...r,
         drops:          JSON.stringify(r.drops),
@@ -456,7 +256,6 @@ export function sessionMapsInsert(rows: DbSessionMap[]): void {
       });
     }
   });
-  tx(rows);
 }
 
 export function sessionMapsGetForSession(sessionId: string): DbSessionMap[] {
@@ -537,12 +336,11 @@ export function wealthClear(): void {
   // The wealth reset button is a "clear all historical farming data" action.
   // Wealth datapoints, saved sessions, and per-map breakdowns all describe
   // the same farming history from different angles, so they go together.
-  const tx = db.transaction(() => {
+  db.transaction(() => {
     db.prepare('DELETE FROM wealth_datapoints').run();
     db.prepare('DELETE FROM session_maps').run();
     db.prepare('DELETE FROM sessions').run();
   });
-  tx();
 }
 
 // ---------------------------------------------------------------------------
@@ -570,13 +368,12 @@ export function filtersDelete(id: string): void {
 
 export function filtersSetEnabled(id: string, enabled: boolean): void {
   // Use a transaction: disable all, then enable the target (or just disable all if enabled=false)
-  const toggle = db.transaction(() => {
+  db.transaction(() => {
     db.prepare('UPDATE item_filters SET enabled = 0').run();
     if (enabled) {
       db.prepare('UPDATE item_filters SET enabled = 1 WHERE id = ?').run(id);
     }
   });
-  toggle();
 }
 
 // ---------------------------------------------------------------------------
@@ -600,7 +397,7 @@ export function priceRecord(
   listings: number[] | undefined,
   opts: {updateItem: boolean},
 ): {recorded: boolean; priceDate: number | null} {
-  const tx = db.transaction((): {recorded: boolean; priceDate: number | null} => {
+  return db.transaction((): {recorded: boolean; priceDate: number | null} => {
     const now = Date.now();
     const summary = source === 'scrape' && listings && listings.length > 0 ? summarize(listings) : null;
     let recorded = false;
@@ -621,7 +418,7 @@ export function priceRecord(
       );
       recorded = true;
       if (summary && listings) {
-        const obsId = Number(res.lastInsertRowid);
+        const obsId = res.lastInsertRowid;
         const ins = db.prepare('INSERT INTO price_listings (observation_id, rank, price) VALUES (?, ?, ?)');
         const sorted = listings.filter(Number.isFinite).sort((a, b) => a - b);
         for (let i = 0; i < sorted.length; i++) ins.run(obsId, i, sorted[i]);
@@ -634,7 +431,6 @@ export function priceRecord(
     }
     return {recorded, priceDate: null};
   });
-  return tx();
 }
 
 /**
@@ -646,7 +442,7 @@ export function priceRecord(
 export function priceBackfillOnce(): {inserted: number; skipped: boolean} {
   if (settingsGet('price_backfill_done')) return {inserted: 0, skipped: true};
 
-  const tx = db.transaction(() => {
+  const inserted = db.transaction(() => {
     const wealth = db.prepare('SELECT timestamp, breakdown FROM wealth_datapoints ORDER BY timestamp')
       .all() as {timestamp: number; breakdown: string}[];
     const sessions = db.prepare('SELECT saved_at, price_snapshot FROM sessions')
@@ -675,7 +471,7 @@ export function priceBackfillOnce(): {inserted: number; skipped: boolean} {
     log.info('price', `Price backfill: ${points.length} observations (${wealth.length} wealth rows, ${sessions.length} sessions, ${currentAdded} current-price points)`);
     return points.length;
   });
-  return {inserted: tx(), skipped: false};
+  return {inserted, skipped: false};
 }
 
 /** Bucketed history for one item over [from, to). */
@@ -752,7 +548,7 @@ export function leaguesApply(change: {upserts: League[]; deletes: string[]}): vo
   db.transaction(() => {
     for (const l of change.upserts) up.run(l);
     for (const id of change.deletes) del.run(id);
-  })();
+  });
 }
 
 export function leaguesInsertUser(name: string, startsAt: number): League {
