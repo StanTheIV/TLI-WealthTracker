@@ -2,7 +2,7 @@ import {useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useItemsStore} from '@/state/itemsStore';
 import {useTaxConfig} from '@/state/settingsStore';
-import {taxedUnitPrice, taxedValue} from '@/lib/tax';
+import {taxedUnitPrice, taxedValue} from '@/domain/tax';
 
 interface DropTableProps {
   drops: Record<number, number>;

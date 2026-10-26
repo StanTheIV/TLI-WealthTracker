@@ -12,7 +12,7 @@ import {mapRawType, type ItemType} from '@/shared/items';
  * gross is the raw truth, net is derived, and storing net would freeze the
  * policy into historical rows that could never be re-derived.
  *
- * `src/lib/__tests__/tax-coverage.test.ts` pins the list of files allowed to
+ * `src/domain/__tests__/tax-coverage.test.ts` pins the list of files allowed to
  * multiply a quantity by a price. If you are adding an eighth valuation site,
  * that test is what will fail — route it through here rather than widening the
  * allowlist without thought.

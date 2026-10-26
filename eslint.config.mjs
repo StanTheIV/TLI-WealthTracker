@@ -18,6 +18,8 @@ import importPlugin from 'eslint-plugin-import';
 // - `import/no-restricted-paths` enforces process layering: `src/shared` is
 //   pure and imports nothing else from src; renderer code never imports
 //   `src/main`/`src/worker`; main and worker never import renderer dirs.
+//   `src/domain` is pure domain logic (analytics, valuation, tax): imports only
+//   `src/shared` and itself; main and renderer may import it.
 //   Tests and the replay harness are exempt.
 
 export default [
@@ -70,6 +72,7 @@ export default [
 
       'import/no-restricted-paths': ['error', {zones: [
         {target: './src/shared', from: './src', except: ['./shared']},
+        {target: './src/domain', from: './src', except: ['./shared', './domain']},
         {
           target: ['./src/components', './src/state', './src/hooks', './src/windows', './src/theme', './src/i18n', './src/App.tsx', './src/main.tsx', './src/lib', './src/types'],
           from:   ['./src/main', './src/worker'],

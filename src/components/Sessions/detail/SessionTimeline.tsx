@@ -1,6 +1,6 @@
 import {useTranslation} from 'react-i18next';
 import {useTheme} from '@/theme/ThemeContext';
-import type {SessionAnalytics, TimelineSegment} from '../analytics';
+import type {SessionAnalytics, TimelineSegment} from '@/domain/session-analytics';
 import {mechanicColors} from './colors';
 import {Swatch} from './primitives';
 import {formatFEFull, formatSeconds, mechanicLabel, pick, type ValueMode} from './format';

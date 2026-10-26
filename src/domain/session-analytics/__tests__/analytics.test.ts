@@ -6,7 +6,7 @@
 import {beforeEach, describe, expect, it} from 'vitest';
 import {computeSessionAnalytics} from '../index';
 import {driftPct} from '../valuation';
-import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/lib/tax';
+import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/domain/tax';
 import {makeItems, makeSession, mapRow, overlapRow, resetRowIndex, standaloneRow} from './fixtures';
 
 /** Item '1' is a taxable card at 10 FE; item '2' is exempt fuel at 4 FE. */

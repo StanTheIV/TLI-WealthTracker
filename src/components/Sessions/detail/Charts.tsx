@@ -5,7 +5,7 @@ import {
   ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {useTheme} from '@/theme/ThemeContext';
-import type {MechanicKey, SessionAnalytics} from '../analytics';
+import type {MechanicKey, SessionAnalytics} from '@/domain/session-analytics';
 import {mechanicColors, typeColors} from './colors';
 import {formatFE, formatFEFull, pick, type ValueMode} from './format';
 

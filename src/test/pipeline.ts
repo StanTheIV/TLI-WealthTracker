@@ -5,10 +5,10 @@
  * the engine configuration and the analytics pass, and turns the result into a
  * deterministic golden document.
  */
-import {computeSessionAnalytics, type SessionAnalytics} from '@/components/Sessions/analytics';
+import {computeSessionAnalytics, type SessionAnalytics} from '@/domain/session-analytics';
 import {configureEngine} from '@/main/engine/configure-engine';
 import {SqliteSessionStore} from '@/main/db/session-store';
-import {NO_TAX, type TaxConfig} from '@/lib/tax';
+import {NO_TAX, type TaxConfig} from '@/domain/tax';
 import {readLogText, type LogLine} from '@/replay/log-source';
 import {replay, type ControlOp, type ReplayEvent, type ReplayMode} from '@/replay/replay';
 import type {Anomaly} from '@/replay/invariants';

@@ -5,7 +5,7 @@ import {describe, it, expect} from 'vitest';
 /**
  * Tripwire for the auction-house tax.
  *
- * Every FE figure the app displays must be valued through `@/lib/tax`. Nothing
+ * Every FE figure the app displays must be valued through `@/domain/tax`. Nothing
  * in the type system enforces that — `makePriceLookup` has only three callers,
  * so the sites that multiply `qty * price` inline stay green while showing
  * untaxed values. This test is the guard that catches them.
@@ -18,11 +18,11 @@ import {describe, it, expect} from 'vitest';
 const SRC = join(__dirname, '..', '..');
 
 /** Files allowed to multiply a quantity by a price. Everything here except the
- *  main-process recorder must import from '@/lib/tax'. */
+ *  main-process recorder must import from '@/domain/tax'. */
 const VALUATION_SITES = [
-  'lib/tax.ts',
-  'components/Sessions/analytics/valuation.ts',
-  'components/Sessions/analytics/items.ts',
+  'domain/tax.ts',
+  'domain/session-analytics/valuation.ts',
+  'domain/session-analytics/items.ts',
   'components/Dashboard/TrackerPanel.tsx',
   'components/Dashboard/DropTable.tsx',
   'components/Sessions/SessionsTable.tsx',
@@ -34,16 +34,16 @@ const VALUATION_SITES = [
 ];
 
 /** Sites that must apply the tax themselves. Excluded:
- *   - `lib/tax.ts` — it IS the module.
+ *   - `domain/tax.ts` — it IS the module.
  *   - `main/wealth-recorder.ts` — persists gross on purpose.
  *   - `replay/report.ts` — gross diagnostics for the replay CLI.
- *   - `analytics/items.ts` — values through the `PriceLookup` it is handed, so
+ *   - `session-analytics/items.ts` — values through the `PriceLookup` it is handed, so
  *     the prices reach it already taxed and importing the module would be wrong. */
 const MUST_IMPORT_TAX = VALUATION_SITES.filter(f => ![
-  'lib/tax.ts',
+  'domain/tax.ts',
   'main/wealth-recorder.ts',
   'replay/report.ts',
-  'components/Sessions/analytics/items.ts',
+  'domain/session-analytics/items.ts',
 ].includes(f));
 
 /** Reads the stored wealth breakdown, which holds a pre-computed gross total.
@@ -83,7 +83,7 @@ describe('auction tax coverage', () => {
 
     expect(
       offenders,
-      'New FE valuation site(s). Route the value through @/lib/tax (taxedValue / '
+      'New FE valuation site(s). Route the value through @/domain/tax (taxedValue / '
       + 'taxedUnitPrice, or a taxed PriceLookup), then add the file to VALUATION_SITES.',
     ).toEqual([]);
   });
@@ -91,8 +91,8 @@ describe('auction tax coverage', () => {
   it('every valuation site applies the tax', () => {
     for (const f of MUST_IMPORT_TAX) {
       const src = readFileSync(join(SRC, f), 'utf8');
-      expect(src, `${f} multiplies qty by price but never imports @/lib/tax`)
-        .toMatch(/from '@\/lib\/tax'/);
+      expect(src, `${f} multiplies qty by price but never imports @/domain/tax`)
+        .toMatch(/from '@\/domain\/tax'/);
     }
   });
 
@@ -101,8 +101,8 @@ describe('auction tax coverage', () => {
   it('the wealth read path taxes the stored gross totals', () => {
     for (const f of WEALTH_READERS) {
       const src = readFileSync(join(SRC, f), 'utf8');
-      expect(src, `${f} renders stored wealth values but never imports @/lib/tax`)
-        .toMatch(/from '@\/lib\/tax'/);
+      expect(src, `${f} renders stored wealth values but never imports @/domain/tax`)
+        .toMatch(/from '@\/domain\/tax'/);
     }
   });
 });

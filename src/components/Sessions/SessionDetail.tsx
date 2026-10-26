@@ -7,7 +7,7 @@ import {useTaxConfig} from '@/state/settingsStore';
 import {useTracking} from '@/state/TrackingContext';
 import type {DbSessionMap} from '@/shared/contracts/db';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
-import {computeSessionAnalytics} from './analytics';
+import {computeSessionAnalytics} from '@/domain/session-analytics';
 import {formatDate} from './SessionsTable';
 import {Section} from './detail/primitives';
 import type {ValueMode} from './detail/format';

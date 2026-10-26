@@ -1,5 +1,5 @@
 import {useTranslation} from 'react-i18next';
-import type {SessionAnalytics} from '../analytics';
+import type {SessionAnalytics} from '@/domain/session-analytics';
 import {formatFEFull, formatFE, pick, type ValueMode} from './format';
 
 function Row({label, value, tone}: {label: string; value: string; tone?: 'pos' | 'neg'}) {

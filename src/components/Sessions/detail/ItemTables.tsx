@@ -1,7 +1,7 @@
 import {useMemo, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useTheme} from '@/theme/ThemeContext';
-import type {ConsumedItemRow, DroppedItemRow, SessionAnalytics} from '../analytics';
+import type {ConsumedItemRow, DroppedItemRow, SessionAnalytics} from '@/domain/session-analytics';
 import {typeColors} from './colors';
 import {ColHeader, Pill} from './primitives';
 import {formatFEFull, formatPct, pick, type ValueMode} from './format';

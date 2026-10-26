@@ -1,6 +1,6 @@
 import type {TFunction} from 'i18next';
 import type {SeasonalPhase} from '@/shared/contracts/engine';
-import type {MechanicKey, Valuation} from '../analytics';
+import type {MechanicKey, Valuation} from '@/domain/session-analytics';
 
 /** Row label for a mechanic. Sandlord's two phases share one bucket, so only
  *  the in-map coin tile is qualified — 'hub' and legacy null both read plain. */

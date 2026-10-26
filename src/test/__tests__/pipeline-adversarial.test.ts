@@ -5,7 +5,7 @@
 import {describe, it, expect} from 'vitest';
 import {readFileSync} from 'fs';
 import {join} from 'path';
-import type {SessionAnalytics} from '@/components/Sessions/analytics';
+import type {SessionAnalytics} from '@/domain/session-analytics';
 import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
 import {createDispatcher} from '@/worker/create-dispatcher';
 import {pipelineInvariants, runPipeline, serializeGolden, type PipelineResult} from '../pipeline';
