@@ -42,13 +42,6 @@ export class Engine {
   private _hunting:     HuntingHandler     | null = null;
   private _afterlight:  AfterlightHandler  | null = null;
 
-  // Seasonals paused BY the session pause (not those already self-paused for
-  // their own reason — Lunaria between strums, Arcana backed-out minigame).
-  // Only these are resumed on session resume; a self-paused seasonal stays
-  // paused. Maps need no equivalent set — the sole "stay paused" reason is an
-  // ongoing seasonal interlude, captured by ctx.mapPausedForInterludeAt.
-  private _pausedSeasonals = new Set<import('@/shared/contracts/engine').SeasonalType>();
-
   constructor(emit: EmitFn) {
     this._emit = emit;
   }
@@ -101,7 +94,6 @@ export class Engine {
 
     for (const h of this._handlers) h.onStop?.(this._ctx);
     this._ctx.reset();
-    this._pausedSeasonals.clear();
   }
 
   /**
@@ -116,8 +108,8 @@ export class Engine {
     const now = Date.now();
     const wasPaused = this._ctx.paused;
 
-    // Fresh trackers below — clear pause bookkeeping tied to the torn-down ones.
-    this._pausedSeasonals.clear();
+    // Fresh trackers below — clear pause bookkeeping tied to the torn-down ones
+    // (finishing a seasonal also drops it from the registry's session-frozen set).
     this._ctx.mapPausedForInterludeAt = null;
 
     // Tear down map/seasonal trackers so the renderer drops their UI state.
@@ -170,10 +162,12 @@ export class Engine {
   /**
    * Pause the whole run. Freezes ALL live trackers — session, map, and every
    * active seasonal — plus every in-flight loot window (remaining time kept).
-   * Records exactly which trackers WE paused so resume() only unfreezes those:
-   * a seasonal already self-paused (Lunaria between strums, Arcana backed-out
-   * minigame) or a map paused for a seasonal interlude must NOT be resumed by
-   * a session resume — whoever paused a thing resumes it.
+   * The registry records exactly which seasonals the session pause froze so
+   * resume() only unfreezes those: a seasonal already self-paused (Lunaria
+   * between strums, Arcana backed-out minigame) or a map paused for a seasonal
+   * interlude must NOT be resumed by a session resume — whoever paused a thing
+   * resumes it. A tracker that starts while paused is frozen at start (Zone for
+   * a map, Sandlord for a hub run) and resumes here the same way.
    */
   pause(): void {
     if (this._ctx.paused) return;
@@ -188,18 +182,10 @@ export class Engine {
       this._ctx.registry.pauseMap(this._emit);
     }
 
-    // Pause every currently-active seasonal; remember which so resume() only
-    // resumes these. Self-paused seasonals are skipped (active === false).
-    // Freeze every in-flight loot window regardless — a pause must not eat
-    // the player's collection time.
-    this._pausedSeasonals.clear();
-    for (const t of this._ctx.registry.seasonals()) {
-      if (t.active) {
-        t.pauseTracker();
-        this._pausedSeasonals.add(t.seasonalType);
-      }
-      t.freezeLootTimer();
-    }
+    // Pause every currently-active seasonal (self-paused ones are skipped) and
+    // freeze every in-flight loot window — a pause must not eat the player's
+    // collection time.
+    this._ctx.registry.freezeAllForSessionPause();
 
     if (this._ctx.registry.session) {
       this._emit({type: 'session_status', status: 'paused', elapsed: this._ctx.registry.session.elapsed(), timestamp: now});
@@ -236,18 +222,8 @@ export class Engine {
     }
 
     // Unfreeze every frozen loot window (remaining time continues), then
-    // resume only the seasonals we paused. Frozen windows can't expire during
-    // a pause, so a self-paused seasonal at pause time is still self-paused
-    // here and correctly stays out of _pausedSeasonals.
-    for (const t of this._ctx.registry.seasonals()) {
-      t.unfreezeLootTimer();
-    }
-    for (const type of this._pausedSeasonals) {
-      // Mechanical resume — restores the pre-pause state without bumping the
-      // seasonal in the activation (ownership) order.
-      this._ctx.registry.seasonal(type)?.resumeTracker({reactivate: false});
-    }
-    this._pausedSeasonals.clear();
+    // resume only the seasonals the session pause froze.
+    this._ctx.registry.thawSessionPause();
 
     if (this._ctx.registry.session) {
       this._emit({type: 'session_status', status: 'running', elapsed: this._ctx.registry.session.elapsed(), timestamp: now});

@@ -8,10 +8,12 @@ const BUFFER_MS = 1500;
 /**
  * ItemHandler — tracks inventory changes and emits drop events.
  *
- * Buffer behavior, by context:
- *   - In a loot context (regular map or bubble-owning seasonal): every
- *     bag delta flushes immediately, distributed to session / map / seasonal.
- *   - In town: deltas accumulate in a buffer. The buffer flushes either:
+ * Buffer behavior, by `ctx.isLootContext()` (where the player is — a map, a
+ * seasonal scene or the Sandlord hub — not which trackers exist):
+ *   - In a loot context: every bag delta flushes immediately, distributed to
+ *     session / map / seasonal.
+ *   - Elsewhere (town, or an unrecognised scene): deltas accumulate in a
+ *     buffer, even with a seasonal panel open. The buffer flushes either:
  *       a) the 1500ms timer fires (settled town activity → discarded; baseline
  *          and `new_item` still update, but no tracker gets credited),
  *       b) a zone_transition lands us in a loot context (the buffer's contents
@@ -98,11 +100,11 @@ export class ItemHandler implements EventHandler {
     }
 
     if (event.type === 'zone_transition') {
-      // Bubble-owning seasonals (Sandlord) and ZoneHandler ran first, so
-      // ctx.seasonal / ctx.map / ctx.inMap are already updated. If the buffer
+      // Bubble-owning seasonals (Sandlord) and ZoneHandler ran first, so the
+      // trackers, ctx.inMap and ctx.location are already updated. If the buffer
       // holds town-buffered deltas, flush them now — into the freshly-created
       // tracker if we're now in a loot context, otherwise discard.
-      const recordPreMap = ctx.registry.isLootContext();
+      const recordPreMap = ctx.isLootContext();
       // Nothing buffered means nothing was consumed for THIS run — reset, or the
       // run inherits its predecessor's basket and double-books the materials.
       if (this._buffer.size === 0) {
@@ -114,7 +116,7 @@ export class ItemHandler implements EventHandler {
   }
 
   private _scheduleFlush(ctx: EngineContext, emit: EmitFn): void {
-    if (ctx.registry.isLootContext()) {
+    if (ctx.isLootContext()) {
       this._flush(ctx, emit, /*recordPreMap*/ false); // immediate in-map flush
       return;
     }
@@ -144,7 +146,7 @@ export class ItemHandler implements EventHandler {
       this._lastPreMapFlush = new Map(this._buffer);
     }
 
-    publishDrops(ctx, emit, this._buffer, {lootContext: ctx.registry.isLootContext()});
+    publishDrops(ctx, emit, this._buffer, {lootContext: ctx.isLootContext()});
     this._buffer.clear();
   }
 

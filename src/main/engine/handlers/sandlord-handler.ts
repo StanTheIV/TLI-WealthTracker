@@ -9,10 +9,12 @@ import {SANDLORD_HUB_SCENE, TOWN_SCENE} from '@/shared/scenes';
  *
  * Pure zone-transition trigger. Entering the seasonal hub starts a bubble
  * seasonal that absorbs hub + sub-maps into one tracker (no per-map trackers
- * are created inside; ZoneHandler reads `registry.hasBubble()` and skips).
+ * are created inside: ZoneHandler resolves the sub-maps to the hub, and
+ * `registry.startMap()` refuses while a bubble is up).
  *
  * Must be registered BEFORE ZoneHandler so the bubble is in the registry by
- * the time Zone runs on the same event.
+ * the time Zone runs on the same event — hence it reads scene names, never
+ * `ctx.location`, which Zone has not updated yet.
  */
 export class SandlordHandler implements EventHandler {
   readonly name    = 'sandlord';
@@ -30,16 +32,17 @@ export class SandlordHandler implements EventHandler {
     // direct map → hub transition — counting it here would suppress the bubble.
     const inHubRun = existing !== null && existing.phase !== 'map';
 
-    // Entering the hub starts a bubble seasonal — a crediting start, inert while
-    // paused so it doesn't spin up and begin accruing during the pause. A direct
-    // map → hub transition is possible: the running map freezes for the whole
-    // Sandlord run (it ends at town with the Sandlord time excluded).
+    // Entering the hub starts a bubble seasonal — while the session is paused
+    // too, frozen like a map entered while paused, so the session resume
+    // starts its clock. A direct map → hub transition is possible: the map
+    // freezes for the whole Sandlord run (it ends at town with the Sandlord
+    // time excluded).
     if (enteringHub && !inHubRun) {
-      if (ctx.paused) return;
       // Retire a map-phase run first so the type is free for the bubble.
       if (existing) existing.finish();
       pauseMapForInterlude(ctx, emit);
-      ctx.registry.startSeasonal({type: 'sandlord', ownsBubble: true, phase: 'hub'}, emit);
+      const run = ctx.registry.startSeasonal({type: 'sandlord', ownsBubble: true, phase: 'hub'}, emit);
+      if (run && ctx.paused) ctx.registry.freezeForSessionPause(run);
       return;
     }
 

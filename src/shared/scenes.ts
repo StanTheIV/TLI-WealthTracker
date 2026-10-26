@@ -16,6 +16,6 @@ export const MAP_SCENE_PREFIXES = ['/Game/Art/Maps/', '/Game/Art/Season/'];
 //   SuMingTaLuo  — Arcana (S9) Fateful Contest scene, owned by ArcanaHandler.
 //   DiXiaZhenSuo — Vorex  (S13) reward zone, owned by VorexHandler.
 //   ZhongZuiDiYu — Tartarus (S16) prison fight/loot scene, owned by TartarusHandler.
-// (Sandlord's S10 scene isn't listed here — it owns a bubble, and ZoneHandler's
-//  hasBubble() guard already suppresses the map tracker for it.)
+// (Sandlord's S10 hub isn't listed here — ZoneHandler classifies it as the
+//  hub, and the map scenes entered from it as its sub-maps.)
 export const SEASONAL_SCENE_MARKERS = [ARCANA_FIGHT_SCENE, VOREX_REWARD_SCENE, TARTARUS_PRISON_SCENE];

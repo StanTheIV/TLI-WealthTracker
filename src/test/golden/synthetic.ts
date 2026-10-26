@@ -8,8 +8,9 @@
  * (`src/worker/processors/**`, as in the `log.*` builders of
  * `src/main/engine/__tests__/seasonal-fixtures.ts`); the line prefixes and
  * scene paths copy the shape of the real fixtures. Each line carries its own
- * timestamp, and each scenario runs a bag dump in town, a paid map entry, the
- * mechanic, and the return to town. Item ids come from `items.ts`.
+ * timestamp, and each map scenario runs a bag dump in town, a paid map entry,
+ * the mechanic, and the return to town (`town-panel-activity` never enters a
+ * map). Item ids come from `items.ts`.
  */
 import {formatLogTimestamp} from '@/replay/log-source';
 
@@ -18,13 +19,14 @@ const T0 = Date.UTC(2026, 9, 25, 12, 0, 0, 0);
 const TOWN = '/Game/Art/Maps/01SD/XZ_YuJinZhiXiBiNanSuo200/XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200';
 const MAP  = '/Game/Art/Maps/05JH/JH_ShengDeLanXiuDaoYuan000/JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000';
 const VOREX_REWARD = '/Game/Art/Season/S13/Maps/DiXiaZhenSuo/DiXiaZhenSuo.DiXiaZhenSuo';
+const ARCANA_FIGHT = '/Game/Art/Season/S9/Maps/SuMingTaLuo/SuMingTaLuo000.SuMingTaLuo000';
 
-const FE         = 100300; // fuel
+export const FE         = 100300; // fuel
 const COMPASS    = 10240;  // entry material
 const PROBE      = 400015; // entry material
 const MATERIAL   = 5028;
 const CARD       = 6004;
-const CUBE       = 5210;
+export const CUBE       = 5210;
 const RARE_CARD  = 6153;
 
 const audioRow = (row: string) =>
@@ -32,10 +34,14 @@ const audioRow = (row: string) =>
 const bgm = (folder: string, event: string, id: number) =>
   `[634]TLGame: Display: [Game] Play audio PostEventAsync bgm /Game/WwiseAudio_EBP/HotUpdate/Events/Music/Gameplay/${folder}/${event}.${event} id ${id}`;
 
-const BODY = {
+export const BODY = {
   snapshotStart: '[ 36]TLLua: Display: [Game] ItemChange@ Reset PageId=102',
   levelType:     (levelId: number, type: number) => `[612]TLShipping: Display: [Game] Loading@ PreLoadLevelId = ${levelId} PreloadLevelType = ${type}`,
   zone:          (from: string, to: string) => `[612]TLLua: Display: [Game] PageApplyBase@ _UpdateGameEnd: LastSceneName = World'${from}' NextSceneName = World'${to}'`,
+
+  // Arcana (S9) panel markers, as the s9 processor matches them.
+  s9Minigame:     '[ 20]TLLua: Display: [Game] S9Taro Run',
+  s9Close:        '[ 20]TLLua: Display: [Game] PageApplyBase@ OnPageBackEvent FuncId = 41700_S9TaroCtrl',
 
   s13Start:       '[ 85]TLLua: Display: [Game] S13GamePlayMain Run',
   s13WindowClose: '[ 85]TLLua: Display: [Game] S13GamePlayMain::Destory',
@@ -107,6 +113,7 @@ class Script {
 }
 
 const TOWN_LEVEL: [number, number] = [110, 0];
+const ARCANA_LEVEL: [number, number] = [203018, 19];
 const VOREX_LEVEL: [number, number] = [9999997, 22];
 
 /** Map → Vorex window → DiXiaZhenSuo reward zone → town (the reward zone
@@ -168,8 +175,28 @@ const carjackStopAfterDormancy = Script.townToMap()
   .zone(110, MAP, TOWN, TOWN_LEVEL)
   .text();
 
+/** Town-only Arcana: the Tarot panel opened in town, bag activity, backed out,
+ *  more bag activity, reopened, then the Fateful Contest (+12 FE, +2 cubes) and
+ *  back to town for more town activity. Only the fight's loot is session loot;
+ *  no map is ever entered. */
+const townPanelActivity = new Script()
+  .dump(0, [[FE, 500], [MATERIAL, 50], [CUBE, 20]])
+  .line(10, BODY.s9Minigame)
+  .bag(12, FE, 5)
+  .line(14, BODY.s9Close)
+  .bag(16, FE, 2)
+  .line(18, BODY.s9Minigame)
+  .zone(20, TOWN, ARCANA_FIGHT, ARCANA_LEVEL)
+  .bag(25, FE, 12)
+  .bag(27, CUBE, 2)
+  .zone(40, ARCANA_FIGHT, TOWN, TOWN_LEVEL)
+  .bag(45, MATERIAL, -8) // town activity
+  .bag(50, FE, 3)        // town activity
+  .text();
+
 export const SYNTHETIC_FIXTURES = {
   'map-vorex':                   mapVorex,
   'afterlight-special-no-win':   afterlightSpecialNoWin,
   'carjack-stop-after-dormancy': carjackStopAfterDormancy,
+  'town-panel-activity':         townPanelActivity,
 } as const;

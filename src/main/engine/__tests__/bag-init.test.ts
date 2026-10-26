@@ -281,6 +281,7 @@ describe('BagInitHandler', () => {
       ]);
       ctx.registry.startSession();
       ctx.registry.startMap();
+      ctx.location = 'map';
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -301,6 +302,7 @@ describe('BagInitHandler', () => {
       ]);
       ctx.registry.startSession();
       ctx.registry.startMap();
+      ctx.location = 'map';
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -355,6 +357,7 @@ describe('BagInitHandler', () => {
       ]);
       ctx.registry.startSession();
       ctx.registry.startMap();
+      ctx.location = 'map';
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 

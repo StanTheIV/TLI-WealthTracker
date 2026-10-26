@@ -11,11 +11,16 @@ import type {EmitFn} from './types';
  */
 
 /** Interlude opened (panel or fight scene): freeze an actively-running map.
- *  No-op from town (no map) or when the map is already paused — the marker
- *  then persists from the first pause. */
+ *  No-op from town (no map) or when an interlude already froze the map — the
+ *  marker then persists from the first pause. A map the SESSION pause froze is
+ *  claimed as-is (marker set, nothing to pause), so the session resume leaves
+ *  it frozen while the interlude is still up. */
 export function pauseMapForInterlude(ctx: EngineContext, emit: EmitFn): void {
-  if (ctx.registry.map?.active) {
+  const map = ctx.registry.map;
+  if (map?.active) {
     ctx.registry.pauseMap(emit);
+    ctx.mapPausedForInterludeAt = Date.now();
+  } else if (map && ctx.paused && ctx.mapPausedForInterludeAt === null) {
     ctx.mapPausedForInterludeAt = Date.now();
   }
 }

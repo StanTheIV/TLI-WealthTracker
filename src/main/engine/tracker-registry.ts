@@ -14,7 +14,8 @@ export interface DistributeResult {
 
 /**
  * TrackerRegistry — owns the collection of trackers, the writer rule, fan-out
- * to active scopes, and bubble exclusivity. Knows nothing about log events.
+ * to active scopes, bubble exclusivity, and which seasonals the session pause
+ * froze. Knows nothing about log events.
  */
 export class TrackerRegistry {
   session: Tracker | null = null;
@@ -29,6 +30,9 @@ export class TrackerRegistry {
   private _startOrder: SeasonalType[]                     = [];
   // Writer cache. `undefined` = needs recompute, `null` = no writer.
   private _currentWriter: Source | null | undefined = undefined;
+  // Seasonals the SESSION pause froze — whoever paused a tracker resumes it,
+  // so only these are resumed by the session resume. See freezeForSessionPause.
+  private _sessionFrozen: Set<SeasonalType> = new Set();
 
   // -----------------------------------------------------------------------
   // Lookup
@@ -153,6 +157,7 @@ export class TrackerRegistry {
     const idx = this._startOrder.indexOf(type);
     if (idx >= 0) this._startOrder.splice(idx, 1);
     this._lastEmittedOwner.delete(type);
+    this._sessionFrozen.delete(type);
     this._currentWriter = undefined;
     emit({type: 'tracker_finished', tracker: snap, timestamp: Date.now()});
     this._emitOwnership(emit); // ownership falls to whoever is now newest
@@ -229,10 +234,6 @@ export class TrackerRegistry {
   // -----------------------------------------------------------------------
   // Fan-out
   // -----------------------------------------------------------------------
-
-  isLootContext(): boolean {
-    return this.map !== null || this._seasonals.size > 0;
-  }
 
   /** Pause the active map tracker (e.g. while an Arcana fight interrupts a map
    *  run). No-op if there's no map or it's already paused. Invalidates the
@@ -326,6 +327,41 @@ export class TrackerRegistry {
   }
 
   // -----------------------------------------------------------------------
+  // Session pause
+  // -----------------------------------------------------------------------
+
+  /** Freeze one seasonal for the session pause — at pause time, or when it
+   *  starts while the session is already paused. A running tracker is paused
+   *  and remembered so the session resume restarts it; a self-paused one
+   *  (Lunaria between strums, a backed-out Arcana) is left alone and stays
+   *  paused across the resume. An in-flight loot window freezes either way. */
+  freezeForSessionPause(tracker: SeasonalTracker): void {
+    if (tracker.active) {
+      tracker.pauseTracker();
+      this._sessionFrozen.add(tracker.seasonalType);
+    }
+    tracker.freezeLootTimer();
+  }
+
+  /** Session pause: freeze every live seasonal. */
+  freezeAllForSessionPause(): void {
+    for (const t of this._seasonals.values()) this.freezeForSessionPause(t);
+  }
+
+  /** Session resume: continue every frozen loot window, then resume only the
+   *  seasonals the session pause froze. Frozen windows can't expire during a
+   *  pause, so a tracker self-paused at pause time is still self-paused here.
+   *  The resume is mechanical — it restores the pre-pause ownership order
+   *  rather than bumping the tracker to newest. */
+  thawSessionPause(): void {
+    for (const t of this._seasonals.values()) t.unfreezeLootTimer();
+    for (const type of this._sessionFrozen) {
+      this._seasonals.get(type)?.resumeTracker({reactivate: false});
+    }
+    this._sessionFrozen.clear();
+  }
+
+  // -----------------------------------------------------------------------
   // Mass teardown
   // -----------------------------------------------------------------------
 
@@ -356,6 +392,7 @@ export class TrackerRegistry {
     this.map     = null;
     this._seasonals.clear();
     this._startOrder = [];
+    this._sessionFrozen.clear();
     this._currentWriter = undefined;
   }
 }

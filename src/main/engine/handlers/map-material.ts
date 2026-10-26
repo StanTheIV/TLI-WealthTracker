@@ -2,11 +2,6 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {log} from '@/main/logger';
-import {TOWN_SCENE} from '@/shared/scenes';
-
-function isTownScene(scene: string): boolean {
-  return scene.includes(TOWN_SCENE);
-}
 
 /**
  * MapMaterialHandler — detects map-creation material spends and warns when
@@ -40,8 +35,8 @@ function isTownScene(scene: string): boolean {
  *   - Map → map transitions are NOT map creation events and are ignored.
  *   - Dismissed items are suppressed until they recover to qty >= 2.
  *
- * MUST be registered AFTER ZoneHandler so `ctx.inMap` reflects the current
- * scene before this handler runs.
+ * MUST be registered AFTER ZoneHandler so `ctx.location` / `ctx.transition`
+ * reflect the current scene before this handler runs.
  */
 export class MapMaterialHandler implements EventHandler {
   readonly name    = 'map-material';
@@ -70,9 +65,16 @@ export class MapMaterialHandler implements EventHandler {
 
     if (event.type === 'bag_update' || event.type === 'bag_remove') {
       const deltas = ctx.bagDeltas;
+      // Only town-side spends are map-cost candidates — only normal maps have
+      // a cost; spending inside a seasonal scene or the hub is not one. Not
+      // `location === 'town'`: until the first transition the location is the
+      // initial 'other' although the player is normally in town, and spends
+      // there must count for the first map. (A real unrecognised scene can't
+      // leak: only a town → map entry promotes, and reaching town clears.)
+      const townSide = !ctx.isLootContext();
       let recovered = false;
       for (const d of deltas) {
-        if (d.change < 0 && !ctx.inMap) {
+        if (d.change < 0 && townSide) {
           // Town-side negative → accumulate as pending spend.
           this._pendingSpends.set(d.itemId, (this._pendingSpends.get(d.itemId) ?? 0) + d.change);
         } else if (d.change > 0) {
@@ -80,7 +82,7 @@ export class MapMaterialHandler implements EventHandler {
           // a previously-recorded spend if the player restocked it). Don't
           // pre-empt a future spend with an earlier pickup — only net if
           // there's already a pending negative for this item.
-          if (!ctx.inMap) {
+          if (townSide) {
             const current = this._pendingSpends.get(d.itemId);
             if (current !== undefined) {
               const next = current + d.change;
@@ -102,18 +104,17 @@ export class MapMaterialHandler implements EventHandler {
     }
 
     if (event.type === 'zone_transition') {
-      const fromTown = isTownScene(event.fromScene);
-      const toTown   = isTownScene(event.toScene);
-
-      if (ctx.inMap && fromTown) {
-        // Real map creation: town → map. Run promotion / decay / warning.
+      // ZoneHandler ran first, so ctx.transition describes THIS event.
+      if (ctx.prevLocation === 'town' && ctx.transition?.mapStarted) {
+        // Real map creation: town → a freshly started map. Run promotion /
+        // decay / warning. Seasonal scenes and the hub never start a map.
         this._onMapEntry(ctx, emit);
-      } else if (toTown) {
+      } else if (ctx.location === 'town') {
         // Returned to town. Drop any pending spends so post-map town
         // activity attributes to the next map's creation.
         this._pendingSpends.clear();
       }
-      // Else: map → map (seasonal entry, etc.) — leave watch state alone.
+      // Else: map → seasonal scene / hub and back, etc. — leave watch state alone.
     }
   }
 

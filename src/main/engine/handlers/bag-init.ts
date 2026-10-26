@@ -126,7 +126,7 @@ export class BagInitHandler implements EventHandler {
     // crediting, so while paused we stop here and publish nothing.
     if (ctx.paused) return;
 
-    publishDrops(ctx, emit, changes.map(c => [c.itemId, c.change] as const), {lootContext: ctx.registry.isLootContext()});
+    publishDrops(ctx, emit, changes.map(c => [c.itemId, c.change] as const), {lootContext: ctx.isLootContext()});
   }
 
   // ---------------------------------------------------------------------

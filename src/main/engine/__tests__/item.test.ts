@@ -10,6 +10,7 @@ function makeCtx(inMap = false): EngineContext {
   const ctx = new EngineContext();
   ctx.phase   = 'tracking';
   ctx.inMap   = inMap;
+  if (inMap) ctx.location = 'map';
   ctx.registry.startSession();
   if (inMap) ctx.registry.startMap();
   // Pre-init the bag with one slot so processUpdate works
@@ -98,6 +99,7 @@ describe('ItemHandler', () => {
     // Simulate ZoneHandler having just run on town→map: it created ctx.registry.map
     // and set inMap=true before ItemHandler sees the same zone_transition event.
     ctx.inMap = true;
+    ctx.location = 'map';
     ctx.registry.startMap();
 
     handler.handle({type: 'zone_transition', fromScene: 'Town', toScene: '/Game/Art/Maps/X'}, ctx, emit);
