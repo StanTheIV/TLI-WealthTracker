@@ -13,6 +13,7 @@ import {
   leaguesApply, leaguesGetAll, leaguesSetStart,
 } from '@/main/db';
 import {SqliteSessionStore} from '@/main/db/session-store';
+import {MIGRATIONS} from '@/main/db/migrations';
 import type {DbItem, DbSession} from '@/shared/contracts/db';
 import {openNodeSqlite} from '@/test/sql/node-sqlite';
 
@@ -32,6 +33,7 @@ const SESSION: DbSession = {
   dropsBySource: {map: {'100': 3}},
   attribution:   'drop-through',
   priceSnapshot: {'100': 2},
+  spent:         {},
 };
 
 beforeEach(() => {
@@ -42,7 +44,7 @@ describe('db.ts on SqlConn', () => {
   it('initDb applies pragmas and migrations', () => {
     // :memory: can't do WAL; the pragma still runs without error.
     expect(getDb().getPragma('foreign_keys')).toBe(1);
-    expect(getDb().getPragma('user_version')).toBe(1);
+    expect(getDb().getPragma('user_version')).toBe(MIGRATIONS[MIGRATIONS.length - 1].version);
   });
 
   it('settings round-trip', () => {

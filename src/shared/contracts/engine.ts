@@ -31,6 +31,10 @@ export interface TrackerSnapshot {
    *  the moment the drop fired) so summing per-source totals reproduces
    *  session FE. Omitted on map and seasonal snapshots. */
   dropsBySource?: Record<Source, Record<number, number>>;
+  /** Entry cost, as positive magnitudes. Map: the materials consumed in town
+   *  right before it started. Session: the running total of its maps' costs.
+   *  Never in `drops`, never filtered. Omitted while empty (and on seasonals). */
+  spent?:        Record<number, number>;
 }
 
 // ---------------------------------------------------------------------------

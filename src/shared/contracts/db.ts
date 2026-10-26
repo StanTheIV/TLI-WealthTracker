@@ -42,6 +42,9 @@ export interface DbSession {
    *  Empty for sessions saved before this column existed — readers must treat
    *  `{}` as "no snapshot" and fall back to live prices rather than 0. */
   priceSnapshot: Record<string, number>;
+  /** Total entry cost (positive magnitudes) — Σ of the primary rows' `spent`.
+   *  Not part of `drops`. `{}` for a session that spent nothing; v2 backfilled it. */
+  spent:         Record<string, number>;
 }
 
 /**

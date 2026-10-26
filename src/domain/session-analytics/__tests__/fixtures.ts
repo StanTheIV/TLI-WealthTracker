@@ -13,6 +13,7 @@ export function makeSession(over: Partial<DbSession> = {}): DbSession {
     dropsBySource: {},
     attribution:   'drop-through',
     priceSnapshot: {},
+    spent:         {},
     ...over,
   };
 }

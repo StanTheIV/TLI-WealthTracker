@@ -135,6 +135,7 @@ function savedSession(over: Partial<DbSession> = {}): DbSession {
     dropsBySource: {},
     attribution:   'drop-through',
     priceSnapshot: {},
+    spent:         {},
     ...over,
   };
 }

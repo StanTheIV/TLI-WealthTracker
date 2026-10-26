@@ -2,7 +2,7 @@
   "anomalies": [],
   "events": {
     "counts": {
-      "drop": 9,
+      "drop": 7,
       "init_complete": 1,
       "init_started": 1,
       "loot_window_ended": 2,
@@ -42,9 +42,9 @@
       "+74.000s loot_window_ended carjack",
       "+74.000s tracker_finished seasonal carjack elapsed=15.000s items=2",
       "+110.000s zone_change town JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000 -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
-      "+110.000s tracker_finished map elapsed=89.000s items=7",
+      "+110.000s tracker_finished map elapsed=89.000s items=5",
       "+110.000s map_ended elapsed=89.000s",
-      "+170.000s tracker_finished session elapsed=169.250s items=7"
+      "+170.000s tracker_finished session elapsed=169.250s items=5"
     ]
   },
   "linesDelivered": 30,
@@ -251,9 +251,7 @@
             "5210": 3,
             "6004": 2,
             "6153": 1,
-            "10240": -1,
-            "100300": 47,
-            "400015": -1
+            "100300": 47
           },
           "duration": 89000,
           "mapIndex": 1,
@@ -288,9 +286,7 @@
           "5210": 3,
           "6004": 2,
           "6153": 1,
-          "10240": -1,
-          "100300": 47,
-          "400015": -1
+          "100300": 47
         },
         "dropsBySource": {
           "carjack": {
@@ -301,9 +297,7 @@
             "5028": 4,
             "6004": 2,
             "6153": 1,
-            "10240": -1,
-            "100300": 37,
-            "400015": -1
+            "100300": 37
           }
         },
         "mapCount": 1,
@@ -316,6 +310,10 @@
           "10240": 1.563492,
           "100300": 1,
           "400015": 1.994949
+        },
+        "spent": {
+          "10240": 1,
+          "400015": 1
         },
         "totalTime": 169.25
       }

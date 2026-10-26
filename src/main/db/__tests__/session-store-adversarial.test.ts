@@ -13,7 +13,7 @@ import {getDb, initDb} from '@/main/db';
 
 const session = (id: string, savedAt = 'x', extra: Partial<DbSession> = {}): DbSession => ({
   id, name: id, savedAt, totalTime: 1, mapTime: 1, mapCount: 1,
-  drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, ...extra,
+  drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, ...extra,
 });
 const mapRow = (sessionId: string, mapIndex: number, extra: Partial<DbSessionMap> = {}): DbSessionMap => ({
   sessionId, mapIndex, startedAt: mapIndex, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null, ...extra,

@@ -27,6 +27,9 @@ export class Tracker {
   // trackers (map, seasonal) leave this empty — their `_drops` plays the
   // analogous role for "what fell while this tracker was running."
   private _dropsBySource: Map<Source, Map<number, number>> = new Map();
+  // Entry cost (positive magnitudes): the map's own, or the session's running
+  // total. Kept apart from _drops — a consumed material is not negative loot.
+  private _spent: Map<number, number> = new Map();
 
   constructor(kind: TrackerKind, seasonalType?: SeasonalType, ownsBubble: boolean = false) {
     this.kind         = kind;
@@ -59,6 +62,22 @@ export class Tracker {
       this._dropsBySource.set(source, bucket);
     }
     bucket.set(itemId, (bucket.get(itemId) ?? 0) + change);
+  }
+
+  /** Add to the entry cost. No `active` guard: cost is structural (crediting
+   *  while paused is already prevented upstream — a paused entry has no buffer). */
+  addCost(itemId: number, qty: number): void {
+    if (qty === 0) return;
+    this._spent.set(itemId, (this._spent.get(itemId) ?? 0) + qty);
+  }
+
+  /** Replace the entry cost with a copy of `cost`. */
+  setEntryCost(cost: ReadonlyMap<number, number>): void {
+    this._spent = new Map(cost);
+  }
+
+  get entryCost(): ReadonlyMap<number, number> {
+    return this._spent;
   }
 
   /**
@@ -104,6 +123,11 @@ export class Tracker {
         dbs[source] = entry;
       }
       snap.dropsBySource = dbs;
+    }
+    if (this._spent.size > 0) {
+      const spent: Record<number, number> = {};
+      for (const [id, qty] of this._spent) spent[id] = qty;
+      snap.spent = spent;
     }
     return snap;
   }

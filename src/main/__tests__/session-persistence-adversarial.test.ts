@@ -11,8 +11,7 @@ import type {DbSession} from '@/shared/contracts/db';
 import type {SqlConn} from '@/main/db/sql-conn';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 
-const engine = (hasMap = true, spends: Record<string, number> = {}) =>
-  ({hasActiveMapTracker: () => hasMap, getLastMapSpends: () => spends}) as unknown as Engine;
+const engine = (hasMap = true) => ({hasActiveMapTracker: () => hasMap}) as unknown as Engine;
 
 function tf(kind: 'session' | 'map' | 'seasonal', drops: Record<number, number>, elapsed: number, extra: Record<string, unknown> = {}) {
   return {type: 'tracker_finished', timestamp: 1_000_000, tracker: {kind, drops, elapsed, active: true, ...extra}} as Extract<EngineEvent, {type: 'tracker_finished'}>;
@@ -35,6 +34,7 @@ function finish(p: SessionPersistence, drops: Record<number, number> = {}, elaps
 const existing: DbSession = {
   id: 's1', name: 'My Run', savedAt: '2026-10-01T00:00:00.000Z', totalTime: 100, mapTime: 80, mapCount: 2,
   drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {'100': 9},
+  spent: {},
 };
 
 describe('atomicity', () => {
@@ -119,12 +119,14 @@ describe('price capture filtering', () => {
     expect(store.getSession('s1')?.priceSnapshot).toEqual({'4': 0.001});
   });
 
-  it('needed ids include spent ids from overlap-free map rows and standalone seasonal rows', () => {
+  it('needed ids include map-row spent ids and the session spent ids; a standalone seasonal adds none', () => {
     const reader = vi.fn<PriceReader>(() => ({}));
     const p = make({}, reader);
-    p.onTrackerFinished(tf('map', {}, 60_000), engine(true, {'11': 1}));
-    p.onTrackerFinished(tf('seasonal', {}, 60_000, {seasonalType: 'sandlord'}), engine(false, {'22': 1}));
-    finish(p, {33: 1});
+    p.onTrackerFinished(tf('map', {}, 60_000, {spent: {11: 1}}), engine(true));
+    p.onTrackerFinished(tf('seasonal', {}, 60_000, {seasonalType: 'sandlord'}), engine(false));
+    const e = tf('session', {33: 1}, 60_000, {spent: {22: 1}});
+    e.sessionMeta = {mapTime: 50_000, mapCount: 1};
+    p.onTrackerFinished(e, engine(false));
     expect([...reader.mock.calls[0][0]].sort()).toEqual(['11', '22', '33']);
   });
 

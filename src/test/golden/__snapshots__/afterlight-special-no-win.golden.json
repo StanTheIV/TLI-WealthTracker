@@ -2,7 +2,7 @@
   "anomalies": [],
   "events": {
     "counts": {
-      "drop": 9,
+      "drop": 7,
       "init_complete": 1,
       "init_started": 1,
       "loot_window_ended": 2,
@@ -38,9 +38,9 @@
       "+69.000s loot_window_ended afterlight",
       "+69.000s tracker_finished seasonal afterlight elapsed=15.000s items=2",
       "+90.000s zone_change town JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000 -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
-      "+90.000s tracker_finished map elapsed=69.000s items=6",
+      "+90.000s tracker_finished map elapsed=69.000s items=4",
       "+90.000s map_ended elapsed=69.000s",
-      "+150.000s tracker_finished session elapsed=149.250s items=6"
+      "+150.000s tracker_finished session elapsed=149.250s items=4"
     ]
   },
   "linesDelivered": 30,
@@ -246,9 +246,7 @@
             "5028": 3,
             "5210": 4,
             "6153": 2,
-            "10240": -1,
-            "100300": 47,
-            "400015": -1
+            "100300": 47
           },
           "duration": 69000,
           "mapIndex": 1,
@@ -282,9 +280,7 @@
           "5028": 3,
           "5210": 4,
           "6153": 2,
-          "10240": -1,
-          "100300": 47,
-          "400015": -1
+          "100300": 47
         },
         "dropsBySource": {
           "afterlight": {
@@ -294,9 +290,7 @@
           "map": {
             "5028": 3,
             "6153": 2,
-            "10240": -1,
-            "100300": 27,
-            "400015": -1
+            "100300": 27
           }
         },
         "mapCount": 1,
@@ -308,6 +302,10 @@
           "10240": 1.563492,
           "100300": 1,
           "400015": 1.994949
+        },
+        "spent": {
+          "10240": 1,
+          "400015": 1
         },
         "totalTime": 149.25
       }

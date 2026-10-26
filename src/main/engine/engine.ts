@@ -5,7 +5,6 @@ import type {LoadedSessionData} from './context';
 import {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/shared/item-filter';
 import type {ItemType} from '@/shared/items';
-import {ItemHandler} from './handlers/item';
 import {MapMaterialHandler} from './handlers/map-material';
 import {OverrealmHandler} from './handlers/overrealm-handler';
 import {CarjackHandler} from './handlers/carjack-handler';
@@ -33,7 +32,6 @@ export class Engine {
   // visit each handler exactly once (onStop).
   private _handlers: EventHandler[] = [];
   private _mapMaterial: MapMaterialHandler | null = null;
-  private _item:        ItemHandler        | null = null;
   private _overrealm:   OverrealmHandler   | null = null;
   private _carjack:     CarjackHandler     | null = null;
   private _clockwork:   ClockworkHandler   | null = null;
@@ -52,7 +50,6 @@ export class Engine {
       this._routes.get(type)!.push(handler);
     }
     this._handlers.push(handler);
-    if (handler instanceof ItemHandler)        this._item        = handler;
     if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
     if (handler instanceof OverrealmHandler)   this._overrealm   = handler;
     if (handler instanceof CarjackHandler)     this._carjack     = handler;
@@ -100,7 +97,7 @@ export class Engine {
    * Reset the in-flight session WITHOUT touching bag state, filters, or known
    * items. Drops and elapsed for session/map/seasonal go to zero. Map count
    * resets to 0 (or 1 if currently in a map — that map becomes "map #1" of the
-   * new run). Pause/run state preserved.
+   * new run) and keeps that map's entry cost. Pause/run state preserved.
    */
   reset(): void {
     if (this._ctx.phase !== 'tracking') return;
@@ -117,7 +114,11 @@ export class Engine {
     // flip the renderer's phase to 'idle'. Each seasonal's finish() emits
     // its own tracker_finished; the registry handles map separately below.
     this._ctx.registry.finishAllSeasonals();
+    // The materials were consumed to open the map the player is still in, so
+    // its rebuilt tracker (and the new session) keep the entry cost.
+    let carriedCost: ReadonlyMap<number, number> = new Map();
     if (this._ctx.registry.map) {
+      carriedCost = new Map(this._ctx.registry.map.entryCost);
       this._emit({type: 'tracker_finished', tracker: this._ctx.registry.map.snapshot(), timestamp: now});
       this._ctx.registry.map = null;
     }
@@ -144,8 +145,12 @@ export class Engine {
       const map = this._ctx.registry.startMap();
       if (map) {
         if (wasPaused) map.pause();
+        this._ctx.registry.chargeEntryCost(carriedCost);
         this._emit({type: 'map_started', mapCount: 1, timestamp: now});
         this._emit({type: 'tracker_started', tracker: map.snapshot(), timestamp: now});
+        if (carriedCost.size > 0) {
+          this._emit({type: 'tracker_update', tracker: session.snapshot(), timestamp: now});
+        }
       }
     }
 
@@ -323,20 +328,6 @@ export class Engine {
 
   setAfterlightLootDurationMs(ms: number): void {
     this._afterlight?.setLootDurationMs(ms);
-  }
-
-  /**
-   * Per-map spend record for the most recently entered map. Sourced from
-   * ItemHandler's pre-map buffer flush.
-   */
-  getLastMapSpends(): Record<string, number> {
-    const out: Record<string, number> = {};
-    const flush = this._item?.getLastPreMapFlush();
-    if (!flush) return out;
-    for (const [id, change] of flush) {
-      if (change < 0) out[String(id)] = -change;
-    }
-    return out;
   }
 
   onRawEvent(event: RawEvent): void {

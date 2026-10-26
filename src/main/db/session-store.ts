@@ -13,6 +13,7 @@ type SessionRow = {
   drops_by_source: string;
   attribution:     string;
   price_snapshot:  string;
+  spent:           string;
 };
 
 type SessionMapRow = {
@@ -44,6 +45,7 @@ function rowToSession(r: SessionRow): DbSession {
     dropsBySource,
     attribution,
     priceSnapshot: JSON.parse(r.price_snapshot ?? '{}'),
+    spent:         JSON.parse(r.spent ?? '{}'),
   };
 }
 
@@ -54,6 +56,7 @@ function sessionParams(session: DbSession): Record<string, unknown> {
     drops:         JSON.stringify(session.drops),
     dropsBySource: JSON.stringify(session.dropsBySource),
     priceSnapshot: JSON.stringify(session.priceSnapshot ?? {}),
+    spent:         JSON.stringify(session.spent ?? {}),
   };
 }
 
@@ -74,8 +77,8 @@ export class SqliteSessionStore {
 
   insertSession(session: DbSession): void {
     this.conn.prepare(`
-      INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source, attribution, price_snapshot)
-      VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource, @attribution, @priceSnapshot)
+      INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source, attribution, price_snapshot, spent)
+      VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource, @attribution, @priceSnapshot, @spent)
     `).run(sessionParams(session));
   }
 
@@ -87,7 +90,7 @@ export class SqliteSessionStore {
       SET saved_at = @savedAt, total_time = @totalTime,
           map_time = @mapTime, map_count = @mapCount, drops = @drops,
           drops_by_source = @dropsBySource, attribution = @attribution,
-          price_snapshot = @priceSnapshot
+          price_snapshot = @priceSnapshot, spent = @spent
       WHERE id = @id
     `).run(sessionParams(session));
   }

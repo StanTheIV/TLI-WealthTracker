@@ -15,11 +15,16 @@ import type {Engine} from '@/main/engine/engine';
 import type {DbSession} from '@/shared/contracts/db';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 
-function makeEngine(opts: {hasMap: boolean; spends?: Record<string, number>}): Engine {
+function makeEngine(opts: {hasMap: boolean}): Engine {
   return {
     hasActiveMapTracker: () => opts.hasMap,
-    getLastMapSpends:    () => opts.spends ?? {},
   } as unknown as Engine;
+}
+
+/** The finished tracker's own entry cost (TrackerSnapshot.spent). */
+function withSpent<E extends Extract<EngineEvent, {type: 'tracker_finished'}>>(event: E, spent: Record<number, number>): E {
+  event.tracker.spent = spent;
+  return event;
 }
 
 function trackerFinished(
@@ -72,9 +77,9 @@ const rows = (sessionId = 's1') => store.getRows(sessionId);
 describe('SessionPersistence.onTrackerFinished — row routing', () => {
   it('saves a map tracker_finished as a primary map row (mapIndex=1)', () => {
     const p = make();
-    const engine = makeEngine({hasMap: true, spends: {'42': 3}});
+    const engine = makeEngine({hasMap: true});
 
-    p.onTrackerFinished(trackerFinished('map', {100: 5}, 60_000), engine);
+    p.onTrackerFinished(withSpent(trackerFinished('map', {100: 5}, 60_000), {42: 3}), engine);
     expect(rows()).toEqual([]);   // nothing in the DB before the session event
     finish(p);
 
@@ -107,21 +112,21 @@ describe('SessionPersistence.onTrackerFinished — row routing', () => {
     });
   });
 
-  it('a standalone seasonal keeps its entry cost (no map row exists to carry it)', () => {
+  it('a standalone seasonal has no entry cost — only a town -> map entry has one', () => {
     const p = make();
 
-    p.onTrackerFinished(trackerFinished('seasonal', {200: 1}, 30_000, 'sandlord'), makeEngine({hasMap: false, spends: {'42': 2}}));
+    p.onTrackerFinished(trackerFinished('seasonal', {200: 1}, 30_000, 'sandlord'), makeEngine({hasMap: false}));
     finish(p);
 
-    expect(rows()[0].spent).toEqual({'42': 2});
+    expect(rows()[0].spent).toEqual({});
   });
 
   it('an overlap seasonal records no spend — its parent map row owns the cost', () => {
     const p = make();
-    const engine = makeEngine({hasMap: true, spends: {'42': 2}});
+    const engine = makeEngine({hasMap: true});
 
     p.onTrackerFinished(trackerFinished('seasonal', {300: 1}, 20_000, 'overrealm'), engine);
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), engine);
+    p.onTrackerFinished(withSpent(trackerFinished('map', {100: 1}, 60_000), {42: 2}), engine);
     finish(p);
 
     const saved   = rows();
@@ -293,6 +298,7 @@ describe('SessionPersistence — auto-save', () => {
       dropsBySource: {map: {'100': 3}, overrealm: {'200': 1}},
       attribution:   'drop-through',
       priceSnapshot: {},
+      spent:         {},
     });
   });
 
@@ -300,6 +306,7 @@ describe('SessionPersistence — auto-save', () => {
     store.insertSession({
       id: 's1', name: 'My Run', savedAt: '2026-10-01T00:00:00.000Z', totalTime: 100, mapTime: 80, mapCount: 2,
       drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {'100': 9},
+      spent: {},
     });
     store.insertRows([
       {sessionId: 's1', mapIndex: 1, startedAt: 1, duration: 1, drops: {'100': 1}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null},
@@ -331,7 +338,7 @@ describe('SessionPersistence — auto-save', () => {
     const readPrices = vi.fn<PriceReader>(() => ({'100': 5, '42': 2, '300': 0, '999': 7}));
     const p = make({}, readPrices);
 
-    p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true, spends: {'42': 3}}));
+    p.onTrackerFinished(withSpent(trackerFinished('map', {100: 1}, 60_000), {42: 3}), makeEngine({hasMap: true}));
     finish(p, {drops: {100: 1, 300: 1}});
 
     expect(readPrices).toHaveBeenCalledTimes(1);
@@ -365,6 +372,14 @@ describe('SessionPersistence — auto-save', () => {
     expect(store.getSession('s1')?.drops).toEqual({'100': 1});
   });
 
+  it('saves a 0 s run whose only content is an entry cost (it used to arrive as a negative drop)', () => {
+    const p = make();
+    const event = withSpent(trackerFinished('session', {}, 0), {42: 3});
+    event.sessionMeta = {mapTime: 0, mapCount: 1};
+    expect(p.onTrackerFinished(event, makeEngine({hasMap: false}))).toEqual({savedId: 's1'});
+    expect(store.getSession('s1')).toMatchObject({drops: {}, spent: {'42': 3}});
+  });
+
   it('saves nothing without sessionMeta', () => {
     const p = make();
     p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));
@@ -390,7 +405,7 @@ describe('SessionPersistence — auto-save', () => {
   it('clears the buffer and index after a saved session event', () => {
     store.insertSession({
       id: 's1', name: 'Run', savedAt: 'x', totalTime: 0, mapTime: 0, mapCount: 0,
-      drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {},
+      drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, spent: {},
     });
     const p = make({sessionName: 'Run', isOverride: true});
     p.onTrackerFinished(trackerFinished('map', {100: 1}, 60_000), makeEngine({hasMap: true}));

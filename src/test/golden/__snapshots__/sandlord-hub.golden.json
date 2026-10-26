@@ -2,7 +2,7 @@
   "anomalies": [],
   "events": {
     "counts": {
-      "drop": 112,
+      "drop": 109,
       "init_complete": 1,
       "init_started": 1,
       "loot_window_ended": 1,
@@ -38,7 +38,7 @@
       "+75.500s map_material_warning items=[]",
       "+79.750s map_material_warning items=[]",
       "+82.750s zone_change town SD_ShouGuSiDi000.SD_ShouGuSiDi000 -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
-      "+82.750s tracker_finished map elapsed=76.250s items=8",
+      "+82.750s tracker_finished map elapsed=76.250s items=6",
       "+82.750s map_ended elapsed=76.250s",
       "+86.500s tracker_started seasonal arcana active=true owner",
       "+173.500s zone_change unknown XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200 -> SuMingTaLuo000.SuMingTaLuo000",
@@ -54,7 +54,7 @@
       "+431.500s zone_change map SQ_NvShenQunBai100.SQ_NvShenQunBai100 -> YunDuanLvZhou.YunDuanLvZhou",
       "+517.500s tracker_finished seasonal sandlord/hub elapsed=185.750s items=16",
       "+517.500s zone_change town YunDuanLvZhou.YunDuanLvZhou -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
-      "+577.750s tracker_finished session elapsed=577.000s items=33"
+      "+577.750s tracker_finished session elapsed=577.000s items=31"
     ]
   },
   "linesDelivered": 640,
@@ -64,8 +64,8 @@
         "mechanics": [
           {
             "avgPerRun": {
-              "live": 12.894157,
-              "snapshot": 12.894157
+              "live": 13.934157,
+              "snapshot": 13.934157
             },
             "avgSeconds": 62.25,
             "cost": {
@@ -73,25 +73,25 @@
               "snapshot": 7.588441
             },
             "fePerHour": {
-              "live": 745.686188,
-              "snapshot": 745.686188
+              "live": 805.830766,
+              "snapshot": 805.830766
             },
             "income": {
-              "live": 20.482598,
-              "snapshot": 20.482598
+              "live": 21.522598,
+              "snapshot": 21.522598
             },
             "key": "map",
             "nestedInMap": false,
             "net": {
-              "live": 12.894157,
-              "snapshot": 12.894157
+              "live": 13.934157,
+              "snapshot": 13.934157
             },
             "runs": 1,
             "seconds": 62.25,
             "timePct": 10.788562,
             "valuePct": {
-              "live": 4.593561,
-              "snapshot": 4.593561
+              "live": 4.815567,
+              "snapshot": 4.815567
             }
           },
           {
@@ -122,8 +122,8 @@
             "seconds": 199.75,
             "timePct": 34.618718,
             "valuePct": {
-              "live": 62.648893,
-              "snapshot": 62.648893
+              "live": 62.503112,
+              "snapshot": 62.503112
             }
           },
           {
@@ -154,8 +154,8 @@
             "seconds": 236.5,
             "timePct": 40.987868,
             "valuePct": {
-              "live": 32.757546,
-              "snapshot": 32.757546
+              "live": 32.681321,
+              "snapshot": 32.681321
             }
           },
           {
@@ -204,18 +204,18 @@
               "snapshot": 7.588441
             },
             "cumulative": {
-              "live": 6.242092,
-              "snapshot": 6.242092
+              "live": 7.282092,
+              "snapshot": 7.282092
             },
             "mapIncome": {
-              "live": 12.894157,
-              "snapshot": 12.894157
+              "live": 13.934157,
+              "snapshot": 13.934157
             },
             "mapIndex": 1,
             "mechanic": "map",
             "net": {
-              "live": 6.242092,
-              "snapshot": 6.242092
+              "live": 7.282092,
+              "snapshot": 7.282092
             },
             "seasonalIncome": {
               "live": 0.936376,
@@ -235,8 +235,8 @@
               "snapshot": 0
             },
             "cumulative": {
-              "live": 152.307338,
-              "snapshot": 152.307338
+              "live": 153.347338,
+              "snapshot": 153.347338
             },
             "mapIncome": {
               "live": 0,
@@ -266,8 +266,8 @@
               "snapshot": 0
             },
             "cumulative": {
-              "live": 430.721131,
-              "snapshot": 430.721131
+              "live": 431.761131,
+              "snapshot": 431.761131
             },
             "mapIncome": {
               "live": 0,
@@ -303,33 +303,33 @@
           "efficiencyPct": 86.395147,
           "exclusiveSeasonalSeconds": 422.25,
           "income": {
-            "live": 438.309572,
-            "snapshot": 438.309572
+            "live": 439.349572,
+            "snapshot": 439.349572
           },
           "incomePerHour": {
-            "live": 2734.687104,
-            "snapshot": 2734.687104
+            "live": 2741.175839,
+            "snapshot": 2741.175839
           },
           "mapCount": 1,
           "mapSeconds": 76.25,
           "mapsUnprofitable": 0,
           "net": {
-            "live": 430.721131,
-            "snapshot": 430.721131
+            "live": 431.761131,
+            "snapshot": 431.761131
           },
           "netPerHour": {
-            "live": 2687.341545,
-            "snapshot": 2687.341545
+            "live": 2693.83028,
+            "snapshot": 2693.83028
           },
           "plainMapSeconds": 62.25,
           "roiMultiple": {
-            "live": 57.760161,
-            "snapshot": 57.760161
+            "live": 57.897211,
+            "snapshot": 57.897211
           },
-          "totalQty": 840,
+          "totalQty": 848,
           "totalSeconds": 577,
           "townSeconds": 78.5,
-          "uniqueItems": 30
+          "uniqueItems": 31
         },
         "warnings": []
       },
@@ -351,13 +351,11 @@
       "rows": [
         {
           "drops": {
-            "5028": -23,
+            "5028": 8,
             "5140": 5,
             "5144": 1,
-            "10240": -1,
             "100200": 49,
             "100300": 11,
-            "400015": -1,
             "400028": 1
           },
           "duration": 76250,
@@ -446,7 +444,7 @@
       "totals": {
         "attribution": "drop-through",
         "drops": {
-          "5028": -23,
+          "5028": 8,
           "5140": 5,
           "5144": 1,
           "6002": 2,
@@ -458,7 +456,6 @@
           "10120": 2,
           "10122": 1,
           "10190": 1,
-          "10240": -1,
           "12000": 7,
           "12001": 3,
           "12010": 4,
@@ -477,7 +474,6 @@
           "350015": 1,
           "350313": 1,
           "350324": 1,
-          "400015": -1,
           "400028": 1
         },
         "dropsBySource": {
@@ -501,12 +497,10 @@
             "350324": 1
           },
           "map": {
-            "5028": -24,
+            "5028": 7,
             "5140": 5,
-            "10240": -1,
             "100200": 48,
             "100300": 11,
-            "400015": -1,
             "400028": 1
           },
           "sandlord": {
@@ -565,6 +559,11 @@
           "350313": 6,
           "400015": 1.994949,
           "400028": 1.636364
+        },
+        "spent": {
+          "5028": 31,
+          "10240": 1,
+          "400015": 1
         },
         "totalTime": 577
       }

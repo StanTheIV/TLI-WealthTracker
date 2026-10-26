@@ -2,7 +2,7 @@
   "anomalies": [],
   "events": {
     "counts": {
-      "drop": 7,
+      "drop": 5,
       "init_complete": 1,
       "init_started": 1,
       "map_ended": 1,
@@ -31,9 +31,9 @@
       "+70.000s tracker_update seasonal vorex active=true",
       "+90.000s zone_change town DiXiaZhenSuo.DiXiaZhenSuo -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
       "+90.000s tracker_finished seasonal vorex elapsed=44.250s items=3",
-      "+90.000s tracker_finished map elapsed=24.750s items=4",
+      "+90.000s tracker_finished map elapsed=24.750s items=2",
       "+90.000s map_ended elapsed=24.750s",
-      "+155.000s tracker_finished session elapsed=154.250s items=6"
+      "+155.000s tracker_finished session elapsed=154.250s items=4"
     ]
   },
   "linesDelivered": 24,
@@ -48,16 +48,16 @@
             },
             "avgSeconds": 24.75,
             "cost": {
-              "live": 0,
-              "snapshot": 0
+              "live": 3.558441,
+              "snapshot": 3.558441
             },
             "fePerHour": {
               "live": 2848.841309,
               "snapshot": 2848.841309
             },
             "income": {
-              "live": 19.585784,
-              "snapshot": 19.585784
+              "live": 23.144225,
+              "snapshot": 23.144225
             },
             "key": "map",
             "nestedInMap": false,
@@ -69,8 +69,8 @@
             "seconds": 24.75,
             "timePct": 16.045381,
             "valuePct": {
-              "live": 40.004365,
-              "snapshot": 40.004365
+              "live": 44.0695,
+              "snapshot": 44.0695
             }
           },
           {
@@ -101,8 +101,8 @@
             "seconds": 44.25,
             "timePct": 28.687196,
             "valuePct": {
-              "live": 59.995635,
-              "snapshot": 59.995635
+              "live": 55.9305,
+              "snapshot": 55.9305
             }
           },
           {
@@ -147,12 +147,12 @@
               }
             },
             "cost": {
-              "live": 0,
-              "snapshot": 0
+              "live": 3.558441,
+              "snapshot": 3.558441
             },
             "cumulative": {
-              "live": 48.959117,
-              "snapshot": 48.959117
+              "live": 45.400676,
+              "snapshot": 45.400676
             },
             "mapIncome": {
               "live": 19.585784,
@@ -161,8 +161,8 @@
             "mapIndex": 1,
             "mechanic": "map",
             "net": {
-              "live": 48.959117,
-              "snapshot": 48.959117
+              "live": 45.400676,
+              "snapshot": 45.400676
             },
             "seasonalIncome": {
               "live": 29.373333,
@@ -173,16 +173,16 @@
         ],
         "totals": {
           "breakEvenYield": {
-            "live": 0,
-            "snapshot": 0
+            "live": 3.558441,
+            "snapshot": 3.558441
           },
           "cost": {
-            "live": 0,
-            "snapshot": 0
+            "live": 3.558441,
+            "snapshot": 3.558441
           },
           "costPerMap": {
-            "live": 0,
-            "snapshot": 0
+            "live": 3.558441,
+            "snapshot": 3.558441
           },
           "driftPct": 0,
           "efficiencyPct": 44.732577,
@@ -199,17 +199,17 @@
           "mapSeconds": 24.75,
           "mapsUnprofitable": 0,
           "net": {
-            "live": 48.959117,
-            "snapshot": 48.959117
+            "live": 45.400676,
+            "snapshot": 45.400676
           },
           "netPerHour": {
-            "live": 1142.643898,
-            "snapshot": 1142.643898
+            "live": 1059.594383,
+            "snapshot": 1059.594383
           },
           "plainMapSeconds": 24.75,
           "roiMultiple": {
-            "live": null,
-            "snapshot": null
+            "live": 13.758586,
+            "snapshot": 13.758586
           },
           "totalQty": 50,
           "totalSeconds": 154.25,
@@ -237,16 +237,17 @@
         {
           "drops": {
             "6153": 1,
-            "10240": -1,
-            "100300": 12,
-            "400015": -1
+            "100300": 12
           },
           "duration": 24750,
           "mapIndex": 1,
           "parentMapIndex": null,
           "phase": null,
           "seasonalType": null,
-          "spent": {},
+          "spent": {
+            "10240": 1,
+            "400015": 1
+          },
           "startedAtMs": 65250
         },
         {
@@ -271,16 +272,12 @@
           "5028": 8,
           "6004": 1,
           "6153": 1,
-          "10240": -1,
-          "100300": 40,
-          "400015": -1
+          "100300": 40
         },
         "dropsBySource": {
           "map": {
             "6153": 1,
-            "10240": -1,
-            "100300": 12,
-            "400015": -1
+            "100300": 12
           },
           "vorex": {
             "5028": 8,
@@ -297,6 +294,10 @@
           "10240": 1.563492,
           "100300": 1,
           "400015": 1.994949
+        },
+        "spent": {
+          "10240": 1,
+          "400015": 1
         },
         "totalTime": 154.25
       }

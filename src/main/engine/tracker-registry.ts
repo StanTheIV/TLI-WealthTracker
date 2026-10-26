@@ -326,6 +326,19 @@ export class TrackerRegistry {
     return result;
   }
 
+  /**
+   * Book a town → map entry cost: it becomes the map's cost (replacing any)
+   * and adds to the session's running total. Never a drop, never a seasonal's,
+   * and deliberately unfiltered — hiding an item hides its loot, not what the
+   * map cost.
+   */
+  chargeEntryCost(cost: ReadonlyMap<number, number>): void {
+    this.map?.setEntryCost(cost);
+    if (this.session) {
+      for (const [itemId, qty] of cost) this.session.addCost(itemId, qty);
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Session pause
   // -----------------------------------------------------------------------

@@ -16,7 +16,7 @@ const T_PROBE = Date.UTC(2026, 5, 1, 12);
 
 const session = (over: Partial<DbSession> = {}): DbSession => ({
   id: 's', name: 'n', savedAt: 'x', totalTime: 1, mapTime: 1, mapCount: 1,
-  drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, ...over,
+  drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, ...over,
 });
 
 const row = (over: Partial<DbSessionMap> = {}): DbSessionMap => ({

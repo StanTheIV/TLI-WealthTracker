@@ -4,13 +4,15 @@
  * Scenario under test:
  *   1. Start engine + complete bag init
  *   2. In town: spend map-creation materials (buffer fills with negatives)
- *   3. Town → map: buffered town deltas should attribute to the new map
+ *   3. Town → map: the buffered spend becomes the new map's entry cost
+ *      (snapshot `spent`, positive magnitudes) and adds to the session's
+ *      running total — never a negative drop
  *   4. End map (map → town): finishes map tracker; in-map drops counted
  *   5. In town: do various item changes (vendor sell, restock, shuffle)
- *   6. Town → map again: confirm the new map tracker only sees the
- *      pre-map material spend, NOT the unrelated town shuffling
- *   7. End map again: assert session totals only contain in-map drops
- *      and the two material spends — none of the town-only shuffling.
+ *   6. Town → map again: confirm the new map's cost is only the pre-map
+ *      material spend, NOT the unrelated town shuffling
+ *   7. End map again: assert session drops only contain in-map loot and the
+ *      session spent the two material costs — none of the town-only shuffling.
  */
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {Engine}            from '@/main/engine/engine';
@@ -53,6 +55,9 @@ function ctx(engine: Engine): EngineContext {
   return (engine as unknown as {_ctx: EngineContext})._ctx;
 }
 
+const mapSpent     = (engine: Engine) => ctx(engine).registry.map?.snapshot().spent;
+const sessionSpent = (engine: Engine) => ctx(engine).registry.session?.snapshot().spent;
+
 function boot(
   engine:    Engine,
   inventory: Array<{slotId: number; itemId: number; quantity: number}>,
@@ -89,16 +94,15 @@ describe('town-tracking integration', () => {
     expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
 
     // ---------------------------------------------------------------------
-    // 2. Town → map: pre-map buffer flushes into BOTH session and map
-    //    trackers (so the live UI shows the spend), AND is recorded as
-    //    m.spent for the per-map chart's cost line. The chart math handles
-    //    the "in m.drops as negative AND in m.spent as positive" overlap.
+    // 2. Town → map: the buffered spend is the new map's entry cost and adds
+    //    to the session's running cost. It is not loot: no negative drop.
     // ---------------------------------------------------------------------
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
 
-    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
-    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
-    expect(engine.getLastMapSpends()).toEqual({[String(ITEM_MATERIAL)]: 3});
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
+    expect(mapSpent(engine)).toEqual({[ITEM_MATERIAL]: 3});
+    expect(sessionSpent(engine)).toEqual({[ITEM_MATERIAL]: 3});
 
     // ---------------------------------------------------------------------
     // 3. In map: pick up loot (ITEM_LOOT 0 → 5)
@@ -143,18 +147,18 @@ describe('town-tracking integration', () => {
 
     // ---------------------------------------------------------------------
     // 6. New map material spend right before next map (7 → 6): -1
-    //    This buffers up and should flush into the second map.
+    //    This buffers up and becomes the second map's entry cost.
     // ---------------------------------------------------------------------
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: ITEM_MATERIAL, quantity: 6});
 
     // Town → map again
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
 
-    // Pre-map spend lives in BOTH the new map tracker AND engine.getLastMapSpends().
-    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBe(-1);
-    expect(engine.getLastMapSpends()).toEqual({[String(ITEM_MATERIAL)]: 1});
-    // Session should reflect both material spends (-3 + -1 = -4).
-    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBe(-4);
+    // The new map's cost is this spend alone; the session's is both (3 + 1 = 4).
+    expect(mapSpent(engine)).toEqual({[ITEM_MATERIAL]: 1});
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
+    expect(sessionSpent(engine)).toEqual({[ITEM_MATERIAL]: 4});
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
     // And the new map tracker should NOT have been polluted by the town junk/vendor activity.
     expect(ctx(engine).registry.map?.snapshot().drops[ITEM_JUNK]).toBeUndefined();
     expect(ctx(engine).registry.map?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
@@ -169,16 +173,16 @@ describe('town-tracking integration', () => {
 
     // ---------------------------------------------------------------------
     // Final session assertions:
-    //   ITEM_MATERIAL: -3 (map1 spend) + -1 (map2 spend) = -4
-    //   ITEM_LOOT:     +5 (map1) + +7 (map2) = +12
-    //   ITEM_JUNK:     undefined (sold in town — not tracked)
-    //   ITEM_VENDOR:   undefined (bought in town — not tracked)
-    //
-    // The session totals must include ONLY items 100 and 200, NOT 300 or 400.
+    //   drops ITEM_LOOT:     +5 (map1) + +7 (map2) = +12
+    //   drops ITEM_MATERIAL: undefined (a cost, not loot)
+    //   drops ITEM_JUNK:     undefined (sold in town — not tracked)
+    //   drops ITEM_VENDOR:   undefined (bought in town — not tracked)
+    //   spent ITEM_MATERIAL: 3 (map1) + 1 (map2) = 4, nothing else
     // ---------------------------------------------------------------------
     const finalSession = ctx(engine).registry.session?.snapshot().drops ?? {};
 
-    expect(finalSession[ITEM_MATERIAL]).toBe(-4);
+    expect(finalSession[ITEM_MATERIAL]).toBeUndefined();
+    expect(sessionSpent(engine)).toEqual({[ITEM_MATERIAL]: 4});
     expect(finalSession[ITEM_LOOT]).toBe(12);
     expect(finalSession[ITEM_JUNK]).toBeUndefined();
     expect(finalSession[ITEM_VENDOR]).toBeUndefined();
@@ -362,8 +366,8 @@ describe('town-tracking integration', () => {
   // ---------------------------------------------------------------------------
   // Per-map persistence path — these tests catch the bugs where the chart's
   // cost/income math went wrong because the wrong data flowed into m.spent
-  // and m.drops. They exercise getLastMapSpends() (writes m.spent) and
-  // ctx.map snapshot at map-end (writes m.drops) — the actual DB columns.
+  // and m.drops. The map snapshot at map-end carries both (`spent` and
+  // `drops`) — what SessionPersistence writes to the DB columns.
   // ---------------------------------------------------------------------------
 
   it('AH listing in town (single bag remove, then 10s idle, then map): m.spent and m.drops are both clean', () => {
@@ -384,10 +388,10 @@ describe('town-tracking integration', () => {
     // 3. Open a map.
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
 
-    // CRITICAL: m.spent for this map (engine.getLastMapSpends) must NOT contain
-    // the AH listing. This is what writes the per-map "spent" DB column that
-    // drives the chart's cost line.
-    expect(engine.getLastMapSpends()).toEqual({});
+    // CRITICAL: the map's cost must NOT contain the AH listing. This is what
+    // writes the per-map "spent" DB column that drives the chart's cost line.
+    expect(mapSpent(engine)).toBeUndefined();
+    expect(sessionSpent(engine)).toBeUndefined();
 
     // 4. Drop something legit in the map.
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: ITEM_LOOT, quantity: 5});
@@ -406,7 +410,7 @@ describe('town-tracking integration', () => {
     expect(session[ITEM_VENDOR]).toBeUndefined();
   });
 
-  it('legitimate map-creation spend just before map: lands in m.drops AND m.spent (chart math handles overlap)', () => {
+  it('legitimate map-creation spend just before map: lands in m.spent only, never in m.drops', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
 
@@ -419,18 +423,15 @@ describe('town-tracking integration', () => {
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: ITEM_MATERIAL, quantity: 7});
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
 
-    // m.spent has the material as a positive quantity (cost projection).
-    expect(engine.getLastMapSpends()).toEqual({[String(ITEM_MATERIAL)]: 3});
+    // m.spent has the material as a positive quantity — the map's entry cost.
+    expect(mapSpent(engine)).toEqual({[ITEM_MATERIAL]: 3});
 
-    // m.drops (the map tracker) ALSO has the spend as a negative — so the
-    // live "current map" widget reflects it. The chart math in
-    // SessionDetail.tsx is responsible for not double-counting the negative
-    // in m.drops with the positive magnitude in m.spent (income line filters
-    // for positive entries only).
-    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    // It is not loot: neither the map nor the session books a negative drop.
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
 
-    // Session DOES have the spend (it's a real session-level deduction).
-    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    // The session carries it as its running cost (a real session-level deduction).
+    expect(sessionSpent(engine)).toEqual({[ITEM_MATERIAL]: 3});
 
     // In-map loot.
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: ITEM_LOOT, quantity: 5});
@@ -440,8 +441,9 @@ describe('town-tracking integration', () => {
     const mapAtExit = ctx(engine).registry.map?.snapshot();
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
-    // m.drops carries both the negative spend and the positive loot.
-    expect(mapAtExit?.drops).toEqual({[ITEM_MATERIAL]: -3, [ITEM_LOOT]: 5});
+    // m.drops carries the loot only; m.spent the cost.
+    expect(mapAtExit?.drops).toEqual({[ITEM_LOOT]: 5});
+    expect(mapAtExit?.spent).toEqual({[ITEM_MATERIAL]: 3});
   });
 
   it('a second map entered with nothing bought records no spend (no stale basket)', () => {
@@ -456,13 +458,14 @@ describe('town-tracking integration', () => {
     // Map 1 consumes 3 material.
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: ITEM_MATERIAL, quantity: 7});
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
-    expect(engine.getLastMapSpends()).toEqual({[String(ITEM_MATERIAL)]: 3});
+    expect(mapSpent(engine)).toEqual({[ITEM_MATERIAL]: 3});
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
-    // Straight back into a map having bought nothing. The snapshot must reset —
+    // Straight back into a map having bought nothing. The new map has no cost —
     // inheriting map 1's basket would book the same materials on both rows.
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
-    expect(engine.getLastMapSpends()).toEqual({});
+    expect(mapSpent(engine)).toBeUndefined();
+    expect(sessionSpent(engine)).toEqual({[ITEM_MATERIAL]: 3});
   });
 
   it('a town-started seasonal records no spend from the preceding map', () => {
@@ -480,9 +483,11 @@ describe('town-tracking integration', () => {
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
     // Town -> Sandlord hub with an empty bag buffer. The hub run consumed
-    // nothing, so persisting the map's basket against it would double-count.
+    // nothing, so booking the map's basket against it would double-count.
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: SANDLORD_HUB_SCENE});
-    expect(engine.getLastMapSpends()).toEqual({});
+    expect(ctx(engine).registry.seasonal('sandlord')).not.toBeNull();
+    expect(ctx(engine).registry.seasonal('sandlord')?.snapshot().spent).toBeUndefined();
+    expect(sessionSpent(engine)).toEqual({[ITEM_MATERIAL]: 3});
   });
 
   it('mixed town activity: AH listing earlier + map material right before map → only the material attributes', () => {
@@ -505,25 +510,24 @@ describe('town-tracking integration', () => {
     engine.onRawEvent({type: 'zone_transition', fromScene: TOWN_SCENE, toScene: MAP_SCENE});
 
     // m.spent contains ONLY the material — AH listing was discarded earlier.
-    expect(engine.getLastMapSpends()).toEqual({[String(ITEM_MATERIAL)]: 3});
+    expect(mapSpent(engine)).toEqual({[ITEM_MATERIAL]: 3});
 
-    // m.drops (map tracker) has the material spend (-3); AH listing is gone.
-    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    // m.drops (map tracker) has neither the cost nor the AH listing.
+    expect(ctx(engine).registry.map?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
     expect(ctx(engine).registry.map?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
 
-    // Session has only the material spend (AH discarded, never reached session).
-    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBe(-3);
+    // Session cost is only the material (AH discarded, never reached session).
+    expect(sessionSpent(engine)).toEqual({[ITEM_MATERIAL]: 3});
+    expect(ctx(engine).registry.session?.snapshot().drops[ITEM_MATERIAL]).toBeUndefined();
     expect(ctx(engine).registry.session?.snapshot().drops[ITEM_VENDOR]).toBeUndefined();
   });
 
-  it('chart sanity: per-map net (positive m.drops − m.spent) reproduces session totals exactly', () => {
-    // This integration check mirrors the SessionDetail chart's math:
-    //   income = sum(POSITIVE entries in m.drops) × prices
-    //   cost   = sum(m.spent) × prices
-    //   net    = income − cost
-    // Aggregated across all maps, this MUST equal the session totals (same
-    // number as TOTAL FE on the dashboard). The earlier -13.5k chart vs
-    // +3.2k TOTAL FE bug was a violation of this invariant.
+  it('chart sanity: per-map loot and cost (m.drops, m.spent) reproduce the session exactly', () => {
+    // Per-map rows and the session carry the same two disjoint records:
+    //   loot = drops, cost = spent, net = loot − cost
+    // Aggregated across all maps, both MUST equal the session's (same number
+    // as TOTAL FE on the dashboard). The earlier -13.5k chart vs +3.2k TOTAL
+    // FE bug was a violation of this invariant.
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
 
@@ -533,13 +537,12 @@ describe('town-tracking integration', () => {
       {slotId: 3, itemId: ITEM_LOOT,     quantity: 0},
     ]);
 
-    type MapRow = {drops: Record<number, number>; spent: Record<string, number>};
+    type MapRow = {drops: Record<number, number>; spent: Record<number, number>};
     const mapRows: MapRow[] = [];
 
     const captureMapEnd = () => {
-      const snap  = ctx(engine).registry.map?.snapshot();
-      const spent = engine.getLastMapSpends();
-      if (snap) mapRows.push({drops: snap.drops, spent});
+      const snap = ctx(engine).registry.map?.snapshot();
+      if (snap) mapRows.push({drops: snap.drops, spent: snap.spent ?? {}});
     };
 
     // Map 1: spend 5 material, loot +10, no AH.
@@ -560,38 +563,29 @@ describe('town-tracking integration', () => {
     captureMapEnd();
     engine.onRawEvent({type: 'zone_transition', fromScene: MAP_SCENE, toScene: TOWN_SCENE});
 
-    // Compute chart-style "session total" — same math as SessionDetail.tsx:
-    // only positive m.drops feed income; m.spent feeds cost (subtracted).
-    const chartTotalQtyByItem = new Map<number, number>();
-    for (const row of mapRows) {
-      for (const [id, qty] of Object.entries(row.drops)) {
-        if (qty > 0) {
-          chartTotalQtyByItem.set(Number(id), (chartTotalQtyByItem.get(Number(id)) ?? 0) + qty);
-        }
+    // Per-item sums across the rows, loot and cost separately.
+    const sum = (pick: (r: MapRow) => Record<number, number>) => {
+      const out: Record<number, number> = {};
+      for (const row of mapRows) {
+        for (const [id, qty] of Object.entries(pick(row))) out[Number(id)] = (out[Number(id)] ?? 0) + qty;
       }
-      for (const [id, qty] of Object.entries(row.spent)) {
-        chartTotalQtyByItem.set(Number(id), (chartTotalQtyByItem.get(Number(id)) ?? 0) - qty);
-      }
-    }
+      return out;
+    };
+    const rowLoot = sum(r => r.drops);
+    const rowCost = sum(r => r.spent);
 
-    const session = ctx(engine).registry.session?.snapshot().drops ?? {};
-
-    for (const [id, qty] of Object.entries(session)) {
-      expect(chartTotalQtyByItem.get(Number(id))).toBe(qty);
-    }
-    for (const [id, qty] of chartTotalQtyByItem) {
-      if (qty === 0) continue;
-      expect(session[id]).toBe(qty);
-    }
+    const snap = ctx(engine).registry.session!.snapshot();
+    // Loot and cost each sum to the session's, so their difference (net) does too.
+    expect(rowLoot).toEqual(snap.drops);
+    expect(rowCost).toEqual(snap.spent);
 
     // Concrete sanity: the AH listing is in NEITHER side. It evaporated in town.
-    expect(session[ITEM_VENDOR]).toBeUndefined();
-    expect(chartTotalQtyByItem.get(ITEM_VENDOR) ?? 0).toBe(0);
+    expect(snap.drops[ITEM_VENDOR]).toBeUndefined();
+    expect(snap.spent?.[ITEM_VENDOR]).toBeUndefined();
 
-    // Material spends total -8, loot total +17 — across both maps.
-    expect(session[ITEM_MATERIAL]).toBe(-8);
-    expect(session[ITEM_LOOT]).toBe(17);
-    expect(chartTotalQtyByItem.get(ITEM_MATERIAL)).toBe(-8);
-    expect(chartTotalQtyByItem.get(ITEM_LOOT)).toBe(17);
+    // Material cost 5 + 3 = 8, loot +17 — across both maps; net material -8.
+    expect(snap.spent).toEqual({[ITEM_MATERIAL]: 8});
+    expect(snap.drops).toEqual({[ITEM_LOOT]: 17});
+    expect((rowLoot[ITEM_MATERIAL] ?? 0) - (rowCost[ITEM_MATERIAL] ?? 0)).toBe(-8);
   });
 });

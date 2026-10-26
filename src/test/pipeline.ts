@@ -190,6 +190,7 @@ export function serializeGolden(result: PipelineResult): string {
           drops:         session.drops,
           dropsBySource: session.dropsBySource,
           priceSnapshot: session.priceSnapshot,
+          spent:         session.spent,
         },
       }),
       rows: rows.map(({sessionId: _sessionId, startedAt, ...row}) => ({...row, startedAtMs: rel(startedAt)})),

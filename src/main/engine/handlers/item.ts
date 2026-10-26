@@ -13,31 +13,24 @@ const BUFFER_MS = 1500;
  *   - In a loot context: every bag delta flushes immediately, distributed to
  *     session / map / seasonal.
  *   - Elsewhere (town, or an unrecognised scene): deltas accumulate in a
- *     buffer, even with a seasonal panel open. The buffer flushes either:
- *       a) the 1500ms timer fires (settled town activity → discarded; baseline
- *          and `new_item` still update, but no tracker gets credited),
- *       b) a zone_transition lands us in a loot context (the buffer's contents
- *          are pre-map spends — flushed as in-map deltas so they fan out to
- *          session/map/seasonal trackers, AND snapshotted into
- *          `_lastPreMapFlush` so the engine can expose them as the per-map
- *          `m.spent` record for the chart's cost line),
- *       c) a zone_transition lands us still in town (handler also flushes,
- *          but with `lootContext: false` — discarded the same way the timer
- *          does).
+ *     buffer, even with a seasonal panel open. The buffer is town activity and
+ *     is never credited as loot. It ends either:
+ *       a) when the 1500ms timer fires (settled town activity → discarded), or
+ *       b) at the next zone_transition. If that transition is town → a freshly
+ *          started map, the buffer's NEGATIVES are the map's entry cost (the
+ *          materials consumed right before it — see docs/GAMEPLAY.md): booked
+ *          via `registry.chargeEntryCost` onto the map tracker and the
+ *          session's running total, never as negative drops. Its positives,
+ *          and every buffer at any other transition (town → seasonal scene,
+ *          town → hub, …), are discarded.
+ *     Either way `new_item` still fires for a first-seen id, and BagState's
+ *     baselines have already advanced, so discarding never desynchronises
+ *     later in-map deltas.
  *
  * Timer rule: the 1500ms is a max-wait from the FIRST town event, not a
  * sliding window from the last. This prevents a long sequence of small town
  * changes from indefinitely deferring the flush and leaking into the next map.
- *
- * Bag baselines (`BagState._baseline`) advance on every delta regardless of
- * what we publish — discarding a town buffer never desynchronises future
- * in-map delta calculations.
- *
- * Pre-map spend recording: the chart's per-map "cost" line reads
- * `engine.getLastMapSpends()`, which projects `_lastPreMapFlush` (negatives
- * only, magnitudes flipped). The same delta lives in `m.drops` (negative)
- * and `m.spent` (positive magnitude); the chart math is responsible for not
- * double-counting them — see `SessionDetail.tsx`.
+ * A spend that settled before the map entry is therefore not its cost.
  */
 export class ItemHandler implements EventHandler {
   readonly name    = 'item';
@@ -46,24 +39,10 @@ export class ItemHandler implements EventHandler {
   // itemId → net change since last flush
   private _buffer: Map<number, number> = new Map();
   private _timer:  ReturnType<typeof setTimeout> | null = null;
-  // Snapshot of the most recent pre-map flush (zone_transition into a loot
-  // context with non-empty buffer). Consumed by Engine.getLastMapSpends() and
-  // MapMaterialHandler. Cleared on engine stop.
-  private _lastPreMapFlush: Map<number, number> = new Map();
-
-  /**
-   * Returns the most recent pre-map buffer flush — the deltas that landed
-   * in a fresh loot context from a town buffer. The map is read-only by
-   * convention; consumers must not mutate it.
-   */
-  getLastPreMapFlush(): ReadonlyMap<number, number> {
-    return this._lastPreMapFlush;
-  }
 
   onStop(_ctx: EngineContext): void {
     this._clearTimer();
     this._buffer.clear();
-    this._lastPreMapFlush.clear();
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -89,8 +68,9 @@ export class ItemHandler implements EventHandler {
     }
 
     // A zone_transition is structural, but while paused its buffer holds town
-    // deltas that must not be credited across the transition — discard (not
-    // flush) so they can't leak into the next map on resume.
+    // deltas that must neither be credited nor charged across the transition —
+    // discard so they can't leak into the next map on resume. A map entered
+    // paused therefore has no entry cost.
     if (ctx.paused) {
       if (event.type === 'zone_transition') {
         this._clearTimer();
@@ -100,53 +80,50 @@ export class ItemHandler implements EventHandler {
     }
 
     if (event.type === 'zone_transition') {
-      // Bubble-owning seasonals (Sandlord) and ZoneHandler ran first, so the
-      // trackers, ctx.inMap and ctx.location are already updated. If the buffer
-      // holds town-buffered deltas, flush them now — into the freshly-created
-      // tracker if we're now in a loot context, otherwise discard.
-      const recordPreMap = ctx.isLootContext();
-      // Nothing buffered means nothing was consumed for THIS run — reset, or the
-      // run inherits its predecessor's basket and double-books the materials.
-      if (this._buffer.size === 0) {
-        if (recordPreMap) this._lastPreMapFlush = new Map();
-        return;
+      // ZoneHandler ran first, so ctx.prevLocation / ctx.transition describe
+      // THIS transition and a freshly started map tracker already exists.
+      this._clearTimer();
+      if (this._buffer.size === 0) return;
+      const buffer = this._buffer;
+      this._buffer = new Map();
+      // Town activity: credits nothing, but first-seen ids still register.
+      publishDrops(ctx, emit, buffer, {lootContext: false});
+      if (ctx.prevLocation === 'town' && ctx.transition?.mapStarted) {
+        this._chargeEntryCost(ctx, emit, buffer);
       }
-      this._flush(ctx, emit, recordPreMap);
     }
+  }
+
+  /** The buffer's negatives, flipped to magnitudes, become the new map's cost. */
+  private _chargeEntryCost(ctx: EngineContext, emit: EmitFn, buffer: ReadonlyMap<number, number>): void {
+    const cost = new Map<number, number>();
+    for (const [itemId, change] of buffer) if (change < 0) cost.set(itemId, -change);
+    if (cost.size === 0) return;
+
+    ctx.registry.chargeEntryCost(cost);
+    const now = Date.now();
+    if (ctx.registry.map)     emit({type: 'tracker_update', tracker: ctx.registry.map.snapshot(),     timestamp: now});
+    if (ctx.registry.session) emit({type: 'tracker_update', tracker: ctx.registry.session.snapshot(), timestamp: now});
   }
 
   private _scheduleFlush(ctx: EngineContext, emit: EmitFn): void {
     if (ctx.isLootContext()) {
-      this._flush(ctx, emit, /*recordPreMap*/ false); // immediate in-map flush
+      this._flush(ctx, emit, /*lootContext*/ true); // immediate in-map flush
       return;
     }
     // In town: set the timer once on the first buffered event; subsequent
     // events extend the buffer but do NOT restart the timer. Max wait from
     // first event = BUFFER_MS, regardless of how many events follow.
     if (this._timer === null) {
-      this._timer = setTimeout(() => this._flush(ctx, emit, /*recordPreMap*/ false), BUFFER_MS);
+      this._timer = setTimeout(() => this._flush(ctx, emit, /*lootContext*/ false), BUFFER_MS);
     }
   }
 
-  /**
-   * Flush the buffer.
-   * - `recordPreMap`: true only when this flush represents a town buffer
-   *   landing in a fresh loot context (zone_transition into a map / bubble).
-   *   Snapshots the buffer into `_lastPreMapFlush` so the engine can expose
-   *   it as `m.spent`. Immediate in-map flushes (steady-state map looting)
-   *   and town-timer flushes (settled activity, discarded) do not record.
-   *   The empty-buffer case is handled by the caller, which clears the
-   *   snapshot so a run that consumed nothing records nothing.
-   */
-  private _flush(ctx: EngineContext, emit: EmitFn, recordPreMap: boolean): void {
+  /** Publish and clear the buffer — as loot only for an immediate in-loot-context flush. */
+  private _flush(ctx: EngineContext, emit: EmitFn, lootContext: boolean): void {
     this._clearTimer();
     if (this._buffer.size === 0) return;
-
-    if (recordPreMap) {
-      this._lastPreMapFlush = new Map(this._buffer);
-    }
-
-    publishDrops(ctx, emit, this._buffer, {lootContext: ctx.isLootContext()});
+    publishDrops(ctx, emit, this._buffer, {lootContext});
     this._buffer.clear();
   }
 

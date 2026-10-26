@@ -225,17 +225,20 @@ describe('town buffer timing', () => {
     expect(dropsBySource(e)).toEqual({});
   });
 
-  it('town change, then town -> map within 1.5 s: credited as the map pre-entry flush (today, 1.2 changes it)', () => {
-    const {e, go, add, reg} = setup();
+  it('town change, then town -> map within 1.5 s: charged as the map entry cost, never as drops', () => {
+    const {e, events, go, add, reg} = setup();
     go(MAP, TOWN);
     add(-3);                             // a spend: entry material
     vi.advanceTimersByTime(800);
     go(TOWN, MAP);
-    expect(reg().map?.snapshot().drops).toEqual({[ITEM]: -3});
-    expect(sessionDrops(e)).toEqual({[ITEM]: -3});
-    expect(e.getLastMapSpends()).toEqual({[ITEM]: 3});
-    vi.advanceTimersByTime(5_000);        // the cleared timer does not double-flush
-    expect(sessionDrops(e)).toEqual({[ITEM]: -3});
+    expect(reg().map?.snapshot().drops).toEqual({});
+    expect(reg().map?.snapshot().spent).toEqual({[ITEM]: 3});
+    expect(reg().session?.snapshot().spent).toEqual({[ITEM]: 3});
+    expect(sessionDrops(e)).toEqual({});
+    vi.advanceTimersByTime(5_000);        // the cleared timer neither double-charges nor credits
+    expect(reg().session?.snapshot().spent).toEqual({[ITEM]: 3});
+    expect(sessionDrops(e)).toEqual({});
+    expect(dropEvents(events)).toHaveLength(0);
   });
 
   it('town change, then town -> unrecognised scene within 1.5 s: discarded, not credited', () => {
@@ -248,14 +251,17 @@ describe('town buffer timing', () => {
     expect(sessionDrops(e)).toEqual({});
   });
 
-  it('town change, then town -> arcana fight within 1.5 s with the panel open: flushed into the fight run', () => {
-    const {e, line, go, add, reg} = setup();
+  it('town change, then town -> arcana fight within 1.5 s with the panel open: discarded, not booked to the fight run', () => {
+    const {e, events, line, go, add, reg} = setup();
     go(MAP, TOWN);
     line(log.s9Minigame);
     add(-2);
     go(TOWN, ARCANA_FIGHT);
-    expect(reg().seasonal('arcana')?.snapshot().drops).toEqual({[ITEM]: -2});
-    expect(sessionDrops(e)).toEqual({[ITEM]: -2});
+    expect(reg().seasonal('arcana')?.snapshot().drops).toEqual({});
+    expect(reg().seasonal('arcana')?.snapshot().spent).toBeUndefined();
+    expect(reg().session?.snapshot().spent).toBeUndefined();
+    expect(sessionDrops(e)).toEqual({});
+    expect(dropEvents(events)).toHaveLength(0);
   });
 
   it('a second town change after the timer fired starts a fresh 1.5 s window', () => {

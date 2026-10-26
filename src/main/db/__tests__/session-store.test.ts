@@ -10,7 +10,7 @@ import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 
 const session = (id: string, savedAt: string, extra: Partial<DbSession> = {}): DbSession => ({
   id, name: id, savedAt, totalTime: 1, mapTime: 1, mapCount: 1,
-  drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, ...extra,
+  drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, ...extra,
 });
 
 const mapRow = (sessionId: string, mapIndex: number, extra: Partial<DbSessionMap> = {}): DbSessionMap => ({
@@ -41,11 +41,12 @@ describe('SqliteSessionStore — sessions', () => {
       dropsBySource: {map: {'100': 3}, overrealm: {'200': 1}},
       attribution:   'drop-through',
       priceSnapshot: {'100': 2.5},
+      spent:         {'300': 2},
     };
     store.insertSession(s);
     expect(store.getSession('s1')).toEqual(s);
-    const raw = conn.prepare('SELECT total_time, drops, price_snapshot FROM sessions WHERE id = ?').get('s1');
-    expect(raw).toEqual({total_time: 3600.5, drops: '{"100":3,"200":1}', price_snapshot: '{"100":2.5}'});
+    const raw = conn.prepare('SELECT total_time, drops, price_snapshot, spent FROM sessions WHERE id = ?').get('s1');
+    expect(raw).toEqual({total_time: 3600.5, drops: '{"100":3,"200":1}', price_snapshot: '{"100":2.5}', spent: '{"300":2}'});
   });
 
   it('getSession of an unknown id is null', () => {
@@ -62,7 +63,7 @@ describe('SqliteSessionStore — sessions', () => {
   it('infers the attribution era of rows written before the column', () => {
     conn.prepare("INSERT INTO sessions (id, name, saved_at, drops) VALUES ('old', 'Old', 'x', '{}')").run();
     conn.prepare(`INSERT INTO sessions (id, name, saved_at, drops, drops_by_source) VALUES ('mid', 'Mid', 'y', '{}', '{"map":{"1":1}}')`).run();
-    expect(store.getSession('old')).toMatchObject({attribution: 'legacy', dropsBySource: {}, priceSnapshot: {}});
+    expect(store.getSession('old')).toMatchObject({attribution: 'legacy', dropsBySource: {}, priceSnapshot: {}, spent: {}});
     expect(store.getSession('mid')?.attribution).toBe('exclusive');
     // A stored attribution always wins over inference.
     store.insertSession(session('new', 'z', {dropsBySource: {}}));
@@ -82,6 +83,7 @@ describe('SqliteSessionStore — sessions', () => {
       dropsBySource: {sandlord: {'200': 9}},
       attribution:   'exclusive',
       priceSnapshot: {'200': 1},
+      spent:         {'300': 2},
     });
     expect(store.getSession('a')).toEqual({
       id:            'a',
@@ -94,6 +96,7 @@ describe('SqliteSessionStore — sessions', () => {
       dropsBySource: {sandlord: {'200': 9}},
       attribution:   'exclusive',
       priceSnapshot: {'200': 1},   // replaced whole
+      spent:         {'300': 2},
     });
   });
 

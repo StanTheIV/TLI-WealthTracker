@@ -124,13 +124,14 @@ describe('replay persistence', () => {
     expect(r.sessions).toHaveLength(1);
     const [s] = r.sessions;
     expect(s.id).toBe('replay-1');
-    expect(s.session).toMatchObject({id: 'replay-1', name: 'replay-1', mapCount: 1, drops: {'100': 3, '300': -1}});
+    // The town spend is the map's entry cost (and the session's), not a negative drop.
+    expect(s.session).toMatchObject({id: 'replay-1', name: 'replay-1', mapCount: 1, drops: {'100': 3}, spent: {'300': 1}});
     expect(s.rows).toEqual([{
       sessionId:      'replay-1',
       mapIndex:       1,
       startedAt:      T0 + 9_500,
       duration:       30_500,
-      drops:          {'100': 3, '300': -1},
+      drops:          {'100': 3},
       spent:          {'300': 1},
       seasonalType:   null,
       parentMapIndex: null,

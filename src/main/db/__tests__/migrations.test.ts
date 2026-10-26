@@ -9,11 +9,13 @@ import type {SqlConn} from '@/main/db/sql-conn';
 import {openNodeSqlite} from '@/test/sql/node-sqlite';
 
 const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
+/** The v1 baseline step alone — its "changes nothing on a v0.19 DB" contract is pinned in isolation. */
+const V1_ONLY = MIGRATIONS.slice(0, 1);
 
 const EXPECTED_COLUMNS: Record<string, string[]> = {
   settings:           ['key', 'value'],
   items:              ['id', 'name', 'type', 'price', 'price_date', 'locked'],
-  sessions:           ['id', 'name', 'saved_at', 'total_time', 'map_time', 'map_count', 'drops', 'drops_by_source', 'attribution', 'price_snapshot'],
+  sessions:           ['id', 'name', 'saved_at', 'total_time', 'map_time', 'map_count', 'drops', 'drops_by_source', 'attribution', 'price_snapshot', 'spent'],
   seasonal_stats:     ['zone_type', 'zone_count', 'total_time', 'total_income', 'drop_list'],
   wealth_datapoints:  ['id', 'timestamp', 'value', 'session_id', 'breakdown'],
   api_lookups:        ['id', 'date', 'item_id', 'timestamp'],
@@ -100,13 +102,26 @@ describe('v1 baseline', () => {
     const dataBefore   = dumpData(conn);
     const backup       = vi.fn();
 
-    runMigrations(conn, MIGRATIONS, {backup});
+    runMigrations(conn, V1_ONLY, {backup});
 
     expect(conn.getPragma('user_version')).toBe(1);
     expect(schemaSql(conn)).toEqual(schemaBefore);
     expect(dumpData(conn)).toEqual(dataBefore);
     expect(backup).toHaveBeenCalledTimes(1);
     expect(backup).toHaveBeenCalledWith('pre-versioned-migrations');
+  });
+
+  it('takes a v0.19-shaped DB to the latest version in one run, backing up once (v1 + v2 share it)', () => {
+    const conn = v019Db();
+    seed(conn);
+    const backup = vi.fn();
+
+    runMigrations(conn, MIGRATIONS, {backup});
+
+    expect(conn.getPragma('user_version')).toBe(LATEST);
+    expect(backup.mock.calls).toEqual([['pre-versioned-migrations']]);
+    // v2 only adds sessions.spent here: the seed has no row cost to move.
+    expect(conn.prepare('SELECT drops, spent FROM sessions').all()).toEqual([{drops: '{"100":3}', spent: '{}'}]);
   });
 
   it('adds the ALTER-era columns to an ancient DB with their defaults', () => {
@@ -130,7 +145,7 @@ describe('v1 baseline', () => {
     `);
     runMigrations(conn, MIGRATIONS, noBackup);
 
-    expect(conn.getPragma('user_version')).toBe(1);
+    expect(conn.getPragma('user_version')).toBe(LATEST);
     // Same end state as a fresh DB, column for column.
     const fresh = open();
     runMigrations(fresh, MIGRATIONS, noBackup);
@@ -138,8 +153,8 @@ describe('v1 baseline', () => {
       expect(tableInfo(conn, table), table).toEqual(tableInfo(fresh, table));
     }
     expect(conn.prepare('SELECT * FROM items').get()).toEqual({id: '100', name: 'Ember', type: '', price: 1.5, price_date: 0, locked: 0});
-    expect(conn.prepare('SELECT drops_by_source, attribution, price_snapshot FROM sessions').get())
-      .toEqual({drops_by_source: '{}', attribution: '', price_snapshot: '{}'});
+    expect(conn.prepare('SELECT drops_by_source, attribution, price_snapshot, spent FROM sessions').get())
+      .toEqual({drops_by_source: '{}', attribution: '', price_snapshot: '{}', spent: '{}'});
     expect(conn.prepare('SELECT seasonal_type, parent_map_index, phase FROM session_maps').get())
       .toEqual({seasonal_type: null, parent_map_index: null, phase: null});
     expect(conn.prepare('SELECT breakdown FROM wealth_datapoints').get()).toEqual({breakdown: '{}'});
@@ -155,7 +170,7 @@ describe('v1 baseline', () => {
 
     runMigrations(conn, MIGRATIONS, {backup});
 
-    expect(conn.getPragma('user_version')).toBe(1);
+    expect(conn.getPragma('user_version')).toBe(LATEST);
     expect(schemaSql(conn)).toEqual(schema);
     expect(dumpData(conn)).toEqual(data);
     expect(backup).not.toHaveBeenCalled();

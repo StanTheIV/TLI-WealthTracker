@@ -31,6 +31,11 @@ export interface SessionPersistenceDeps {
 /** Minimum total session duration (ms) before auto-saving an empty run. */
 const MIN_SAVE_DURATION_MS = 30_000;
 
+/** A snapshot's number-keyed record as the DB's string-keyed one. */
+function stringKeyed(rec: Record<number, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(rec));
+}
+
 function generateSessionName(): string {
   const now   = new Date();
   const month = now.toLocaleString('en', {month: 'short'});
@@ -97,7 +102,7 @@ export class SessionPersistence {
 
     if (tracker.kind === 'map') {
       const mapIndex = ++this._lastPrimaryMapIndex;
-      this._pendingRows.push(this._buildRow(tracker, timestamp, engine.getLastMapSpends(), null, mapIndex, null));
+      this._pendingRows.push(this._buildRow(tracker, timestamp, null, mapIndex, null));
       this._claimOverlaps(mapIndex);
       return null;
     }
@@ -107,14 +112,12 @@ export class SessionPersistence {
         // Overlap row — a breakdown of the parent map row, which already
         // includes these drops (drop-through attribution). The parent's index
         // is unknown until its row is buffered, so stage it.
-        this._pendingOverlaps.push(this._buildRow(tracker, timestamp, {}, tracker.seasonalType ?? null, 0, 0));
+        this._pendingOverlaps.push(this._buildRow(tracker, timestamp, tracker.seasonalType ?? null, 0, 0));
       } else {
-        // Standalone seasonal (Sandlord, etc.) — primary row. It owns its entry
-        // cost: ItemHandler records the pre-map flush on any transition into a
-        // loot context, and a town -> hub entry is one, so no map row exists to
-        // carry the spend.
+        // Standalone seasonal (Sandlord, etc.) — primary row. Only a town → map
+        // entry has a cost, so its `spent` is {}.
         const mapIndex = ++this._lastPrimaryMapIndex;
-        this._pendingRows.push(this._buildRow(tracker, timestamp, engine.getLastMapSpends(), tracker.seasonalType ?? null, mapIndex, null));
+        this._pendingRows.push(this._buildRow(tracker, timestamp, tracker.seasonalType ?? null, mapIndex, null));
       }
       return null;
     }
@@ -165,20 +168,18 @@ export class SessionPersistence {
   private _buildRow(
     tracker: Extract<EngineEvent, {type: 'tracker_finished'}>['tracker'],
     timestamp: number,
-    spent: Record<string, number>,
     seasonalType: DbSessionMap['seasonalType'],
     mapIndex: number,
     parentMapIndex: number | null,
   ): DbSessionMap {
-    const drops: Record<string, number> = {};
-    for (const [k, v] of Object.entries(tracker.drops)) drops[String(k)] = v;
     return {
       sessionId:    this._meta.sessionId,
       mapIndex,
       startedAt:    timestamp - tracker.elapsed,
       duration:     tracker.elapsed,
-      drops,
-      spent,
+      drops:        stringKeyed(tracker.drops),
+      // The tracker's own entry cost: a map's, or absent (seasonals never have one).
+      spent:        stringKeyed(tracker.spent ?? {}),
       seasonalType,
       parentMapIndex,
       phase:        tracker.phase ?? null,
@@ -187,12 +188,12 @@ export class SessionPersistence {
 
   /**
    * Freeze current prices for every item this session touched. Consumed
-   * materials live in the rows' `spent` and are often disjoint from `drops`.
-   * Zero-priced items are skipped — indistinguishable from absent to a reader,
-   * and both degrade to the live price.
+   * materials live in `spent` (session and rows) and are often disjoint from
+   * `drops`. Zero-priced items are skipped — indistinguishable from absent to
+   * a reader, and both degrade to the live price.
    */
-  private _capturePrices(drops: Record<string, number>): Record<string, number> {
-    const needed = new Set(Object.keys(drops));
+  private _capturePrices(drops: Record<string, number>, spent: Record<string, number>): Record<string, number> {
+    const needed = new Set([...Object.keys(drops), ...Object.keys(spent)]);
     for (const row of this._pendingRows) {
       for (const id of Object.keys(row.spent)) needed.add(id);
     }
@@ -215,12 +216,12 @@ export class SessionPersistence {
     if (!sessionMeta) return null;
 
     const totalTimeMs = tracker.elapsed;
-    const hasDrops = Object.keys(tracker.drops).length > 0;
-    const hasTime  = totalTimeMs >= MIN_SAVE_DURATION_MS;
-    if (!hasDrops && !hasTime) return null;
-
-    const drops: Record<string, number> = {};
-    for (const [k, v] of Object.entries(tracker.drops)) drops[String(k)] = v;
+    const drops = stringKeyed(tracker.drops);
+    const spent = stringKeyed(tracker.spent ?? {});
+    // A consumed map material is content too (it used to arrive as a negative drop).
+    const hasContent = Object.keys(drops).length > 0 || Object.keys(spent).length > 0;
+    const hasTime    = totalTimeMs >= MIN_SAVE_DURATION_MS;
+    if (!hasContent && !hasTime) return null;
 
     // Project tracker.dropsBySource (Record<Source, Record<number, number>>)
     // to JSON-friendly string-keyed shape. Mirror the same number→string
@@ -244,7 +245,8 @@ export class SessionPersistence {
       drops,
       dropsBySource,
       attribution: 'drop-through',
-      priceSnapshot: this._capturePrices(drops),
+      priceSnapshot: this._capturePrices(drops, spent),
+      spent,
     };
 
     // The session row and its per-map rows commit together or not at all.

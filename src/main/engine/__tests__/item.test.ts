@@ -85,7 +85,7 @@ describe('ItemHandler', () => {
     expect(events.some(e => e.type === 'drop')).toBe(false);
   });
 
-  it('town→map zone_transition flushes buffered town deltas into session AND map (also recorded as pre-map spend)', () => {
+  it('town→map zone_transition charges the buffered town spend as the map entry cost, not as drops', () => {
     const handler = new ItemHandler();
     // Start in town
     const ctx = makeCtx(false);
@@ -96,27 +96,25 @@ describe('ItemHandler', () => {
     handler.handle({type: 'bag_update', pageId: 0, slotId: 1, itemId: 111, quantity: 7}, ctx, emit); // -3
     expect(events.some(e => e.type === 'drop')).toBe(false);
 
-    // Simulate ZoneHandler having just run on town→map: it created ctx.registry.map
-    // and set inMap=true before ItemHandler sees the same zone_transition event.
+    // Simulate ZoneHandler having just run on town→map: it created ctx.registry.map,
+    // set inMap and resolved the transition before ItemHandler sees the same event.
     ctx.inMap = true;
+    ctx.prevLocation = 'town';
     ctx.location = 'map';
+    ctx.transition = {from: 'town', to: 'map', mapStarted: true};
     ctx.registry.startMap();
 
     handler.handle({type: 'zone_transition', fromScene: 'Town', toScene: '/Game/Art/Maps/X'}, ctx, emit);
 
-    const drops = events.filter(e => e.type === 'drop');
-    expect(drops).toHaveLength(1);
-    expect(drops[0]).toMatchObject({type: 'drop', itemId: 111, change: -3});
-
-    // Pre-map flush goes into BOTH the map tracker (so the live map widget
-    // shows the spend) AND the session tracker. The same delta is also
-    // captured in getLastPreMapFlush() so the engine can expose it as
-    // m.spent for the per-map chart's cost line. The chart math is
-    // responsible for not double-counting the negative-in-m.drops with
-    // the positive-magnitude in m.spent — see SessionDetail.tsx.
-    expect(ctx.registry.map?.snapshot().drops[111]).toBe(-3);
-    expect(ctx.registry.session?.snapshot().drops[111]).toBe(-3);
-    expect(handler.getLastPreMapFlush().get(111)).toBe(-3);
+    // The consumed material is the map's cost (positive magnitude) and the
+    // session's running total — never a negative drop on either.
+    expect(events.filter(e => e.type === 'drop')).toEqual([]);
+    expect(ctx.registry.map?.snapshot().drops[111]).toBeUndefined();
+    expect(ctx.registry.session?.snapshot().drops[111]).toBeUndefined();
+    expect(ctx.registry.map?.snapshot().spent).toEqual({111: 3});
+    expect(ctx.registry.session?.snapshot().spent).toEqual({111: 3});
+    const updates = events.flatMap(e => e.type === 'tracker_update' ? [e.tracker.kind] : []);
+    expect(updates).toEqual(['map', 'session']);
   });
 
   it('ignores events when not in tracking phase', () => {

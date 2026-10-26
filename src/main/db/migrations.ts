@@ -1,5 +1,6 @@
 import {log} from '../logger';
 import type {SqlConn} from './sql-conn';
+import {migrateSessionCost} from './migrations/cost-v2';
 
 /**
  * Versioned schema migrations, tracked in `PRAGMA user_version`.
@@ -233,6 +234,49 @@ export const MIGRATIONS: readonly Migration[] = [
       // lie — it would claim the session was worth at save time what it is worth now,
       // which is the exact drift the snapshot exists to expose.
       ensureColumn(conn, 'sessions', 'price_snapshot', "TEXT NOT NULL DEFAULT '{}'");
+    },
+  },
+  {
+    // Entry cost moves off the drops: it lived there as negatives (and as a
+    // positive copy in the row's `spent`); now it lives only in `spent`, on the
+    // map row and on the new `sessions.spent` total. See migrations/cost-v2.ts
+    // for the rules and the cases it cannot repair.
+    version: 2,
+    name:    'cost-on-map',
+    backup:  'pre-cost-migration',
+    up(conn) {
+      ensureColumn(conn, 'sessions', 'spent', "TEXT NOT NULL DEFAULT '{}'");
+
+      const sessions = conn.prepare('SELECT id, drops, drops_by_source, attribution FROM sessions ORDER BY id')
+        .all<{id: string; drops: string; drops_by_source: string; attribution: string}>();
+      const selectRows    = conn.prepare('SELECT id, drops, spent, parent_map_index FROM session_maps WHERE session_id = ? ORDER BY id');
+      const updateRow     = conn.prepare('UPDATE session_maps SET drops = ?, spent = ? WHERE id = ?');
+      const updateSession = conn.prepare('UPDATE sessions SET drops = ?, drops_by_source = ?, spent = ? WHERE id = ?');
+
+      let rowsMigrated = 0, staleRowsCleared = 0, sessionsTouched = 0;
+      for (const s of sessions) {
+        const rows = selectRows.all<{id: number; drops: string; spent: string; parent_map_index: number | null}>(s.id);
+        const out = migrateSessionCost(
+          {drops: JSON.parse(s.drops), dropsBySource: JSON.parse(s.drops_by_source), attribution: s.attribution},
+          rows.map(r => ({id: r.id, drops: JSON.parse(r.drops), spent: JSON.parse(r.spent), isPrimary: r.parent_map_index === null})),
+        );
+        for (const r of out.rows) updateRow.run(JSON.stringify(r.drops), JSON.stringify(r.spent), r.id);
+        // The session changes exactly when some row's cost was added back.
+        if (Object.keys(out.session.spent).length > 0) {
+          updateSession.run(
+            JSON.stringify(out.session.drops), JSON.stringify(out.session.dropsBySource),
+            JSON.stringify(out.session.spent), s.id,
+          );
+        }
+        if (out.rows.length > 0) sessionsTouched++;
+        if (out.stats.staleRowsCleared > 0) {
+          log.info('database', `Cost migration: session ${s.id}: cleared ${out.stats.staleRowsCleared} stale spent row(s)`);
+        }
+        rowsMigrated     += out.stats.rowsMigrated;
+        staleRowsCleared += out.stats.staleRowsCleared;
+      }
+      log.info('database',
+        `Cost migration: ${rowsMigrated} rows migrated, ${staleRowsCleared} stale rows cleared, ${sessionsTouched} sessions touched`);
     },
   },
 ];

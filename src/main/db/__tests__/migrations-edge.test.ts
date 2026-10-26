@@ -122,6 +122,9 @@ describe('runner edge cases', () => {
 });
 
 describe('v1 baseline vs the v0.19 schema code', () => {
+  /** The one schema change after v1: v2 adds the session total cost column. */
+  const V2_DDL = "ALTER TABLE sessions ADD COLUMN spent TEXT NOT NULL DEFAULT '{}'";
+
   const schema = (c: SqlConn) => c.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name").all();
   const dump   = (c: SqlConn) => Object.fromEntries(
     (tables(c) as {name: string}[]).map(t => [t.name, c.prepare(`SELECT * FROM ${t.name} ORDER BY 1, 2`).all()]),
@@ -152,27 +155,31 @@ describe('v1 baseline vs the v0.19 schema code', () => {
     `);
   }
 
-  it('produces the identical sqlite_master and an unchanged data set from a real v0.19 DB', () => {
+  it('produces the identical sqlite_master (plus v2) and an unchanged data set from a real v0.19 DB', () => {
     const conn = legacyDb();
     seedAll(conn);
     expect(version(conn)).toBe(0);
-    const schemaBefore = schema(conn);
-    const dataBefore   = dump(conn);
+    const dataBefore = dump(conn);
+    const target     = legacyDb();
+    target.exec(V2_DDL);
 
     initDb(conn, {backup: () => {}});
 
-    expect(version(conn)).toBe(1);
-    expect(schema(conn)).toEqual(schemaBefore);
-    // Only difference allowed: the every-start empty-type normalisation.
+    expect(version(conn)).toBe(MIGRATIONS[MIGRATIONS.length - 1].version);
+    expect(schema(conn)).toEqual(schema(target));
+    // Only differences allowed: the every-start empty-type normalisation, and
+    // v2's new column at its default (the seed has no row cost to move).
     const expected = structuredClone(dataBefore) as Record<string, Record<string, unknown>[]>;
     expected.items.find(i => i.id === '200')!.type = 'other';
+    for (const s of expected.sessions) s.spent = '{}';
     expect(dump(conn)).toEqual(expected);
     expect(itemsGetAll().find(i => i.id === '100')?.locked).toBe(true);
     expect(getDb().prepare('PRAGMA foreign_key_check').all()).toEqual([]);
   });
 
-  it('a fresh DB gets the same sqlite_master as a fresh v0.19 DB', () => {
+  it('a fresh DB gets the same sqlite_master as a fresh v0.19 DB plus v2', () => {
     const old = legacyDb();
+    old.exec(V2_DDL);
     const fresh = open();
     initDb(fresh, {backup: () => { throw new Error('fresh DB must not back up'); }});
     expect(schema(fresh)).toEqual(schema(old));
@@ -197,6 +204,7 @@ describe('v1 baseline vs the v0.19 schema code', () => {
     old.exec("INSERT INTO items VALUES ('1', 'A', '', 2); INSERT INTO sessions VALUES ('s', 'S', 'x', 1, 1, 1, '{}')");
     old.exec(LEGACY_CREATE_SQL);
     for (const sql of LEGACY_ALTERS) { try { old.exec(sql); } catch { /* already exists */ } }
+    old.exec(V2_DDL);
 
     runMigrations(ancient, MIGRATIONS, {backup: () => {}});
     const cols = (c: SqlConn, t: string) => c.prepare(`PRAGMA table_info(${t})`).all();

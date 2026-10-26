@@ -14,12 +14,12 @@ import {log} from '@/main/logger';
  * town→map transition, items still in `_pendingSpends` advance their
  * `_watch` streak; items in `_watch` not present drop off.
  *
- * IMPORTANT: this watchlist signal is independent of `m.spent`, which comes
- * from `ItemHandler.getLastPreMapFlush()` and reflects the net buffer at
- * map-entry time. The watchlist's order-asymmetric netting is more
+ * IMPORTANT: this watchlist signal is independent of the map's entry cost
+ * (`TrackerSnapshot.spent`), which ItemHandler charges from the net town
+ * buffer at map entry. The watchlist's order-asymmetric netting is more
  * forgiving (a pickup-then-spend still counts as a spend, so the player gets
- * warned about recurring map material consumption) — the chart's `m.spent`
- * is strictly net (so a buy-and-spend in the same window shows zero cost).
+ * warned about recurring map material consumption) — the entry cost is
+ * strictly net (so a buy-and-spend in the same window shows zero cost).
  *
  * AH listings, vault deposits, etc. WILL briefly appear in `_pendingSpends`
  * for the next map's promotion, reaching streak=1. The 2+ consecutive-map
