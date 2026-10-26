@@ -45,10 +45,15 @@ const snap = (drops: Record<number, number>, spent?: Record<number, number>): Tr
   ({kind: 'session', drops, elapsed: 1, active: true, ...(spent && {spent})});
 
 /** The engine's own view of one finished session: what `liveMatchesAnalytics`
- *  replays through the real store. */
+ *  replays through the real store. The loot arrives as `drop` events (what the
+ *  overlay accumulates while running) and the spent total on a session
+ *  `tracker_update`; the final `tracker_finished` snapshot is NOT what gets
+ *  valued (the invariant stops just before it), so it carries a decoy. */
 const liveEvents = (drops: Record<number, number>, spent?: Record<number, number>): ReplayEvent[] => [
   ev({type: 'tracker_started',  tracker: snap({}), timestamp: 1}),
-  ev({type: 'tracker_finished', tracker: snap(drops, spent), timestamp: 2}),
+  ...Object.entries(drops).map(([id, change]) => ev({type: 'drop', itemId: Number(id), change, timestamp: 2} as EngineEvent)),
+  ...(spent ? [ev({type: 'tracker_update', tracker: snap(drops, spent), timestamp: 3})] : []),
+  ev({type: 'tracker_finished', tracker: snap({1: 1_000_000}, {2: 1_000_000}), timestamp: 4}),
 ];
 
 function result(s: DbSession | null, rows: DbSessionMap[], a: SessionAnalytics | null, events: ReplayEvent[] = []): PipelineResult {
@@ -195,6 +200,64 @@ describe('pipelineInvariants on crafted rows', () => {
     it('reads the events, not session.drops (which would be tautological)', () => {
       const s = session({drops: {'1': 999}, spent: {'2': 99}});
       expect(live(5, liveEvents({1: 5}), s)).toEqual({ok: true});
+    });
+
+    it('values the state immediately BEFORE the session tracker_finished: the drop accumulation, not the final snapshot', () => {
+      const events = [
+        ev({type: 'tracker_started',  tracker: snap({}), timestamp: 1}),
+        ev({type: 'drop', itemId: 1, change: 5, timestamp: 2} as EngineEvent),
+        ev({type: 'tracker_finished', tracker: snap({1: 100}), timestamp: 3}),
+      ];
+      expect(live(5, events)).toEqual({ok: true});
+      const bad = live(100, events);   // what the old, final-snapshot check would have accepted
+      expect(bad.ok).toBe(false);
+      expect(bad.delta).toBeCloseTo(-95, 9);
+    });
+
+    it('a run without a session tracker_finished is valued after its last event', () => {
+      const events = [
+        ev({type: 'tracker_started', tracker: snap({}), timestamp: 1}),
+        ev({type: 'drop', itemId: 2, change: 3, timestamp: 2} as EngineEvent),
+        ev({type: 'drop', itemId: 1, change: -4, timestamp: 3} as EngineEvent),
+      ];
+      expect(live(26, events)).toEqual({ok: true});
+    });
+
+    it('a map or seasonal tracker_finished does not stop the replay; only the session one does', () => {
+      const events = [
+        ev({type: 'tracker_started',  tracker: snap({}), timestamp: 1}),
+        ev({type: 'drop', itemId: 1, change: 5, timestamp: 2} as EngineEvent),
+        ev({type: 'tracker_finished', tracker: {kind: 'map', drops: {1: 5}, elapsed: 1, active: false}, timestamp: 3}),
+        ev({type: 'drop', itemId: 1, change: 7, timestamp: 4} as EngineEvent),
+        ev({type: 'tracker_finished', tracker: snap({1: 12}), timestamp: 5}),
+        ev({type: 'drop', itemId: 1, change: 1000, timestamp: 6} as EngineEvent),   // after stop: not part of the run's Total
+      ];
+      expect(live(12, events)).toEqual({ok: true});
+    });
+
+    it('an empty event list is a zero Total', () => {
+      expect(live(0, [])).toEqual({ok: true});
+      expect(live(1, []).delta).toBe(-1);
+    });
+
+    it('two runs in one stream are valued independently (the store is reset per run)', () => {
+      const runEvents = (n: number, at: number) => [
+        ev({type: 'init_started'} as EngineEvent, at),
+        ev({type: 'tracker_started', tracker: snap({}), timestamp: at}, at),
+        ev({type: 'drop', itemId: 1, change: n, timestamp: at} as EngineEvent, at),
+        ev({type: 'tracker_finished', tracker: snap({1: n}), timestamp: at}, at),
+      ];
+      const r: PipelineResult = {
+        sessions: [
+          {id: 'a', session: session(), rows: [], analytics: analytics(3, [])},
+          {id: 'b', session: session(), rows: [], analytics: analytics(9, [])},
+        ],
+        events: [...runEvents(3, 1), ...runEvents(9, 2)],
+        anomalies: [], linesDelivered: 0, firstTs: 0, lastTs: 0, items: ITEMS, tax: NO_TAX,
+      };
+      const out = pipelineInvariants(r);
+      expect(out.a.liveMatchesAnalytics).toEqual({ok: true});
+      expect(out.b.liveMatchesAnalytics).toEqual({ok: true});
     });
 
     it('follows spent from the last session snapshot, including a tracker_update', () => {

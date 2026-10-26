@@ -16,18 +16,18 @@ import {formatLogTimestamp} from '@/replay/log-source';
 
 const T0 = Date.UTC(2026, 9, 25, 12, 0, 0, 0);
 
-const TOWN = '/Game/Art/Maps/01SD/XZ_YuJinZhiXiBiNanSuo200/XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200';
-const MAP  = '/Game/Art/Maps/05JH/JH_ShengDeLanXiuDaoYuan000/JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000';
+export const TOWN = '/Game/Art/Maps/01SD/XZ_YuJinZhiXiBiNanSuo200/XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200';
+export const MAP  = '/Game/Art/Maps/05JH/JH_ShengDeLanXiuDaoYuan000/JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000';
 const VOREX_REWARD = '/Game/Art/Season/S13/Maps/DiXiaZhenSuo/DiXiaZhenSuo.DiXiaZhenSuo';
 const ARCANA_FIGHT = '/Game/Art/Season/S9/Maps/SuMingTaLuo/SuMingTaLuo000.SuMingTaLuo000';
 
 export const FE         = 100300; // fuel
-const COMPASS    = 10240;  // entry material
-const PROBE      = 400015; // entry material
-const MATERIAL   = 5028;
-const CARD       = 6004;
+export const COMPASS    = 10240;  // entry material
+export const PROBE      = 400015; // entry material
+export const MATERIAL   = 5028;
+export const CARD       = 6004;
 export const CUBE       = 5210;
-const RARE_CARD  = 6153;
+export const RARE_CARD  = 6153;
 
 const audioRow = (row: string) =>
   `[249]LogDataTable: Warning: UDataTable::FindRow : '${row}' requested row '${row}' not in DataTable '/Game/Audio/BluePrint/CD/AudioCDTable.AudioCDTable'.`;
@@ -63,7 +63,7 @@ export const BODY = {
 
 /** A log under construction. Bag lines carry absolute stack sizes, as the game
  *  writes them, so the builder tracks each item's slot and current count. */
-class Script {
+export class Script {
   private readonly _lines: string[] = [];
   private readonly _slots = new Map<number, {slot: number; qty: number}>();
 
@@ -112,7 +112,7 @@ class Script {
   }
 }
 
-const TOWN_LEVEL: [number, number] = [110, 0];
+export const TOWN_LEVEL: [number, number] = [110, 0];
 const ARCANA_LEVEL: [number, number] = [203018, 19];
 const VOREX_LEVEL: [number, number] = [9999997, 22];
 

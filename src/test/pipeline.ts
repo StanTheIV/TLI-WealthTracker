@@ -117,7 +117,7 @@ const FE_TOLERANCE = 1e-6;
  *   drops (Σ |difference| over items, in units).
  * - `primaryMapIndexUnique` — no two primary rows share a mapIndex (duplicates).
  * - `overlapHasParent` — every overlap row's parent is a primary row (orphans).
- * - `liveMatchesAnalytics` — the overlay's Total (the real engineStore driven
+ * - `liveMatchesAnalytics` — the overlay's Total at stop (the real engineStore driven
  *   by the session's engine events, valued by `liveValue`) = session net (FE,
  *   live − analytics).
  * - `mechanicsNetReconciles` — Σ mechanic net = session net (FE).
@@ -170,11 +170,17 @@ function mechanicsNetReconciles(a: SessionAnalytics): InvariantResult {
 
 /** Replays the run through the renderer's real reducer rather than reading
  *  `session.drops`, which is what analytics read — comparing those would be a
- *  tautology. What this pins is that the overlay's Total and the saved
- *  session's net agree on state AND on the valuation rule. */
+ *  tautology. The store is valued immediately BEFORE the run's session
+ *  `tracker_finished` (after the last event when the run has none): that event
+ *  replaces the store's `drops` with the final snapshot, which would hide what
+ *  the overlay actually shows while running — the `drop`-event accumulation.
+ *  So this is the overlay's Total at stop against the saved session's net: they
+ *  must agree on state AND on the valuation rule. delta = live − analytics. */
 function liveMatchesAnalytics(events: EngineEvent[], result: PipelineResult, a: SessionAnalytics): InvariantResult {
+  const finish = events.findIndex(e => e.type === 'tracker_finished' && e.tracker.kind === 'session');
+  const upToStop = finish === -1 ? events : events.slice(0, finish);
   useEngineStore.getState().reset();
-  for (const event of events) useEngineStore.getState().handleEvent(event);
+  for (const event of upToStop) useEngineStore.getState().handleEvent(event);
   const {drops, sessionSpent} = useEngineStore.getState();
   useEngineStore.getState().reset();
   const live = liveValue({drops, spent: sessionSpent}, result.items, result.tax).net;

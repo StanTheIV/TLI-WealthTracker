@@ -75,3 +75,93 @@ describe('engineStore.sessionSpent', () => {
     expect(state().sessionSpent).toEqual({2: 1});
   });
 });
+
+describe('engineStore live session state, adversarial', () => {
+  const full = () => useEngineStore.getState();
+  const drop = (itemId: number, change: number) => handle({type: 'drop', itemId, change} as EngineEvent);
+
+  it('a continued session seeds drops, spent, map count and map time from tracker_started, then keeps accumulating', () => {
+    handle({
+      type: 'tracker_started', timestamp: 1,
+      tracker: session({drops: {1: 100, 2: -3}, spent: {2: 4}}),
+      sessionMeta: {mapCount: 7, mapTime: 12345},
+    } as unknown as EngineEvent);
+    expect(state().drops).toEqual({1: 100, 2: -3});
+    expect(state().sessionSpent).toEqual({2: 4});
+    expect(full().mapCount).toBe(7);
+    expect(full().accumulatedMapTime).toBe(12345);
+    drop(1, 5); drop(2, -1); drop(9, 2);
+    expect(state().drops).toEqual({1: 105, 2: -4, 9: 2});
+    expect(state().sessionSpent).toEqual({2: 4});
+  });
+
+  it('never mutates the snapshot it was seeded from (drops and spent are copied or replaced, not edited)', () => {
+    const tracker = session({drops: {1: 1}, spent: {2: 1}});
+    handle({type: 'tracker_started', tracker, timestamp: 1});
+    drop(1, 10);
+    handle({type: 'tracker_update', tracker: session({spent: {2: 2}}), timestamp: 2});
+    expect(tracker.drops).toEqual({1: 1});
+    expect(tracker.spent).toEqual({2: 1});
+  });
+
+  it('a second session tracker_started (Engine.reset) re-seeds drops and spent, discarding the accumulation', () => {
+    handle({type: 'tracker_started', tracker: session({spent: {2: 1}}), timestamp: 1});
+    drop(1, 50);
+    handle({type: 'tracker_started', tracker: session({drops: {}, spent: {2: 3}}), timestamp: 2});
+    expect(state().drops).toEqual({});
+    expect(state().sessionSpent).toEqual({2: 3});
+  });
+
+  it('reset mid-map keeps the live map tracker and takes the carried entry cost on the new session snapshot', () => {
+    handle({type: 'tracker_started', tracker: session(), timestamp: 1});
+    handle({type: 'tracker_started', tracker: {kind: 'map', drops: {1: 9}, elapsed: 5, active: true, spent: {2: 1}}, timestamp: 2});
+    handle({type: 'tracker_update', tracker: session({spent: {2: 1}}), timestamp: 3});
+    drop(1, 9);
+    // Engine.reset while the map is running: a fresh session snapshot carrying the map's cost.
+    handle({type: 'tracker_started', tracker: session({drops: {}, spent: {2: 1}}), timestamp: 4});
+    expect(state().drops).toEqual({});
+    expect(state().sessionSpent).toEqual({2: 1});
+    expect(full().mapTracker?.drops).toEqual({1: 9});
+    expect(full().mapTracker?.spent).toEqual({2: 1});
+  });
+
+  it('a map tracker_started or tracker_update never writes sessionSpent, with or without a session', () => {
+    handle({type: 'tracker_started', tracker: {kind: 'map', drops: {}, elapsed: 0, active: true, spent: {2: 7}}, timestamp: 1});
+    expect(state().sessionSpent).toEqual({});
+    handle({type: 'tracker_update', tracker: {kind: 'map', drops: {}, elapsed: 1, active: true, spent: {2: 8}}, timestamp: 2});
+    expect(state().sessionSpent).toEqual({});
+    handle({type: 'tracker_finished', tracker: {kind: 'map', drops: {}, elapsed: 1, active: false, spent: {2: 8}}, timestamp: 3});
+    expect(state().sessionSpent).toEqual({});
+  });
+
+  it('a drop after a session tracker_update keeps sessionSpent, and a later update replaces it', () => {
+    handle({type: 'tracker_started', tracker: session(), timestamp: 1});
+    handle({type: 'tracker_update', tracker: session({spent: {2: 2}}), timestamp: 2});
+    drop(1, 3);
+    expect(state().sessionSpent).toEqual({2: 2});
+    expect(state().drops).toEqual({1: 3});
+    handle({type: 'tracker_update', tracker: session({spent: {2: 2, 5: 1}, drops: {1: 999}}), timestamp: 3});
+    expect(state().sessionSpent).toEqual({2: 2, 5: 1});
+    expect(state().drops).toEqual({1: 3});   // a session update never touches drops
+  });
+
+  it('a seasonal tracker never writes sessionSpent or drops', () => {
+    handle({type: 'tracker_update', tracker: session({spent: {2: 1}}), timestamp: 1});
+    drop(1, 1);
+    handle({type: 'tracker_started', tracker: {kind: 'seasonal', seasonalType: 'lunaria', drops: {1: 50}, elapsed: 0, active: true, spent: {2: 50}}, timestamp: 2});
+    expect(state().sessionSpent).toEqual({2: 1});
+    expect(state().drops).toEqual({1: 1});
+  });
+
+  it('negative drop events reduce and can drive an item below zero; a zero-sum item stays as a key', () => {
+    drop(1, 5); drop(1, -5); drop(2, -2);
+    expect(state().drops).toEqual({1: 0, 2: -2});
+  });
+
+  it('init_started wipes drops and spent even after a continued session', () => {
+    handle({type: 'tracker_started', tracker: session({drops: {1: 5}, spent: {2: 1}}), timestamp: 1});
+    handle({type: 'init_started'} as EngineEvent);
+    expect(state().drops).toEqual({});
+    expect(state().sessionSpent).toEqual({});
+  });
+});
