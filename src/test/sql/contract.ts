@@ -142,6 +142,104 @@ export const CONTRACT_CASES: ContractCase[] = [
     },
   },
   {
+    name: 'get() on a PRAGMA returns a plain row; all() with zero rows is []',
+    run(conn) {
+      setup(conn);
+      assert.deepEqual(conn.prepare('PRAGMA user_version').get(), {user_version: 0});
+      assert.deepEqual(conn.prepare('SELECT * FROM t').all(), []);
+      assert.deepEqual(conn.prepare('PRAGMA table_info(u)').all().map(r => (r as {name: string}).name), ['x']);
+    },
+  },
+  {
+    name: 'a named param missing from the object throws',
+    run(conn) {
+      setup(conn);
+      assert.throws(() => conn.prepare('INSERT INTO t (a, b) VALUES (@a, @b)').run({a: 'x'}));
+      assert.throws(() => conn.prepare('SELECT * FROM t WHERE a = @a').all({}));
+      assert.equal(count(conn), 0);
+    },
+  },
+  {
+    name: 'BLOB / Uint8Array round-trips',
+    run(conn) {
+      conn.exec('CREATE TABLE blobs (id INTEGER PRIMARY KEY, data BLOB)');
+      const bytes = new Uint8Array([0, 1, 2, 255, 128]);
+      conn.prepare('INSERT INTO blobs (id, data) VALUES (?, ?)').run(1, bytes);
+      conn.prepare('INSERT INTO blobs (id, data) VALUES (@id, @data)').run({id: 2, data: bytes});
+      for (const id of [1, 2]) {
+        const row = conn.prepare('SELECT data FROM blobs WHERE id = ?').get<{data: Uint8Array}>(id)!;
+        assert.ok(row.data instanceof Uint8Array);
+        assert.deepEqual([...row.data], [0, 1, 2, 255, 128]);
+      }
+    },
+  },
+  {
+    name: 'bigint input binds as an integer',
+    run(conn) {
+      setup(conn);
+      conn.prepare('INSERT INTO t (b) VALUES (?)').run(9007199254740993n);
+      conn.prepare('INSERT INTO t (b) VALUES (@b)').run({b: 5n});
+      const rows = conn.prepare('SELECT CAST(b AS TEXT) AS s FROM t ORDER BY id').all<{s: string}>();
+      assert.deepEqual(rows.map(r => r.s), ['9007199254740993', '5']);
+    },
+  },
+  {
+    name: 'a prepared statement is reusable across transaction boundaries',
+    run(conn) {
+      setup(conn);
+      const ins = conn.prepare('INSERT INTO t (a) VALUES (?)');
+      ins.run('before');
+      conn.transaction(() => { ins.run('in-tx'); });
+      assert.throws(() => conn.transaction(() => { ins.run('rolled-back'); throw new Error('x'); }));
+      ins.run('after');
+      assert.deepEqual(conn.prepare('SELECT a FROM t ORDER BY id').all(), [{a: 'before'}, {a: 'in-tx'}, {a: 'after'}]);
+    },
+  },
+  {
+    name: 'inner SQL failure caught inside the outer transaction: outer continues and commits',
+    run(conn) {
+      setup(conn);
+      const out = conn.transaction(() => {
+        conn.prepare("INSERT INTO t (a) VALUES ('o1')").run();
+        try {
+          conn.transaction(() => {
+            conn.prepare("INSERT INTO t (a) VALUES ('i')").run();
+            conn.prepare('INSERT INTO nope (a) VALUES (1)').run();   // real SQL error, not a JS throw
+          });
+        } catch { /* swallowed by caller */ }
+        conn.prepare("INSERT INTO t (a) VALUES ('o2')").run();
+        return 'done';
+      });
+      assert.equal(out, 'done');
+      assert.deepEqual(conn.prepare('SELECT a FROM t ORDER BY id').all(), [{a: 'o1'}, {a: 'o2'}]);
+      conn.transaction(() => { conn.prepare("INSERT INTO t (a) VALUES ('next')").run(); });
+      assert.equal(count(conn), 3);
+    },
+  },
+  {
+    name: 'a UNIQUE violation in a nested transaction caught by the caller leaves the connection usable',
+    run(conn) {
+      conn.exec('CREATE TABLE k (id INTEGER PRIMARY KEY)');
+      conn.transaction(() => {
+        conn.prepare('INSERT INTO k (id) VALUES (1)').run();
+        assert.throws(() => conn.transaction(() => { conn.prepare('INSERT INTO k (id) VALUES (1)').run(); }));
+        conn.prepare('INSERT INTO k (id) VALUES (2)').run();
+      });
+      assert.equal(conn.prepare('SELECT COUNT(*) AS n FROM k').get<{n: number}>()!.n, 2);
+    },
+  },
+  {
+    name: 'transaction inside a manual BEGIN nests as a savepoint and leaves the outer BEGIN open',
+    run(conn) {
+      setup(conn);
+      conn.exec('BEGIN');
+      conn.transaction(() => { conn.prepare("INSERT INTO t (a) VALUES ('in')").run(); });
+      assert.throws(() => conn.transaction(() => { conn.prepare("INSERT INTO t (a) VALUES ('gone')").run(); throw new Error('x'); }));
+      conn.exec('ROLLBACK');   // the manual transaction was still open: everything goes
+      assert.equal(count(conn), 0);
+    },
+  },
+  {
     name: 'getPragma / setPragma round-trip; non-identifier input is refused',
     run(conn) {
       assert.equal(conn.getPragma('user_version'), 0);
