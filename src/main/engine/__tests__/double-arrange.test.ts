@@ -11,9 +11,15 @@ import {readFileSync} from 'fs';
 import {join} from 'path';
 import {describe, it, expect} from 'vitest';
 import {BagState} from '@/main/engine/bag-state';
+import {SqliteSessionStore} from '@/main/db/session-store';
 import {readLogText, type LogLine} from '@/replay/log-source';
-import {replay, type ReplayResult} from '@/replay/replay';
+import {replay, type ReplayOptions, type ReplayResult} from '@/replay/replay';
 import {sumSlots} from '@/replay/invariants';
+import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
+
+/** Each replay persists into its own fresh DB. */
+const run = (opts: Omit<ReplayOptions, 'persistence'>) =>
+  replay({...opts, persistence: {store: new SqliteSessionStore(openMigratedNodeSqlite()), readPrices: () => ({})}});
 
 const FIXTURE = readFileSync(join(__dirname, 'fixtures', 'arrange-double-2026-10-25.txt'), 'utf8');
 const LINES   = [...readLogText(FIXTURE)];
@@ -66,7 +72,7 @@ describe('double Arrange while tracking', () => {
   });
 
   it('keeps the inventory at one bag and credits nothing (town)', async () => {
-    const r = await replay({source: [...BOOT, ...LINES]});
+    const r = await run({source: [...BOOT, ...LINES]});
     expect(realAnomalies(r)).toEqual([]);
     expect(r.anomalies.map(a => a.kind)).toContain('double-dump');
     expect(r.finalInventory).toEqual(BAG);
@@ -74,23 +80,23 @@ describe('double Arrange while tracking', () => {
   });
 
   it('credits nothing inside a map, where deltas flush straight into the trackers', async () => {
-    const r = await replay({source: [...BOOT, MAP_ENTRY, ...LINES, MAP_EXIT]});
+    const r = await run({source: [...BOOT, MAP_ENTRY, ...LINES, MAP_EXIT]});
     expect(realAnomalies(r)).toEqual([]);
     expect(r.finalInventory).toEqual(BAG);
     expect(credited(r)).toEqual([]);
-    const map = r.rows.find(row => row.kind === 'map');
+    const map = r.sessions[0].rows.find(row => row.seasonalType === null);
     expect(map?.drops).toEqual({});
   });
 
   it('stays exact without the dump marker — BagState counts each slot once', async () => {
-    const r = await replay({source: [...BOOT, MAP_ENTRY, ...withoutMarkers(LINES)]});
+    const r = await run({source: [...BOOT, MAP_ENTRY, ...withoutMarkers(LINES)]});
     expect(realAnomalies(r)).toEqual([]);
     expect(r.finalInventory).toEqual(BAG);
     expect(credited(r)).toEqual([]);
   });
 
   it('is identical in exact mode, where the dumps arrive 218 ms apart', async () => {
-    const r = await replay({source: [...BOOT, MAP_ENTRY, ...LINES], mode: 'exact'});
+    const r = await run({source: [...BOOT, MAP_ENTRY, ...LINES], mode: 'exact'});
     expect(realAnomalies(r)).toEqual([]);
     expect(r.finalInventory).toEqual(BAG);
     expect(credited(r)).toEqual([]);
@@ -99,13 +105,13 @@ describe('double Arrange while tracking', () => {
 
 describe('double Arrange as the initialising sort', () => {
   it('takes one bag as the baseline', async () => {
-    const r = await replay({source: LINES});
+    const r = await run({source: LINES});
     expect(realAnomalies(r)).toEqual([]);
     expect(r.finalInventory).toEqual(BAG);
   });
 
   it('takes one bag as the baseline without the marker', async () => {
-    const r = await replay({source: withoutMarkers(LINES)});
+    const r = await run({source: withoutMarkers(LINES)});
     expect(realAnomalies(r)).toEqual([]);
     expect(r.finalInventory).toEqual(BAG);
   });
@@ -114,7 +120,7 @@ describe('double Arrange as the initialising sort', () => {
     // The boot dump is complete; a Reset line for another page lands inside
     // the init debounce. It must close (apply) the dump, not discard it.
     const stray = strayMarker(BOOT[BOOT.length - 1].ts + 10);
-    const r = await replay({source: [...BOOT, stray, ...LINES]});
+    const r = await run({source: [...BOOT, stray, ...LINES]});
     expect(realAnomalies(r)).toEqual([]);
     expect(r.events.filter(e => e.event.type === 'init_complete')).toHaveLength(1);
     expect(r.finalInventory).toEqual(BAG);
@@ -122,7 +128,7 @@ describe('double Arrange as the initialising sort', () => {
   });
 
   it('a marker with no dump after it leaves the engine initializing', async () => {
-    const r = await replay({source: [strayMarker(LINES[0].ts - 10_000), ...LINES]});
+    const r = await run({source: [strayMarker(LINES[0].ts - 10_000), ...LINES]});
     const init = r.events.filter(e => e.event.type === 'init_complete');
     expect(init).toHaveLength(1);
     expect(init[0].at).toBeGreaterThan(LINES[0].ts);
