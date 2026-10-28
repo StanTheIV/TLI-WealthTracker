@@ -38,10 +38,6 @@ export function registerOverlayHandlers(
     log.debug('overlay', `Overlay click-through: ${enabled}`);
   });
 
-  ipcMain.on('overlay:set-position', (_e, x: number, y: number) => {
-    getTrackerWindow()?.setPosition(Math.round(x), Math.round(y));
-  });
-
   ipcMain.on('overlay:set-opacity', (_e, v: number) => {
     getTrackerWindow()?.webContents.send('overlay:opacity-changed', v);
     log.debug('overlay', `Overlay opacity: ${v}`);
@@ -61,13 +57,6 @@ export function registerOverlayHandlers(
     settingsSet('tracker_window_x', String(nx));
     settingsSet('tracker_window_y', String(ny));
     log.debug('overlay', `Overlay position: (${nx}, ${ny})`);
-  });
-
-  ipcMain.handle('overlay:get-position', () => {
-    const win = getTrackerWindow();
-    if (!win) return {x: 0, y: 0};
-    const [x, y] = win.getPosition();
-    return {x, y};
   });
 
   ipcMain.on('overlay:set-size', (_e, w: number, h: number) => {

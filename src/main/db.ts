@@ -72,21 +72,6 @@ export function itemsGetAll(): DbItem[] {
   return rows.map(r => ({id: r.id, name: r.name, type: r.type, price: r.price, priceDate: r.price_date, locked: r.locked === 1}));
 }
 
-/** Upsert an item. Note: the `locked` flag is intentionally NOT touched here —
- *  it's a local-only setting and full-table import must not overwrite it.
- *  New rows default to locked=0 via the column default. */
-export function itemsUpsert(item: DbItem): void {
-  db.prepare(`
-    INSERT INTO items (id, name, type, price, price_date)
-    VALUES (@id, @name, @type, @price, @priceDate)
-    ON CONFLICT(id) DO UPDATE SET
-      name       = excluded.name,
-      type       = excluded.type,
-      price      = excluded.price,
-      price_date = excluded.price_date
-  `).run(item);
-}
-
 /** Insert a placeholder row only if the id does not already exist. Never overwrites. */
 export function itemsInsertIfMissing(id: string): boolean {
   const result = db.prepare(

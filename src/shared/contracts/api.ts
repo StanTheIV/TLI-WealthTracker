@@ -63,11 +63,9 @@ export interface ElectronAPI {
     show:           () => void;
     hide:           () => void;
     setClickThrough:(enabled: boolean) => void;
-    setPosition:    (x: number, y: number) => void;
     setSize:        (w: number, h: number) => void;
     notifyReady:    () => void;
     moveBy:         (dx: number, dy: number) => void;
-    getPosition:    () => Promise<{x: number; y: number}>;
     setOpacity:       (v: number) => void;
     onOpacity:        (cb: (v: number) => void) => () => void;
     broadcastSetting: (key: string, value: string) => void;
@@ -81,7 +79,6 @@ export interface ElectronAPI {
     };
     items: {
       getAll:     () => Promise<DbItem[]>;
-      upsert:     (item: DbItem) => Promise<void>;
       setName:    (id: string, name: string) => Promise<void>;
       setType:    (id: string, type: string) => Promise<void>;
       setPrice:   (id: string, price: number) => Promise<void>;
@@ -95,17 +92,13 @@ export interface ElectronAPI {
     };
     sessions: {
       getAll:  () => Promise<DbSession[]>;
-      insert:  (session: DbSession) => Promise<void>;
-      update:  (session: DbSession) => Promise<void>;
       delete:  (id: string) => Promise<void>;
       rename:  (id: string, name: string) => Promise<void>;
-      getOne:  (id: string) => Promise<DbSession | null>;
     };
     sessionMaps: {
       getForSession: (sessionId: string) => Promise<DbSessionMap[]>;
     };
     wealth: {
-      insert:    (point: DbWealthDatapoint) => Promise<void>;
       getRange:  (from: number, to: number) => Promise<DbWealthDatapoint[]>;
       getLatest: (limit: number) => Promise<DbWealthDatapoint[]>;
       delete:    (id: number) => Promise<void>;

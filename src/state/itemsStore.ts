@@ -10,7 +10,6 @@ interface ItemsState {
 interface ItemsActions {
   load:                  () => Promise<void>;
   initBroadcastListener: () => void;
-  upsert:                (item: DbItem) => void;
   setName:               (id: string, name: string) => void;
   setType:               (id: string, type: string) => void;
   setPrice:              (id: string, price: number) => void;
@@ -59,7 +58,6 @@ export const useItemsStore = create<ItemsState & ItemsActions>((set, get) => ({
   // every window stays in sync regardless of which one initiated the change.
   // ---------------------------------------------------------------------
 
-  upsert:    (item)         => { window.electronAPI.db.items.upsert(item); },
   setName:   (id, name)     => { window.electronAPI.db.items.setName(id, name); },
   setType:   (id, type)     => { window.electronAPI.db.items.setType(id, type); },
   setPrice:  (id, price)    => { window.electronAPI.db.items.setPrice(id, price); },

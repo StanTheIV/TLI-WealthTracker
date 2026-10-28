@@ -6,7 +6,7 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import {
   initDb, getDb, settingsSet, settingsGet, settingsGetAll,
-  itemsImportBatch, itemsUpsert, itemsGetAll, itemsInsertIfMissing,
+  itemsImportBatch, itemsGetAll, itemsInsertIfMissing,
   wealthInsert, wealthGetLatest, wealthClear,
   filtersInsert, filtersSetEnabled, filtersGetAll,
   priceRecord, priceBackfillOnce, pricesExport,
@@ -61,9 +61,6 @@ describe('db.ts on SqlConn', () => {
     expect(itemsImportBatch(ITEMS)).toEqual([]);
     expect(itemsInsertIfMissing('100')).toBe(false);
     expect(itemsInsertIfMissing('300')).toBe(true);
-    // Extra keys (including a boolean `locked`) are ignored by the named binding.
-    itemsUpsert({...ITEMS[0], price: 3, locked: true});
-    expect(itemsGetAll().find(i => i.id === '100')).toMatchObject({price: 3, locked: false});
   });
 
   it('initDb normalises empty item types on every start', () => {

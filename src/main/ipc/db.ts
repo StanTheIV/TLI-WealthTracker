@@ -2,9 +2,9 @@ import {ipcMain} from 'electron';
 import {log} from '@/main/logger';
 import {
   settingsGetAll, settingsSet,
-  itemsGetAll, itemsUpsert, itemsSetName, itemsSetType, priceRecord, itemsSetLocked, itemsImportBatch,
+  itemsGetAll, itemsSetName, itemsSetType, priceRecord, itemsSetLocked, itemsImportBatch,
   leaguesGetAll, leaguesInsertUser, leaguesSetStart, pricesHistory, pricesMovers, pricesExport,
-  wealthInsert, wealthGetRange, wealthGetLatest, wealthDelete, wealthClear,
+  wealthGetRange, wealthGetLatest, wealthDelete, wealthClear,
   getLookupCountToday, recordLookup,
   filtersGetAll, filtersInsert, filtersUpdate, filtersDelete, filtersSetEnabled,
 } from '@/main/db';
@@ -29,10 +29,6 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:settings:set',      (_e, k, v)       => settingsSet(k, v));
 
   ipcMain.handle('db:items:get-all',     ()               => itemsGetAll());
-  ipcMain.handle('db:items:upsert',      (_e, item: DbItem) => {
-    itemsUpsert(item);
-    broadcast('items:changed', {id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
-  });
   ipcMain.handle('db:items:set-name',    (_e, id: string, name: string)   => {
     itemsSetName(id, name);
     broadcast('items:changed', {id, changes: {name}});
@@ -100,15 +96,11 @@ export function registerDbHandlers(deps: RegisterDeps): void {
 
   const {sessions, tracking} = deps;
   ipcMain.handle('db:sessions:get-all',  ()                      => sessions.listSessions());
-  ipcMain.handle('db:sessions:insert',   (_e, session)           => sessions.insertSession(session));
-  ipcMain.handle('db:sessions:update',   (_e, session)           => { sessions.updateSessionTotals(session); });
   // Through the service: it refuses (rejects the invoke for) the active session.
   ipcMain.handle('db:sessions:delete',   (_e, id: string)        => tracking.deleteSession(id));
   ipcMain.handle('db:sessions:rename',   (_e, id: string, name: string) => sessions.renameSession(id, name));
-  ipcMain.handle('db:sessions:get-one',  (_e, id: string)        => sessions.getSession(id));
   ipcMain.handle('db:session-maps:get-for-session', (_e, sessionId: string) => sessions.getRows(sessionId));
 
-  ipcMain.handle('db:wealth:insert',     (_e, point)      => wealthInsert(point));
   ipcMain.handle('db:wealth:get-range',  (_e, from, to)   => wealthGetRange(from, to));
   ipcMain.handle('db:wealth:get-latest', (_e, limit)      => wealthGetLatest(limit));
   ipcMain.handle('db:wealth:delete',     (_e, id)         => wealthDelete(id));

@@ -2,8 +2,6 @@ import {contextBridge, ipcRenderer} from 'electron';
 import type {ElectronAPI} from '@/shared/contracts/api';
 import type {
   DbItem,
-  DbSession,
-  DbWealthDatapoint,
   DbItemFilter,
   ItemChangedPatch,
 } from '@/shared/contracts/db';
@@ -18,11 +16,9 @@ const api = {
     show:           ()                       => ipcRenderer.send('overlay:show'),
     hide:           ()                       => ipcRenderer.send('overlay:hide'),
     setClickThrough:(enabled: boolean)       => ipcRenderer.send('overlay:set-clickthrough', enabled),
-    setPosition:    (x: number, y: number)   => ipcRenderer.send('overlay:set-position', x, y),
     setSize:        (w: number, h: number)   => ipcRenderer.send('overlay:set-size', w, h),
     notifyReady:    ()                       => ipcRenderer.send('overlay:notify-ready'),
     moveBy:         (dx: number, dy: number) => ipcRenderer.send('overlay:move-by', dx, dy),
-    getPosition:    ()                       => ipcRenderer.invoke('overlay:get-position'),
     setOpacity:     (v: number)              => ipcRenderer.send('overlay:set-opacity', v),
     onOpacity: (cb: (v: number) => void) => {
       const wrapped = (_e: Electron.IpcRendererEvent, v: number) => cb(v);
@@ -86,7 +82,6 @@ const api = {
     },
     items: {
       getAll:     ()                                    => ipcRenderer.invoke('db:items:get-all'),
-      upsert:     (item: DbItem)                        => ipcRenderer.invoke('db:items:upsert', item),
       setName:    (id: string, name: string)            => ipcRenderer.invoke('db:items:set-name', id, name),
       setType:    (id: string, type: string)            => ipcRenderer.invoke('db:items:set-type', id, type),
       setPrice:   (id: string, price: number)           => ipcRenderer.invoke('db:items:set-price', id, price),
@@ -104,17 +99,13 @@ const api = {
     },
     sessions: {
       getAll:  ()                                => ipcRenderer.invoke('db:sessions:get-all'),
-      insert:  (session: DbSession)              => ipcRenderer.invoke('db:sessions:insert', session),
-      update:  (session: DbSession)              => ipcRenderer.invoke('db:sessions:update', session),
       delete:  (id: string)                      => ipcRenderer.invoke('db:sessions:delete', id),
       rename:  (id: string, name: string)        => ipcRenderer.invoke('db:sessions:rename', id, name),
-      getOne:  (id: string)                      => ipcRenderer.invoke('db:sessions:get-one', id),
     },
     sessionMaps: {
       getForSession: (sessionId: string) => ipcRenderer.invoke('db:session-maps:get-for-session', sessionId),
     },
     wealth: {
-      insert:    (point: DbWealthDatapoint)  => ipcRenderer.invoke('db:wealth:insert', point),
       getRange:  (from: number, to: number)  => ipcRenderer.invoke('db:wealth:get-range', from, to),
       getLatest: (limit: number)             => ipcRenderer.invoke('db:wealth:get-latest', limit),
       delete:    (id: number)                => ipcRenderer.invoke('db:wealth:delete', id),
