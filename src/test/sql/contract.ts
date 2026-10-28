@@ -317,6 +317,36 @@ export const CONTRACT_CASES: ContractCase[] = [
     },
   },
   {
+    name: 'table rebuild (CREATE new, INSERT SELECT, DROP, RENAME) inside a transaction: sqlite_sequence carried over by hand, no id reused, one entry',
+    run(conn) {
+      conn.setPragma('foreign_keys', 'OFF');
+      conn.exec(`
+        CREATE TABLE p (id TEXT PRIMARY KEY);
+        CREATE TABLE c (id INTEGER PRIMARY KEY AUTOINCREMENT, pid TEXT NOT NULL, k INTEGER NOT NULL);
+        INSERT INTO p VALUES ('a');
+        INSERT INTO c (pid, k) VALUES ('a', 1), ('a', 2), ('a', 3);
+        DELETE FROM c WHERE k = 3;
+      `);
+      const seq = () => conn.prepare("SELECT name, seq FROM sqlite_sequence WHERE name LIKE 'c%'").all();
+      assert.deepEqual(seq(), [{name: 'c', seq: 3}]);
+      conn.transaction(() => {
+        const oldSeq = conn.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'c'").get<{seq: number}>()!.seq;
+        conn.exec(`
+          CREATE TABLE c_new (id INTEGER PRIMARY KEY AUTOINCREMENT, pid TEXT NOT NULL REFERENCES p(id) ON DELETE CASCADE, k INTEGER NOT NULL);
+          INSERT INTO c_new (id, pid, k) SELECT id, pid, k FROM c;
+          DROP TABLE c;
+          ALTER TABLE c_new RENAME TO c;
+        `);
+        const cur = conn.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'c'").get<{seq: number}>()?.seq;
+        if (cur === undefined) conn.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('c', ?)").run(oldSeq);
+        else if (oldSeq > cur) conn.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'c'").run(oldSeq);
+      });
+      assert.deepEqual(seq(), [{name: 'c', seq: 3}]);
+      assert.equal(conn.prepare("INSERT INTO c (pid, k) VALUES ('a', 9)").run().lastInsertRowid, 4);
+      assert.deepEqual(seq(), [{name: 'c', seq: 4}]);
+    },
+  },
+  {
     name: 'ALTER TABLE … DROP COLUMN keeps the other columns, rows and AUTOINCREMENT sequence',
     run(conn) {
       setup(conn);
