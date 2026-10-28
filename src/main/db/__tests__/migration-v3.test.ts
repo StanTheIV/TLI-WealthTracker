@@ -61,9 +61,9 @@ const dumpRows = (c: SqlConn) => c.prepare('SELECT * FROM session_maps ORDER BY 
 const migrate  = (c: SqlConn, backup: (r: string) => void = () => {}) => runMigrations(c, MIGRATIONS, {backup});
 
 describe('MIGRATIONS[2]', () => {
-  it('is v3 row-ended-at with the pre-row-ended-at backup, followed by v4 as the latest step', () => {
+  it('is v3 row-ended-at with the pre-row-ended-at backup, followed by v4', () => {
     expect(MIGRATIONS[2]).toMatchObject({version: 3, name: 'row-ended-at', backup: 'pre-row-ended-at'});
-    expect(MIGRATIONS).toHaveLength(4);
+    expect(MIGRATIONS[3]?.version).toBe(4);
   });
 });
 

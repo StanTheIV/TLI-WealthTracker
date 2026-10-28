@@ -122,10 +122,42 @@ describe('runner edge cases', () => {
 });
 
 describe('v1 baseline vs the v0.19 schema code', () => {
-  /** The schema changes after v1: v2 adds the session total cost, v3 the row finish, v4 the session end. */
-  const POST_V1_DDL = "ALTER TABLE sessions ADD COLUMN spent TEXT NOT NULL DEFAULT '{}'; ALTER TABLE session_maps ADD COLUMN ended_at INTEGER NOT NULL DEFAULT 0; ALTER TABLE sessions ADD COLUMN ended_at INTEGER";
+  /** The in-place schema changes after v1: v2 adds the session total cost, v3 the row finish, v4 the
+   *  session end, v5 drops seasonal_stats and wealth_datapoints.session_id. v5's session_maps rebuild
+   *  can't be replayed as text: `rebuilt` compares it structurally instead. */
+  const POST_V1_DDL = [
+    "ALTER TABLE sessions ADD COLUMN spent TEXT NOT NULL DEFAULT '{}'",
+    'ALTER TABLE session_maps ADD COLUMN ended_at INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE sessions ADD COLUMN ended_at INTEGER',
+    'DROP TABLE seasonal_stats',
+    'ALTER TABLE wealth_datapoints DROP COLUMN session_id',
+  ].join('; ');
 
-  const schema = (c: SqlConn) => c.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name").all();
+  /** v5 rebuilt session_maps: its table and index text differ from the v0.19 code's by construction. */
+  const REBUILT = new Set(['session_maps', 'idx_session_maps_session', 'idx_session_maps_primary']);
+  const schema = (c: SqlConn) => c.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name")
+    .all<{name: string}>().filter(r => !REBUILT.has(r.name));
+  /** session_maps' shape: columns, foreign keys, and each index with its columns, uniqueness and partial flag. */
+  const structure = (c: SqlConn) => ({
+    columns:     c.prepare('PRAGMA table_info(session_maps)').all(),
+    foreignKeys: c.prepare('PRAGMA foreign_key_list(session_maps)').all(),
+    indexes:     c.prepare('PRAGMA index_list(session_maps)').all<{name: string; unique: number; origin: string; partial: number}>()
+      .map(({name, unique, origin, partial}) => ({
+        name, unique, origin, partial,
+        columns: c.prepare(`PRAGMA index_info(${name})`).all<{name: string}>().map(i => i.name),
+        where:   /WHERE (.*)$/i.exec(c.prepare("SELECT sql FROM sqlite_master WHERE name = ?").get<{sql: string}>(name)!.sql)?.[1] ?? null,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  });
+  /** v5's session_maps, given the columns the v0.19 code (plus later ALTERs) produced. */
+  const rebuilt = (target: SqlConn) => ({
+    columns:     target.prepare('PRAGMA table_info(session_maps)').all(),
+    foreignKeys: [{id: 0, seq: 0, table: 'sessions', from: 'session_id', to: 'id', on_update: 'NO ACTION', on_delete: 'CASCADE', match: 'NONE'}],
+    indexes: [
+      {name: 'idx_session_maps_primary', unique: 1, origin: 'c', partial: 1, columns: ['session_id', 'map_index'], where: 'parent_map_index IS NULL'},
+      {name: 'idx_session_maps_session', unique: 0, origin: 'c', partial: 0, columns: ['session_id'],              where: null},
+    ],
+  });
   const dump   = (c: SqlConn) => Object.fromEntries(
     (tables(c) as {name: string}[]).map(t => [t.name, c.prepare(`SELECT * FROM ${t.name} ORDER BY 1, 2`).all()]),
   );
@@ -155,7 +187,7 @@ describe('v1 baseline vs the v0.19 schema code', () => {
     `);
   }
 
-  it('produces the identical sqlite_master (plus v2, v3, v4) and an unchanged data set from a real v0.19 DB', () => {
+  it('produces the identical sqlite_master (plus v2-v5) and an unchanged data set from a real v0.19 DB', () => {
     const conn = legacyDb();
     seedAll(conn);
     expect(version(conn)).toBe(0);
@@ -167,10 +199,14 @@ describe('v1 baseline vs the v0.19 schema code', () => {
 
     expect(version(conn)).toBe(MIGRATIONS[MIGRATIONS.length - 1].version);
     expect(schema(conn)).toEqual(schema(target));
+    expect(structure(conn)).toEqual(rebuilt(target));
     // Only differences allowed: the every-start empty-type normalisation,
     // v2's new column at its default (the seed has no row cost to move), and
-    // v3's row finish backfilled as started_at + duration, and v4's session end as the parsed saved_at.
+    // v3's row finish backfilled as started_at + duration, and v4's session end as the parsed saved_at,
+    // v5's dropped table and column (the seed's session is clean and already has its attribution).
     const expected = structuredClone(dataBefore) as Record<string, Record<string, unknown>[]>;
+    delete expected.seasonal_stats;
+    for (const w of expected.wealth_datapoints) delete w.session_id;
     expected.items.find(i => i.id === '200')!.type = 'other';
     for (const s of expected.sessions) { s.spent = '{}'; s.ended_at = Date.parse(s.saved_at as string); }
     expect(expected.sessions.map(s => s.ended_at)).toEqual([Date.parse('2026-10-01T00:00:00Z')]);
@@ -181,12 +217,13 @@ describe('v1 baseline vs the v0.19 schema code', () => {
     expect(getDb().prepare('PRAGMA foreign_key_check').all()).toEqual([]);
   });
 
-  it('a fresh DB gets the same sqlite_master as a fresh v0.19 DB plus v2, v3, v4', () => {
+  it('a fresh DB gets the same sqlite_master as a fresh v0.19 DB plus v2-v5', () => {
     const old = legacyDb();
     old.exec(POST_V1_DDL);
     const fresh = open();
     initDb(fresh, {backup: () => { throw new Error('fresh DB must not back up'); }});
     expect(schema(fresh)).toEqual(schema(old));
+    expect(structure(fresh)).toEqual(rebuilt(old));
   });
 
   it('an ancient DB (columns missing, pre-ALTER) ends with the same columns as the v0.19 code produced', () => {
@@ -213,9 +250,11 @@ describe('v1 baseline vs the v0.19 schema code', () => {
     runMigrations(ancient, MIGRATIONS, {backup: () => {}});
     const cols = (c: SqlConn, t: string) => c.prepare(`PRAGMA table_info(${t})`).all();
     for (const t of ['items', 'sessions', 'wealth_datapoints', 'session_maps']) expect(cols(ancient, t), t).toEqual(cols(old, t));
+    expect(structure(ancient)).toEqual(rebuilt(old));
     // saved_at 'x' is unparsable and the session has no rows: v4 falls back to 0, never NULL (NULL = live).
+    // No drops_by_source keys: v5 stores the pre-column attribution as legacy.
     expect(ancient.prepare('SELECT * FROM sessions').all())
-      .toEqual(old.prepare('SELECT * FROM sessions').all().map(s => ({...s, ended_at: 0})));
+      .toEqual(old.prepare('SELECT * FROM sessions').all().map(s => ({...s, ended_at: 0, attribution: 'legacy'})));
     expect(ancient.prepare('SELECT * FROM items').all()).toEqual(old.prepare('SELECT * FROM items').all());
   });
 });

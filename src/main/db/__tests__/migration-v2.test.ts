@@ -356,8 +356,9 @@ describe('v1 -> v2 on the fixture', () => {
 
   it.each(FIXTURE.map(s => [s.id, s] as const))('session %s: every row and the session record', (_id, s) => {
     const conn  = seededDb(1);
-    // Read back through the store, which speaks the latest schema (v3 adds a row column).
-    runMigrations(conn, MIGRATIONS, {backup: () => {}});
+    // Read back through the store, which needs v3's row column and v4's session column. Not v5:
+    // it deletes `cont` whole (duplicated primary index) — pinned in migration-v5.test.
+    runMigrations(conn, MIGRATIONS.slice(0, 4), {backup: () => {}});
     const store = new SqliteSessionStore(conn);
 
     const rows = store.getRows(s.id);

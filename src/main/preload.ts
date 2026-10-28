@@ -3,7 +3,6 @@ import type {ElectronAPI} from '@/shared/contracts/api';
 import type {
   DbItem,
   DbSession,
-  DbSeasonalStat,
   DbWealthDatapoint,
   DbItemFilter,
   ItemChangedPatch,
@@ -113,10 +112,6 @@ const api = {
     },
     sessionMaps: {
       getForSession: (sessionId: string) => ipcRenderer.invoke('db:session-maps:get-for-session', sessionId),
-    },
-    seasonal: {
-      getAll:   ()                     => ipcRenderer.invoke('db:seasonal:get-all'),
-      upsert:   (stat: DbSeasonalStat) => ipcRenderer.invoke('db:seasonal:upsert', stat),
     },
     wealth: {
       insert:    (point: DbWealthDatapoint)  => ipcRenderer.invoke('db:wealth:insert', point),

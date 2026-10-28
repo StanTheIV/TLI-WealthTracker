@@ -1,6 +1,6 @@
 /**
  * SqliteSessionStore over a migrated node:sqlite conn: the session and
- * session_maps SQL, read-time era inference, and transaction boundaries.
+ * session_maps SQL, the schema's integrity rules (v5), and transaction boundaries.
  */
 import {describe, it, expect, beforeEach} from 'vitest';
 import {SqliteSessionStore} from '@/main/db/session-store';
@@ -64,12 +64,11 @@ describe('SqliteSessionStore — sessions', () => {
     expect(store.listSessions().map(s => s.id)).toEqual(['b', 'a', 'c']);
   });
 
-  it('infers the attribution era of rows written before the column', () => {
-    conn.prepare("INSERT INTO sessions (id, name, saved_at, drops) VALUES ('old', 'Old', 'x', '{}')").run();
-    conn.prepare(`INSERT INTO sessions (id, name, saved_at, drops, drops_by_source) VALUES ('mid', 'Mid', 'y', '{}', '{"map":{"1":1}}')`).run();
-    expect(store.getSession('old')).toMatchObject({attribution: 'legacy', dropsBySource: {}, priceSnapshot: {}, spent: {}});
-    expect(store.getSession('mid')?.attribution).toBe('exclusive');
-    // A stored attribution always wins over inference.
+  it('reads the stored attribution as is: no inference from drops_by_source (v5 backfilled the pre-column rows)', () => {
+    conn.prepare("INSERT INTO sessions (id, name, saved_at, drops, attribution) VALUES ('ex', 'Ex', 'x', '{}', 'exclusive')").run();
+    conn.prepare(`INSERT INTO sessions (id, name, saved_at, drops, drops_by_source, attribution) VALUES ('leg', 'Leg', 'y', '{}', '{"map":{"1":1}}', 'legacy')`).run();
+    expect(store.getSession('ex')).toMatchObject({attribution: 'exclusive', dropsBySource: {}, priceSnapshot: {}, spent: {}});
+    expect(store.getSession('leg')?.attribution).toBe('legacy');
     store.insertSession(session('new', 'z', {dropsBySource: {}}));
     expect(store.getSession('new')?.attribution).toBe('drop-through');
   });
@@ -234,6 +233,8 @@ describe('SqliteSessionStore — session maps', () => {
       mapRow('a', 1, {startedAt: 2_000, endedAt: 7_000, duration: 5_000, drops: {'200': 1}, seasonalType: 'sandlord', parentMapIndex: 1, phase: 'map'}),
       mapRow('a', 3, {seasonalType: 'sandlord', phase: 'hub'}),
     ];
+    store.insertSession(session('a', 'x'));
+    store.insertSession(session('other', 'y'));
     store.insertRows(rows);
     store.insertRows([mapRow('other', 1)]);
     store.insertRows([mapRow('a', 0)]);
@@ -244,6 +245,7 @@ describe('SqliteSessionStore — session maps', () => {
   it('a row without endedAt is rejected (NOT NULL ended_at), so no read ever sees a null finish', () => {
     // `undefined` binds as NULL (SqlConn contract).
     const noEnd = {...mapRow('a', 2), endedAt: undefined} as unknown as DbSessionMap;
+    store.insertSession(session('a', 'x'));
     expect(() => store.insertRows([mapRow('a', 1), noEnd])).toThrow(/NOT NULL/);
     expect(countRows(conn, 'session_maps')).toBe(0);
   });
@@ -256,12 +258,36 @@ describe('SqliteSessionStore — session maps', () => {
   it('insertRows is all-or-nothing on its own', () => {
     // NOT NULL started_at fails the second row; the first must not survive.
     const bad = {...mapRow('a', 2), startedAt: null} as unknown as DbSessionMap;
-    expect(() => store.insertRows([mapRow('a', 1), bad])).toThrow();
+    store.insertSession(session('a', 'x'));
+    expect(() => store.insertRows([mapRow('a', 1), bad])).toThrow(/NOT NULL/);
     expect(countRows(conn, 'session_maps')).toBe(0);
+  });
+
+  it('a row for a session that does not exist is refused (FK), and nothing of the batch survives', () => {
+    store.insertSession(session('a', 'x'));
+    expect(() => store.insertRows([mapRow('a', 1), mapRow('ghost', 1)])).toThrow(/FOREIGN KEY/);
+    expect(countRows(conn, 'session_maps')).toBe(0);
+  });
+
+  it('a second primary row at the same map index is refused; overlap rows may share their parent index', () => {
+    store.insertSession(session('a', 'x'));
+    store.insertSession(session('b', 'y'));
+    store.insertRows([
+      mapRow('a', 1),
+      mapRow('a', 1, {seasonalType: 'arcana',    parentMapIndex: 1}),
+      mapRow('a', 1, {seasonalType: 'arcana',    parentMapIndex: 1}),
+      mapRow('a', 1, {seasonalType: 'overrealm', parentMapIndex: 1}),
+      mapRow('b', 1),   // the same index in another session
+    ]);
+    expect(() => store.insertRows([mapRow('a', 1)])).toThrow(/UNIQUE/);
+    expect(() => store.insertRows([mapRow('a', 1, {seasonalType: 'sandlord'})])).toThrow(/UNIQUE/);   // standalone seasonal is primary
+    expect(countRows(conn, 'session_maps')).toBe(5);
   });
 
   it('maxPrimaryMapIndex is the highest primary index, per session', () => {
     expect(store.maxPrimaryMapIndex('a')).toBe(0);
+    store.insertSession(session('a', 'x'));
+    store.insertSession(session('b', 'y'));
     store.insertRows([
       mapRow('a', 1),
       mapRow('a', 2),

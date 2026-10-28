@@ -40,7 +40,7 @@ interface Harness {
   };
   settings: Record<string, string>;
   filters:  DbItemFilter[];
-  wealth:   {snapshot: Mock<(engine: Engine, sessionId: string | null) => void>};
+  wealth:   {snapshot: Mock<(engine: Engine) => void>};
   log:      {debug: Mock; info: Mock; warn: Mock; error: Mock};
   engines:  Engine[];
 }
@@ -59,7 +59,7 @@ function build(opts: {broadcast?: (sent: Sent[], h: () => Harness) => Broadcast}
   };
   const settings = {torchlightPath: TORCHLIGHT} as Record<string, string>;
   const filters: DbItemFilter[] = [];
-  const wealth  = {snapshot: vi.fn<(engine: Engine, sessionId: string | null) => void>()};
+  const wealth  = {snapshot: vi.fn<(engine: Engine) => void>()};
   const log     = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
   const createWorker = vi.fn((cb: (raw: RawEvent) => void): LogWorker => { onEvent = cb; return worker; });
   let self: Harness;
@@ -220,18 +220,15 @@ describe('adversarial - reset', () => {
     expect(h.log.info.mock.calls.length).toBe(n);
   });
 
-  it('wealth snapshots after reset carry the NEW session id', () => {
+  it('wealth snapshots continue across reset, each given only the live engine (no session id)', () => {
     const h = build();
     h.service.start();
     init(h);
-    const firstId = activeId(h);
     h.service.reset();
-    const resetId = activeId(h);
     runMap(h);
-    const ids = h.wealth.snapshot.mock.calls.map(c => c[1]);
-    expect(ids[0]).toBe(firstId);
-    expect(ids.length).toBeGreaterThan(1);
-    for (const id of ids.slice(1)) expect(id).toBe(resetId);
+    const calls = h.wealth.snapshot.mock.calls;
+    expect(calls.length).toBeGreaterThan(1);
+    for (const call of calls) expect(call).toEqual([h.engines[h.engines.length - 1]]);
   });
 });
 

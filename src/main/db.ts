@@ -3,7 +3,7 @@ import {MIGRATIONS, runMigrations, type MigrateOptions, type MigrationResult} fr
 import type {SqlConn} from './db/sql-conn';
 import type {League, LeagueSource} from '@/lib/leagues';
 import type {
-  DbItem, DbItemFilter, DbSeasonalStat, DbWealthDatapoint,
+  DbItem, DbItemFilter, DbWealthDatapoint,
   PriceBucket, PriceExportRow, PriceMover,
 } from '@/shared/contracts/db';
 import {
@@ -151,49 +151,28 @@ export function recordLookup(itemId: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Seasonal stats
-// ---------------------------------------------------------------------------
-
-export function seasonalStatsGetAll(): DbSeasonalStat[] {
-  const rows = db.prepare('SELECT * FROM seasonal_stats').all() as {zone_type: string; zone_count: number; total_time: number; total_income: number; drop_list: string}[];
-  return rows.map(r => ({zoneType: r.zone_type, zoneCount: r.zone_count, totalTime: r.total_time, totalIncome: r.total_income, dropList: JSON.parse(r.drop_list)}));
-}
-
-export function seasonalStatsUpsert(stat: DbSeasonalStat): void {
-  db.prepare(`
-    INSERT INTO seasonal_stats (zone_type, zone_count, total_time, total_income, drop_list)
-    VALUES (@zoneType, @zoneCount, @totalTime, @totalIncome, @dropList)
-    ON CONFLICT(zone_type) DO UPDATE SET
-      zone_count   = excluded.zone_count,
-      total_time   = excluded.total_time,
-      total_income = excluded.total_income,
-      drop_list    = excluded.drop_list
-  `).run({...stat, dropList: JSON.stringify(stat.dropList)});
-}
-
-// ---------------------------------------------------------------------------
 // Wealth datapoints
 // ---------------------------------------------------------------------------
 
-type WealthRow = {id: number; timestamp: number; value: number; session_id: string | null; breakdown: string};
+type WealthRow = {id: number; timestamp: number; value: number; breakdown: string};
 
 function rowToDatapoint(r: WealthRow): DbWealthDatapoint {
-  return {id: r.id, timestamp: r.timestamp, value: r.value, sessionId: r.session_id, breakdown: r.breakdown};
+  return {id: r.id, timestamp: r.timestamp, value: r.value, breakdown: r.breakdown};
 }
 
 export function wealthInsert(point: DbWealthDatapoint): void {
-  db.prepare('INSERT INTO wealth_datapoints (timestamp, value, session_id, breakdown) VALUES (@timestamp, @value, @sessionId, @breakdown)')
-    .run({timestamp: point.timestamp, value: point.value, sessionId: point.sessionId, breakdown: point.breakdown});
+  db.prepare('INSERT INTO wealth_datapoints (timestamp, value, breakdown) VALUES (@timestamp, @value, @breakdown)')
+    .run({timestamp: point.timestamp, value: point.value, breakdown: point.breakdown});
 }
 
 export function wealthGetRange(from: number, to: number): DbWealthDatapoint[] {
-  const rows = db.prepare('SELECT id, timestamp, value, session_id, breakdown FROM wealth_datapoints WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp')
+  const rows = db.prepare('SELECT id, timestamp, value, breakdown FROM wealth_datapoints WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp')
     .all(from, to) as WealthRow[];
   return rows.map(rowToDatapoint);
 }
 
 export function wealthGetLatest(limit: number): DbWealthDatapoint[] {
-  const rows = db.prepare('SELECT id, timestamp, value, session_id, breakdown FROM wealth_datapoints ORDER BY timestamp DESC LIMIT ?')
+  const rows = db.prepare('SELECT id, timestamp, value, breakdown FROM wealth_datapoints ORDER BY timestamp DESC LIMIT ?')
     .all(limit) as WealthRow[];
   return rows.map(rowToDatapoint).reverse();
 }
@@ -206,10 +185,10 @@ export function wealthDelete(id: number): void {
 export function wealthClear(): void {
   // The wealth reset button is a "clear all historical farming data" action.
   // Wealth datapoints, saved sessions, and per-map breakdowns all describe
-  // the same farming history from different angles, so they go together.
+  // the same farming history from different angles, so they go together
+  // (per-map rows by cascade from their session).
   db.transaction(() => {
     db.prepare('DELETE FROM wealth_datapoints').run();
-    db.prepare('DELETE FROM session_maps').run();
     db.prepare('DELETE FROM sessions').run();
   });
 }

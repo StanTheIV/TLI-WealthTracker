@@ -225,9 +225,8 @@ export const MIGRATIONS: readonly Migration[] = [
       // in-map sandlord tracking didn't exist when they were written.
       ensureColumn(conn, 'session_maps', 'phase', 'TEXT');
       ensureColumn(conn, 'sessions', 'drops_by_source', "TEXT NOT NULL DEFAULT '{}'");
-      // Existing rows keep attribution='' and are classified at read time from
-      // drops_by_source (see rowToSession) — backfilling would be a lie, since the
-      // engine era that wrote them can't be recovered from the row itself.
+      // Existing rows keep attribution='' here; v5 classifies them from
+      // drops_by_source (read-time inference until then).
       ensureColumn(conn, 'sessions', 'attribution', "TEXT NOT NULL DEFAULT ''");
       // Existing rows keep price_snapshot='{}', which readers treat as "no snapshot"
       // and fall back to live prices for. Backfilling from today's prices would be a
@@ -319,6 +318,106 @@ export const MIGRATIONS: readonly Migration[] = [
         update.run(endedAt, s.id);
       }
       log.info('database', `Session end migration: ${sessions.length} sessions backfilled (${fallbacks} from fallback)`);
+    },
+  },
+  {
+    // A row belongs to an existing session (FK, cascading delete); a session has
+    // one primary row per map index (partial unique: overlap rows share their
+    // parent's index). A generic rule, not a repair: a violating session is
+    // deleted whole, never renumbered. Also stores the inferred attribution
+    // era and drops the dead seasonal_stats and wealth_datapoints.session_id.
+    version:        5,
+    name:           'session-integrity',
+    backup:         'pre-session-integrity',
+    foreignKeysOff: true,
+    up(conn) {
+      // 1. Sessions with a duplicated primary (session_id, map_index): deleted with every row.
+      //    Before the copy below, which the unique index would refuse.
+      const dupSessions = conn.prepare(`
+        SELECT id, name FROM sessions WHERE id IN (
+          SELECT session_id FROM session_maps WHERE parent_map_index IS NULL
+          GROUP BY session_id, map_index HAVING COUNT(*) > 1
+        ) ORDER BY id
+      `).all<{id: string; name: string}>();
+      const deleteRows    = conn.prepare('DELETE FROM session_maps WHERE session_id = ?');
+      const deleteSession = conn.prepare('DELETE FROM sessions WHERE id = ?');
+      let dupRows = 0;
+      for (const s of dupSessions) {
+        const {changes} = deleteRows.run(s.id);
+        deleteSession.run(s.id);
+        dupRows += changes;
+        log.info('database', `Session integrity migration: deleted session ${s.id} ${JSON.stringify(s.name)} (duplicated primary map index, ${changes} rows)`);
+      }
+      log.info('database', `Session integrity migration: ${dupSessions.length} sessions with duplicated primary map indexes deleted (${dupRows} rows)`);
+
+      // 2. Rebuild session_maps with the FK, same columns in the same order, ids kept.
+      //    The old AUTOINCREMENT high-water mark is carried over so no id is ever reused.
+      const oldSeq = conn.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'session_maps'").get<{seq: number}>()?.seq ?? 0;
+      const {n: orphans} = conn.prepare('SELECT COUNT(*) AS n FROM session_maps WHERE session_id NOT IN (SELECT id FROM sessions)')
+        .get<{n: number}>()!;
+      conn.exec(`
+        CREATE TABLE session_maps_new (
+          id               INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_id       TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+          map_index        INTEGER NOT NULL,
+          started_at       REAL NOT NULL,
+          duration         REAL NOT NULL,
+          drops            TEXT NOT NULL DEFAULT '{}',
+          spent            TEXT NOT NULL DEFAULT '{}',
+          seasonal_type    TEXT,
+          parent_map_index INTEGER,
+          phase            TEXT,
+          ended_at         INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO session_maps_new (id, session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase, ended_at)
+          SELECT id, session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase, ended_at
+          FROM session_maps WHERE session_id IN (SELECT id FROM sessions);
+        DROP TABLE session_maps;
+        ALTER TABLE session_maps_new RENAME TO session_maps;
+        CREATE INDEX idx_session_maps_session ON session_maps (session_id);
+        CREATE UNIQUE INDEX idx_session_maps_primary ON session_maps (session_id, map_index) WHERE parent_map_index IS NULL;
+      `);
+      const newSeq = conn.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'session_maps'").get<{seq: number}>()?.seq;
+      if (newSeq === undefined) {
+        if (oldSeq > 0) conn.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('session_maps', ?)").run(oldSeq);
+      } else if (oldSeq > newSeq) {
+        conn.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'session_maps'").run(oldSeq);
+      }
+      const {n: kept} = conn.prepare('SELECT COUNT(*) AS n FROM session_maps').get<{n: number}>()!;
+      log.info('database', `Session integrity migration: session_maps rebuilt, ${kept} rows kept, ${orphans} orphan rows dropped`);
+
+      // 3. attribution '' (pre-column rows): the former read-time rule — no drops_by_source
+      //    keys → legacy, else exclusive. v2 never adds or empties those keys.
+      const blanks = conn.prepare("SELECT id, drops_by_source FROM sessions WHERE attribution = '' ORDER BY id")
+        .all<{id: string; drops_by_source: string}>();
+      const setAttribution = conn.prepare('UPDATE sessions SET attribution = ? WHERE id = ?');
+      let legacy = 0, exclusive = 0, unparsable = 0;
+      for (const s of blanks) {
+        let era: 'legacy' | 'exclusive';
+        try {
+          era = Object.keys(JSON.parse(s.drops_by_source)).length === 0 ? 'legacy' : 'exclusive';
+        } catch {
+          era = 'legacy';
+          unparsable++;
+          log.warn('database', `Session integrity migration: session ${s.id}: unparsable drops_by_source ${JSON.stringify(s.drops_by_source)}, attribution set to legacy`);
+        }
+        setAttribution.run(era, s.id);
+        if (era === 'legacy') legacy++;
+        else exclusive++;
+      }
+      log.info('database', `Session integrity migration: attribution backfilled on ${blanks.length} sessions (${legacy} legacy, ${exclusive} exclusive, ${unparsable} unparsable)`);
+
+      // 4. Never read or written by the app.
+      const hadSeasonal = conn.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'seasonal_stats'").get() !== undefined;
+      conn.exec('DROP TABLE IF EXISTS seasonal_stats');
+      if (hadSeasonal) log.info('database', 'Session integrity migration: dropped seasonal_stats');
+
+      // 5. Never read; its ids outlived the sessions they named.
+      const wealthCols = conn.prepare('PRAGMA table_info(wealth_datapoints)').all<{name: string}>();
+      if (wealthCols.some(c => c.name === 'session_id')) {
+        conn.exec('ALTER TABLE wealth_datapoints DROP COLUMN session_id');
+        log.info('database', 'Session integrity migration: dropped wealth_datapoints.session_id');
+      }
     },
   },
 ];

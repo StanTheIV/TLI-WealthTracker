@@ -4,7 +4,6 @@ import {
   settingsGetAll, settingsSet,
   itemsGetAll, itemsUpsert, itemsSetName, itemsSetType, priceRecord, itemsSetLocked, itemsImportBatch,
   leaguesGetAll, leaguesInsertUser, leaguesSetStart, pricesHistory, pricesMovers, pricesExport,
-  seasonalStatsGetAll, seasonalStatsUpsert,
   wealthInsert, wealthGetRange, wealthGetLatest, wealthDelete, wealthClear,
   getLookupCountToday, recordLookup,
   filtersGetAll, filtersInsert, filtersUpdate, filtersDelete, filtersSetEnabled,
@@ -108,9 +107,6 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:sessions:rename',   (_e, id: string, name: string) => sessions.renameSession(id, name));
   ipcMain.handle('db:sessions:get-one',  (_e, id: string)        => sessions.getSession(id));
   ipcMain.handle('db:session-maps:get-for-session', (_e, sessionId: string) => sessions.getRows(sessionId));
-
-  ipcMain.handle('db:seasonal:get-all',  ()               => seasonalStatsGetAll());
-  ipcMain.handle('db:seasonal:upsert',   (_e, stat)       => seasonalStatsUpsert(stat));
 
   ipcMain.handle('db:wealth:insert',     (_e, point)      => wealthInsert(point));
   ipcMain.handle('db:wealth:get-range',  (_e, from, to)   => wealthGetRange(from, to));

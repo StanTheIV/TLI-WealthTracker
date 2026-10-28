@@ -31,11 +31,6 @@ type SessionMapRow = {
 };
 
 function rowToSession(r: SessionRow): DbSession {
-  const dropsBySource = JSON.parse(r.drops_by_source ?? '{}');
-  // Rows written before the attribution column: dropsBySource was introduced
-  // together with exclusive attribution, so its presence dates the row.
-  const attribution = (r.attribution || null) as SessionAttribution | null
-    ?? (Object.keys(dropsBySource).length === 0 ? 'legacy' : 'exclusive');
   return {
     id:            r.id,
     name:          r.name,
@@ -44,8 +39,8 @@ function rowToSession(r: SessionRow): DbSession {
     mapTime:       r.map_time,
     mapCount:      r.map_count,
     drops:         JSON.parse(r.drops),
-    dropsBySource,
-    attribution,
+    dropsBySource: JSON.parse(r.drops_by_source ?? '{}'),
+    attribution:   r.attribution as SessionAttribution,
     priceSnapshot: JSON.parse(r.price_snapshot ?? '{}'),
     spent:         JSON.parse(r.spent ?? '{}'),
     endedAt:       r.ended_at,
@@ -132,14 +127,10 @@ export class SqliteSessionStore {
     this.conn.prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, id);
   }
 
-  /** Delete a session and its per-map rows together. */
+  /** Delete a session; its per-map rows go with it (ON DELETE CASCADE, which
+   *  needs foreign_keys ON — every app, test and replay conn sets it). */
   deleteSession(id: string): void {
-    // Cascade: per-map rows have no FK constraint; clean them up explicitly so
-    // deleting a session doesn't leave orphans behind.
-    this.conn.transaction(() => {
-      this.conn.prepare('DELETE FROM session_maps WHERE session_id = ?').run(id);
-      this.conn.prepare('DELETE FROM sessions WHERE id = ?').run(id);
-    });
+    this.conn.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   }
 
   /** Add prices the session's snapshot lacks; existing entries are never

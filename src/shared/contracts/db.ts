@@ -35,7 +35,7 @@ export interface DbSession {
   dropsBySource: Partial<Record<Source, Record<string, number>>>;
   /** Which attribution era wrote this session's per-map rows. Decides whether
    *  a parent map row already contains its overlap seasonals' drops — see
-   *  SessionAttribution. Never '' after rowToSession normalises it. */
+   *  SessionAttribution. Stored on every row (v5 backfilled the pre-column ''). */
   attribution:   SessionAttribution;
   /** Item prices captured at save time, keyed by itemId. Lets the detail page
    *  show what the haul was worth *then* alongside what it is worth now.
@@ -93,20 +93,11 @@ export interface DbSessionMap {
   phase: SeasonalPhase | null;
 }
 
-export interface DbSeasonalStat {
-  zoneType:    string;
-  zoneCount:   number;
-  totalTime:   number;
-  totalIncome: number;
-  dropList:    Record<string, number>;
-}
-
 export interface DbWealthDatapoint {
   /** Row id — present on every read, absent when inserting. */
   id?:       number;
   timestamp: number;
   value:     number;
-  sessionId: string | null;
   breakdown: string; // JSON: Record<itemId, {qty: number; price: number; total: number}>
 }
 

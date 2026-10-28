@@ -6,7 +6,6 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import {
   initDb, getDb, itemsCount, itemsGetAll, itemsImportBatch, itemsSetName, itemsSetType, itemsSetPrice,
   itemsSetLocked, itemsGetLocked, getLookupCountToday, recordLookup,
-  seasonalStatsGetAll, seasonalStatsUpsert,
   wealthInsert, wealthGetRange, wealthGetLatest, wealthDelete,
   filtersInsert, filtersUpdate, filtersDelete, filtersGetAll,
   priceRecord, pricesHistory, pricesMovers, pricesExport,
@@ -42,23 +41,11 @@ describe('db.ts surface', () => {
     expect(getLookupCountToday()).toBe(2);
   });
 
-  it('seasonal stats upsert replaces by zone type', () => {
-    expect(seasonalStatsGetAll()).toEqual([]);
-    seasonalStatsUpsert({zoneType: 'arcana', zoneCount: 1, totalTime: 10, totalIncome: 5, dropList: {'100': 1}});
-    seasonalStatsUpsert({zoneType: 'arcana', zoneCount: 2, totalTime: 20, totalIncome: 9, dropList: {'100': 3}});
-    seasonalStatsUpsert({zoneType: 'vorex',  zoneCount: 1, totalTime: 1,  totalIncome: 1, dropList: {}});
-    const all = seasonalStatsGetAll().sort((a, b) => a.zoneType.localeCompare(b.zoneType));
-    expect(all).toEqual([
-      {zoneType: 'arcana', zoneCount: 2, totalTime: 20, totalIncome: 9, dropList: {'100': 3}},
-      {zoneType: 'vorex',  zoneCount: 1, totalTime: 1,  totalIncome: 1, dropList: {}},
-    ]);
-  });
-
   it('wealth: range is inclusive and ordered, latest is the tail in ascending order, delete removes one', () => {
-    for (const t of [30, 10, 20, 40]) wealthInsert({timestamp: t, value: t * 2, sessionId: t === 20 ? 's1' : null, breakdown: '{}'});
+    for (const t of [30, 10, 20, 40]) wealthInsert({timestamp: t, value: t * 2, breakdown: t === 20 ? '{"100":{}}' : '{}'});
     expect(wealthGetRange(10, 30).map(p => p.timestamp)).toEqual([10, 20, 30]);
-    expect(wealthGetRange(10, 30)[1]).toMatchObject({value: 40, sessionId: 's1', breakdown: '{}'});
-    expect(wealthGetRange(10, 30)[0].sessionId).toBeNull();
+    const read = wealthGetRange(10, 30)[1];
+    expect(read).toEqual({id: read.id, timestamp: 20, value: 40, breakdown: '{"100":{}}'});
     expect(wealthGetLatest(2).map(p => p.timestamp)).toEqual([30, 40]);
     const id = wealthGetRange(20, 20)[0].id!;
     expect(typeof id).toBe('number');

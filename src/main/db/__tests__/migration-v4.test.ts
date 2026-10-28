@@ -25,6 +25,7 @@ function open(): SqlConn {
 }
 
 const UP_TO_V3 = MIGRATIONS.slice(0, 3);
+const LATEST   = MIGRATIONS[MIGRATIONS.length - 1].version;
 
 /** saved_at as written by `new Date().toISOString()` (and the odd hand-written shapes). */
 const FIXTURE = [
@@ -58,17 +59,17 @@ const dumpRows = (c: SqlConn) => c.prepare('SELECT * FROM session_maps ORDER BY 
 const endedAts = (c: SqlConn) => c.prepare('SELECT id, ended_at FROM sessions ORDER BY id').all<{id: string; ended_at: number | null}>();
 
 describe('MIGRATIONS[3]', () => {
-  it('is v4 session-ended-at with the pre-session-ended-at backup, and the latest step', () => {
+  it('is v4 session-ended-at with the pre-session-ended-at backup, followed by v5', () => {
     expect(MIGRATIONS[3]).toMatchObject({version: 4, name: 'session-ended-at', backup: 'pre-session-ended-at'});
-    expect(MIGRATIONS).toHaveLength(4);
+    expect(MIGRATIONS[4]?.version).toBe(5);
   });
 });
 
 describe('v3 -> v4 on the fixture', () => {
-  it('adds sessions.ended_at as a nullable INTEGER with no default and bumps user_version to 4', () => {
+  it('adds sessions.ended_at as a nullable INTEGER with no default and runs on to the latest user_version', () => {
     const conn = v3Db();
     migrate(conn);
-    expect(version(conn)).toBe(4);
+    expect(version(conn)).toBe(LATEST);
     const col = conn.prepare('PRAGMA table_info(sessions)').all<{name: string; type: string; notnull: number; dflt_value: string | null}>()
       .find(c => c.name === 'ended_at');
     expect(col).toMatchObject({type: 'INTEGER', notnull: 0, dflt_value: null});
@@ -113,7 +114,7 @@ describe('v3 -> v4 on the fixture', () => {
     expect(backup.mock.calls).toEqual([['pre-session-ended-at']]);
   });
 
-  it('a second run is a no-op: no backup, version 4, identical data; a live (NULL) session stays live', () => {
+  it('a second run is a no-op: no backup, latest version, identical data; a live (NULL) session stays live', () => {
     const conn = v3Db();
     migrate(conn);
     conn.prepare("UPDATE sessions SET ended_at = NULL WHERE id = 's2'").run();   // a live session saved by this build
@@ -124,7 +125,7 @@ describe('v3 -> v4 on the fixture', () => {
     migrate(conn, backup);
 
     expect(backup).not.toHaveBeenCalled();
-    expect(version(conn)).toBe(4);
+    expect(version(conn)).toBe(LATEST);
     expect(dumpSess(conn)).toEqual(before);
     expect(endedAts(conn).find(r => r.id === 's2')?.ended_at).toBeNull();
   });
@@ -177,7 +178,7 @@ describe('v0, v2 and fresh databases', () => {
     migrate(conn, backup);
 
     expect(backup.mock.calls).toEqual([['pre-versioned-migrations']]);
-    expect(version(conn)).toBe(4);
+    expect(version(conn)).toBe(LATEST);
     expect(endedAts(conn)).toEqual([{id: 's', ended_at: Date.UTC(2026, 9, 1)}]);
   });
 
@@ -193,7 +194,7 @@ describe('v0, v2 and fresh databases', () => {
     const b2 = vi.fn();
     migrate(v2, b2);
     expect(b2.mock.calls).toEqual([['pre-row-ended-at']]);
-    expect(version(v2)).toBe(4);
+    expect(version(v2)).toBe(LATEST);
   });
 
   it('a fresh DB gets the column, no backup, no rows', () => {
@@ -202,7 +203,7 @@ describe('v0, v2 and fresh databases', () => {
     migrate(conn, backup);
 
     expect(backup).not.toHaveBeenCalled();
-    expect(version(conn)).toBe(4);
+    expect(version(conn)).toBe(LATEST);
     expect(conn.prepare('PRAGMA table_info(sessions)').all<{name: string}>().map(c => c.name)).toContain('ended_at');
     expect(dumpSess(conn)).toEqual([]);
   });

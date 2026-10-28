@@ -73,16 +73,17 @@ describe('db.ts on SqlConn', () => {
     expect(itemsGetAll().find(i => i.id === '200')?.type).toBe('other');
   });
 
-  it('wealthClear removes farming history in one transaction', () => {
+  it('wealthClear removes farming history in one transaction (per-map rows by cascade)', () => {
     const sessions = new SqliteSessionStore(getDb());
     sessions.insertSession(SESSION);
     sessions.insertRows([{sessionId: 's1', mapIndex: 1, startedAt: 1, endedAt: 3, duration: 2, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null}]);
-    wealthInsert({timestamp: 1, value: 10, sessionId: 's1', breakdown: '{}'});
+    wealthInsert({timestamp: 1, value: 10, breakdown: '{}'});
     expect(wealthGetLatest(10)).toHaveLength(1);
     wealthClear();
     expect(wealthGetLatest(10)).toEqual([]);
     expect(sessions.getSession('s1')).toBeNull();
     expect(sessions.getRows('s1')).toEqual([]);
+    expect(getDb().prepare('SELECT COUNT(*) AS n FROM session_maps').get()).toEqual({n: 0});
   });
 
   it('filtersSetEnabled leaves exactly one filter enabled', () => {

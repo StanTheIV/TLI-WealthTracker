@@ -16,8 +16,7 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
   settings:           ['key', 'value'],
   items:              ['id', 'name', 'type', 'price', 'price_date', 'locked'],
   sessions:           ['id', 'name', 'saved_at', 'total_time', 'map_time', 'map_count', 'drops', 'drops_by_source', 'attribution', 'price_snapshot', 'spent', 'ended_at'],
-  seasonal_stats:     ['zone_type', 'zone_count', 'total_time', 'total_income', 'drop_list'],
-  wealth_datapoints:  ['id', 'timestamp', 'value', 'session_id', 'breakdown'],
+  wealth_datapoints:  ['id', 'timestamp', 'value', 'breakdown'],
   api_lookups:        ['id', 'date', 'item_id', 'timestamp'],
   item_filters:       ['id', 'name', 'enabled', 'rules'],
   session_maps:       ['id', 'session_id', 'map_index', 'started_at', 'duration', 'drops', 'spent', 'seasonal_type', 'parent_map_index', 'phase', 'ended_at'],
@@ -25,7 +24,7 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
   price_listings:     ['observation_id', 'rank', 'price'],
   leagues:            ['id', 'name', 'starts_at', 'source'],
 };
-const EXPECTED_INDEXES = ['idx_price_obs_item_ts', 'idx_price_obs_ts', 'idx_session_maps_session', 'idx_wealth_timestamp'];
+const EXPECTED_INDEXES = ['idx_price_obs_item_ts', 'idx_price_obs_ts', 'idx_session_maps_primary', 'idx_session_maps_session', 'idx_wealth_timestamp'];
 
 const conns: SqlConn[] = [];
 afterEach(() => { while (conns.length) conns.pop()!.close(); });
@@ -111,7 +110,7 @@ describe('v1 baseline', () => {
     expect(backup).toHaveBeenCalledWith('pre-versioned-migrations');
   });
 
-  it('takes a v0.19-shaped DB to the latest version in one run, backing up once (v1, v2 and v3 share it)', () => {
+  it('takes a v0.19-shaped DB to the latest version in one run, backing up once (every step shares it)', () => {
     const conn = v019Db();
     seed(conn);
     const backup = vi.fn();
@@ -155,8 +154,9 @@ describe('v1 baseline', () => {
       expect(tableInfo(conn, table), table).toEqual(tableInfo(fresh, table));
     }
     expect(conn.prepare('SELECT * FROM items').get()).toEqual({id: '100', name: 'Ember', type: '', price: 1.5, price_date: 0, locked: 0});
+    // v5: attribution '' with no drops_by_source keys is stored as legacy.
     expect(conn.prepare('SELECT drops_by_source, attribution, price_snapshot, spent FROM sessions').get())
-      .toEqual({drops_by_source: '{}', attribution: '', price_snapshot: '{}', spent: '{}'});
+      .toEqual({drops_by_source: '{}', attribution: 'legacy', price_snapshot: '{}', spent: '{}'});
     // v4: saved_at '2026-01-01' parses (as UTC midnight) → ms epoch
     expect(conn.prepare('SELECT ended_at FROM sessions').get()).toEqual({ended_at: Date.parse('2026-01-01')});
     expect(conn.prepare('SELECT seasonal_type, parent_map_index, phase, ended_at FROM session_maps').get())

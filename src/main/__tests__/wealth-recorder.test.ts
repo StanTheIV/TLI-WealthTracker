@@ -45,11 +45,11 @@ afterEach(() => {
 describe('WealthRecorder', () => {
   it('values every bag item gross: breakdown per string id, value = Σ totals', () => {
     const h = build([item('100', 2.5), item('200', 0.25, 'equipment')]);
-    h.recorder.snapshot(inventory([[100, 4], [200, 8]]), 'sess-1');
+    h.recorder.snapshot(inventory([[100, 4], [200, 8]]));
 
     expect(h.inserted).toHaveLength(1);
     const [point] = h.inserted;
-    expect(point).toMatchObject({timestamp: NOW, value: 12, sessionId: 'sess-1'});
+    expect(point).toMatchObject({timestamp: NOW, value: 12});
     const breakdown = breakdownOf(point);
     expect(breakdown).toEqual({
       '100': {qty: 4, price: 2.5,  total: 10},
@@ -62,7 +62,7 @@ describe('WealthRecorder', () => {
 
   it('skips non-positive quantities', () => {
     const h = build([item('100', 3), item('200', 5), item('300', 7)]);
-    h.recorder.snapshot(inventory([[100, 0], [200, -2], [300, 1]]), 'sess-1');
+    h.recorder.snapshot(inventory([[100, 0], [200, -2], [300, 1]]));
 
     expect(breakdownOf(h.inserted[0])).toEqual({'300': {qty: 1, price: 7, total: 7}});
     expect(h.inserted[0].value).toBe(7);
@@ -70,7 +70,7 @@ describe('WealthRecorder', () => {
 
   it('an item with no known price is kept at 0', () => {
     const h = build([item('100', 3)]);
-    h.recorder.snapshot(inventory([[100, 2], [999, 5]]), 'sess-1');
+    h.recorder.snapshot(inventory([[100, 2], [999, 5]]));
 
     expect(breakdownOf(h.inserted[0])).toEqual({
       '100': {qty: 2, price: 3, total: 6},
@@ -79,19 +79,19 @@ describe('WealthRecorder', () => {
     expect(h.inserted[0].value).toBe(6);
   });
 
-  it('passes the session id through, null included', () => {
+  it('a point carries no session link: exactly timestamp, value and breakdown', () => {
     const h = build([item('100', 1)]);
-    h.recorder.snapshot(inventory([[100, 1]]), null);
-    h.recorder.snapshot(inventory([[100, 1]]), 'sess-2');
+    h.recorder.snapshot(inventory([[100, 1]]));
+    h.recorder.snapshot(inventory([[100, 1]]));
 
-    expect(h.inserted.map(p => p.sessionId)).toEqual([null, 'sess-2']);
+    expect(h.inserted.map(p => Object.keys(p).sort())).toEqual([['breakdown', 'timestamp', 'value'], ['breakdown', 'timestamp', 'value']]);
   });
 
   it('an empty bag records a zero point', () => {
     const h = build([item('100', 1)]);
-    h.recorder.snapshot(inventory([]), 'sess-1');
+    h.recorder.snapshot(inventory([]));
 
-    expect(h.inserted).toEqual([{timestamp: NOW, value: 0, sessionId: 'sess-1', breakdown: '{}'}]);
+    expect(h.inserted).toEqual([{timestamp: NOW, value: 0, breakdown: '{}'}]);
   });
 
   it('an engine filter hiding an item in every scope (wealth included) does not hide it here', () => {
@@ -110,7 +110,7 @@ describe('WealthRecorder', () => {
     expect(events.filter(e => e.type === 'drop')).toEqual([]); // the filter is live
 
     const h = build([item('100', 2.5), item('200', 0.25, 'equipment')]);
-    h.recorder.snapshot(engine, 'sess-1');
+    h.recorder.snapshot(engine);
 
     expect(breakdownOf(h.inserted[0])).toEqual({
       '100': {qty: 4, price: 2.5,  total: 10},

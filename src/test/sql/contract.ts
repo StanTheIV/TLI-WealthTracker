@@ -18,6 +18,15 @@ function setup(conn: SqlConn): void {
   `);
 }
 
+/** Parent/child shaped like sessions/session_maps: FK with cascade, partial unique on primaries. */
+function fkSetup(conn: SqlConn): void {
+  conn.exec(`
+    CREATE TABLE p (id TEXT PRIMARY KEY);
+    CREATE TABLE c (id INTEGER PRIMARY KEY AUTOINCREMENT, pid TEXT NOT NULL REFERENCES p(id) ON DELETE CASCADE, k INTEGER NOT NULL, parent INTEGER);
+    CREATE UNIQUE INDEX c_primary ON c (pid, k) WHERE parent IS NULL;
+  `);
+}
+
 const count = (conn: SqlConn, where = '1') =>
   conn.prepare(`SELECT COUNT(*) AS n FROM t WHERE ${where}`).get<{n: number}>()!.n;
 
@@ -251,6 +260,71 @@ export const CONTRACT_CASES: ContractCase[] = [
       assert.throws(() => conn.transaction(() => { conn.prepare("INSERT INTO t (a) VALUES ('gone')").run(); throw new Error('x'); }));
       conn.exec('ROLLBACK');   // the manual transaction was still open: everything goes
       assert.equal(count(conn), 0);
+    },
+  },
+  // session_maps (v5): FK to sessions with cascade, a partial unique index, and a
+  // foreignKeysOff rebuild. Drivers default foreign_keys differently, so set it.
+  {
+    name: 'foreign keys ON: a parent delete cascades; an orphan insert throws',
+    run(conn) {
+      conn.setPragma('foreign_keys', 'ON');
+      fkSetup(conn);
+      conn.exec("INSERT INTO p VALUES ('a'), ('b'); INSERT INTO c (pid, k) VALUES ('a', 1), ('a', 2), ('b', 1)");
+      conn.prepare('DELETE FROM p WHERE id = ?').run('a');
+      assert.deepEqual(conn.prepare('SELECT pid, k FROM c').all(), [{pid: 'b', k: 1}]);
+      assert.throws(() => conn.prepare('INSERT INTO c (pid, k) VALUES (?, ?)').run('ghost', 1), /FOREIGN KEY/);
+      assert.equal(conn.prepare('SELECT COUNT(*) AS n FROM c').get<{n: number}>()!.n, 1);
+    },
+  },
+  {
+    name: 'a partial unique index refuses a duplicate inside its WHERE and allows one outside it',
+    run(conn) {
+      conn.setPragma('foreign_keys', 'ON');
+      fkSetup(conn);
+      conn.exec("INSERT INTO p VALUES ('a'); INSERT INTO c (pid, k, parent) VALUES ('a', 1, NULL), ('a', 1, 1)");
+      assert.throws(() => conn.prepare('INSERT INTO c (pid, k, parent) VALUES (?, ?, ?)').run('a', 1, null), /UNIQUE/);
+      conn.prepare('INSERT INTO c (pid, k, parent) VALUES (?, ?, ?)').run('a', 1, 1);
+      assert.equal(conn.prepare('SELECT COUNT(*) AS n FROM c').get<{n: number}>()!.n, 3);
+      const idx = conn.prepare('PRAGMA index_list(c)').all<{name: string; unique: number; partial: number}>().find(i => i.name === 'c_primary');
+      assert.equal(idx?.unique, 1);
+      assert.equal(idx?.partial, 1);
+    },
+  },
+  {
+    name: 'foreign keys OFF: a parent delete leaves its children; foreign_key_check returns the violating row',
+    run(conn) {
+      conn.setPragma('foreign_keys', 'OFF');
+      fkSetup(conn);
+      conn.exec("INSERT INTO p VALUES ('a'); INSERT INTO c (pid, k) VALUES ('a', 1)");
+      conn.prepare('DELETE FROM p').run();
+      assert.equal(conn.prepare('SELECT COUNT(*) AS n FROM c').get<{n: number}>()!.n, 1);
+      assert.deepEqual(conn.prepare('PRAGMA foreign_key_check').all(), [{table: 'c', rowid: 1, parent: 'p', fkid: 0}]);
+    },
+  },
+  {
+    name: 'setting foreign_keys inside a transaction has no effect',
+    run(conn) {
+      conn.setPragma('foreign_keys', 'ON');
+      fkSetup(conn);
+      conn.exec("INSERT INTO p VALUES ('a'); INSERT INTO c (pid, k) VALUES ('a', 1)");
+      conn.transaction(() => {
+        conn.setPragma('foreign_keys', 'OFF');
+        assert.equal(conn.getPragma('foreign_keys'), 1);
+        conn.prepare('DELETE FROM p').run();
+      });
+      assert.equal(conn.prepare('SELECT COUNT(*) AS n FROM c').get<{n: number}>()!.n, 0);   // still cascaded
+      assert.equal(conn.getPragma('foreign_keys'), 1);
+    },
+  },
+  {
+    name: 'ALTER TABLE … DROP COLUMN keeps the other columns, rows and AUTOINCREMENT sequence',
+    run(conn) {
+      setup(conn);
+      conn.exec("INSERT INTO t (id, a, b) VALUES (5, 'x', 1), (9, 'y', 2)");
+      conn.exec('ALTER TABLE t DROP COLUMN b');
+      assert.deepEqual(conn.prepare('PRAGMA table_info(t)').all().map(r => (r as {name: string}).name), ['id', 'a']);
+      assert.deepEqual(conn.prepare('SELECT * FROM t ORDER BY id').all(), [{id: 5, a: 'x'}, {id: 9, a: 'y'}]);
+      assert.equal(conn.prepare("INSERT INTO t (a) VALUES ('z')").run().lastInsertRowid, 10);
     },
   },
   {

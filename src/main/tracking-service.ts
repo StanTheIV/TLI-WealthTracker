@@ -36,7 +36,7 @@ export interface TrackingDeps {
     /** Record a scraped price; `priceDate` is null when the item row wasn't updated. */
     recordScrapedPrice(id: string, price: number, listings: number[], opts: {updateItem: boolean}): {priceDate: number | null};
   };
-  wealthRecorder: {snapshot(engine: Engine, sessionId: string | null): void};
+  wealthRecorder: {snapshot(engine: Engine): void};
   log:            Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
 }
 
@@ -369,7 +369,7 @@ export class TrackingService {
 
   private _recordWealth(event: EngineEvent): void {
     if (!this._isWealthPoint(event)) return;
-    if (this._engine) this._deps.wealthRecorder.snapshot(this._engine, this._persistence?.getSessionId() ?? null);
+    if (this._engine) this._deps.wealthRecorder.snapshot(this._engine);
     this._send({type: 'wealth_recorded', timestamp: Date.now()});
   }
 

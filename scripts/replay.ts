@@ -113,7 +113,10 @@ function parseTime(raw: string): number {
 let appDb: SqlConn | null = null;
 /** The app DB, read-only — opened on first use. */
 function sourceDb(): SqlConn {
-  if (!appDb) appDb = openBunSqlite(args.db!, {readonly: true});
+  if (!appDb) {
+    appDb = openBunSqlite(args.db!, {readonly: true});
+    appDb.setPragma('foreign_keys', 'ON');   // bun:sqlite defaults OFF; every app-schema conn runs with it ON
+  }
   return appDb;
 }
 
@@ -172,7 +175,7 @@ async function runReplay(): Promise<void> {
 
   // The replay saves through production's persistence into a scratch DB.
   const replayDb = openBunSqlite(':memory:');
-  replayDb.setPragma('foreign_keys', 'ON');
+  replayDb.setPragma('foreign_keys', 'ON');   // the store's deleteSession relies on the cascade
   runMigrations(replayDb, MIGRATIONS, {backup: () => {}});
 
   const result = await replay({

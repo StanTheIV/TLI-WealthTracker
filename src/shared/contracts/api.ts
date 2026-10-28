@@ -2,7 +2,6 @@ import type {FilterRule} from '../item-filter';
 import type {
   DbItem,
   DbItemFilter,
-  DbSeasonalStat,
   DbSession,
   DbSessionMap,
   DbWealthDatapoint,
@@ -104,10 +103,6 @@ export interface ElectronAPI {
     };
     sessionMaps: {
       getForSession: (sessionId: string) => Promise<DbSessionMap[]>;
-    };
-    seasonal: {
-      getAll:  () => Promise<DbSeasonalStat[]>;
-      upsert:  (stat: DbSeasonalStat) => Promise<void>;
     };
     wealth: {
       insert:    (point: DbWealthDatapoint) => Promise<void>;

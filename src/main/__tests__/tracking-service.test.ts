@@ -45,7 +45,7 @@ interface Harness {
   };
   settings: Record<string, string>;
   filters:  DbItemFilter[];
-  wealth:   {snapshot: Mock<(engine: Engine, sessionId: string | null) => void>};
+  wealth:   {snapshot: Mock<(engine: Engine) => void>};
   log:      {debug: Mock; info: Mock; warn: Mock; error: Mock};
   /** Every engine the service created, in order. */
   engines:  Engine[];
@@ -66,7 +66,7 @@ function build(opts: {settings?: Record<string, string>; broadcast?: (sent: Sent
   };
   const settings = opts.settings ?? {torchlightPath: TORCHLIGHT};
   const filters: DbItemFilter[] = [];
-  const wealth  = {snapshot: vi.fn<(engine: Engine, sessionId: string | null) => void>()};
+  const wealth  = {snapshot: vi.fn<(engine: Engine) => void>()};
   const log     = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
   const broadcast: Broadcast = opts.broadcast?.(sent) ?? ((channel, payload) => { sent.push({channel, payload}); });
 
@@ -194,12 +194,9 @@ describe('TrackingService — full run', () => {
     expect(t.indexOf('session_saved')).toBeGreaterThanOrEqual(0);
     expect(t.lastIndexOf('session_saved')).toBeLessThan(sessionFinishedIndex(h));
 
-    // Wealth: init_complete + map_ended, each with the live engine and session id.
+    // Wealth: init_complete + map_ended, each with the live engine only (points carry no session).
     expect(h.wealth.snapshot).toHaveBeenCalledTimes(2);
-    for (const [engine, sessionId] of h.wealth.snapshot.mock.calls) {
-      expect(engine).toBe(h.engines[0]);
-      expect(sessionId).toBe(id);
-    }
+    for (const call of h.wealth.snapshot.mock.calls) expect(call).toEqual([h.engines[0]]);
     expect(t.filter(x => x === 'wealth_recorded')).toHaveLength(2);
   });
 

@@ -20,7 +20,7 @@
  *     negatives sit — the `map` bucket first, then the other buckets in sorted
  *     key order, each up to its negative's magnitude; any remainder goes into
  *     `map`. Zeros deleted; emptied buckets kept (an empty `dropsBySource`
- *     would re-date an exclusive-era session as legacy in rowToSession).
+ *     would re-date an exclusive-era session as legacy when v5 classifies it).
  *
  * Lossy cases this cannot repair (left as they are):
  *   - interlude entry cost: maps entered and then frozen for an Arcana / Vorex /

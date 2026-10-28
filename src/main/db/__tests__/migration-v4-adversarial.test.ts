@@ -22,6 +22,7 @@ function open(): SqlConn {
 }
 
 const V3 = MIGRATIONS.slice(0, 3);
+const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
 const version = (c: SqlConn) => Number(c.getPragma('user_version'));
 const migrate = (c: SqlConn, backup: (r: string) => void = () => {}) => runMigrations(c, MIGRATIONS, {backup});
 
@@ -82,12 +83,12 @@ describe('v4 backfill on odd saved_at values', () => {
 });
 
 describe('v4 on small and already-migrated databases', () => {
-  it('a v3 DB with 0 sessions migrates: column added, version 4, one pre-session-ended-at backup, count 0 logged', () => {
+  it('a v3 DB with 0 sessions migrates: column added, latest version, one pre-session-ended-at backup, count 0 logged', () => {
     const c = v3Db();
     const backup = vi.fn();
     const info = vi.spyOn(log, 'info').mockImplementation(() => {});
     migrate(c, backup);
-    expect(version(c)).toBe(4);
+    expect(version(c)).toBe(LATEST);
     expect(backup.mock.calls).toEqual([['pre-session-ended-at']]);
     expect(c.prepare('PRAGMA table_info(sessions)').all<{name: string}>().some(x => x.name === 'ended_at')).toBe(true);
     expect(info.mock.calls.some(([, msg]) => String(msg).includes('0 session'))).toBe(true);
@@ -98,7 +99,7 @@ describe('v4 on small and already-migrated databases', () => {
     c.exec('ALTER TABLE sessions ADD COLUMN ended_at INTEGER');
     addSession(c, 'a', '2026-10-01T00:00:00.000Z');
     migrate(c);
-    expect(version(c)).toBe(4);
+    expect(version(c)).toBe(LATEST);
     expect(ended(c).a).toBe(Date.UTC(2026, 9, 1));
     expect(c.prepare('PRAGMA table_info(sessions)').all<{name: string}>().filter(x => x.name === 'ended_at')).toHaveLength(1);
   });

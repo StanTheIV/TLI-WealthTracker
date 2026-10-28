@@ -147,6 +147,8 @@ describe('equivalence with the pre-0.3 db.ts SQL (inlined)', () => {
     const OLD = `INSERT INTO session_maps (session_id, map_index, started_at, duration, drops, spent, seasonal_type, parent_map_index, phase)
       VALUES (@sessionId, @mapIndex, @startedAt, @duration, @drops, @spent, @seasonalType, @parentMapIndex, @phase)`;
     const r = mapRow('a', 3, {drops: {'1': 2}, spent: {'9': 1}, seasonalType: 'sandlord', parentMapIndex: 2, phase: 'hub', startedAt: -5, endedAt: 7.25, duration: 1.5});
+    store.insertSession(session('a'));
+    new SqliteSessionStore(other).insertSession(session('a'));
     other.prepare(OLD).run({...r, drops: JSON.stringify(r.drops), spent: JSON.stringify(r.spent)});
     store.insertRows([r]);
     const q = 'SELECT * FROM session_maps';
@@ -190,27 +192,28 @@ describe('round trips', () => {
   });
 
   it('parentMapIndex 0 round-trips as 0, not null', () => {
+    store.insertSession(session('a'));
     store.insertRows([mapRow('a', 0, {parentMapIndex: 0, seasonalType: 'sandlord'})]);
     expect(store.getRows('a')[0]).toMatchObject({mapIndex: 0, parentMapIndex: 0});
   });
 });
 
-describe('era inference edge cases', () => {
+describe('attribution is read verbatim (inference moved to migration v5)', () => {
   const ins = (id: string, dbs: string, attr: string) =>
     conn.prepare('INSERT INTO sessions (id, name, saved_at, drops, drops_by_source, attribution) VALUES (?, ?, ?, ?, ?, ?)')
       .run(id, id, 'x', '{}', dbs, attr);
 
-  it('empty-string attribution infers; a stored value always wins', () => {
+  it('the stored value is returned whatever drops_by_source holds; even an impossible empty string is not inferred', () => {
     ins('e', '{"map":{}}', '');
-    ins('l', '{}', 'legacy');
+    ins('l', '{}', 'exclusive');
     ins('x', '{"a":{}}', 'legacy');
-    expect(store.getSession('e')?.attribution).toBe('exclusive');
-    expect(store.getSession('l')?.attribution).toBe('legacy');
+    expect(store.getSession('e')?.attribution).toBe('');
+    expect(store.getSession('l')?.attribution).toBe('exclusive');
     expect(store.getSession('x')?.attribution).toBe('legacy');
   });
 
-  it('listSessions applies inference per row', () => {
-    conn.prepare("INSERT INTO sessions (id, name, saved_at, drops) VALUES ('old', 'Old', '2026-01-01', '{}')").run();
+  it('listSessions reads the stored value of every row', () => {
+    conn.prepare("INSERT INTO sessions (id, name, saved_at, drops, attribution) VALUES ('old', 'Old', '2026-01-01', '{}', 'legacy')").run();
     store.insertSession(session('new', '2026-02-01'));
     expect(store.listSessions().map(s => [s.id, s.attribution])).toEqual([['new', 'drop-through'], ['old', 'legacy']]);
   });
@@ -223,14 +226,17 @@ describe('era inference edge cases', () => {
 });
 
 describe('maxPrimaryMapIndex', () => {
-  it('handles gaps, duplicate primaries and only-overlap sessions', () => {
-    store.insertRows([mapRow('g', 1), mapRow('g', 1), mapRow('g', 50)]);
+  it('handles gaps and only-overlap sessions; a duplicate primary is refused', () => {
+    for (const id of ['g', 'o']) store.insertSession(session(id));
+    store.insertRows([mapRow('g', 1), mapRow('g', 50)]);
+    expect(() => store.insertRows([mapRow('g', 1)])).toThrow(/UNIQUE/);
     expect(store.maxPrimaryMapIndex('g')).toBe(50);
     store.insertRows([mapRow('o', 5, {parentMapIndex: 5, seasonalType: 'overrealm'})]);
     expect(store.maxPrimaryMapIndex('o')).toBe(0);
   });
 
   it('is not fooled by an overlap row whose parentMapIndex is 0', () => {
+    store.insertSession(session('z'));
     store.insertRows([mapRow('z', 4, {parentMapIndex: 0, seasonalType: 'overrealm'}), mapRow('z', 2)]);
     expect(store.maxPrimaryMapIndex('z')).toBe(2);
   });
@@ -287,15 +293,17 @@ describe('deleteSession / transactions', () => {
 
   it('deleting a session with many rows leaves unrelated rows', () => {
     store.insertSession(session('a'));
-    store.insertRows(Array.from({length: 500}, (_, i) => mapRow('a', i)).concat([mapRow('orphan', 1)]));
+    store.insertSession(session('b'));
+    store.insertRows(Array.from({length: 500}, (_, i) => mapRow('a', i)).concat([mapRow('b', 1)]));
     store.deleteSession('a');
     expect(count(conn, 'session_maps')).toBe(1);
+    expect(store.getRows('b')).toHaveLength(1);
   });
 
-  it('deleteSession removes orphan rows even when the session row is absent', () => {
-    store.insertRows([mapRow('ghost', 1)]);
+  it('an orphan row cannot be inserted (FK), so there is nothing for deleteSession to clean up', () => {
+    expect(() => store.insertRows([mapRow('ghost', 1)])).toThrow(/FOREIGN KEY/);
     store.deleteSession('ghost');
-    expect(store.getRows('ghost')).toEqual([]);
+    expect(count(conn, 'session_maps')).toBe(0);
   });
 
   it('a failing insertRows inside a transaction leaves the connection usable', () => {

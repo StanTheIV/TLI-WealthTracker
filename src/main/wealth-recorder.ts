@@ -35,7 +35,7 @@ export class WealthRecorder {
     this._deps = deps;
   }
 
-  snapshot(engine: Pick<Engine, 'getInventory'>, sessionId: string | null): void {
+  snapshot(engine: Pick<Engine, 'getInventory'>): void {
     const inventory = engine.getInventory();
     const itemMap   = new Map(this._deps.items.getAll().map(i => [i.id, i]));
 
@@ -54,7 +54,6 @@ export class WealthRecorder {
     this._deps.insert({
       timestamp: Date.now(),
       value:     totalValue,
-      sessionId,
       breakdown: JSON.stringify(breakdown),
     });
 

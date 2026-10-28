@@ -111,7 +111,7 @@ describe('adversarial - gross wealth through the real service', () => {
     bagInit(h);
     runMap(h, [[2, GEAR, 9], [1, PLAIN, 8], [3, COIN, 3]]); // +2 gear, +3 plain, +2 coin
     expect(h.points).toHaveLength(2);
-    const sessionId = h.points[0].sessionId!;
+    const sessionId = h.service.getActiveSessionId()!;
     h.service.stop();
 
     expect(qtys(h.points[0])).toEqual({100: 5, 150: 7, 160: 1, 999: 3});
@@ -136,7 +136,7 @@ describe('adversarial - gross wealth through the real service', () => {
     runMap(h, [[3, COIN, 4], [2, GEAR, 11], [1, PLAIN, 9]]); // map 3: coin+gear hidden, +2 plain credited
     h.service.setItemType(String(GEAR), 'material');  // gear stops being equipment
     runMap(h, [[2, GEAR, 12]]);                       // map 4: gear credited again
-    const sessionId = h.points[0].sessionId!;
+    const sessionId = h.service.getActiveSessionId()!;
     h.service.stop();
 
     expect(h.points.map(p => qtys(p))).toEqual([
