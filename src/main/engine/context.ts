@@ -52,13 +52,15 @@ export interface LoadedSessionData {
 export class EngineContext {
   phase:        Phase    = 'idle';
   paused:       boolean  = false;
-  /** Wall-clock ms when a seasonal interlude (Arcana tarot/fight, Vorex
-   *  window/fight zone, map→Sandlord hub) paused the map tracker; null when
-   *  none is in flight. Cross-cutting: Engine.resume() reads it to leave a map
-   *  frozen across a session resume while its interlude is still ongoing.
-   *  See map-interlude.ts. */
-  mapPausedForInterludeAt: number | null = null;
-  bag:          BagState = new BagState();
+  /** Wall-clock ms when a seasonal interlude (Arcana, Vorex, Tartarus,
+   *  map→Sandlord hub) froze the current map; null when none did. Read-only:
+   *  map state the registry owns and drops with the map. Engine.resume() reads
+   *  it to leave a map frozen while its interlude is still up. See
+   *  map-interlude.ts. */
+  get mapPausedForInterludeAt(): number | null {
+    return this.registry.mapInterludeAt;
+  }
+  bag:         BagState = new BagState();
   /** Per-item inventory deltas the CURRENT raw event produced — set by
    *  ItemHandler, read by later handlers (MapMaterial). Engine.onRawEvent
    *  clears it before routing each event, so it can never describe an
@@ -119,7 +121,6 @@ export class EngineContext {
   reset(): void {
     this.phase             = 'idle';
     this.paused            = false;
-    this.mapPausedForInterludeAt = null;
     this.bag.reset();
     this.bagDeltas         = [];
     this.inMap             = false;

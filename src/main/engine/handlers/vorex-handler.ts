@@ -72,7 +72,8 @@ export class VorexHandler implements EventHandler {
         // entering it from a map re-freezes the map (the commit sequence fires
         // window_close + abandon just before zoning, briefly resuming it);
         // the exit always goes to town, where ZoneHandler has already finished
-        // the map off its frozen elapsed — resolve just clears the marker.
+        // the map off its frozen elapsed (and its interlude claim with it) —
+        // resolve is a no-op there.
         const enteringFight = !event.fromScene.includes(VOREX_REWARD_SCENE) && event.toScene.includes(VOREX_REWARD_SCENE);
         const leavingFight  = event.fromScene.includes(VOREX_REWARD_SCENE) && !event.toScene.includes(VOREX_REWARD_SCENE);
         if (enteringFight)     pauseMapForInterlude(ctx, emit);

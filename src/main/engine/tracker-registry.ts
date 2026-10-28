@@ -21,8 +21,8 @@ export interface DistributeResult {
 /**
  * TrackerRegistry — owns the collection of trackers, the writer rule, fan-out
  * to active scopes, bubble exclusivity, which seasonals the session pause
- * froze, and the saved unit (which map a seasonal run belongs to). Knows
- * nothing about log events.
+ * froze, whether an interlude froze the map, and the saved unit (which map a
+ * seasonal run belongs to). Knows nothing about log events.
  */
 export class TrackerRegistry {
   session: Tracker | null = null;
@@ -41,6 +41,10 @@ export class TrackerRegistry {
   // Seasonals the SESSION pause froze — whoever paused a tracker resumes it,
   // so only these are resumed by the session resume. See freezeForSessionPause.
   private _sessionFrozen: Set<SeasonalType> = new Set();
+  // Wall-clock ms a seasonal interlude froze the CURRENT map (map-interlude.ts);
+  // null when none. State of that map, so it ends with it (_setMap). Invariant:
+  // non-null ⇒ `map` exists and is frozen.
+  private _mapInterludeAt: number | null = null;
   // The last map ordinal handed out (Tracker.seq); 0 before the run's first map.
   private _mapSeq = 0;
   // Finished children of the CURRENT map, in finish order — its unit's overlaps.
@@ -83,13 +87,21 @@ export class TrackerRegistry {
    *  becomes its child; a dormant one only if it wakes under it. */
   startMap(): Tracker | null {
     if (this.hasBubble()) return null;
-    this.map = new Tracker('map');
-    this.map.seq = ++this._mapSeq;
+    const map = new Tracker('map');
+    map.seq = ++this._mapSeq;
+    this._setMap(map);
     for (const t of this._seasonals.values()) {
       if (t.active) this._stampParent(t);
     }
     this._currentWriter = undefined;
-    return this.map;
+    return map;
+  }
+
+  /** Every map start and end goes through here, so an interlude's claim never
+   *  outlives the map it froze — however that map ends (town, reset, teardown). */
+  private _setMap(map: Tracker | null): void {
+    this.map             = map;
+    this._mapInterludeAt = null;
   }
 
   /**
@@ -372,6 +384,24 @@ export class TrackerRegistry {
     emit({type: 'tracker_update', tracker: this.map.snapshot(), timestamp: Date.now()});
   }
 
+  /** When an interlude froze the current map; null if none did. */
+  get mapInterludeAt(): number | null {
+    return this._mapInterludeAt;
+  }
+
+  /** An interlude freezes the current map (if still running) and owns that
+   *  pause from `at` — an earlier claim stands. No-op without a map. */
+  freezeMapForInterlude(emit: EmitFn, at: number): void {
+    if (!this.map) return;
+    this.pauseMap(emit);
+    this._mapInterludeAt ??= at;
+  }
+
+  /** The interlude is over: drop its claim. The map is left as it is. */
+  releaseMapInterlude(): void {
+    this._mapInterludeAt = null;
+  }
+
   /**
    * The drop OWNER — the source label for the session's per-source breakdown.
    * Most recently ACTIVATED live seasonal (not creation order), else the map.
@@ -515,7 +545,7 @@ export class TrackerRegistry {
    *  cost on its `spent`) with the children collected while it ran. */
   private _finishMap(map: Tracker, emit: EmitFn): void {
     const snap = map.snapshot();
-    this.map = null;
+    this._setMap(null);
     this._currentWriter = undefined;
     const now = Date.now();
     emit({type: 'tracker_finished', tracker: snap, timestamp: now});
@@ -537,8 +567,8 @@ export class TrackerRegistry {
     this._mapChildren = [];
     if (this.map) {
       emit({type: 'tracker_finished', tracker: this.map.snapshot(), timestamp});
-      this.map = null;
     }
+    this._setMap(null);
     this._currentWriter = undefined;
   }
 
@@ -549,7 +579,7 @@ export class TrackerRegistry {
   reset(): void {
     for (const t of this._seasonals.values()) t.cancelLootTimer();
     this.session = null;
-    this.map     = null;
+    this._setMap(null);
     this._seasonals.clear();
     this._startOrder = [];
     this._published.clear();

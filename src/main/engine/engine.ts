@@ -121,10 +121,6 @@ export class Engine {
     const now = Date.now();
     const wasPaused = this._ctx.paused;
 
-    // Fresh trackers below — clear pause bookkeeping tied to the torn-down ones
-    // (finishing a seasonal also drops it from the registry's session-frozen set).
-    this._ctx.mapPausedForInterludeAt = null;
-
     // The materials were consumed to open the map the player is still in, so
     // its rebuilt tracker (and the new session) keep the entry cost.
     const carriedCost: ReadonlyMap<number, number> = new Map(this._ctx.registry.map?.entryCost ?? []);
@@ -204,7 +200,8 @@ export class Engine {
     this._ctx.registry.session?.resume();
 
     // Map resume policy. A map is left paused across resume ONLY if it's paused
-    // for an ONGOING seasonal interlude (ctx.mapPausedForInterludeAt !== null) —
+    // for an ONGOING seasonal interlude (ctx.mapPausedForInterludeAt !== null —
+    // a claim on THIS map: the registry drops it with the map that ended) —
     // the interlude owns that pause and resolves it itself. Any other paused map
     // (paused by us at pause() time, started during the pause, or handed over by
     // an interlude that ENDED during the pause) is resumed here.

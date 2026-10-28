@@ -41,9 +41,8 @@ export class ArcanaHandler implements EventHandler {
     this._panelOpen = false;
   }
 
-  onStop(ctx: EngineContext): void {
+  onStop(): void {
     this._panelOpen = false;
-    ctx.mapPausedForInterludeAt = null;
   }
 
   /** The session opened mid-interlude (panel up, or in the fight scene): the
