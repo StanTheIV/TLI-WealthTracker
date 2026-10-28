@@ -67,6 +67,16 @@ interface EngineActions {
   dismissLowStockItem:  (itemId: number) => void;
 }
 
+export type RunStatus = 'idle' | 'initializing' | 'running' | 'paused';
+
+/** The run status every view shows — derived, never stored. Tracking with no
+ *  session yet (init_complete → session tracker_started) is still initializing. */
+export function selectRunStatus(s: Pick<EngineState, 'phase' | 'sessionStatus'>): RunStatus {
+  if (s.phase === 'idle') return 'idle';
+  if (s.phase === 'initializing' || s.sessionStatus === 'idle') return 'initializing';
+  return s.sessionStatus;
+}
+
 let _nextId = 0;
 let _initialized = false;
 
@@ -123,6 +133,18 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
       let dismissedMaterials   = s.dismissedMaterials;
       let accumulatedMapTime   = s.accumulatedMapTime;
       let lootWindowDeadlines  = s.lootWindowDeadlines;
+
+      // The run is over: the session's tracker_finished and engine_stopped
+      // clear the same state. The drops are kept.
+      const endRun = () => {
+        phase              = 'idle';
+        sessionStatus      = 'idle';
+        sessionElapsed     = 0;
+        sessionReceivedAt  = null;
+        accumulatedMapTime = 0;
+        activeSessionId    = null;
+        activeSessionName  = null;
+      };
 
       switch (event.type) {
         case 'init_started':
@@ -184,7 +206,9 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
             seasonalTrackers           = new Map(seasonalTrackers).set(type, event.tracker);
             seasonalTrackersReceivedAt = new Map(seasonalTrackersReceivedAt).set(type, Date.now());
           } else if (event.tracker.kind === 'session') {
-            sessionStatus     = 'running';
+            // `active` is false while paused: a drop accepted mid-pause
+            // re-emits the snapshot and must not flip the run back to running.
+            sessionStatus     = event.tracker.active ? 'running' : 'paused';
             sessionElapsed    = event.tracker.elapsed;
             sessionReceivedAt = Date.now();
             sessionSpent      = event.tracker.spent ?? {};
@@ -217,16 +241,16 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
             seasonalTrackersReceivedAt = nextReceivedAt;
             lootWindowDeadlines        = nextDeadlines;
           } else if (event.tracker.kind === 'session') {
-            phase              = 'idle';
-            drops              = event.tracker.drops;
-            sessionSpent       = event.tracker.spent ?? {};
-            sessionStatus      = 'idle';
-            sessionElapsed     = 0;
-            sessionReceivedAt  = null;
-            accumulatedMapTime = 0;
-            activeSessionId    = null;
-            activeSessionName  = null;
+            drops        = event.tracker.drops;
+            sessionSpent = event.tracker.spent ?? {};
+            endRun();
           }
+          break;
+
+        case 'engine_stopped':
+          // Every stop ends with this — also one during bag init, which has no
+          // session to finish. The drops stay on screen until the next run.
+          endRun();
           break;
 
         case 'session_status':

@@ -5,6 +5,10 @@
     "paused": "Paused",
     "initializing": "Initializing bag…"
   },
+  "mapLabel": "Map #{{count}} — {{zone}}",
+  "badges": {
+    "initializing": "Initializing"
+  },
   "buttons": {
     "start": "Start",
     "pause": "Pause",

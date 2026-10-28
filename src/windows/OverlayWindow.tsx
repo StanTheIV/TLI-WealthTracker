@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import {useEngineStore} from '@/state/engineStore';
+import {selectRunStatus, useEngineStore} from '@/state/engineStore';
 import {useSettingsStore} from '@/state/settingsStore';
 import TrackerPanel from '@/components/Dashboard/TrackerPanel';
 
@@ -10,10 +10,7 @@ export default function OverlayWindow() {
 
   const opacity                  = useSettingsStore(s => s.overlayOpacity);
   const clickThroughWhileRunning = useSettingsStore(s => s.clickThroughWhileRunning);
-  const sessionStatus = useEngineStore(s => s.sessionStatus);
-  const enginePhase   = useEngineStore(s => s.phase);
-
-  const isActivelyTracking = sessionStatus === 'running' && enginePhase === 'tracking';
+  const isActivelyTracking       = useEngineStore(s => selectRunStatus(s) === 'running');
   const clickThrough       = isActivelyTracking && clickThroughWhileRunning;
 
   useEffect(() => {

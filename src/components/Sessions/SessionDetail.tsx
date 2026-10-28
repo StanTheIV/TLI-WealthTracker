@@ -5,7 +5,7 @@ import {useSessionsStore} from '@/state/sessionsStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useTaxConfig} from '@/state/settingsStore';
 import {useTracking} from '@/state/TrackingContext';
-import {useEngineStore} from '@/state/engineStore';
+import {selectRunStatus, useEngineStore} from '@/state/engineStore';
 import type {DbSessionMap} from '@/shared/contracts/db';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
 import {computeSessionAnalytics} from '@/domain/session-analytics';
@@ -37,7 +37,8 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
   const renameSession = useSessionsStore(s => s.renameSession);
   const items         = useItemsStore(s => s.items);
   const tax           = useTaxConfig();
-  const {continueSession, status} = useTracking();
+  const {continueSession} = useTracking();
+  const isTracking      = useEngineStore(s => selectRunStatus(s) !== 'idle');
   const activeSessionId = useEngineStore(s => s.activeSessionId);
   const sessionsVersion = useEngineStore(s => s.sessionsVersion);
   const rowsForRef      = useRef<string | null>(null);
@@ -115,7 +116,6 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
     );
   }
 
-  const isTracking = status !== 'idle';
   const {hasSnapshot} = analytics.meta;
   // Dual columns only mean something when the two legs can differ.
   const showBoth = hasSnapshot;

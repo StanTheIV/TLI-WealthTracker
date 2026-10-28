@@ -4,7 +4,7 @@ import {useSettingsStore, type ThemeMode} from '@/state/settingsStore';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useSessionsStore} from '@/state/sessionsStore';
-import {useEngineStore} from '@/state/engineStore';
+import {selectRunStatus, useEngineStore} from '@/state/engineStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
 import type {DbItem} from '@/shared/contracts/db';
 import {WINDOWED_MECHANICS} from '@/shared/mechanics';
@@ -41,10 +41,8 @@ export default function GeneralTab() {
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
   const [wealthResetState, setWealthResetState] = useState<'idle' | 'confirm' | 'done'>('idle');
-  // Main refuses the clear while a run exists. Not `phase`: a Stop during bag
-  // init emits no session finish, so phase would stay 'initializing'. That
-  // pre-session window is covered by main's refusal (handled below).
-  const runActive  = useEngineStore(s => s.activeSessionId !== null);
+  // Main refuses the clear while a run exists, bag init included.
+  const runActive  = useEngineStore(s => selectRunStatus(s) !== 'idle');
   const clearBlock = runActive ? t('wealthReset.blockedTracking') : undefined;
 
   const clearFarmingHistory = async () => {

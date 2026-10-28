@@ -1,7 +1,8 @@
 import {useTranslation} from 'react-i18next';
 import {Play, Pause, Square, RotateCcw} from 'lucide-react';
 import {useTracking} from '@/state/TrackingContext';
-import {useEngineStore} from '@/state/engineStore';
+import {selectRunStatus, useEngineStore} from '@/state/engineStore';
+import {useTrackerElapsed} from '@/hooks/useTrackerElapsed';
 import HoldButton from '@/components/ui/HoldButton';
 
 function formatElapsed(ms: number): string {
@@ -12,18 +13,21 @@ function formatElapsed(ms: number): string {
 
 export default function Playbar() {
   const {t} = useTranslation('playbar');
-  const {status, elapsedMs, start, pause, resume, stop, reset} = useTracking();
-  const enginePhase       = useEngineStore(s => s.phase);
+  const {start, pause, resume, stop, reset} = useTracking();
+  const status            = useEngineStore(selectRunStatus);
+  const sessionElapsed    = useEngineStore(s => s.sessionElapsed);
+  const sessionReceivedAt = useEngineStore(s => s.sessionReceivedAt);
   const currentZone       = useEngineStore(s => s.currentZone);
   const mapCount          = useEngineStore(s => s.mapCount);
   const activeSessionName = useEngineStore(s => s.activeSessionName);
+  const elapsedMs         = useTrackerElapsed(sessionElapsed, sessionReceivedAt, status === 'running');
 
   function statusLabel(): string {
-    if (status === 'idle')    return t('status.idle');
-    if (status === 'paused')  return t('status.paused');
-    if (enginePhase === 'initializing') return t('status.initializing');
-    if (currentZone && mapCount > 0)    return `Map #${mapCount} — ${currentZone}`;
-    if (currentZone)                    return currentZone;
+    if (status === 'idle')         return t('status.idle');
+    if (status === 'paused')       return t('status.paused');
+    if (status === 'initializing') return t('status.initializing');
+    if (currentZone && mapCount > 0) return t('mapLabel', {count: mapCount, zone: currentZone});
+    if (currentZone)                 return currentZone;
     return t('status.running');
   }
 
@@ -32,9 +36,9 @@ export default function Playbar() {
       {/* Left: status */}
       <div className="flex-1 flex items-center gap-2 min-w-0">
         <span className="text-sm text-text-secondary truncate">{statusLabel()}</span>
-        {status !== 'idle' && enginePhase === 'initializing' && (
+        {status === 'initializing' && (
           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gold/15 text-gold">
-            Initializing
+            {t('badges.initializing')}
           </span>
         )}
         {activeSessionName && status !== 'idle' && (
@@ -51,33 +55,19 @@ export default function Playbar() {
             <Play className="w-4 h-4 fill-current" />
           </button>
         )}
-        {status === 'running' && (<>
-          {/* Pause and Reset are tracking-only engine commands — until the bag
-              baseline lands (initializing, or before init_started) only Stop. */}
-          {enginePhase === 'tracking' && (<>
-            <button onClick={pause} className="w-10 h-10 rounded-full bg-surface-elevated text-text-primary flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.pause')}>
-              <Pause className="w-4 h-4" />
-            </button>
-            <HoldButton
-              onConfirm={reset}
-              holdMs={1000}
-              size={36}
-              title={t('buttons.resetHint')}
-              ariaLabel={t('buttons.reset')}
-              className="bg-surface-elevated text-text-secondary hover:bg-gold/15 hover:text-gold"
-              ringClass="stroke-gold"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </HoldButton>
-          </>)}
-          <button onClick={stop} className="w-9 h-9 rounded-full bg-danger text-white flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.stop')}>
-            <Square className="w-3.5 h-3.5 fill-current" />
+        {/* Pause and Reset are tracking-only engine commands — while the bag
+            baseline is still initializing only Stop. */}
+        {status === 'running' && (
+          <button onClick={pause} className="w-10 h-10 rounded-full bg-surface-elevated text-text-primary flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.pause')}>
+            <Pause className="w-4 h-4" />
           </button>
-        </>)}
-        {status === 'paused' && (<>
+        )}
+        {status === 'paused' && (
           <button onClick={resume} className="w-10 h-10 rounded-full bg-accent text-bg flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.resume')}>
             <Play className="w-4 h-4 fill-current" />
           </button>
+        )}
+        {(status === 'running' || status === 'paused') && (
           <HoldButton
             onConfirm={reset}
             holdMs={1000}
@@ -89,10 +79,12 @@ export default function Playbar() {
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </HoldButton>
+        )}
+        {status !== 'idle' && (
           <button onClick={stop} className="w-9 h-9 rounded-full bg-danger text-white flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.stop')}>
             <Square className="w-3.5 h-3.5 fill-current" />
           </button>
-        </>)}
+        )}
       </div>
 
       {/* Right: timer */}

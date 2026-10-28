@@ -5,6 +5,10 @@
     "paused": "Pausiert",
     "initializing": "Inventar wird initialisiert…"
   },
+  "mapLabel": "Karte #{{count}} — {{zone}}",
+  "badges": {
+    "initializing": "Initialisierung"
+  },
   "buttons": {
     "start": "Start",
     "pause": "Pause",
