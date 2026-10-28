@@ -62,7 +62,10 @@ describe('TrackingService does not broadcast unit_finished', () => {
     const finished = h.events().flatMap(e => (e.type === 'tracker_finished' ? [e.tracker.kind] : []));
     expect(finished).toEqual(expect.arrayContaining(['seasonal', 'map', 'session']));
 
-    const savedId = h.events().flatMap(e => (e.type === 'session_saved' ? [e.sessionId] : []))[0];
+    const saves = h.events().flatMap(e => (e.type === 'session_saved' ? [e.sessionId] : []));
+    const savedId = saves[0];
+    // insert + 2 units (standalone hub run, map with its hub child) + final.
+    expect(saves).toEqual([savedId, savedId, savedId, savedId]);
     const rows = h.store.getRows(savedId);
     expect(rows.map(r => [r.mapIndex, r.parentMapIndex, r.seasonalType])).toEqual([
       [1, null, 'sandlord'],

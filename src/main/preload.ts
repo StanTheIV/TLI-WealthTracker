@@ -40,7 +40,7 @@ const api = {
 
   engine: {
     start:           ()                  => ipcRenderer.send('engine:start'),
-    startWithSession:(sessionId: string) => ipcRenderer.send('engine:start-with-session', sessionId),
+    startWithSession:(sessionId: string) => ipcRenderer.invoke('engine:start-with-session', sessionId),
     stop:            ()                  => ipcRenderer.send('engine:stop'),
     pause:           ()                  => ipcRenderer.send('engine:pause'),
     resume:          ()                  => ipcRenderer.send('engine:resume'),

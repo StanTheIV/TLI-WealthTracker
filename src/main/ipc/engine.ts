@@ -6,7 +6,8 @@ import type {FilterRule} from '@/shared/item-filter';
 /** `engine:*` channels → TrackingService. Bindings only — the service owns all tracking state. */
 export function registerEngineHandlers(tracking: TrackingService): void {
   ipcMain.on('engine:start',              ()                     => tracking.start());
-  ipcMain.on('engine:start-with-session', (_e, sessionId: string) => tracking.continueSession(sessionId));
+  // handle, not on: a refused continue rejects the renderer's invoke.
+  ipcMain.handle('engine:start-with-session', (_e, sessionId: string) => tracking.continueSession(sessionId));
   ipcMain.on('engine:stop',   () => tracking.stop());
   ipcMain.on('engine:pause',  () => tracking.pause());
   ipcMain.on('engine:resume', () => tracking.resume());

@@ -27,11 +27,11 @@ const prices = (ids: ReadonlySet<string>) => {
   return out;
 }
 
-interface Saved {session: Omit<DbSession, 'id' | 'name' | 'savedAt'> | null; rows: Array<Omit<DbSessionMap, 'sessionId'>>}
+interface Saved {session: Omit<DbSession, 'id' | 'name' | 'savedAt' | 'endedAt'> | null; rows: Array<Omit<DbSessionMap, 'sessionId'>>}
 
 function strip(session: DbSession | null, rows: DbSessionMap[]): Saved {
   return {
-    session: session && (({id: _i, name: _n, savedAt: _s, ...rest}) => rest)(session),
+    session: session && (({id: _i, name: _n, savedAt: _s, endedAt: _e, ...rest}) => rest)(session),
     rows:    rows.map(({sessionId: _id, ...r}) => r),
   };
 }
@@ -51,6 +51,7 @@ async function viaService(lines: LogLine[], controls: ControlOp[]): Promise<Save
   const store = new SqliteSessionStore(openMigratedNodeSqlite());
   let onEvent!: (raw: RawEvent) => void;
   const ids: string[] = [];
+  const activeId = () => service.getActiveSessionId();
   const service = new TrackingService({
     createEngine,
     store,
@@ -65,14 +66,14 @@ async function viaService(lines: LogLine[], controls: ControlOp[]): Promise<Save
       recordScrapedPrice: () => ({priceDate: null}),
     },
     wealthRecorder: {snapshot: () => {}},
-    log: {debug: () => {}, info: (_f: string, m: string) => { const id = /Session created: id=([0-9a-f-]+)/.exec(m)?.[1]; if (id) ids.push(id); }, warn: () => {}, error: () => {}},
+    log: {debug: () => {}, info: () => {}, warn: () => {}, error: () => {}},
   });
   vi.useFakeTimers({now: lines[0].ts - 1});
   try {
     const pending = [...controls].sort((a, b) => a.at - b.at);
     const advanceTo = (ts: number) => { if (ts > Date.now()) vi.advanceTimersByTime(ts - Date.now()); };
     const apply = (op: ControlOp['op']) => {
-      if (op === 'start') service.start();
+      if (op === 'start') { service.start(); ids.push(activeId()!); }
       else if (op === 'pause') service.pause();
       else if (op === 'resume') service.resume();
       else service.stop();
@@ -80,7 +81,7 @@ async function viaService(lines: LogLine[], controls: ControlOp[]): Promise<Save
     const upTo = (ts: number) => {
       while (pending.length && pending[0].at <= ts) { const c = pending.shift()!; advanceTo(c.at); apply(c.op); }
     };
-    if (!controls.some(c => c.op === 'start')) service.start();
+    if (!controls.some(c => c.op === 'start')) { service.start(); ids.push(activeId()!); }
     const dispatcher = createDispatcher();
     for (const line of lines) {
       upTo(line.ts);
@@ -94,7 +95,7 @@ async function viaService(lines: LogLine[], controls: ControlOp[]): Promise<Save
   } finally {
     vi.useRealTimers();
   }
-  // The service names sessions by random uuid; read each started run back.
+  // The service picks random uuids; read each started run back by the id it reported at start.
   return ids.map(id => strip(store.getSession(id), store.getRows(id)));
 }
 

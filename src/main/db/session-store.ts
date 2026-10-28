@@ -87,16 +87,17 @@ export class SqliteSessionStore {
 
   /** Overwrite a saved session's run data and bump `saved_at`. Never writes
    *  `name` (the user may rename a live session), `price_snapshot` (only ever
-   *  merged: `mergePriceSnapshot`) or `ended_at` (`closeSession`/`reopenSession`). */
-  updateSessionTotals(session: DbSession): void {
-    this.conn.prepare(`
+   *  merged: `mergePriceSnapshot`) or `ended_at` (`closeSession`/`reopenSession`).
+   *  False when no such session exists (nothing written). */
+  updateSessionTotals(session: DbSession): boolean {
+    return this.conn.prepare(`
       UPDATE sessions
       SET saved_at = @savedAt, total_time = @totalTime,
           map_time = @mapTime, map_count = @mapCount, drops = @drops,
           drops_by_source = @dropsBySource, attribution = @attribution,
           spent = @spent
       WHERE id = @id
-    `).run(sessionParams(session));
+    `).run(sessionParams(session)).changes > 0;
   }
 
   /** Mark a session ended at `endedAt` (ms epoch). No-op for an unknown id. */
@@ -104,9 +105,9 @@ export class SqliteSessionStore {
     this.conn.prepare('UPDATE sessions SET ended_at = ? WHERE id = ?').run(endedAt, id);
   }
 
-  /** Make a session live again (`ended_at` NULL). No-op for an unknown id. */
-  reopenSession(id: string): void {
-    this.conn.prepare('UPDATE sessions SET ended_at = NULL WHERE id = ?').run(id);
+  /** Make a session live again (`ended_at` NULL). False (a no-op) for an unknown id. */
+  reopenSession(id: string): boolean {
+    return this.conn.prepare('UPDATE sessions SET ended_at = NULL WHERE id = ?').run(id).changes > 0;
   }
 
   getSession(id: string): DbSession | null {
@@ -197,6 +198,11 @@ export class SqliteSessionStore {
       parentMapIndex: r.parent_map_index,
       phase:          r.phase as SeasonalPhase | null,
     }));
+  }
+
+  /** True when the session has at least one per-map row. */
+  hasRows(sessionId: string): boolean {
+    return this.conn.prepare('SELECT 1 FROM session_maps WHERE session_id = ? LIMIT 1').get(sessionId) !== undefined;
   }
 
   /** Highest mapIndex among a session's primary rows (maps and standalone

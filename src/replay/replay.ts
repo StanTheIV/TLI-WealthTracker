@@ -51,8 +51,9 @@ export interface ReplayEvent {
 /** One started run, read back from the store after the replay. */
 export interface ReplayedSession {
   id:      string;
-  /** Null when nothing was saved: discarded (too short, no drops) or never
-   *  finished (`stopAtEnd: false`). */
+  /** Null when nothing was saved: the session never opened (no bag baseline)
+   *  or was deleted at Stop (an empty run). An unfinished run (`stopAtEnd:
+   *  false`) is a live row (`endedAt` null) with the units it completed. */
   session: DbSession | null;
   rows:    DbSessionMap[];
 }
@@ -118,13 +119,12 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
   };
 
   /** As TrackingService.stop: the session's finish reaches the run's own
-   *  persistence, then whatever that left buffered is dropped. */
+   *  persistence (final write + close), then both are dropped. */
   const stopRun = (): void => {
     try {
-      engine?.stop(); // emits the session tracker_finished → auto-save
+      engine?.stop(); // emits the session tracker_finished → final write
     } finally {
       engine = null;
-      persistence?.discard();
       persistence = null;
     }
   };
@@ -136,7 +136,7 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
       const id = idOf(sessionIds.length + 1);
       sessionIds.push(id);
       // Always named: the generated name is local time (TZ-dependent).
-      persistence = new SessionPersistence({sessionId: id, sessionName: id, isOverride: false}, opts.persistence);
+      persistence = new SessionPersistence({sessionId: id, name: id, continued: false, nextMapIndex: 1}, opts.persistence);
       engine = createEngine(emit);
       engine.start({sessionId: id, name: id});
       opts.configure?.(engine);

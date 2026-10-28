@@ -62,8 +62,8 @@ describe('TrackingService pause outside tracking', () => {
     h.service.stop();
 
     expect(h.events().filter(e => e.type === 'session_status')).toEqual([]);
-    const saved = h.events().flatMap(e => (e.type === 'session_saved' ? [e.sessionId] : []));
-    expect(saved).toHaveLength(1);
+    const saved = [...new Set(h.events().flatMap(e => (e.type === 'session_saved' ? [e.sessionId] : [])))];
+    expect(saved).toHaveLength(1);   // one session, announced per write
     const s = h.store.getSession(saved[0])!;
     expect(s.drops['200']).toBe(3);
     expect(s.totalTime).toBeGreaterThanOrEqual(30);

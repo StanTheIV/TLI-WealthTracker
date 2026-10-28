@@ -3,9 +3,9 @@ import type {EngineSink} from '@/main/engine/types';
 import {configureEngine} from '@/main/engine/configure-engine';
 import type {SqliteSessionStore} from '@/main/db/session-store';
 import type {Logger} from '@/main/logger';
-import {SessionPersistence, generateSessionName, type SessionMeta} from '@/main/session-persistence';
+import {SessionPersistence, type SessionMeta} from '@/main/session-persistence';
 import type {RawEvent} from '@/worker/processors/types';
-import type {DbItem, DbItemFilter} from '@/shared/contracts/db';
+import type {DbItem, DbItemFilter, DbSession} from '@/shared/contracts/db';
 import type {EngineEvent, SessionIdentity} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
@@ -40,6 +40,16 @@ export interface TrackingDeps {
   log:            Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
 }
 
+/** A fresh session's name, in local time. */
+function generateSessionName(): string {
+  const now   = new Date();
+  const month = now.toLocaleString('en', {month: 'short'});
+  const day   = now.getDate();
+  const year  = now.getFullYear();
+  const time  = now.toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit', hour12: false});
+  return `Session - ${month} ${day}, ${year} ${time}`;
+}
+
 /** A fresh session's identity; the name is taken at start, in local time. */
 function newIdentity(): SessionIdentity {
   return {sessionId: crypto.randomUUID(), name: generateSessionName()};
@@ -65,6 +75,8 @@ export class TrackingService {
   private readonly _worker: LogWorker;
   private _engine:      Engine | null             = null;
   private _persistence: SessionPersistence | null = null;
+  /** Set by shutdown(), cleared by the next start: a repeated shutdown is a no-op. */
+  private _shutDown = false;
 
   constructor(deps: TrackingDeps) {
     this._deps   = deps;
@@ -84,41 +96,69 @@ export class TrackingService {
 
   /** Start a fresh session (stops any run in progress first). */
   start(): void {
-    this._start();
+    this._start(newIdentity(), null);
   }
 
-  /** Continue a saved session. An unknown id falls back to a fresh session. */
+  /**
+   * Continue a saved session: its new units append to it. Throws — before the
+   * run in progress is touched — for an unknown id, a session whose rows are
+   * not drop-through (their maths can't be extended), or the active session.
+   */
   continueSession(sessionId: string): void {
-    this._start(sessionId);
+    const loaded = this._deps.store.getSession(sessionId);
+    if (!loaded) throw new Error(`Cannot continue session ${sessionId}: not found`);
+    if (loaded.attribution !== 'drop-through') {
+      throw new Error(`Cannot continue session ${sessionId}: ${loaded.attribution} attribution`);
+    }
+    if (sessionId === this.getActiveSessionId()) throw new Error(`Cannot continue session ${sessionId}: it is being tracked`);
+    this._start({sessionId: loaded.id, name: loaded.name}, loaded);
   }
 
   stop(): void {
     try {
       if (this._engine) {
         this._log.info('engine', 'Engine stopped');
-        this._engine.stop(); // emits the session tracker_finished → auto-save
+        this._engine.stop(); // emits the session tracker_finished → final write
       }
     } finally {
-      this._engine = null;
-      // Drop the persistence instance — any per-run rows that survived an
-      // abnormal stop are discarded with it (the buffer is private).
-      this._persistence?.discard();
+      this._engine      = null;
       this._persistence = null;
     }
     // Worker keeps running — it's independent
   }
 
-  /** Discard the run in progress and keep tracking under a new session id. */
+  /**
+   * Discard the run in progress and keep tracking under a new session: the
+   * active session (continued or not) is DELETED with its rows. A no-op until
+   * the session is open (the engine ignores a reset while initializing).
+   */
   reset(): void {
-    if (!this._engine) return;
+    if (!this._engine?.isTracking() || !this._persistence) return;
+    const oldId = this._persistence.getSessionId();
+    this._deps.store.deleteSession(oldId);
+    this._send({type: 'session_saved', sessionId: oldId, deleted: true});
+
+    // Swapped BEFORE engine.reset: it emits the new session's tracker_started.
     const identity = newIdentity();
+    this._persistence = this._newPersistence({...identity, continued: false, nextMapIndex: 1});
     this._engine.reset(identity);
-    // The discarded run's identity must not be reused by the next Stop, and
-    // any buffered per-run rows belong to the discarded run — replacing the
-    // SessionPersistence instance drops both.
-    this._persistence?.discard();
-    this._persistence = this._newPersistence({sessionId: identity.sessionId, sessionName: null, isOverride: false});
-    this._log.info('session', `Session reset; new id=${this._persistence.getSessionId()}`);
+    this._log.info('session', `Session reset: deleted id=${oldId}, new id=${identity.sessionId}`);
+  }
+
+  /** The tracked session's id while a run exists (initializing included), else null. */
+  getActiveSessionId(): string | null {
+    return this._engine ? this._persistence?.getSessionId() ?? null : null;
+  }
+
+  /** True while a run exists — from start() (initializing included) until stop(). */
+  isTracking(): boolean {
+    return this._engine !== null;
+  }
+
+  /** Delete a saved session and its rows. Refuses (throws) the active one. */
+  deleteSession(sessionId: string): void {
+    if (sessionId === this.getActiveSessionId()) throw new Error(`Cannot delete session ${sessionId}: it is being tracked`);
+    this._deps.store.deleteSession(sessionId);
   }
 
   pause(): void {
@@ -131,8 +171,11 @@ export class TrackingService {
     this._log.info('engine', 'Engine resumed');
   }
 
-  /** App shutdown: stop (auto-saving the active session), then the worker. */
+  /** App shutdown: stop (closing the active session), then the worker.
+   *  Idempotent — window close, OS session end and app quit all call it. */
   shutdown(): void {
+    if (this._shutDown) return;
+    this._shutDown = true;
     try {
       this.stop();
     } finally {
@@ -192,8 +235,10 @@ export class TrackingService {
 
   // -- private: lifecycle ---------------------------------------------------
 
-  private _start(loadSessionId?: string): void {
+  /** Stop any run, then start `identity`; `loaded` makes it a continue. */
+  private _start(identity: SessionIdentity, loaded: DbSession | null): void {
     this.stop();
+    this._shutDown = false;
 
     // Ensure the worker is running (idempotent — won't restart if already up)
     const logPath = this._resolveLogPath();
@@ -202,12 +247,11 @@ export class TrackingService {
 
     this._engine = this._deps.createEngine(event => this._emit(event));
 
-    const loaded = loadSessionId ? this._deps.store.getSession(loadSessionId) : null;
-    let identity: SessionIdentity;
     if (loaded) {
-      identity = {sessionId: loaded.id, name: loaded.name};
-      this._persistence = this._newPersistence({sessionId: loaded.id, sessionName: loaded.name, isOverride: true});
-      this._log.info('session', `Session loaded: id=${loaded.id}, name="${loaded.name}"`);
+      // After stop(): the stopped run may have written to the store.
+      const nextMapIndex = this._deps.store.maxPrimaryMapIndex(loaded.id) + 1;
+      this._persistence = this._newPersistence({...identity, continued: true, nextMapIndex});
+      this._log.info('session', `Session continued: id=${loaded.id}, name="${loaded.name}", next map #${nextMapIndex}`);
       this._engine.loadSession({
         drops:         loaded.drops,
         dropsBySource: loaded.dropsBySource,
@@ -217,8 +261,7 @@ export class TrackingService {
         mapCount:      loaded.mapCount,
       });
     } else {
-      identity = newIdentity();
-      this._persistence = this._newPersistence({sessionId: identity.sessionId, sessionName: null, isOverride: false});
+      this._persistence = this._newPersistence({...identity, continued: false, nextMapIndex: 1});
       this._log.info('session', `Session created: id=${identity.sessionId}`);
     }
 
@@ -311,18 +354,17 @@ export class TrackingService {
   }
 
   /**
-   * Route every engine event through SessionPersistence — it owns the row
-   * buffer (fed by `unit_finished`) and the auto-save logic. Returns an
-   * outcome only for the session's tracker_finished (the auto-save commit
-   * point). `session_saved` goes out before the session's own tracker_finished.
+   * Route every engine event through SessionPersistence, which writes the
+   * session as the run goes. Each write is announced (`session_saved`) before
+   * the event that caused it is broadcast.
    */
   private _persist(event: EngineEvent): void {
     if (!this._persistence) return;
     const outcome = this._persistence.onEngineEvent(event);
-    if (outcome?.savedId) {
-      this._log.info('engine', `Session auto-saved: id=${outcome.savedId}`);
-      this._send({type: 'session_saved', sessionId: outcome.savedId});
-    }
+    if (!outcome) return;
+    this._send('deletedId' in outcome
+      ? {type: 'session_saved', sessionId: outcome.deletedId, deleted: true}
+      : {type: 'session_saved', sessionId: outcome.savedId});
   }
 
   private _recordWealth(event: EngineEvent): void {

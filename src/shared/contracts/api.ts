@@ -41,7 +41,8 @@ export interface ElectronAPI {
 
   engine: {
     start:           () => void;
-    startWithSession:(sessionId: string) => void;
+    /** Continue a saved session; rejects when it can't be continued (missing, not drop-through, active). */
+    startWithSession:(sessionId: string) => Promise<void>;
     stop:            () => void;
     pause:           () => void;
     resume:          () => void;

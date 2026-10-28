@@ -109,7 +109,8 @@ export type EngineEvent =
    *  broadcast to the renderer, which keeps reading each tracker_finished. */
   | {type: 'unit_finished';    tracker: TrackerSnapshot; overlaps: UnitOverlap[]; timestamp: number; checkpoint: UnitCheckpoint}
   | {type: 'session_status';   status: 'running' | 'paused'; elapsed: number; timestamp: number}
-  | {type: 'session_saved';    sessionId: string}
+  /** After every session write; `deleted`: the write removed it (an empty run at Stop, or Reset). */
+  | {type: 'session_saved';    sessionId: string; deleted?: true}
   | {type: 'price_update';     itemId: number; price: number; timestamp: number}
   | {type: 'wealth_recorded';  timestamp: number}
   | {type: 'map_material_warning'; items: Array<{itemId: number; quantity: number}>; timestamp: number}

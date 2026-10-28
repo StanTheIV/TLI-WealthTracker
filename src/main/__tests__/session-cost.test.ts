@@ -7,21 +7,12 @@
  * carries `DbSession.spent` from the session snapshot.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
-import {SessionPersistence, type PriceReader, type SessionMeta} from '@/main/session-persistence';
+import type {PriceReader, SessionPersistence} from '@/main/session-persistence';
 import {SqliteSessionStore} from '@/main/db/session-store';
-import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
+import type {SeasonalType} from '@/shared/contracts/engine';
 import type {DbSession} from '@/shared/contracts/db';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
-import {onEngineEvent, snap, unitFinished} from '@/test/unit-events';
-
-type Finished = Extract<EngineEvent, {type: 'tracker_finished'}>;
-
-function sessionFinished(opts: {drops?: Record<number, number>; spent?: Record<number, number>} = {}): Finished {
-  return {
-    type: 'tracker_finished', timestamp: 1_000_000,
-    tracker: snap('session', opts.drops ?? {}, 60_000, {spent: opts.spent}),
-  };
-}
+import {checkpointOf, makePersistence, onEngineEvent, sessionFinished, sessionStarted, snap, unitFinished} from '@/test/unit-events';
 
 /** A map unit; `overlap` rides inside it. */
 function mapUnit(opts: {drops?: Record<number, number>; spent?: Record<number, number>; overlap?: SeasonalType} = {}) {
@@ -39,14 +30,15 @@ beforeEach(() => {
   store = new SqliteSessionStore(openMigratedNodeSqlite());
 });
 
-function make(meta: Partial<SessionMeta> = {}, readPrices: PriceReader = () => ({})): SessionPersistence {
-  return new SessionPersistence({sessionId: 's1', sessionName: null, isOverride: false, ...meta}, {store, readPrices});
+/** A persistence whose session start was already fed (fresh insert, or reopen when continued). */
+function make(meta: Parameters<typeof makePersistence>[1] = {}, readPrices: PriceReader = () => ({})): SessionPersistence {
+  const p = makePersistence({store, readPrices}, meta);
+  onEngineEvent(p, sessionStarted({continued: meta.continued ?? false}));
+  return p;
 }
 
 function finish(p: SessionPersistence, spent?: Record<number, number>, drops: Record<number, number> = {}) {
-  const event = sessionFinished({drops, spent});
-  event.sessionMeta = {mapTime: 50_000, mapCount: 1};
-  return onEngineEvent(p, event);
+  return onEngineEvent(p, sessionFinished({drops, spent}));
 }
 
 describe('row spent comes from the finished tracker', () => {
@@ -112,7 +104,7 @@ describe('session spent', () => {
     expect(sessionSpent(store.getSession('s1'))).toEqual({});
   });
 
-  it('a continued session overwrites spent with the new run totals (updateSessionTotals)', () => {
+  it('a continued session spent is the seeded spend plus the new run spend (the checkpoint already carries both)', () => {
     store.insertSession({
       id: 's1', name: 'Run', savedAt: 'x', totalTime: 0, mapTime: 0, mapCount: 0,
       drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {},
@@ -121,9 +113,12 @@ describe('session spent', () => {
     } as DbSession);
     expect(sessionSpent(store.getSession('s1'))).toEqual({'100': 1});
 
-    const p = make({sessionName: 'Run', isOverride: true});
-    finish(p, {100: 7, 300: 2}, {200: 1});
+    const p = make({continued: true, nextMapIndex: 1});
+    // The engine seeded {100: 1}, then the new run spent 6 more of 100 and 2 of 300.
+    onEngineEvent(p, unitFinished(snap('map', {200: 1}, 60_000, {spent: {100: 6, 300: 2}}), [], 1_000_000, checkpointOf({drops: {200: 1}, spent: {100: 7, 300: 2}, mapCount: 1})));
+    expect(sessionSpent(store.getSession('s1'))).toEqual({'100': 7, '300': 2});
 
+    finish(p, {100: 7, 300: 2}, {200: 1});
     expect(sessionSpent(store.getSession('s1'))).toEqual({'100': 7, '300': 2});
   });
 
@@ -147,9 +142,11 @@ describe('price snapshot covers spent ids', () => {
     onEngineEvent(p, mapUnit({drops: {100: 1}, spent: {42: 3}}));
     finish(p, {43: 1}, {100: 1});
 
-    expect(readPrices).toHaveBeenCalledTimes(1);
-    // 100 dropped, 42 only in a row's spent, 43 only in the session spent. Never the reader's extra 999.
-    expect([...readPrices.mock.calls[0][0]].sort()).toEqual(['100', '42', '43']);
+    // Once for the unit (100 dropped, 42 only in the row's spent), once at Stop (43 only in the session spent).
+    // Never the reader's extra 999.
+    expect(readPrices).toHaveBeenCalledTimes(2);
+    expect([...readPrices.mock.calls[0][0]].sort()).toEqual(['100', '42']);
+    expect([...readPrices.mock.calls[1][0]].sort()).toEqual(['100', '43']);
     expect(store.getSession('s1')?.priceSnapshot).toEqual({'100': 5, '42': 2, '43': 3});
   });
 

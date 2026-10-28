@@ -14,6 +14,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {DbItemFilter, DbSession} from '@/shared/contracts/db';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {LOG_SUBPATH} from '@/shared/paths';
+import type {SqlConn} from '@/main/db/sql-conn';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
 
@@ -30,6 +31,8 @@ interface Sent {channel: string; payload: unknown}
 interface Harness {
   service: TrackingService;
   store:   SqliteSessionStore;
+  /** The connection behind `store` — a second store over it sees the same DB. */
+  conn:    SqlConn;
   sent:    Sent[];
   worker:  {start: Mock<(logPath: string) => void>; stop: Mock<() => void>};
   /** The fake worker's onEvent — feeds raw events into the service. */
@@ -49,7 +52,8 @@ interface Harness {
 }
 
 function build(opts: {settings?: Record<string, string>; broadcast?: (sent: Sent[]) => Broadcast} = {}): Harness {
-  const store   = new SqliteSessionStore(openMigratedNodeSqlite());
+  const conn    = openMigratedNodeSqlite();
+  const store   = new SqliteSessionStore(conn);
   const sent: Sent[] = [];
   const engines: Engine[] = [];
   let onEvent: ((raw: RawEvent) => void) | null = null;
@@ -82,7 +86,7 @@ function build(opts: {settings?: Record<string, string>; broadcast?: (sent: Sent
     if (!onEvent) throw new Error('createWorker not called');
     onEvent(event);
   };
-  return {service, store, sent, worker, raw, items, settings, filters, wealth, log, engines};
+  return {service, store, conn, sent, worker, raw, items, settings, filters, wealth, log, engines};
 }
 
 // -- raw-event drivers -------------------------------------------------------
@@ -108,20 +112,23 @@ const events = (h: Harness): EngineEvent[] =>
 
 const types = (h: Harness): string[] => events(h).map(e => e.type);
 
+/** Every `session_saved` broadcast, in order (`deleted` per 2.1c's contract). */
+const savedEvents = (h: Harness): Array<{sessionId: string; deleted?: true}> =>
+  events(h).flatMap(e => (e.type === 'session_saved' ? [e] : []));
+
+/** The ids that were saved (not deleted) at least once, first-seen order. */
 const savedIds = (h: Harness): string[] =>
-  events(h).flatMap(e => (e.type === 'session_saved' ? [e.sessionId] : []));
+  [...new Set(savedEvents(h).filter(e => !e.deleted).map(e => e.sessionId))];
+
+/** The run's session id while an engine exists. */
+const activeId = (h: Harness): string | null => h.service.getActiveSessionId();
+
+const deleteSession = (h: Harness, id: string): void => h.service.deleteSession(id);
+
+const isTracking = (h: Harness): boolean => h.service.isTracking();
 
 const sessionFinishedIndex = (h: Harness): number =>
   events(h).findIndex(e => e.type === 'tracker_finished' && e.tracker.kind === 'session');
-
-/** The id from the last `log.info(<feature>, '<prefix>id=…')` call. */
-function loggedId(h: Harness, prefix: string): string {
-  const calls = h.log.info.mock.calls.filter(([, msg]) => typeof msg === 'string' && msg.startsWith(prefix));
-  const msg = calls.at(-1)?.[1] as string | undefined;
-  const id = msg?.match(/id=([^,\s]+)/)?.[1];
-  if (!id) throw new Error(`no log line starting "${prefix}"`);
-  return id;
-}
 
 function savedSession(over: Partial<DbSession> = {}): DbSession {
   return {
@@ -167,11 +174,13 @@ describe('TrackingService — full run', () => {
 
     init(h);
     runMap(h);
+    const id = activeId(h)!;
     h.service.stop();
 
-    const [id] = savedIds(h);
-    expect(savedIds(h)).toHaveLength(1);
-    expect(id).toBe(loggedId(h, 'Session created: '));
+    // One `session_saved` per write: the live insert, the map's unit, the final.
+    expect(savedEvents(h).map(e => e.sessionId)).toEqual([id, id, id]);
+    expect(savedEvents(h).some(e => e.deleted)).toBe(false);
+    expect(savedIds(h)).toEqual([id]);
 
     const session = h.store.getSession(id);
     expect(session).toMatchObject({drops: {[ITEM_LOOT]: 3}, mapCount: 1, attribution: 'drop-through'});
@@ -181,9 +190,9 @@ describe('TrackingService — full run', () => {
     for (const type of ['init_started', 'init_complete', 'wealth_recorded', 'map_ended']) expect(t).toContain(type);
     expect(t.indexOf('init_started')).toBeLessThan(t.indexOf('init_complete'));
     expect(t.indexOf('init_complete')).toBeLessThan(t.indexOf('wealth_recorded'));
-    // session_saved goes out BEFORE the session tracker_finished that caused it.
+    // session_saved goes out BEFORE the session tracker_finished that caused it, the final one included.
     expect(t.indexOf('session_saved')).toBeGreaterThanOrEqual(0);
-    expect(t.indexOf('session_saved')).toBeLessThan(sessionFinishedIndex(h));
+    expect(t.lastIndexOf('session_saved')).toBeLessThan(sessionFinishedIndex(h));
 
     // Wealth: init_complete + map_ended, each with the live engine and session id.
     expect(h.wealth.snapshot).toHaveBeenCalledTimes(2);
@@ -215,12 +224,13 @@ describe('TrackingService — full run', () => {
 });
 
 describe('TrackingService — continue', () => {
-  it('keeps the name, adds old totals, appends rows with mapIndex restarting at 1 (characterization)', () => {
+  it('keeps the name, adds old totals, and appends rows continuing the mapIndex ([1,2,3])', () => {
     const h = build();
     h.store.insertSession(savedSession());
     h.store.insertRows(oldRows());
 
     h.service.continueSession('old');
+    expect(activeId(h)).toBe('old');
     init(h);
     runMap(h);
     h.service.stop();
@@ -232,44 +242,355 @@ describe('TrackingService — continue', () => {
     expect(session.drops).toEqual({'300': 4, [ITEM_LOOT]: 3});
     expect(session.mapCount).toBe(3);
     expect(session.totalTime).toBeGreaterThanOrEqual(120);
-    // 2.1 flips this: the appended row reuses mapIndex 1.
-    expect(h.store.getRows('old').map(r => r.mapIndex)).toEqual([1, 2, 1]);
+    expect(h.store.getRows('old').map(r => r.mapIndex)).toEqual([1, 2, 3]);
   });
 
-  it('an unknown id silently starts a fresh session (characterization)', () => {
+  it('the next index follows the highest PRIMARY index: overlap rows and gaps do not matter', () => {
     const h = build();
-    h.service.continueSession('nope');
+    h.store.insertSession(savedSession());
+    h.store.insertRows([
+      ...oldRows(),
+      {...oldRows()[1], seasonalType: 'overrealm' as const, parentMapIndex: 2},
+      {...oldRows()[1], mapIndex: 7},
+    ]);
+
+    h.service.continueSession('old');
     init(h);
     runMap(h);
     h.service.stop();
 
-    const [id] = savedIds(h);
-    expect(id).not.toBe('nope');
-    expect(h.store.getSession('nope')).toBeNull();
-    expect(h.store.listSessions().map(s => s.id)).toEqual([id]);
-    expect(h.log.info).toHaveBeenCalledWith('session', `Session created: id=${id}`);
+    expect(h.store.getRows('old').map(r => r.mapIndex)).toEqual([1, 2, 2, 7, 8]);
+  });
+
+  it('reopens the row at init (endedAt null, seeded totals intact) and closes it again at Stop', () => {
+    const h = build();
+    h.store.insertSession(savedSession());
+
+    h.service.continueSession('old');
+    expect(h.store.getSession('old')).toEqual(savedSession());   // nothing is touched before the session exists
+    init(h);
+    expect(h.store.getSession('old')).toEqual({...savedSession(), endedAt: null});
+    expect(h.store.listOpenSessions().map(s => s.id)).toEqual(['old']);
+
+    h.service.stop();
+    expect(h.store.getSession('old')!.endedAt).not.toBeNull();
+    expect(h.store.listOpenSessions()).toEqual([]);
+  });
+
+  it('seeds dropsBySource and spent too, not only the drops', () => {
+    const h = build();
+    h.store.insertSession(savedSession({dropsBySource: {map: {'300': 4}}, spent: {'55': 2}}));
+
+    h.service.continueSession('old');
+    init(h);
+    runMap(h);
+    h.service.stop();
+
+    const session = h.store.getSession('old')!;
+    expect(session.spent).toEqual({'55': 2});
+    expect(session.dropsBySource.map?.['300']).toBe(4);
+    expect(session.dropsBySource.map?.[String(ITEM_LOOT)]).toBe(3);
+  });
+
+  it('an unknown id throws; nothing is stopped, created or started', () => {
+    const h = build();
+    expect(() => h.service.continueSession('nope')).toThrow();
+
+    expect(h.engines).toHaveLength(0);
+    expect(h.worker.start).not.toHaveBeenCalled();
+    expect(activeId(h)).toBeNull();
+    expect(isTracking(h)).toBe(false);
+    expect(h.store.listSessions()).toEqual([]);
+    expect(h.sent).toEqual([]);
+  });
+
+  it.each(['exclusive', 'legacy'] as const)('a %s-attribution session cannot be continued: throws, nothing starts', attribution => {
+    const h = build();
+    h.store.insertSession(savedSession({attribution}));
+
+    expect(() => h.service.continueSession('old')).toThrow();
+
+    expect(h.engines).toHaveLength(0);
+    expect(h.worker.start).not.toHaveBeenCalled();
+    expect(h.store.getSession('old')).toEqual(savedSession({attribution}));
+  });
+
+  it('a refused continue leaves the run in progress untouched (nothing stopped first)', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    runMap(h);
+    const id = activeId(h)!;
+    const before = h.sent.length;
+
+    expect(() => h.service.continueSession('nope')).toThrow();
+
+    expect(h.engines).toHaveLength(1);
+    expect(activeId(h)).toBe(id);
+    expect(h.sent.length).toBe(before);
+    expect(h.store.getSession(id)!.endedAt).toBeNull();
+    expect(h.worker.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('continuing the session being tracked throws; the run goes on', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    const id = activeId(h)!;
+
+    expect(() => h.service.continueSession(id)).toThrow();
+
+    expect(h.engines).toHaveLength(1);
+    expect(activeId(h)).toBe(id);
+    expect(h.store.getSession(id)!.endedAt).toBeNull();
+  });
+});
+
+describe('TrackingService — live session', () => {
+  it('start() generates the identity: an id while the engine exists, no row until the session opens', () => {
+    const h = build();
+    expect(activeId(h)).toBeNull();
+    expect(isTracking(h)).toBe(false);
+
+    h.service.start();
+    const id = activeId(h)!;
+    expect(id).toEqual(expect.any(String));
+    expect(isTracking(h)).toBe(true);
+    expect(h.store.getSession(id)).toBeNull();
+    expect(h.store.listSessions()).toEqual([]);
+
+    h.service.stop();
+    expect(activeId(h)).toBeNull();
+    expect(isTracking(h)).toBe(false);
+  });
+
+  it('each start() gets a new id and a local-time name taken at start', () => {
+    const h = build();
+    h.service.start();
+    const first = activeId(h)!;
+    h.service.start();
+    const second = activeId(h)!;
+    expect(second).not.toBe(first);
+
+    init(h);
+    expect(h.store.getSession(second)!.name).toMatch(/^Session - /);
+  });
+
+  it('the session row exists (live, empty totals) right after init_complete', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    const id = activeId(h)!;
+
+    expect(h.store.getSession(id)).toMatchObject({endedAt: null, totalTime: 0, mapCount: 0, drops: {}, attribution: 'drop-through'});
+    expect(savedEvents(h)).toEqual([{type: 'session_saved', sessionId: id}]);
+  });
+
+  it('rows and totals appear after each map, BEFORE stop, with a session_saved each', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    const id = activeId(h)!;
+
+    runMap(h, ITEM_LOOT, 3);
+    expect(h.store.getRows(id).map(r => [r.mapIndex, r.drops])).toEqual([[1, {[ITEM_LOOT]: 3}]]);
+    expect(h.store.getSession(id)).toMatchObject({mapCount: 1, drops: {[ITEM_LOOT]: 3}, endedAt: null});
+    expect(savedEvents(h)).toHaveLength(2);                       // insert + the map's unit
+    expect(sessionFinishedIndex(h)).toBe(-1);
+
+    runMap(h, ITEM_LOOT2, 2, 3);
+    expect(h.store.getRows(id).map(r => r.mapIndex)).toEqual([1, 2]);
+    expect(h.store.getSession(id)).toMatchObject({mapCount: 2, drops: {[ITEM_LOOT]: 3, [ITEM_LOOT2]: 2}, endedAt: null});
+    expect(savedEvents(h)).toHaveLength(3);
+    expect(sessionFinishedIndex(h)).toBe(-1);
+  });
+
+  it('a prices snapshot is merged in as the run goes, before stop', () => {
+    const h = build();
+    h.items.getAll.mockReturnValue([{id: String(ITEM_LOOT), name: 'Gem', type: 'other', price: 4, priceDate: 0}]);
+    h.service.start();
+    init(h);
+    const id = activeId(h)!;
+    runMap(h, ITEM_LOOT, 3);
+
+    expect(h.store.getSession(id)!.priceSnapshot).toEqual({[String(ITEM_LOOT)]: 4});
+  });
+
+  it('stop closes the row: endedAt is the stop time', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    runMap(h);
+    const id = activeId(h)!;
+    vi.advanceTimersByTime(5_000);
+    h.service.stop();
+
+    expect(h.store.getSession(id)!.endedAt).toBe(Date.now());
+    expect(h.store.listOpenSessions()).toEqual([]);
+  });
+
+  it('a run under 30 s with nothing in it is deleted at stop; session_saved says so (deleted: true)', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    const id = activeId(h)!;
+    h.service.stop();
+
+    expect(h.store.listSessions()).toEqual([]);
+    expect(savedEvents(h)).toEqual([{type: 'session_saved', sessionId: id}, {type: 'session_saved', sessionId: id, deleted: true}]);
+    expect(savedIds(h)).toEqual([id]);   // the live insert was announced too
+    expect(events(h).map(e => e.type).lastIndexOf('session_saved')).toBeLessThan(sessionFinishedIndex(h));
+  });
+
+  it('a run of 30 s or more with nothing in it is kept', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    const id = activeId(h)!;
+    vi.advanceTimersByTime(31_000);
+    h.service.stop();
+
+    expect(h.store.getSession(id)).toMatchObject({totalTime: expect.any(Number)});
+    expect(h.store.getSession(id)!.endedAt).not.toBeNull();
+    expect(savedEvents(h).some(e => e.deleted)).toBe(false);
+  });
+
+  it('a short run that completed a map is kept (rows exist)', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    h.raw({type: 'zone_transition', fromScene: TOWN, toScene: MAP});
+    vi.advanceTimersByTime(5_000);
+    h.raw({type: 'zone_transition', fromScene: MAP, toScene: TOWN});
+    const id = activeId(h)!;
+    h.service.stop();
+
+    expect(h.store.getRows(id).length).toBeGreaterThan(0);
+    expect(h.store.getSession(id)).not.toBeNull();
+  });
+});
+
+describe('TrackingService — deleteSession and shutdown', () => {
+  it('deleteSession refuses the active session (row and rows stay)', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    runMap(h);
+    const id = activeId(h)!;
+
+    expect(() => deleteSession(h, id)).toThrow();
+    expect(h.store.getSession(id)).not.toBeNull();
+    expect(h.store.getRows(id)).toHaveLength(1);
+  });
+
+  it('deleteSession removes another session with its rows, also while tracking', () => {
+    const h = build();
+    h.store.insertSession(savedSession());
+    h.store.insertRows(oldRows());
+    h.service.start();
+    init(h);
+
+    deleteSession(h, 'old');
+
+    expect(h.store.getSession('old')).toBeNull();
+    expect(h.store.getRows('old')).toEqual([]);
+    expect(h.store.getSession(activeId(h)!)).not.toBeNull();
+  });
+
+  it('after stop the former active session can be deleted', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    runMap(h);
+    const id = activeId(h)!;
+    h.service.stop();
+
+    deleteSession(h, id);
+    expect(h.store.getSession(id)).toBeNull();
+    expect(h.store.getRows(id)).toEqual([]);
+  });
+
+  it('deleteSession of an unknown id is a no-op', () => {
+    const h = build();
+    expect(() => deleteSession(h, 'nope')).not.toThrow();
+  });
+
+  it('shutdown twice stops the worker once and the second call is a no-op', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    runMap(h);
+    h.service.shutdown();
+    const sent = h.sent.length;
+    h.service.shutdown();
+
+    expect(h.worker.stop).toHaveBeenCalledTimes(1);
+    expect(h.sent.length).toBe(sent);
+    expect(h.store.listOpenSessions()).toEqual([]);
+  });
+
+  it('shutdown with no run still stops the worker, once', () => {
+    const h = build();
+    h.service.shutdown();
+    h.service.shutdown();
+    expect(h.worker.stop).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('TrackingService — reset', () => {
-  it('saves under a NEW id with only post-reset drops', () => {
+  it('in tracking: deletes the old session and its rows, a new session row exists under a new id', () => {
     const h = build();
     h.service.start();
     init(h);
     runMap(h, ITEM_LOOT, 3);
-    const firstId = loggedId(h, 'Session created: ');
+    const firstId = activeId(h)!;
+    expect(h.store.getRows(firstId)).toHaveLength(1);
 
     h.service.reset();
-    const resetId = loggedId(h, 'Session reset; new ');
-    expect(resetId).not.toBe(firstId);
+    const resetId = activeId(h)!;
 
+    expect(resetId).not.toBe(firstId);
+    expect(h.store.getSession(firstId)).toBeNull();
+    expect(h.store.getRows(firstId)).toEqual([]);
+    // The new session's tracker_started inserted its row already.
+    expect(h.store.getSession(resetId)).toMatchObject({endedAt: null, drops: {}, mapCount: 0});
+    expect(savedEvents(h).at(-2)).toEqual({type: 'session_saved', sessionId: firstId, deleted: true});
+    expect(savedEvents(h).at(-1)).toEqual({type: 'session_saved', sessionId: resetId});
+  });
+
+  it('saves under the NEW id with only post-reset drops', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    runMap(h, ITEM_LOOT, 3);
+    const firstId = activeId(h)!;
+
+    h.service.reset();
+    const resetId = activeId(h)!;
     runMap(h, ITEM_LOOT2, 2, 3);
     h.service.stop();
 
-    expect(savedIds(h)).toEqual([resetId]);
+    expect(savedIds(h)).toEqual([firstId, resetId]);
     expect(h.store.getSession(firstId)).toBeNull();
     expect(h.store.getSession(resetId)!.drops).toEqual({[ITEM_LOOT2]: 2});
+    expect(h.store.getSession(resetId)!.endedAt).not.toBeNull();
     expect(h.store.getRows(resetId)).toMatchObject([{mapIndex: 1, drops: {[ITEM_LOOT2]: 2}}]);
+  });
+
+  it('deletes the old session BEFORE engine.reset, so the new row is not hit by the old persistence', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    runMap(h);
+    const firstId = activeId(h)!;
+    const del = vi.spyOn(h.store, 'deleteSession');
+    const ins = vi.spyOn(h.store, 'insertSession');
+
+    h.service.reset();
+
+    expect(del).toHaveBeenCalledWith(firstId);
+    expect(ins).toHaveBeenCalledTimes(1);
+    expect(del.mock.invocationCallOrder[0]).toBeLessThan(ins.mock.invocationCallOrder[0]);
   });
 
   it('is a no-op without an engine', () => {
@@ -279,26 +600,46 @@ describe('TrackingService — reset', () => {
     expect(h.log.info).not.toHaveBeenCalled();
   });
 
-  it('during initializing still replaces the session id — a continued run then inserts a new row (characterization)', () => {
+  it('during initializing is a no-op: same id, nothing inserted or deleted', () => {
+    const h = build();
+    h.service.start();
+    const id = activeId(h)!;
+    const ins = vi.spyOn(h.store, 'insertSession');
+    const del = vi.spyOn(h.store, 'deleteSession');
+
+    h.service.reset();
+
+    expect(activeId(h)).toBe(id);
+    expect(ins).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
+    expect(h.sent.filter(s => s.channel === 'engine:event' && (s.payload as EngineEvent).type === 'session_saved')).toEqual([]);
+
+    init(h);
+    runMap(h);
+    h.service.stop();
+    expect(savedIds(h)).toEqual([id]);
+    expect(h.store.listSessions().map(s => s.id)).toEqual([id]);
+  });
+
+  it('during the initializing of a continue is a no-op too: the stored session is untouched and still continues under its id', () => {
     const h = build();
     h.store.insertSession(savedSession());
 
     h.service.continueSession('old');
-    h.service.reset(); // engine.reset() no-ops while initializing; persistence is replaced anyway
-    const resetId = loggedId(h, 'Session reset; new ');
+    h.service.reset();
+
+    expect(activeId(h)).toBe('old');
+    expect(h.store.getSession('old')).toEqual(savedSession());
 
     init(h);
     runMap(h);
     h.service.stop();
 
-    expect(savedIds(h)).toEqual([resetId]);
-    expect(h.store.listSessions()).toHaveLength(2);
-    expect(h.store.getSession('old')).toEqual(savedSession());
-    // The loaded totals still seeded the run — they land in the new row.
-    expect(h.store.getSession(resetId)!.drops).toEqual({'300': 4, [ITEM_LOOT]: 3});
+    expect(savedIds(h)).toEqual(['old']);
+    expect(h.store.listSessions()).toHaveLength(1);
+    expect(h.store.getSession('old')!.drops).toEqual({'300': 4, [ITEM_LOOT]: 3});
   });
 });
-
 describe('TrackingService — pause / resume', () => {
   it('broadcasts session_status and logs', () => {
     const h = build();

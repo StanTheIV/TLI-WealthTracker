@@ -8,10 +8,9 @@ import type {Engine} from '@/main/engine/engine';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import type {DbSessionMap} from '@/shared/contracts/db';
 import {SqliteSessionStore} from '@/main/db/session-store';
-import {SessionPersistence} from '@/main/session-persistence';
 import {OwnerWatcher} from '@/test/owner-invariant';
 import {checkUnits, countUnitRuns} from '@/test/unit-invariant';
-import {unitsOf} from '@/test/unit-events';
+import {makePersistence, unitsOf} from '@/test/unit-events';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {
   TEST_IDENTITY,
@@ -30,10 +29,12 @@ function rig() {
   const events: EngineEvent[] = [];
   const resets: number[] = [];
   const store = new SqliteSessionStore(openMigratedNodeSqlite());
-  const persistence = new SessionPersistence(
-    {sessionId: 's1', sessionName: 'adv', isOverride: false},
-    {store, readPrices: () => ({})},
-  );
+  // Run 1 is the identity `boot()` starts the engine with; every Reset opens the next one.
+  const idOf = (n: number) => (n === 1 ? TEST_IDENTITY.sessionId : `s${n}`);
+  const persistenceFor = (n: number) => makePersistence({store, readPrices: () => ({})}, {sessionId: idOf(n), name: 'adv'});
+  let runNo = 1;
+  let persistence = persistenceFor(runNo);
+  /** The session as the store holds it: its id while live or saved, null once deleted. */
   let saved: string | null = null;
   let e!: Engine;
   const w = new OwnerWatcher({writer: () => ctx(e).registry.writer(), store: true});
@@ -41,7 +42,8 @@ function rig() {
     events.push(ev);
     w.onEmit(ev);
     const out = persistence.onEngineEvent(ev);
-    if (out?.savedId) saved = out.savedId;
+    if (out && 'savedId' in out) saved = out.savedId;
+    if (out && 'deletedId' in out) saved = null;
   });
   const d = createDispatcher();
   boot(d, e, [{slotId: 1, itemId: LOOT, quantity: 0}, {slotId: 2, itemId: MATERIAL, quantity: 10}]);
@@ -54,7 +56,13 @@ function rig() {
     drop:  (n = 1) => { lootTotal += n; feed(d, e, log.bagUpdate(1, LOOT, lootTotal)); },
     spend: () => feed(d, e, log.bagUpdate(2, MATERIAL, 7)),
     adv:   (ms: number) => vi.advanceTimersByTime(ms),
-    reset: () => { resets.push(events.length); persistence.discard(); e.reset(TEST_IDENTITY); },
+    // As TrackingService.reset: delete the run, swap persistence, THEN reset the engine.
+    reset: () => {
+      resets.push(events.length);
+      store.deleteSession(idOf(runNo));
+      persistence = persistenceFor(++runNo);
+      e.reset({...TEST_IDENTITY, sessionId: idOf(runNo)});
+    },
     stop:  () => e.stop(),
     saved: () => saved,
     rows:  (): DbSessionMap[] => (saved ? store.getRows(saved) : []),

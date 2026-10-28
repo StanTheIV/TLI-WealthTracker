@@ -19,6 +19,7 @@ import {registerUpdaterHandlers} from './ipc/updater';
 import {registerLoggingHandlers} from './ipc/logging';
 import {initLeaguesAndPriceHistory} from './leagues-sync';
 import {TrackingService} from './tracking-service';
+import {closeCrashedSessions} from './session-recovery';
 import {createEngine} from './engine/create-engine';
 import {WorkerProcess} from './worker-process';
 import {WealthRecorder} from './wealth-recorder';
@@ -103,7 +104,7 @@ function createMainWindow(tracking: TrackingService) {
   }
 
   // Stop the engine before the window is destroyed so any active session
-  // auto-saves; persist bounds so the next launch reopens in the same spot
+  // is closed; persist bounds so the next launch reopens in the same spot
   // (normal bounds even when closing maximized).
   mainWindow.on('close', () => {
     if (mainWindow) {
@@ -116,6 +117,12 @@ function createMainWindow(tracking: TrackingService) {
     }
     tracking.shutdown();
   });
+
+  // Windows shutdown / restart / log-off: app 'before-quit' / 'will-quit' /
+  // 'quit' are NOT emitted then, and the window's 'close' isn't documented to
+  // be — this is the one hook. It can't be prevented, so the synchronous
+  // (better-sqlite3) final write happens inside the listener.
+  mainWindow.on('session-end', () => tracking.shutdown());
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -243,6 +250,8 @@ app.whenReady().then(() => {
   log.info('app', 'App starting');
 
   const sessions = new SqliteSessionStore(openDatabase());
+  // Before any tracking: sessions left open by a run that never reached Stop.
+  closeCrashedSessions(sessions, log);
   seedItemsIfEmpty();
   initLogger({logFile: join(app.getPath('userData'), LOG_FILENAME), settings: settingsGetAll});
   initLeaguesAndPriceHistory(broadcast);
@@ -268,6 +277,7 @@ app.whenReady().then(() => {
     broadcast,
     onItemTypeChanged: (id, type) => tracking.setItemType(id, type),
     sessions,
+    tracking,
   });
   registerOverlayHandlers(
     () => trackerWindow,
@@ -280,6 +290,11 @@ app.whenReady().then(() => {
   registerLoggingHandlers();
 
   log.debug('app', 'IPC handlers registered');
+
+  // A quit that doesn't start by closing the main window (app.quit() from
+  // elsewhere, autoUpdater.quitAndInstall). shutdown() is idempotent, so the
+  // usual close → window-all-closed → quit path makes this a no-op.
+  app.on('before-quit', () => tracking.shutdown());
 
   createMainWindow(tracking);
 });

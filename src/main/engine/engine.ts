@@ -102,7 +102,7 @@ export class Engine {
 
   stop(): void {
     // Emit final session snapshot before tearing down, including map/session
-    // metadata for auto-save. Active map / seasonals are silently dropped —
+    // metadata for the final write. Active map / seasonals are silently dropped —
     // session-level finish is the renderer's signal that the run is over. The
     // live map's already-finished children go out first as standalone units,
     // so they are saved with the session.
@@ -273,6 +273,11 @@ export class Engine {
   getBagDiagnostics(): {initialized: boolean; slots: Map<string, {itemId: number; quantity: number}>; totals: Map<number, number>} {
     const bag = this._ctx.bag;
     return {initialized: bag.initialized, slots: bag.getSlots(), totals: bag.getInventory()};
+  }
+
+  /** True once the session is open (bag baseline landed) until stop — paused included. */
+  isTracking(): boolean {
+    return this._ctx.phase === 'tracking';
   }
 
   /** True iff a map tracker is currently active. */

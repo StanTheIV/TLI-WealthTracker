@@ -172,8 +172,21 @@ describe('replay persistence', () => {
     expect(r.sessions.map(s => s.session?.id)).toEqual(['golden-1']);
   });
 
-  it('leaves an unfinished run unsaved without stopAtEnd', async () => {
+  it('leaves an unfinished run as an OPEN row without stopAtEnd: live, its finished map already saved', async () => {
     const r = await run({source: linesOf(mapRun), stopAtEnd: false});
+    expect(r.sessions).toHaveLength(1);
+    const [s] = r.sessions;
+    expect(s.session).toMatchObject({id: 'replay-1', name: 'replay-1', endedAt: null, mapCount: 1, drops: {'100': 3}});
+    expect(s.rows).toMatchObject([{mapIndex: 1, drops: {'100': 3}, spent: {'300': 1}}]);
+  });
+
+  it('stopping closes the row: endedAt is set', async () => {
+    const r = await run({source: linesOf(mapRun), mode: 'exact'});
+    expect(r.sessions[0].session!.endedAt).toEqual(expect.any(Number));
+  });
+
+  it('an unfinished run that never reached init leaves no row', async () => {
+    const r = await run({source: linesOf([initLine(0, 1, 100, 5)]), stopAtEnd: false, settleMs: 100});
     expect(r.sessions).toEqual([{id: 'replay-1', session: null, rows: []}]);
   });
 });
