@@ -1,8 +1,9 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
+import {mechanic, windowMs} from '@/shared/mechanics';
 
-const DEFAULT_LOOT_COLLECTION_MS = 5_000;
+const MECHANIC = mechanic('overrealm');
 
 /**
  * OverrealmHandler — translates Overrealm (S12) log events to registry / tracker
@@ -17,11 +18,11 @@ export class OverrealmHandler implements EventHandler {
   readonly name    = 'overrealm';
   readonly handles = ['s12_entry', 's12_exit', 'bag_update'] as const;
 
-  private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
+  private _lootMs: number = MECHANIC.window.defaultMs;
   private _ctx: EngineContext | null = null;
 
-  setLootDurationMs(ms: number): void {
-    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+  configure(settings: Readonly<Record<string, string>>): void {
+    this._lootMs = windowMs(settings, MECHANIC);
   }
 
   onStart(ctx: EngineContext): void { this._ctx = ctx; }

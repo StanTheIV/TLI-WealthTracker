@@ -22,7 +22,7 @@ function setup(threshold?: number) {
   const events: EngineEvent[] = [];
   const d = createDispatcher();
   const e = createEngine(events);
-  if (threshold !== undefined) e.setLowStockThreshold(threshold);
+  if (threshold !== undefined) e.configure({lowStockThreshold: String(threshold)});
   boot(d, e, [{slotId: 1, itemId: ITEM, quantity: 10}]);
   events.length = 0;
   let qty = 10;

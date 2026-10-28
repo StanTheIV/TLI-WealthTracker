@@ -29,4 +29,8 @@ export interface EventHandler {
   onStart?(ctx: EngineContext, emit: EmitFn): void;
   /** Called on engine stop — must clean up any timers */
   onStop?(ctx: EngineContext): void;
+  /** Read this handler's keys from the raw settings table; a missing or
+   *  unparseable value falls back to the handler's default. A new value only
+   *  affects runs started after it — a live tracker keeps its window. */
+  configure?(settings: Readonly<Record<string, string>>): void;
 }

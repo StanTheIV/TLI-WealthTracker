@@ -8,13 +8,6 @@ import {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/shared/item-filter';
 import type {ItemType} from '@/shared/items';
 import {MapMaterialHandler} from './handlers/map-material';
-import {OverrealmHandler} from './handlers/overrealm-handler';
-import {CarjackHandler} from './handlers/carjack-handler';
-import {ClockworkHandler} from './handlers/clockwork-handler';
-import {LunariaHandler} from './handlers/lunaria-handler';
-import {SandlordMapHandler} from './handlers/sandlord-map-handler';
-import {HuntingHandler} from './handlers/hunting-handler';
-import {AfterlightHandler} from './handlers/afterlight-handler';
 import {log} from '@/main/logger';
 
 /**
@@ -52,14 +45,9 @@ export class Engine {
   // Deduplicated registry — used for cross-cutting iteration that should
   // visit each handler exactly once (onStop).
   private _handlers: EventHandler[] = [];
+  /** The one handler the Engine addresses directly: a dismiss is a user
+   *  action on its private watch state, not a setting. */
   private _mapMaterial: MapMaterialHandler | null = null;
-  private _overrealm:   OverrealmHandler   | null = null;
-  private _carjack:     CarjackHandler     | null = null;
-  private _clockwork:   ClockworkHandler   | null = null;
-  private _lunaria:     LunariaHandler     | null = null;
-  private _sandlordMap: SandlordMapHandler | null = null;
-  private _hunting:     HuntingHandler     | null = null;
-  private _afterlight:  AfterlightHandler  | null = null;
 
   constructor(sink: EngineSink) {
     this._sink = sink;
@@ -72,13 +60,6 @@ export class Engine {
     }
     this._handlers.push(handler);
     if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
-    if (handler instanceof OverrealmHandler)   this._overrealm   = handler;
-    if (handler instanceof CarjackHandler)     this._carjack     = handler;
-    if (handler instanceof ClockworkHandler)   this._clockwork   = handler;
-    if (handler instanceof LunariaHandler)     this._lunaria     = handler;
-    if (handler instanceof SandlordMapHandler) this._sandlordMap = handler;
-    if (handler instanceof HuntingHandler)     this._hunting     = handler;
-    if (handler instanceof AfterlightHandler)  this._afterlight  = handler;
     return this;
   }
 
@@ -302,39 +283,11 @@ export class Engine {
     this._mapMaterial?.dismiss(itemId);
   }
 
-  setLowStockThreshold(n: number): void {
-    this._mapMaterial?.setThreshold(n);
-  }
-
-  // --- Seasonal loot timer durations (ms) ----------------------------------
-
-  setOverrealmLootDurationMs(ms: number): void {
-    this._overrealm?.setLootDurationMs(ms);
-  }
-
-  setCarjackLootDurationMs(ms: number): void {
-    this._carjack?.setLootDurationMs(ms);
-  }
-
-  setClockworkLootDurationMs(ms: number): void {
-    this._clockwork?.setLootDurationMs(ms);
-  }
-
-  setLunariaLootDurationMs(ms: number): void {
-    this._lunaria?.setLootDurationMs(ms);
-  }
-
-  /** In-map Sandlord wave-activity window (not a loot window — see the handler). */
-  setSandlordWaveDurationMs(ms: number): void {
-    this._sandlordMap?.setWaveDurationMs(ms);
-  }
-
-  setHuntingLootDurationMs(ms: number): void {
-    this._hunting?.setLootDurationMs(ms);
-  }
-
-  setAfterlightLootDurationMs(ms: number): void {
-    this._afterlight?.setLootDurationMs(ms);
+  /** Hand the raw settings table to every handler; each reads its own keys
+   *  (the windowed mechanics their MECHANICS row, MapMaterial the low-stock
+   *  threshold). */
+  configure(settings: Readonly<Record<string, string>>): void {
+    for (const h of this._handlers) h.configure?.(settings);
   }
 
   onRawEvent(event: RawEvent): void {

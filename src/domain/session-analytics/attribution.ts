@@ -2,17 +2,17 @@ import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
 import type {SeasonalPhase, SeasonalType} from '@/shared/contracts/engine';
 import type {AnalyticsWarning, ClassifiedRow, FoldedRow, MechanicKey, PriceLookup, Valuation} from './types';
 import {ZERO_VAL, addVal, isZeroVal, subVal, valueQty} from '@/domain/valuation';
+import {MECHANICS, isMapFreezing} from '@/shared/mechanics';
 
-/** Seasonals that FREEZE the map clock, so their time is NOT inside
- *  session.mapTime — even though the engine still writes them as overlap rows
- *  (a run is a child of the map it ran under, frozen or not).
- *  Mirrors the callers of `pauseMapForInterlude`; add a mechanic here when it
- *  starts calling that, or its time is subtracted from map time it never
- *  belonged to. Sandlord's entry covers its HUB phase only — its in-map coin
- *  tile freezes nothing — so test membership via `runsConcurrentlyWithMap`,
- *  which knows about phases, rather than reading this set directly. */
+/** Seasonals that FREEZE the map clock in at least one phase, so their time is
+ *  NOT inside session.mapTime — even though the engine still writes them as
+ *  overlap rows (a run is a child of the map it ran under, frozen or not).
+ *  Derived from the MECHANICS categories. Sandlord's entry covers its HUB phase
+ *  only — its in-map coin tile freezes nothing — so test membership via
+ *  `runsConcurrentlyWithMap`, which knows about phases, rather than reading
+ *  this set directly. */
 export const MAP_FREEZING_SEASONALS: ReadonlySet<SeasonalType> =
-  new Set<SeasonalType>(['arcana', 'vorex', 'tartarus', 'sandlord']);
+  new Set(MECHANICS.filter(m => m.category !== 'in-map').map(m => m.key));
 
 /** `phase` matters only for Sandlord, whose two phases share one seasonal type.
  *  LEGACY: a null phase on a sandlord row predates in-map tracking and means
@@ -22,8 +22,7 @@ export function runsConcurrentlyWithMap(
   phase: SeasonalPhase | null = null,
 ): boolean {
   if (type === null) return false;
-  if (type === 'sandlord') return phase === 'map';
-  return !MAP_FREEZING_SEASONALS.has(type);
+  return !isMapFreezing(type, phase);
 }
 
 /** True when a parent map row's drops already include its overlap seasonals'.

@@ -64,7 +64,7 @@ describe('session pause: whoever paused it resumes it', () => {
 
   it('the loot window keeps its remaining time across a pause', () => {
     const {e, line, go, reg} = setup();
-    e.setOverrealmLootDurationMs(10_000);
+    e.configure({overrealmLootMs: '10000'});
     go(TOWN, MAP);
     line(log.s12Entry);
     line(log.s12Exit);

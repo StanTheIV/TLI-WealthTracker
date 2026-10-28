@@ -1,8 +1,9 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
+import {mechanic, windowMs} from '@/shared/mechanics';
 
-const DEFAULT_LOOT_COLLECTION_MS = 5_000;
+const MECHANIC = mechanic('carjack');
 
 /**
  * CarjackHandler — Carjack (S11) translator.
@@ -24,7 +25,7 @@ export class CarjackHandler implements EventHandler {
   readonly name    = 'carjack';
   readonly handles = ['s11_start', 's11_wave', 's11_end', 'bag_update'] as const;
 
-  private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
+  private _lootMs: number = MECHANIC.window.defaultMs;
   /** True once the encounter has resolved: only then may pickups refresh. */
   private _terminal: boolean = false;
 
@@ -32,8 +33,8 @@ export class CarjackHandler implements EventHandler {
     this._terminal = false;
   }
 
-  setLootDurationMs(ms: number): void {
-    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+  configure(settings: Readonly<Record<string, string>>): void {
+    this._lootMs = windowMs(settings, MECHANIC);
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {

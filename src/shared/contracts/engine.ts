@@ -1,4 +1,8 @@
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight' | 'tartarus';
+import type {SeasonalType} from '../mechanics';
+
+/** One member per MECHANICS row. */
+export type {SeasonalType};
+
 /** A drop's owner for the per-source breakdown pie. 'map' covers drops where
  *  no seasonal owned the window; the SeasonalType variants cover drops where
  *  that seasonal was the most recently activated one. Note this is the

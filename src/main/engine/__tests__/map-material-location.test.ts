@@ -23,7 +23,7 @@ function setup() {
   const events: EngineEvent[] = [];
   const d = createDispatcher();
   const e = createEngine(events);
-  e.setLowStockThreshold(100); // warn whenever a watched item (streak >= 2) is in the bag
+  e.configure({lowStockThreshold: '100'}); // warn whenever a watched item (streak >= 2) is in the bag
   boot(d, e, [{slotId: 1, itemId: ITEM, quantity: 10}]);
   let qty = 10;
   const go    = (from: string, to: string) => feed(d, e, log.zoneTransition(from, to));

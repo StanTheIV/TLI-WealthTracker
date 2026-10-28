@@ -1,8 +1,9 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
+import {mechanic, windowMs} from '@/shared/mechanics';
 
-const DEFAULT_WAVE_MS = 10_000;
+const MECHANIC = mechanic('sandlord');
 
 /**
  * SandlordMapHandler — Sandlord (S10) IN-MAP coin-tile translator.
@@ -45,9 +46,9 @@ export class SandlordMapHandler implements EventHandler {
   readonly name    = 'sandlord-map';
   readonly handles = ['s10_wave', 's10_quench'] as const;
 
-  private _waveMs: number = DEFAULT_WAVE_MS;
-  setWaveDurationMs(ms: number): void {
-    this._waveMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_WAVE_MS;
+  private _waveMs: number = MECHANIC.window.defaultMs;
+  configure(settings: Readonly<Record<string, string>>): void {
+    this._waveMs = windowMs(settings, MECHANIC);
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {

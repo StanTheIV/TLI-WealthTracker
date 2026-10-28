@@ -21,7 +21,7 @@ const SEASONAL_SCENE = '/Game/Art/Season/S13_Vorex';
 
 function makeEngine(events: EngineEvent[], threshold = 1): {engine: Engine; handler: MapMaterialHandler} {
   const handler = new MapMaterialHandler();
-  handler.setThreshold(threshold);
+  handler.configure({lowStockThreshold: String(threshold)});
   const engine  = new Engine(e => events.push(e))
     .register(new BagInitHandler())
     .register(new ZoneHandler())
@@ -387,7 +387,7 @@ describe('MapMaterialHandler — edge cases', () => {
     expect(lastWarning(events)!.items).toEqual([{itemId: 100, quantity: 0}]);
   });
 
-  it('setThreshold updates the trigger live without losing watch state', () => {
+  it('configure updates the threshold live without losing watch state', () => {
     const events: EngineEvent[] = [];
     const {engine, handler} = makeEngine(events, 0);
 
@@ -405,7 +405,7 @@ describe('MapMaterialHandler — edge cases', () => {
     // Raise threshold to 2 — next map entry would warn at qty=1, but we
     // haven't entered another map. The threshold only takes effect on the
     // next emission. Validate via the next map entry path.
-    handler.setThreshold(2);
+    handler.configure({lowStockThreshold: '2'});
     exitMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 0});
     // qty=0 still <= threshold=2 so this should warn even before threshold raise.

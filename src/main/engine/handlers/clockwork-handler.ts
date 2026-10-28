@@ -1,8 +1,9 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
+import {mechanic, windowMs} from '@/shared/mechanics';
 
-const DEFAULT_LOOT_COLLECTION_MS = 5_000;
+const MECHANIC = mechanic('clockwork');
 /** Abandonment timeout for a cogwheel fight — how long the row stays lit with no
  *  further pulse. Not the loot window: nothing drops until the turn-in. */
 const COGWHEEL_IDLE_MS = 10_000;
@@ -51,7 +52,7 @@ export class ClockworkHandler implements EventHandler {
   readonly name    = 'clockwork';
   readonly handles = ['s7_podium', 's7_cogwheel', 's7_cogwheel_end', 's7_turnin', 's7_fail', 'bag_update'] as const;
 
-  private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
+  private _lootMs: number = MECHANIC.window.defaultMs;
   /** True once the vouchers are turned in, so a repeat can't re-arm. */
   private _terminal: boolean = false;
 
@@ -59,8 +60,8 @@ export class ClockworkHandler implements EventHandler {
     this._terminal = false;
   }
 
-  setLootDurationMs(ms: number): void {
-    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+  configure(settings: Readonly<Record<string, string>>): void {
+    this._lootMs = windowMs(settings, MECHANIC);
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {

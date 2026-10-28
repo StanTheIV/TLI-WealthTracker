@@ -8,7 +8,7 @@ import {describe, it, expect, beforeEach, afterEach, vi, type Mock} from 'vitest
 import {TrackingService, type LogWorker, type TrackingDeps} from '@/main/tracking-service';
 import type {Broadcast} from '@/main/broadcast';
 import {SqliteSessionStore} from '@/main/db/session-store';
-import type {Engine} from '@/main/engine/engine';
+import {Engine} from '@/main/engine/engine';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
 import type {RawEvent} from '@/worker/processors/types';
 import type {DbItemFilter, DbSession} from '@/shared/contracts/db';
@@ -899,8 +899,8 @@ describe('TrackingService — worker and wiring', () => {
     expect(() => {
       h.service.setItemType('7', 'not-a-type');
       h.service.dismissMaterial(1);
-      h.service.setLowStockThreshold(3);
-      h.service.setOverrealmLootDurationMs(1);
+      h.service.reconfigure({lowStockThreshold: '3'});
+      h.service.reconfigure();
       h.service.setFilterRules(null);
     }).not.toThrow();
     expect(h.log.debug).not.toHaveBeenCalled();
@@ -908,19 +908,44 @@ describe('TrackingService — worker and wiring', () => {
     h.service.start();
     const engine = h.engines[0];
     const setItemType   = vi.spyOn(engine, 'setItemType');
-    const setOverrealm  = vi.spyOn(engine, 'setOverrealmLootDurationMs');
-    const setSandlord   = vi.spyOn(engine, 'setSandlordWaveDurationMs');
     const setFilter     = vi.spyOn(engine, 'setFilterRules');
 
     h.service.setItemType('7', 'not-a-type');
-    h.service.setOverrealmLootDurationMs(4_000);
-    h.service.setSandlordWaveDurationMs(9_000);
     h.service.setFilterRules([]);
 
     expect(setItemType).toHaveBeenCalledWith('7', 'other');
-    expect(setOverrealm).toHaveBeenCalledWith(4_000);
-    expect(setSandlord).toHaveBeenCalledWith(9_000);
     expect(setFilter).toHaveBeenCalledWith([]);
     expect(h.log.debug).toHaveBeenCalledWith('filter', 'Filter rules updated: 0 rules');
+  });
+
+  it('start configures the engine with the stored settings table', () => {
+    const h = build({settings: {torchlightPath: TORCHLIGHT, carjackLootMs: '7000'}});
+    const configure = vi.spyOn(Engine.prototype, 'configure');
+    try {
+      h.service.start();
+      expect(configure).toHaveBeenCalledTimes(1);
+      expect(configure).toHaveBeenCalledWith({torchlightPath: TORCHLIGHT, carjackLootMs: '7000'});
+    } finally {
+      configure.mockRestore();
+    }
+  });
+
+  it('reconfigure re-applies the stored table with the overrides on top', () => {
+    const h = build({settings: {torchlightPath: TORCHLIGHT, carjackLootMs: '7000', overrealmLootMs: '9000'}});
+    h.service.start();
+    const configure = vi.spyOn(h.engines[0], 'configure');
+
+    // The override wins over a stale stored value (the IPC can outrun settings:set).
+    h.service.reconfigure({overrealmLootMs: '4000'});
+    expect(configure).toHaveBeenLastCalledWith({torchlightPath: TORCHLIGHT, carjackLootMs: '7000', overrealmLootMs: '4000'});
+    expect(h.settings['overrealmLootMs']).toBe('9000');   // the stored table is not written
+
+    // Without overrides: the stored table as it is now.
+    h.settings['lowStockThreshold'] = '2';
+    h.service.reconfigure();
+    expect(configure).toHaveBeenLastCalledWith({
+      torchlightPath: TORCHLIGHT, carjackLootMs: '7000', overrealmLootMs: '9000', lowStockThreshold: '2',
+    });
+    expect(configure).toHaveBeenCalledTimes(2);
   });
 });

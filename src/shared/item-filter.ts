@@ -1,7 +1,9 @@
 import type {ItemType} from './items';
+import {MECHANICS, type SeasonalType} from './mechanics';
 
-export type FilterScope = 'session' | 'map' | 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight' | 'tartarus' | 'wealth';
-export const FILTER_SCOPES: FilterScope[] = ['session', 'map', 'vorex', 'dream', 'overrealm', 'carjack', 'clockwork', 'sandlord', 'lunaria', 'arcana', 'hunting', 'afterlight', 'tartarus', 'wealth'];
+export type FilterScope = 'session' | 'map' | SeasonalType | 'wealth';
+/** Chip render order: the tiers, every mechanic in table order, then wealth. */
+export const FILTER_SCOPES: readonly FilterScope[] = ['session', 'map', ...MECHANICS.map(m => m.key), 'wealth'];
 
 export type RuleAction = 'show' | 'hide';
 

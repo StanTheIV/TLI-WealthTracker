@@ -189,36 +189,12 @@ export class TrackingService {
     this._engine?.dismissMaterial(itemId);
   }
 
-  setLowStockThreshold(n: number): void {
-    this._engine?.setLowStockThreshold(n);
-  }
-
-  setOverrealmLootDurationMs(ms: number): void {
-    this._engine?.setOverrealmLootDurationMs(ms);
-  }
-
-  setCarjackLootDurationMs(ms: number): void {
-    this._engine?.setCarjackLootDurationMs(ms);
-  }
-
-  setClockworkLootDurationMs(ms: number): void {
-    this._engine?.setClockworkLootDurationMs(ms);
-  }
-
-  setLunariaLootDurationMs(ms: number): void {
-    this._engine?.setLunariaLootDurationMs(ms);
-  }
-
-  setSandlordWaveDurationMs(ms: number): void {
-    this._engine?.setSandlordWaveDurationMs(ms);
-  }
-
-  setHuntingLootDurationMs(ms: number): void {
-    this._engine?.setHuntingLootDurationMs(ms);
-  }
-
-  setAfterlightLootDurationMs(ms: number): void {
-    this._engine?.setAfterlightLootDurationMs(ms);
+  /** Re-apply the settings table to the running engine. `overrides` win over
+   *  the stored values, so a caller holding a value that may not be persisted
+   *  yet (an `engine:set-*` IPC racing the renderer's `settings:set`) still
+   *  applies it. */
+  reconfigure(overrides?: Readonly<Record<string, string>>): void {
+    this._engine?.configure({...this._deps.settings.getAll(), ...overrides});
   }
 
   setFilterRules(rules: FilterRule[] | null): void {
