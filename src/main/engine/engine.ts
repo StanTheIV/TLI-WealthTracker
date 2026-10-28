@@ -170,9 +170,14 @@ export class Engine {
    * interlude must NOT be resumed by a session resume — whoever paused a thing
    * resumes it. A tracker that starts while paused is frozen at start (Zone for
    * a map, Sandlord for a hub run) and resumes here the same way.
+   *
+   * A tracking-only command: outside 'tracking' there is no session to freeze,
+   * so the pause is dropped, not deferred — latching ctx.paused during
+   * 'initializing' would start a running session whose every drop is ignored.
+   * That makes paused ⇒ tracking, which resume() relies on.
    */
   pause(): void {
-    if (this._ctx.paused) return;
+    if (this._ctx.phase !== 'tracking' || this._ctx.paused) return;
     const now = Date.now();
     this._ctx.paused = true;
 

@@ -52,19 +52,23 @@ export default function Playbar() {
           </button>
         )}
         {status === 'running' && (<>
-          <button onClick={pause} className="w-10 h-10 rounded-full bg-surface-elevated text-text-primary flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.pause')}>
-            <Pause className="w-4 h-4" />
-          </button>
-          <HoldButton
-            onConfirm={reset}
-            holdMs={1000}
-            size={36}
-            title={t('buttons.reset')}
-            className="bg-surface-elevated text-text-secondary hover:bg-gold/15 hover:text-gold"
-            ringClass="stroke-gold"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </HoldButton>
+          {/* Pause and Reset are tracking-only engine commands — until the bag
+              baseline lands (initializing, or before init_started) only Stop. */}
+          {enginePhase === 'tracking' && (<>
+            <button onClick={pause} className="w-10 h-10 rounded-full bg-surface-elevated text-text-primary flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.pause')}>
+              <Pause className="w-4 h-4" />
+            </button>
+            <HoldButton
+              onConfirm={reset}
+              holdMs={1000}
+              size={36}
+              title={t('buttons.reset')}
+              className="bg-surface-elevated text-text-secondary hover:bg-gold/15 hover:text-gold"
+              ringClass="stroke-gold"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </HoldButton>
+          </>)}
           <button onClick={stop} className="w-9 h-9 rounded-full bg-danger text-white flex items-center justify-center hover:opacity-80 transition-opacity" title={t('buttons.stop')}>
             <Square className="w-3.5 h-3.5 fill-current" />
           </button>

@@ -272,6 +272,67 @@ describe('Pause during an Arcana fight, leave the fight while paused (A2)', () =
 });
 
 // ---------------------------------------------------------------------------
+// Pause is a tracking-only command — dropped in any other phase
+// ---------------------------------------------------------------------------
+
+describe('Pause outside tracking is dropped', () => {
+  it('in idle (before start): no event, nothing latched', () => {
+    const events: EngineEvent[] = [];
+    const e = createEngine(events);
+
+    e.pause();
+    expect(ctx(e).paused).toBe(false);
+    expect(events).toEqual([]);
+  });
+
+  it('in initializing: no event, and the session init starts runs unfrozen', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    e.start();
+    expect(ctx(e).phase).toBe('initializing');
+    const before = events.length;
+    e.pause(); // before the bag baseline lands
+    expect(ctx(e).paused).toBe(false);
+    expect(events.length).toBe(before);
+
+    feed(d, e, log.bagInit(1, 100, 0));
+    vi.advanceTimersByTime(600); // BagInitHandler debounce → tracking
+    expect(ctx(e).phase).toBe('tracking');
+    expect(ctx(e).registry.session!.active).toBe(true);
+
+    const sessionAt = ctx(e).registry.session!.elapsed();
+    feed(d, e, log.zoneTransition(TOWN, MAP));
+    vi.advanceTimersByTime(10_000);
+    expect(ctx(e).registry.session!.elapsed()).toBe(sessionAt + 10_000);
+    expect(ctx(e).registry.map!.active).toBe(true);
+
+    feed(d, e, log.bagUpdate(1, 100, 5)); // pickup credited — not swallowed by a latched pause
+    expect(ctx(e).registry.map!.snapshot().drops[100]).toBe(5);
+
+    const beforeResume = events.length;
+    e.resume(); // nothing is paused → nothing to resume
+    expect(events.length).toBe(beforeResume);
+  });
+
+  it('after stop: no event, nothing latched', () => {
+    const events: EngineEvent[] = [];
+    const d = createDispatcher();
+    const e = createEngine(events);
+
+    boot(d, e, [{slotId: 1, itemId: 100, quantity: 0}]);
+    e.stop();
+    expect(ctx(e).phase).toBe('idle');
+
+    const before = events.length;
+    e.pause();
+    expect(ctx(e).paused).toBe(false);
+    expect(events.length).toBe(before);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Pause suppresses drops (crediting) end-to-end
 // ---------------------------------------------------------------------------
 
