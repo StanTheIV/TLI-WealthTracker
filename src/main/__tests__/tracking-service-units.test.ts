@@ -7,7 +7,7 @@ import {TrackingService, type LogWorker} from '@/main/tracking-service';
 import {SqliteSessionStore} from '@/main/db/session-store';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
 import type {RawEvent} from '@/worker/processors/types';
-import type {EngineEvent} from '@/shared/contracts/engine';
+import {engineEvents, type Sent} from '@/test/broadcast';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP, SANDLORD_HUB} from '@/main/engine/__tests__/seasonal-fixtures';
 
@@ -18,7 +18,7 @@ afterEach(() => { vi.useRealTimers(); });
 
 function build() {
   const store = new SqliteSessionStore(openMigratedNodeSqlite());
-  const sent: Array<{channel: string; payload: unknown}> = [];
+  const sent: Sent[] = [];
   let onEvent: ((raw: RawEvent) => void) | null = null;
   const log = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
   const service = new TrackingService({
@@ -33,7 +33,7 @@ function build() {
     log,
   });
   const raw = (e: RawEvent) => onEvent!(e);
-  const events = () => sent.filter(s => s.channel === 'engine:event').map(s => s.payload as EngineEvent);
+  const events = () => engineEvents(sent);
   return {service, store, raw, events, sent};
 }
 
@@ -56,7 +56,7 @@ describe('TrackingService does not broadcast unit_finished', () => {
     vi.advanceTimersByTime(31_000);
     h.service.stop();
 
-    expect(h.sent.some(s => (s.payload as {type?: string} | null)?.type === 'unit_finished')).toBe(false);
+    expect(h.events().some(e => e.type === 'unit_finished')).toBe(false);
     const types = h.events().map(e => e.type);
     expect(types).toContain('tracker_finished');
     const finished = h.events().flatMap(e => (e.type === 'tracker_finished' ? [e.tracker.kind] : []));

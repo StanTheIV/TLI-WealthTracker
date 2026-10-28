@@ -12,6 +12,7 @@ import {createEngine as createProductionEngine} from '@/main/engine/create-engin
 import type {RawEvent} from '@/worker/processors/types';
 import type {DbItemFilter, DbSession} from '@/shared/contracts/db';
 import type {EngineEvent} from '@/shared/contracts/engine';
+import {engineEvents, unwrapEngineEvent, type Sent} from '@/test/broadcast';
 import {LOG_SUBPATH} from '@/shared/paths';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP, SANDLORD_HUB} from '@/main/engine/__tests__/seasonal-fixtures';
@@ -23,7 +24,6 @@ const ITEM_BAG   = 100;
 const ITEM_LOOT  = 200;
 const ITEM_LOOT2 = 201;
 
-interface Sent {channel: string; payload: unknown}
 
 interface Harness {
   service: TrackingService;
@@ -87,8 +87,7 @@ function runMap(h: Harness, itemId = ITEM_LOOT, qty = 3, slotId = 2): void {
   vi.advanceTimersByTime(60_000);
   h.raw({type: 'zone_transition', fromScene: MAP, toScene: TOWN});
 }
-const events = (h: Harness): EngineEvent[] =>
-  h.sent.filter(s => s.channel === 'engine:event').map(s => s.payload as EngineEvent);
+const events = (h: Harness): EngineEvent[] => engineEvents(h.sent);
 const types = (h: Harness): string[] => events(h).map(e => e.type);
 const savedEvents = (h: Harness): Array<{sessionId: string; deleted?: true}> =>
   events(h).flatMap(e => (e.type === 'session_saved' ? [e] : []));
@@ -112,7 +111,7 @@ describe('adversarial - re-entrancy', () => {
     let fired = false;
     const h = build({broadcast: (sent, get) => (channel, payload) => {
       sent.push({channel, payload});
-      if (!fired && (payload as EngineEvent | undefined)?.type === 'map_ended') {
+      if (!fired && channel === 'engine:event' && unwrapEngineEvent(payload).type === 'map_ended') {
         fired = true;
         get().service.stop();
       }
@@ -133,7 +132,7 @@ describe('adversarial - re-entrancy', () => {
     let fired = false;
     const h = build({broadcast: (sent, get) => (channel, payload) => {
       sent.push({channel, payload});
-      const e = payload as EngineEvent | undefined;
+      const e = channel === 'engine:event' ? unwrapEngineEvent(payload) : null;
       if (!fired && e?.type === 'tracker_finished' && e.tracker.kind === 'session') {
         fired = true;
         get().service.start();

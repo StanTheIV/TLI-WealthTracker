@@ -13,6 +13,7 @@ import {createEngine} from '@/main/engine/create-engine';
 import type {RawEvent} from '@/worker/processors/types';
 import type {DbItem, DbItemFilter, DbWealthDatapoint} from '@/shared/contracts/db';
 import type {EngineEvent} from '@/shared/contracts/engine';
+import {unwrapEngineEvent} from '@/test/broadcast';
 import type {FilterRule} from '@/shared/item-filter';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
@@ -55,7 +56,7 @@ function build(): Harness {
   const service = new TrackingService({
     createEngine:   emit => createEngine(emit),
     store,
-    broadcast:      (channel, payload) => { if (channel === 'engine:event') sent.push(payload as EngineEvent); },
+    broadcast:      (channel, payload) => { if (channel === 'engine:event') sent.push(unwrapEngineEvent(payload)); },
     createWorker:   cb => { onEvent = cb; return worker satisfies LogWorker; },
     settings:       {getAll: () => ({torchlightPath: TORCHLIGHT})},
     filters:        {getAll: () => filters},

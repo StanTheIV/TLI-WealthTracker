@@ -12,6 +12,7 @@ import type {Broadcast} from '@/main/broadcast';
 import {SqliteSessionStore} from '@/main/db/session-store';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
 import type {EngineEvent} from '@/shared/contracts/engine';
+import {engineEvents} from '@/test/broadcast';
 import type {RawEvent} from '@/worker/processors/types';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {
@@ -203,8 +204,7 @@ function build() {
     if (!onEvent) throw new Error('createWorker not called');
     onEvent(event);
   };
-  const broadcasts = (): EngineEvent[] =>
-    sent.filter(s => s.channel === 'engine:event').map(s => s.payload as EngineEvent);
+  const broadcasts = (): EngineEvent[] => engineEvents(sent);
   return {service, raw, broadcasts};
 }
 type Svc = ReturnType<typeof build>;

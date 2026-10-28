@@ -11,7 +11,7 @@ import type {
   PriceExportRow,
   PriceMover,
 } from './db';
-import type {EngineEvent} from './engine';
+import type {EngineEnvelope, EngineSnapshot} from './engine';
 import type {League} from './leagues';
 
 export interface UpdateInfo {
@@ -48,7 +48,9 @@ export interface ElectronAPI {
     reset:           () => void;
     updateFilterRules: (rules: FilterRule[] | null) => void;
     dismissMaterial: (itemId: number) => void;
-    onEvent:        (cb: (event: EngineEvent) => void) => () => void;
+    /** The engine's replay as of a broadcast seq — apply it, then only `onEvent` envelopes with a later seq. */
+    getState:        () => Promise<EngineSnapshot>;
+    onEvent:         (cb: (envelope: EngineEnvelope) => void) => () => void;
   };
 
   overlay: {

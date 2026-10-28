@@ -12,6 +12,8 @@ export function registerEngineHandlers(tracking: TrackingService): void {
   ipcMain.on('engine:pause',  () => tracking.pause());
   ipcMain.on('engine:resume', () => tracking.resume());
   ipcMain.on('engine:reset',  () => tracking.reset());
+  // A loading window's catch-up: the replay plus the seq it was taken at.
+  ipcMain.handle('engine:get-state', () => tracking.getState());
   // Item type changes arrive via `db:items:set-type`; main.ts wires that
   // handler's onItemTypeChanged to tracking.setItemType(). Engine settings
   // arrive via `settings:set` (SettingsService → tracking.reconfigure()).

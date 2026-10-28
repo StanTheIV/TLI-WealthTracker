@@ -18,12 +18,14 @@ function AppInner() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Both windows need engine events and item prices.
+    // Both windows need engine state and item prices.
     // initBroadcastListener subscribes to items:changed so any item edit in
     // any window propagates to this window's itemsStore in real time.
-    useEngineStore.getState().init();
     useItemsStore.getState().initBroadcastListener();
     Promise.all([
+      // Caught up with the engine before the first render: no idle flash, and
+      // the overlay's click-through starts from the real run status.
+      useEngineStore.getState().init(),
       useItemsStore.getState().load(),
       // The overlay inits its settings in OverlayWindow (no log-file check).
       windowType === 'main' ? useSettingsStore.getState().init({checkLogFile: true}) : Promise.resolve(),

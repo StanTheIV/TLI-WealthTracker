@@ -13,6 +13,7 @@ import {createEngine as createProductionEngine} from '@/main/engine/create-engin
 import type {RawEvent} from '@/worker/processors/types';
 import type {DbItemFilter, DbSession} from '@/shared/contracts/db';
 import type {EngineEvent} from '@/shared/contracts/engine';
+import {engineEvents, unwrapEngineEvent, type Sent} from '@/test/broadcast';
 import {LOG_SUBPATH} from '@/shared/paths';
 import {parseSettings} from '@/shared/settings';
 import type {SqlConn} from '@/main/db/sql-conn';
@@ -27,7 +28,6 @@ const ITEM_BAG   = 100; // in the bag at init
 const ITEM_LOOT  = 200; // picked up in a map
 const ITEM_LOOT2 = 201; // picked up in a later map
 
-interface Sent {channel: string; payload: unknown}
 
 interface Harness {
   service: TrackingService;
@@ -108,8 +108,7 @@ function runMap(h: Harness, itemId = ITEM_LOOT, qty = 3, slotId = 2): void {
 
 // -- broadcast readers -------------------------------------------------------
 
-const events = (h: Harness): EngineEvent[] =>
-  h.sent.filter(s => s.channel === 'engine:event').map(s => s.payload as EngineEvent);
+const events = (h: Harness): EngineEvent[] => engineEvents(h.sent);
 
 const types = (h: Harness): string[] => events(h).map(e => e.type);
 
@@ -610,7 +609,7 @@ describe('TrackingService — reset', () => {
     expect(activeId(h)).toBe(id);
     expect(ins).not.toHaveBeenCalled();
     expect(del).not.toHaveBeenCalled();
-    expect(h.sent.filter(s => s.channel === 'engine:event' && (s.payload as EngineEvent).type === 'session_saved')).toEqual([]);
+    expect(events(h).filter(e => e.type === 'session_saved')).toEqual([]);
 
     init(h);
     runMap(h);
@@ -716,7 +715,7 @@ describe('TrackingService — consumer isolation', () => {
   it('a throwing broadcast does not stop the item insert, wealth or persistence', () => {
     const h = build({
       broadcast: sent => (channel, payload) => {
-        if ((payload as EngineEvent | undefined)?.type === 'init_complete') throw new Error('window gone');
+        if (channel === 'engine:event' && unwrapEngineEvent(payload).type === 'init_complete') throw new Error('window gone');
         sent.push({channel, payload});
       },
     });
@@ -811,7 +810,7 @@ describe('TrackingService — price routing', () => {
     expect(h.items.recordScrapedPrice).toHaveBeenCalledWith('555', 12.5, [12, 13], {updateItem: true});
     expect(h.sent).toEqual([
       {channel: 'items:changed', payload: {id: '555', changes: {price: 12.5, priceDate: NOW}}},
-      {channel: 'engine:event',  payload: {type: 'price_update', itemId: 555, price: 12.5, timestamp: NOW}},
+      {channel: 'engine:event',  payload: {seq: 1, event: {type: 'price_update', itemId: 555, price: 12.5, timestamp: NOW}}},
     ]);
   });
 

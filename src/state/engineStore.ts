@@ -1,6 +1,5 @@
 import {create} from 'zustand';
-import type {EngineEvent, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
-import {useItemsStore} from './itemsStore';
+import type {EngineEnvelope, EngineEvent, EngineSnapshot, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
 
 const MAX_EVENTS = 200;
 
@@ -60,18 +59,18 @@ interface EngineState {
    *  them while the session is paused: a frozen window has no countdown —
    *  resume republishes it with the remaining time. */
   lootWindowDeadlines:      Map<SeasonalType, number>;
-  /** The broadcast seq the last applied snapshot was taken at. */
+  /** The seq of the last applied snapshot or broadcast envelope: `init`
+   *  drops every envelope at or below it. */
   lastSeq:                  number;
 }
 
-/** The engine's replay (`Engine.getState`) as of broadcast `seq`. */
-export interface EngineSnapshot {
-  seq:    number;
-  events: EngineEvent[];
-}
-
 interface EngineActions {
-  init:                 () => void; // register IPC listener once
+  /** Catch up with the engine, then follow it: subscribe, buffer envelopes
+   *  until the snapshot (`engine.getState`) resolves, apply it, then apply the
+   *  buffered and every later envelope with `seq > lastSeq`. Idempotent — every
+   *  call returns the first call's promise, settled once the snapshot is in. */
+  init:                 () => Promise<void>;
+  /** Apply one live event (feed included). */
   handleEvent:          (event: EngineEvent) => void;
   /** Rebuild the store from a snapshot: every engine field back to its
    *  initial value, then each replay event reduced in order. The feed stays
@@ -297,9 +296,8 @@ function reduce(s: EngineState, event: EngineEvent): EngineState {
       }
       break;
 
-    // new_item: handleEvent's cross-store write. price_update: the main
-    // process broadcasts price changes via items:changed, which itemsStore
-    // subscribes to directly.
+    // new_item / price_update: feed only — the item row itself arrives on
+    // items:changed, which itemsStore subscribes to directly.
   }
 
   return {
@@ -316,30 +314,43 @@ function reduce(s: EngineState, event: EngineEvent): EngineState {
 }
 
 let _nextId = 0;
-let _initialized = false;
+/** The first `init()`'s promise — one subscription, one snapshot per window. */
+let _init: Promise<void> | null = null;
+
+/** `event` reduced live: the state change plus its feed entry. */
+function applyLive(s: EngineState, event: EngineEvent): EngineState {
+  const feedEntry: FeedEvent = {id: _nextId++, timestamp: Date.now(), event};
+  return {...reduce(s, event), feed: [...s.feed, feedEntry].slice(-MAX_EVENTS)};
+}
 
 export const useEngineStore = create<EngineState & EngineActions>((set, get) => ({
   ...initialState(),
 
   init: () => {
-    if (_initialized) return;
-    _initialized = true;
-    window.electronAPI.engine.onEvent((event) => get().handleEvent(event));
+    if (_init) return _init;
+    // Subscribed before the snapshot is asked for, so nothing broadcast in
+    // between is lost: until it lands, envelopes wait here.
+    let buffered: EngineEnvelope[] | null = [];
+    const apply = ({seq, event}: EngineEnvelope) => {
+      if (seq <= get().lastSeq) return; // already in the snapshot, or a re-delivery
+      set(s => ({...applyLive(s, event), lastSeq: seq}));
+    };
+    window.electronAPI.engine.onEvent(envelope => {
+      if (buffered) buffered.push(envelope);
+      else          apply(envelope);
+    });
+    _init = window.electronAPI.engine.getState()
+      .then(snapshot => get().applySnapshot(snapshot))
+      .finally(() => {
+        // Even when the snapshot failed: from here on, envelopes apply live.
+        const pending = buffered ?? [];
+        buffered = null;
+        for (const envelope of pending) apply(envelope);
+      });
+    return _init;
   },
 
-  handleEvent: (event) => {
-    if (event.type === 'new_item') {
-      const id = String(event.itemId);
-      const itemsState = useItemsStore.getState();
-      if (!itemsState.items[id]) {
-        useItemsStore.setState({
-          items: {...itemsState.items, [id]: {id, name: '', type: 'other', price: 0, priceDate: 0}},
-        });
-      }
-    }
-    const feedEntry: FeedEvent = {id: _nextId++, timestamp: Date.now(), event};
-    set(s => ({...reduce(s, event), feed: [...s.feed, feedEntry].slice(-MAX_EVENTS)}));
-  },
+  handleEvent: (event) => set(s => applyLive(s, event)),
 
   applySnapshot: ({seq, events}) => set(s => {
     let next: EngineState = {...initialState(), sessionsVersion: s.sessionsVersion};

@@ -17,6 +17,7 @@ import {createEngine as createProductionEngine} from '@/main/engine/create-engin
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import type {RawEvent} from '@/worker/processors/types';
 import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
+import {unwrapEngineEvent} from '@/test/broadcast';
 import {FILTER_SCOPES, type FilterRule, type FilterScope} from '@/shared/item-filter';
 import {MECHANICS, mechanic, type WindowedSeasonalType} from '@/shared/mechanics';
 import {LOG_SUBPATH} from '@/shared/paths';
@@ -223,7 +224,7 @@ function service(settings: Record<string, string>) {
   const s = new TrackingService({
     createEngine:   emit => { const e = createProductionEngine(emit); engines.push(e); return e; },
     store:          new SqliteSessionStore(openMigratedNodeSqlite()),
-    broadcast:      (channel, payload) => { if (channel === 'engine:event') sent.push(payload as EngineEvent); },
+    broadcast:      (channel, payload) => { if (channel === 'engine:event') sent.push(unwrapEngineEvent(payload)); },
     createWorker:   cb => { onEvent = cb; return worker satisfies LogWorker; },
     settings:       {getAll: () => settings},
     filters:        {getAll: () => []},

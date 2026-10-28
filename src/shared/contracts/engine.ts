@@ -87,8 +87,9 @@ export interface UnitCheckpoint extends SessionMapMeta {
 }
 
 // ---------------------------------------------------------------------------
-// EngineEvents — sent from the main-process engine to every renderer via IPC,
-// except `unit_finished`, which stays in the main process (persistence only).
+// EngineEvents — sent from the main-process engine to every renderer via IPC
+// (each in an EngineEnvelope), except `unit_finished`, which stays in the main
+// process (persistence only).
 // ---------------------------------------------------------------------------
 
 export type EngineEvent =
@@ -126,3 +127,18 @@ export type EngineEvent =
   | {type: 'loot_window_started'; seasonalType: TrackerSnapshot['seasonalType']; deadline: number; timestamp: number}
   | {type: 'loot_window_ended';   seasonalType: TrackerSnapshot['seasonalType']; timestamp: number}
   | {type: 'error';            message: string};
+
+/** One `engine:event` broadcast. `seq` is the main process's broadcast
+ *  sequence: +1 per broadcast, never reset across runs — a window that loaded
+ *  a snapshot taken at seq N applies only envelopes with seq > N. */
+export interface EngineEnvelope {
+  seq:   number;
+  event: EngineEvent;
+}
+
+/** `engine:get-state`: the engine's replay (ordinary EngineEvents that rebuild
+ *  a fresh renderer store) as of broadcast `seq`. No run → `events` empty. */
+export interface EngineSnapshot {
+  seq:    number;
+  events: EngineEvent[];
+}

@@ -7,7 +7,7 @@ import {TrackingService, type TrackingDeps} from '@/main/tracking-service';
 import {SqliteSessionStore} from '@/main/db/session-store';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
 import type {RawEvent} from '@/worker/processors/types';
-import type {EngineEvent} from '@/shared/contracts/engine';
+import {engineEvents, type Sent} from '@/test/broadcast';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
 
@@ -15,7 +15,7 @@ const NOW = new Date('2026-03-01T12:00:00Z').getTime();
 
 function build() {
   const store = new SqliteSessionStore(openMigratedNodeSqlite());
-  const sent: {channel: string; payload: unknown}[] = [];
+  const sent: Sent[] = [];
   let onEvent: ((raw: RawEvent) => void) | null = null;
   const noop = vi.fn();
   const deps: TrackingDeps = {
@@ -34,7 +34,7 @@ function build() {
   };
   const service = new TrackingService(deps);
   const raw = (e: RawEvent) => { onEvent!(e); };
-  const events = () => sent.filter(s => s.channel === 'engine:event').map(s => s.payload as EngineEvent);
+  const events = () => engineEvents(sent);
   return {service, store, raw, events};
 }
 

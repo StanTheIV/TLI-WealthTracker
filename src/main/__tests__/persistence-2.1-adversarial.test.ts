@@ -16,6 +16,7 @@ import {readLogText} from '@/replay/log-source';
 import type {RawEvent} from '@/worker/processors/types';
 import type {DbItem} from '@/shared/contracts/db';
 import type {EngineEvent} from '@/shared/contracts/engine';
+import {engineEvents, unwrapEngineEvent, type Sent} from '@/test/broadcast';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {checkCheckpoints, checkUnits} from '@/test/unit-invariant';
 import {GOLDEN_ITEMS} from '@/test/golden/items';
@@ -34,7 +35,6 @@ afterEach(() => { vi.useRealTimers(); });
 
 // -- harness -----------------------------------------------------------------
 
-type Sent = {channel: string; payload: unknown};
 
 function build(opts: {onBroadcast?: (e: EngineEvent) => void; prices?: Record<number, number>} = {}) {
   const conn: SqlConn = openMigratedNodeSqlite();
@@ -49,7 +49,7 @@ function build(opts: {onBroadcast?: (e: EngineEvent) => void; prices?: Record<nu
     store,
     broadcast:      (channel, payload) => {
       sent.push({channel, payload});
-      if (channel === 'engine:event') opts.onBroadcast?.(payload as EngineEvent);
+      if (channel === 'engine:event') opts.onBroadcast?.(unwrapEngineEvent(payload));
     },
     createWorker:   cb => { onEvent = cb; return worker satisfies LogWorker; },
     settings:       {getAll: () => ({torchlightPath: 'C:/Games/TLI'})},
@@ -68,7 +68,7 @@ function build(opts: {onBroadcast?: (e: EngineEvent) => void; prices?: Record<nu
   const raw = (e: RawEvent) => onEvent!(e);
   const h = {
     service, store, conn, sent, worker, log, prices, raw,
-    events: () => sent.filter(s => s.channel === 'engine:event').map(s => s.payload as EngineEvent),
+    events: () => engineEvents(sent),
     saved:  () => h.events().flatMap(e => (e.type === 'session_saved' ? [e] : [])),
     init: () => {
       raw({type: 'bag_init', pageId: 0, slotId: 1, itemId: BAG, quantity: bag});
@@ -513,7 +513,7 @@ describe('session_saved stream', () => {
       {type: 'session_saved', sessionId: c, deleted: true},
     ]);
     for (const e of h.saved()) expect(e.deleted === undefined || e.deleted === true).toBe(true);
-    expect(h.sent.some(s => (s.payload as {type?: string} | null)?.type === 'unit_finished')).toBe(false);
+    expect(h.events().some(e => e.type === 'unit_finished')).toBe(false);
     expect(h.store.getSession(c)).toBeNull();
     expect(h.store.listSessions().map(s => s.id)).toEqual([b]);
   });

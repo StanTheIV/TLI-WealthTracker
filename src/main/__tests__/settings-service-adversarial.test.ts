@@ -11,6 +11,7 @@ import {Engine} from '@/main/engine/engine';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
+import {unwrapEngineEvent} from '@/test/broadcast';
 import {LOG_SUBPATH} from '@/shared/paths';
 import {parseSettings, type Settings} from '@/shared/settings';
 import {MAP, TOWN, createDispatcher, log} from '@/main/engine/__tests__/seasonal-fixtures';
@@ -206,7 +207,7 @@ function e2e(initial: Record<string, string> = {torchlightPath: TORCHLIGHT}) {
   const tracking = new TrackingService({
     createEngine:   emit => createProductionEngine(emit),
     store:          new SqliteSessionStore(openMigratedNodeSqlite()),
-    broadcast:      (channel, payload) => { if (channel === 'engine:event') events.push(payload as EngineEvent); },
+    broadcast:      (channel, payload) => { if (channel === 'engine:event') events.push(unwrapEngineEvent(payload)); },
     createWorker:   cb => { onEvent = cb; return worker satisfies LogWorker; },
     settings:       {getAll: () => table},
     filters:        {getAll: () => []},

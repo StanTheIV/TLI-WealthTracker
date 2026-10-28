@@ -5,8 +5,8 @@ import type {SqliteSessionStore} from '@/main/db/session-store';
 import type {Logger} from '@/main/logger';
 import {SessionPersistence, type SessionMeta} from '@/main/session-persistence';
 import type {RawEvent} from '@/worker/processors/types';
-import type {DbItem, DbItemFilter, DbSession} from '@/shared/contracts/db';
-import type {EngineEvent, SessionIdentity} from '@/shared/contracts/engine';
+import type {DbItem, DbItemFilter, DbSession, ItemChangedPatch} from '@/shared/contracts/db';
+import type {EngineEnvelope, EngineEvent, EngineSnapshot, SessionIdentity} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
 import {LOG_SUBPATH} from '@/shared/paths';
@@ -56,6 +56,9 @@ function newIdentity(): SessionIdentity {
   return {sessionId: crypto.randomUUID(), name: generateSessionName()};
 }
 
+/** The row `items.insertIfMissing` writes for a newly discovered item. */
+const PLACEHOLDER_ITEM: ItemChangedPatch['changes'] = {name: '', type: 'other', price: 0, priceDate: 0};
+
 /** Emit consumers, named in error logs. */
 type EmitConsumer = 'new_item' | 'persistence' | 'broadcast' | 'wealth';
 
@@ -78,6 +81,8 @@ export class TrackingService {
   private _persistence: SessionPersistence | null = null;
   /** Set by shutdown(), cleared by the next start: a repeated shutdown is a no-op. */
   private _shutDown = false;
+  /** The last `engine:event` broadcast's seq (0 before any); never reset. */
+  private _seq = 0;
 
   constructor(deps: TrackingDeps) {
     this._deps   = deps;
@@ -154,6 +159,12 @@ export class TrackingService {
   /** True while a run exists — from start() (initializing included) until stop(). */
   isTracking(): boolean {
     return this._engine !== null;
+  }
+
+  /** The engine's replay and the seq of the last broadcast, read together: a
+   *  window applies it, then only envelopes with a later seq. */
+  getState(): EngineSnapshot {
+    return {seq: this._seq, events: this._engine?.getState() ?? []};
   }
 
   /** Delete a saved session and its rows. Refuses (throws) the active one. */
@@ -298,11 +309,8 @@ export class TrackingService {
       // Sync renderer itemsStores via the unified items:changed broadcast.
       this._deps.broadcast('items:changed', {id, changes: {price: raw.price, ...(priceDate !== null && {priceDate})}});
 
-      // Also emit the engine event so any other engine-event consumers (e.g. a
-      // future "price updated" feed entry) keep working. The itemsStore no
-      // longer reacts to this — items:changed is the source of truth.
-      const event: EngineEvent = {type: 'price_update', itemId: raw.itemId, price: raw.price, timestamp: Date.now()};
-      this._deps.broadcast('engine:event', event);
+      // Also the engine event, for the feed — items:changed is the source of truth.
+      this._send({type: 'price_update', itemId: raw.itemId, price: raw.price, timestamp: Date.now()});
       return;
     }
 
@@ -320,12 +328,15 @@ export class TrackingService {
     this._isolate('wealth',      event, () => this._recordWealth(event));
   }
 
-  /** Persist a placeholder row for newly discovered items so the renderer's
-   *  items store (and all subsequent sessions) pick them up immediately. */
+  /** Persist a placeholder row for a newly discovered item and announce it on
+   *  items:changed (before the new_item broadcast), so every window's items
+   *  store — and every later session — has the row. */
   private _recordNewItem(event: EngineEvent): void {
     if (event.type !== 'new_item') return;
     const id = String(event.itemId);
-    if (this._deps.items.insertIfMissing(id)) this._log.info('database', `New item discovered: id=${id}`);
+    if (!this._deps.items.insertIfMissing(id)) return;
+    this._log.info('database', `New item discovered: id=${id}`);
+    this._deps.broadcast('items:changed', {id, changes: PLACEHOLDER_ITEM} satisfies ItemChangedPatch);
   }
 
   /**
@@ -362,11 +373,14 @@ export class TrackingService {
       && this._engine !== null && !this._engine.hasActiveMapTracker() && !this._engine.hasActiveSeasonals();
   }
 
+  /** The one `engine:event` sender: stamps the next seq. */
   private _send(event: EngineEvent): void {
-    // `unit_finished` is persistence-only and stays in-process: the renderer
-    // reads each tracker's own tracker_finished instead.
+    // `unit_finished` is persistence-only and stays in-process (the renderer
+    // reads each tracker's own tracker_finished) — skipped before stamping,
+    // so the seq stays contiguous.
     if (event.type === 'unit_finished') return;
-    this._isolate('broadcast', event, () => this._deps.broadcast('engine:event', event));
+    const envelope: EngineEnvelope = {seq: ++this._seq, event};
+    this._isolate('broadcast', event, () => this._deps.broadcast('engine:event', envelope));
   }
 
   /** Run one emit consumer; a throw is logged and swallowed so the rest still run. */

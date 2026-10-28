@@ -5,7 +5,7 @@ import type {
   DbItemFilter,
   ItemChangedPatch,
 } from '@/shared/contracts/db';
-import type {EngineEvent} from '@/shared/contracts/engine';
+import type {EngineEnvelope, EngineSnapshot} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
 import type {Settings} from '@/shared/settings';
 
@@ -41,8 +41,9 @@ const api = {
     reset:           ()                  => ipcRenderer.send('engine:reset'),
     updateFilterRules: (rules: FilterRule[] | null) => ipcRenderer.send('engine:update-filter-rules', rules),
     dismissMaterial:   (itemId: number) => ipcRenderer.send('engine:dismiss-material', itemId),
-    onEvent: (cb: (event: EngineEvent) => void) => {
-      const wrapped = (_e: Electron.IpcRendererEvent, ev: EngineEvent) => cb(ev);
+    getState:          () => ipcRenderer.invoke('engine:get-state') as Promise<EngineSnapshot>,
+    onEvent: (cb: (envelope: EngineEnvelope) => void) => {
+      const wrapped = (_e: Electron.IpcRendererEvent, envelope: EngineEnvelope) => cb(envelope);
       ipcRenderer.on('engine:event', wrapped);
       return () => ipcRenderer.removeListener('engine:event', wrapped);
     },

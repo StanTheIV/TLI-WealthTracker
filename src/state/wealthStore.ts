@@ -62,6 +62,7 @@ interface WealthState {
 }
 
 interface WealthActions {
+  /** Main window: the first load, then a refresh on every `wealth_recorded`. */
   load:        () => Promise<void>;
   refresh:     () => Promise<void>;
   setRange:    (range: WealthRange) => Promise<void>;
@@ -117,6 +118,10 @@ async function fetchLatest(): Promise<DbWealthDatapoint | undefined> {
   return points[points.length - 1];
 }
 
+let _subscribed = false;
+/** A datapoint was recorded while the first load was in flight. */
+let _recordedDuringLoad = false;
+
 export const useWealthStore = create<WealthState & WealthActions>((set, get) => ({
   datapoints:      [],
   latestBreakdown: {},
@@ -125,10 +130,25 @@ export const useWealthStore = create<WealthState & WealthActions>((set, get) => 
   isLoaded:        false,
 
   load: async () => {
+    // Main records each datapoint synchronously before announcing it, so a
+    // refetch on the announcement sees it. Until the first load lands (its
+    // range unknown) a recording is only noted, then refetched after.
+    if (!_subscribed) {
+      _subscribed = true;
+      window.electronAPI.engine.onEvent(({event}) => {
+        if (event.type !== 'wealth_recorded') return;
+        if (get().isLoaded) void get().refresh();
+        else                _recordedDuringLoad = true;
+      });
+    }
     const range = await loadPersistedRange() ?? get().range;
     const [points, latest] = await Promise.all([fetchPoints(range), fetchLatest()]);
     const {breakdown, latestTimestamp} = parseBreakdown(latest);
     set({range, datapoints: points, latestBreakdown: breakdown, latestTimestamp, isLoaded: true});
+    if (_recordedDuringLoad) {
+      _recordedDuringLoad = false;
+      await get().refresh();
+    }
   },
 
   refresh: async () => {
