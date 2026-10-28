@@ -4,7 +4,7 @@
  * every session snapshot (absent -> {}) and clear with the rest of the state.
  */
 import {beforeEach, describe, expect, it} from 'vitest';
-import type {EngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {EngineEvent, SessionStartMeta, TrackerSnapshot} from '@/shared/contracts/engine';
 import {useEngineStore} from '../engineStore';
 
 const handle = (e: EngineEvent) => useEngineStore.getState().handleEvent(e);
@@ -163,5 +163,104 @@ describe('engineStore live session state, adversarial', () => {
     handle({type: 'init_started'} as EngineEvent);
     expect(state().drops).toEqual({});
     expect(state().sessionSpent).toEqual({});
+  });
+});
+
+describe('engineStore active session identity and sessionsVersion (2.1d)', () => {
+  const ident = () => useEngineStore.getState();
+  const meta = (over: Partial<SessionStartMeta> = {}): SessionStartMeta =>
+    ({sessionId: 's1', name: 'Alpha', mapTime: 0, mapCount: 0, continued: false, ...over});
+  const startSession = (m: SessionStartMeta) =>
+    handle({type: 'tracker_started', tracker: session(), timestamp: 1, sessionMeta: m});
+  const finishSession = () => handle({type: 'tracker_finished', tracker: session({active: false}), timestamp: 9});
+  const saved = (sessionId: string, deleted?: true) =>
+    handle({type: 'session_saved', sessionId, ...(deleted ? {deleted} : {})});
+
+  it('starts with no active session and sessionsVersion 0', () => {
+    expect(ident().activeSessionId).toBeNull();
+    expect(ident().activeSessionName).toBeNull();
+    expect(ident().sessionsVersion).toBe(0);
+  });
+
+  it('a fresh session sets activeSessionId but leaves the name null', () => {
+    startSession(meta({sessionId: 'fresh', name: 'Fresh', continued: false}));
+    expect(ident().activeSessionId).toBe('fresh');
+    expect(ident().activeSessionName).toBeNull();
+  });
+
+  it('a continued session sets both activeSessionId and activeSessionName', () => {
+    startSession(meta({sessionId: 'old', name: 'My Run', continued: true}));
+    expect(ident().activeSessionId).toBe('old');
+    expect(ident().activeSessionName).toBe('My Run');
+  });
+
+  it('the session tracker_finished clears id and name', () => {
+    startSession(meta({sessionId: 'old', name: 'My Run', continued: true}));
+    finishSession();
+    expect(ident().activeSessionId).toBeNull();
+    expect(ident().activeSessionName).toBeNull();
+  });
+
+  it('init_started no longer wipes the name (it arrives with tracker_started, after init_started)', () => {
+    startSession(meta({sessionId: 'old', name: 'My Run', continued: true}));
+    handle({type: 'init_started'});
+    expect(ident().activeSessionName).toBe('My Run');
+    expect(ident().activeSessionId).toBe('old');
+  });
+
+  it('map and seasonal tracker_started/finished do not touch id or name', () => {
+    startSession(meta({sessionId: 'old', name: 'My Run', continued: true}));
+    handle({type: 'tracker_started', tracker: {kind: 'map', drops: {}, elapsed: 0, startedAt: 0, active: true}, timestamp: 2});
+    handle({type: 'tracker_started', tracker: {kind: 'seasonal', seasonalType: 'lunaria', drops: {}, elapsed: 0, startedAt: 0, active: true}, timestamp: 3});
+    expect(ident().activeSessionId).toBe('old');
+    expect(ident().activeSessionName).toBe('My Run');
+    handle({type: 'tracker_finished', tracker: {kind: 'seasonal', seasonalType: 'lunaria', drops: {}, elapsed: 0, startedAt: 0, active: false}, timestamp: 4});
+    handle({type: 'tracker_finished', tracker: {kind: 'map', drops: {}, elapsed: 0, startedAt: 0, active: false}, timestamp: 5});
+    expect(ident().activeSessionId).toBe('old');
+    expect(ident().activeSessionName).toBe('My Run');
+  });
+
+  it('sessionsVersion bumps on every session_saved, repeats and deleted included', () => {
+    saved('a');
+    expect(ident().sessionsVersion).toBe(1);
+    saved('a');
+    expect(ident().sessionsVersion).toBe(2);
+    saved('b', true);
+    expect(ident().sessionsVersion).toBe(3);
+  });
+
+  it('sessionsVersion survives init_started and session finish (monotonic)', () => {
+    saved('a');
+    handle({type: 'init_started'});
+    startSession(meta());
+    finishSession();
+    expect(ident().sessionsVersion).toBe(1);
+    saved('a');
+    expect(ident().sessionsVersion).toBe(2);
+  });
+
+  it('a Reset sequence lands on the new id with no name and a bumped version', () => {
+    startSession(meta({sessionId: 'old', name: 'My Run', continued: true}));
+    handle({type: 'tracker_started', tracker: {kind: 'seasonal', seasonalType: 'lunaria', drops: {}, elapsed: 0, startedAt: 0, active: true}, timestamp: 2});
+    saved('old', true);
+    handle({type: 'tracker_finished', tracker: {kind: 'seasonal', seasonalType: 'lunaria', drops: {}, elapsed: 0, startedAt: 0, active: false}, timestamp: 3});
+    handle({type: 'tracker_finished', tracker: {kind: 'map', drops: {}, elapsed: 0, startedAt: 0, active: false}, timestamp: 4});
+    startSession(meta({sessionId: 'new', name: 'New', continued: false}));
+    expect(ident().activeSessionId).toBe('new');
+    expect(ident().activeSessionName).toBeNull();
+    expect(ident().sessionsVersion).toBe(1);
+  });
+
+  it('reset() clears id and name', () => {
+    startSession(meta({sessionId: 'old', name: 'My Run', continued: true}));
+    useEngineStore.getState().reset();
+    expect(ident().activeSessionId).toBeNull();
+    expect(ident().activeSessionName).toBeNull();
+  });
+
+  it('the superseded API is gone', () => {
+    const s = useEngineStore.getState() as unknown as Record<string, unknown>;
+    expect(s.setActiveSessionName).toBeUndefined();
+    expect('lastSavedSessionId' in s).toBe(false);
   });
 });

@@ -152,7 +152,8 @@
     "label": "Wohlstandsdiagramm, gespeicherte Sitzungen und Map-Aufschlüsselungen löschen. Dies kann nicht rückgängig gemacht werden.",
     "button": "Farm-Verlauf zurücksetzen",
     "confirm": "Bist du sicher? Wohlstandsdiagramm, gespeicherte Sitzungen und Map-Aufschlüsselungen werden dauerhaft gelöscht.",
-    "done": "Farm-Verlauf wurde gelöscht."
+    "done": "Farm-Verlauf wurde gelöscht.",
+    "blockedTracking": "Beende zuerst das Tracking — der Farm-Verlauf kann während einer laufenden Sitzung nicht gelöscht werden"
   },
   "apiKeys": {
     "heading": "API-Schlüssel",

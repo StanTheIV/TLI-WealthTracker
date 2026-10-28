@@ -1,5 +1,9 @@
 {
   "title": "Sessions",
+  "live": {
+    "badge": "Live",
+    "title": "Being tracked right now — updates after every map"
+  },
   "empty": "No saved sessions yet. Start tracking to create your first session.",
   "columns": {
     "name": "Name",
@@ -154,6 +158,9 @@
     "continue": "Continue Session",
     "rename": "Rename",
     "delete": "Delete",
-    "confirmDelete": "Delete session \"{{name}}\"? This cannot be undone."
+    "confirmDelete": "Delete session \"{{name}}\"? This cannot be undone.",
+    "continueBlockedTracking": "Stop tracking first to continue this session",
+    "continueBlockedAttribution": "Recorded with an older attribution model — this session can't be continued",
+    "deleteBlockedActive": "This session is being tracked — stop tracking first to delete it"
   }
 }

@@ -1,10 +1,11 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {ArrowLeft, Clock} from 'lucide-react';
 import {useSessionsStore} from '@/state/sessionsStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useTaxConfig} from '@/state/settingsStore';
 import {useTracking} from '@/state/TrackingContext';
+import {useEngineStore} from '@/state/engineStore';
 import type {DbSessionMap} from '@/shared/contracts/db';
 import type {NavItemId} from '@/components/Sidebar/Sidebar';
 import {computeSessionAnalytics} from '@/domain/session-analytics';
@@ -37,6 +38,9 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
   const items         = useItemsStore(s => s.items);
   const tax           = useTaxConfig();
   const {continueSession, status} = useTracking();
+  const activeSessionId = useEngineStore(s => s.activeSessionId);
+  const sessionsVersion = useEngineStore(s => s.sessionsVersion);
+  const rowsForRef      = useRef<string | null>(null);
 
   const [maps, setMaps]             = useState<DbSessionMap[]>([]);
   const [mapsLoaded, setMapsLoaded] = useState(false);
@@ -49,19 +53,23 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
 
   const session = sessions.find(s => s.id === sessionId);
 
+  // Refetch on every session write too: the live session gains a row per unit.
   useEffect(() => {
     let cancelled = false;
-    setMapsLoaded(false);
-    // Clear stale rows too: analytics over the PREVIOUS session's rows would
-    // render wrong figures and spurious warnings until the load resolves.
-    setMaps([]);
+    if (rowsForRef.current !== sessionId) {
+      rowsForRef.current = sessionId;
+      setMapsLoaded(false);
+      // Clear stale rows too: analytics over the PREVIOUS session's rows would
+      // render wrong figures and spurious warnings until the load resolves.
+      setMaps([]);
+    }
     window.electronAPI.db.sessionMaps.getForSession(sessionId).then(rows => {
       if (cancelled) return;
       setMaps(rows);
       setMapsLoaded(true);
     });
     return () => { cancelled = true; };
-  }, [sessionId]);
+  }, [sessionId, sessionsVersion]);
 
   const analytics = useMemo(
     () => (session && mapsLoaded ? computeSessionAnalytics({session, maps, items, tax}) : null),
@@ -112,9 +120,16 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
   // Dual columns only mean something when the two legs can differ.
   const showBoth = hasSnapshot;
 
-  function handleContinue() {
-    continueSession(session!.id);
-    onNavChange('dashboard');
+  // Main refuses these too; the UI just says why up front. Only drop-through
+  // sessions can be continued (older eras can't be seeded consistently), and
+  // the session being tracked can't be deleted.
+  const continueBlock = session.attribution !== 'drop-through' ? t('actions.continueBlockedAttribution')
+    : isTracking ? t('actions.continueBlockedTracking')
+    : null;
+  const deleteBlock = session.id === activeSessionId ? t('actions.deleteBlockedActive') : null;
+
+  async function handleContinue() {
+    if (await continueSession(session!.id)) onNavChange('dashboard');
   }
 
   // Renaming is inline rather than a prompt(): Electron renderers ignore
@@ -131,10 +146,9 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
   }
 
   function handleDelete() {
-    if (window.confirm(t('actions.confirmDelete', {name: session!.name}))) {
-      deleteSession(session!.id);
-      onBack();
-    }
+    // The store leaves the detail view (selectedId → null) only once main
+    // deleted the row; a refusal keeps it open and re-reads the list.
+    if (window.confirm(t('actions.confirmDelete', {name: session!.name}))) void deleteSession(session!.id);
   }
 
   const tabs: {id: ItemTab; label: string}[] = [
@@ -178,7 +192,8 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
         <div className="flex gap-2 shrink-0">
           <button
             onClick={handleContinue}
-            disabled={isTracking}
+            disabled={continueBlock !== null}
+            title={continueBlock ?? undefined}
             className="px-3 py-1.5 rounded-md text-xs font-semibold bg-accent text-bg hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {t('actions.continue')}
@@ -191,7 +206,9 @@ export default function SessionDetail({sessionId, onBack, onNavChange}: Props) {
           </button>
           <button
             onClick={handleDelete}
-            className="px-3 py-1.5 rounded-md text-xs font-medium bg-danger/15 text-danger hover:bg-danger/25 transition-colors"
+            disabled={deleteBlock !== null}
+            title={deleteBlock ?? undefined}
+            className="px-3 py-1.5 rounded-md text-xs font-medium bg-danger/15 text-danger hover:bg-danger/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-danger/15"
           >
             {t('actions.delete')}
           </button>

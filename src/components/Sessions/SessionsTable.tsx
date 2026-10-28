@@ -90,11 +90,24 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
                     : 'hover:bg-white/5 text-text-primary',
                 ].join(' ')}
               >
-                <td className="px-4 py-2.5 font-medium truncate max-w-[200px]">
-                  {isSelected && (
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent mr-2 align-middle" />
-                  )}
-                  {session.name}
+                <td className="px-4 py-2.5 font-medium max-w-[200px]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isSelected && (
+                      <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
+                    )}
+                    <span className="truncate">{session.name}</span>
+                    {/* endedAt null = the run is still open (being tracked):
+                        it is persisted from the start and refreshes per map. */}
+                    {session.endedAt === null && (
+                      <span
+                        className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-success/15 text-success"
+                        title={t('live.title')}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                        {t('live.badge')}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-2.5 text-text-secondary text-xs">
                   {formatDate(session.savedAt)}

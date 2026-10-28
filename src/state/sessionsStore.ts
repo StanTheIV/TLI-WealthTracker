@@ -15,7 +15,7 @@ interface SessionsActions {
   renameSession: (id: string, name: string) => Promise<void>;
 }
 
-export const useSessionsStore = create<SessionsState & SessionsActions>((set) => ({
+export const useSessionsStore = create<SessionsState & SessionsActions>((set, get) => ({
   sessions:   [],
   isLoaded:   false,
   selectedId: null,
@@ -32,8 +32,16 @@ export const useSessionsStore = create<SessionsState & SessionsActions>((set) =>
 
   select: (id) => set({selectedId: id}),
 
+  // Main may refuse (e.g. deleting the session being tracked): the local list
+  // then re-reads the DB instead of assuming the change happened.
   deleteSession: async (id) => {
-    await window.electronAPI.db.sessions.delete(id);
+    try {
+      await window.electronAPI.db.sessions.delete(id);
+    } catch (err) {
+      console.error('[session] delete refused:', err);
+      await get().refresh();
+      return;
+    }
     set(s => ({
       sessions:   s.sessions.filter(ss => ss.id !== id),
       selectedId: s.selectedId === id ? null : s.selectedId,
@@ -41,7 +49,13 @@ export const useSessionsStore = create<SessionsState & SessionsActions>((set) =>
   },
 
   renameSession: async (id, name) => {
-    await window.electronAPI.db.sessions.rename(id, name);
+    try {
+      await window.electronAPI.db.sessions.rename(id, name);
+    } catch (err) {
+      console.error('[session] rename failed:', err);
+      await get().refresh();
+      return;
+    }
     set(s => ({
       sessions: s.sessions.map(ss => ss.id === id ? {...ss, name} : ss),
     }));

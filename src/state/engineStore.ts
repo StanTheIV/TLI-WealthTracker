@@ -37,10 +37,17 @@ interface EngineState {
   sessionReceivedAt:        number | null;
   /** Cumulative ms spent inside maps in this session (excludes the active map). */
   accumulatedMapTime:       number;
-  /** Non-null when continuing a saved session — holds the session name. */
+  /** DB id of the session being tracked — set by the session tracker_started
+   *  (`sessionMeta.sessionId`), cleared by the session tracker_finished. Live
+   *  sessions are persisted from the start, so this row is in the sessions list. */
+  activeSessionId:          string | null;
+  /** The session name, only when the active session is a CONTINUED one
+   *  (`sessionMeta.continued`) — the Playbar's "↩ name" badge. */
   activeSessionName:        string | null;
-  /** ID of the last auto-saved session (used to trigger sessions list refresh). */
-  lastSavedSessionId:       string | null;
+  /** Bumped on every session_saved (each unit write, close, delete): the
+   *  sessions list and detail refetch on change. Monotonic: only the
+   *  test-only `reset()` zeroes it. */
+  sessionsVersion:          number;
   /** Latest low-stock map-material warnings, emitted on each map entry. */
   lowStockWarnings:         LowStockWarning[];
   /** Item IDs the user has dismissed this session — mirror of main-process set. */
@@ -57,7 +64,6 @@ interface EngineActions {
   init:                 () => void; // register IPC listener once
   handleEvent:          (event: EngineEvent) => void;
   reset:                () => void;
-  setActiveSessionName: (name: string | null) => void;
   dismissLowStockItem:  (itemId: number) => void;
 }
 
@@ -79,8 +85,9 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
   sessionElapsed:            0,
   sessionReceivedAt:         null,
   accumulatedMapTime:        0,
+  activeSessionId:           null,
   activeSessionName:         null,
-  lastSavedSessionId:        null,
+  sessionsVersion:           0,
   lowStockWarnings:          [],
   dismissedMaterials:        new Set<number>(),
   lootWindowDeadlines:       new Map<SeasonalType, number>(),
@@ -109,8 +116,9 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
       let sessionElapsed             = s.sessionElapsed;
       let sessionReceivedAt          = s.sessionReceivedAt;
 
+      let activeSessionId      = s.activeSessionId;
       let activeSessionName    = s.activeSessionName;
-      let lastSavedSessionId  = s.lastSavedSessionId;
+      let sessionsVersion      = s.sessionsVersion;
       let lowStockWarnings     = s.lowStockWarnings;
       let dismissedMaterials   = s.dismissedMaterials;
       let accumulatedMapTime   = s.accumulatedMapTime;
@@ -130,7 +138,6 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           sessionElapsed             = 0;
           sessionReceivedAt          = null;
           accumulatedMapTime         = 0;
-          activeSessionName          = null;
           lowStockWarnings           = [];
           dismissedMaterials         = new Set<number>();
           lootWindowDeadlines        = new Map();
@@ -189,6 +196,10 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
               drops              = {...event.tracker.drops};
               mapCount           = event.sessionMeta?.mapCount ?? mapCount;
               accumulatedMapTime = event.sessionMeta?.mapTime  ?? accumulatedMapTime;
+              if (event.sessionMeta) {
+                activeSessionId   = event.sessionMeta.sessionId;
+                activeSessionName = event.sessionMeta.continued ? event.sessionMeta.name : null;
+              }
             }
           }
           break;
@@ -213,6 +224,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
             sessionElapsed     = 0;
             sessionReceivedAt  = null;
             accumulatedMapTime = 0;
+            activeSessionId    = null;
             activeSessionName  = null;
           }
           break;
@@ -224,7 +236,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
           break;
 
         case 'session_saved':
-          lastSavedSessionId = event.sessionId;
+          sessionsVersion += 1;
           break;
 
         case 'price_update':
@@ -262,7 +274,7 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
         mapTrackerReceivedAt, seasonalTrackersReceivedAt,
         sessionStatus, sessionElapsed, sessionReceivedAt,
         accumulatedMapTime,
-        activeSessionName, lastSavedSessionId,
+        activeSessionId, activeSessionName, sessionsVersion,
         lowStockWarnings, dismissedMaterials,
         lootWindowDeadlines,
       };
@@ -277,12 +289,10 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
     seasonalTrackersReceivedAt: new Map(),
     sessionStatus: 'idle', sessionElapsed: 0, sessionReceivedAt: null,
     accumulatedMapTime: 0,
-    activeSessionName: null, lastSavedSessionId: null,
+    activeSessionId: null, activeSessionName: null, sessionsVersion: 0,
     lowStockWarnings: [], dismissedMaterials: new Set<number>(),
     lootWindowDeadlines: new Map(),
   }),
-
-  setActiveSessionName: (name) => set({activeSessionName: name}),
 
   dismissLowStockItem: (itemId) => {
     window.electronAPI.engine.dismissMaterial(itemId);

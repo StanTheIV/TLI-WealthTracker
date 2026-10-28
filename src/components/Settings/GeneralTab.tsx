@@ -4,6 +4,7 @@ import {useSettingsStore, type ThemeMode} from '@/state/settingsStore';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useSessionsStore} from '@/state/sessionsStore';
+import {useEngineStore} from '@/state/engineStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
 import type {DbItem} from '@/shared/contracts/db';
 import SegmentedControl from '@/components/ui/SegmentedControl';
@@ -51,6 +52,26 @@ export default function GeneralTab() {
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
   const [wealthResetState, setWealthResetState] = useState<'idle' | 'confirm' | 'done'>('idle');
+  // Main refuses the clear while a run exists. Not `phase`: a Stop during bag
+  // init emits no session finish, so phase would stay 'initializing'. That
+  // pre-session window is covered by main's refusal (handled below).
+  const runActive  = useEngineStore(s => s.activeSessionId !== null);
+  const clearBlock = runActive ? t('wealthReset.blockedTracking') : undefined;
+
+  const clearFarmingHistory = async () => {
+    let refused = false;
+    try {
+      await window.electronAPI.db.wealth.clear();
+    } catch (err) {
+      console.error('[wealth] clear refused:', err);
+      refused = true;
+    }
+    // Clears wealth + sessions + session_maps: re-read both so the UI shows
+    // what the DB holds, whether or not main accepted.
+    await useWealthStore.getState().refresh();
+    await useSessionsStore.getState().refresh();
+    setWealthResetState(refused ? 'idle' : 'done');
+  };
 
   const browse = async () => {
     const folder = await window.electronAPI.pickFolder();
@@ -324,7 +345,9 @@ export default function GeneralTab() {
           {wealthResetState === 'idle' && (
             <button
               onClick={() => setWealthResetState('confirm')}
-              className="px-4 py-2 rounded-lg bg-surface-elevated border border-danger/40 text-sm text-danger hover:bg-danger/10 hover:border-danger transition-colors"
+              disabled={runActive}
+              title={clearBlock}
+              className="px-4 py-2 rounded-lg bg-surface-elevated border border-danger/40 text-sm text-danger hover:bg-danger/10 hover:border-danger transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface-elevated disabled:hover:border-danger/40"
             >
               {t('wealthReset.button')}
             </button>
@@ -334,15 +357,10 @@ export default function GeneralTab() {
               <p className="text-sm text-danger">{t('wealthReset.confirm')}</p>
               <div className="flex gap-2">
                 <button
-                  onClick={async () => {
-                    await window.electronAPI.db.wealth.clear();
-                    // wealth.clear() now also wipes sessions + session_maps,
-                    // so refresh both stores so the UI matches.
-                    await useWealthStore.getState().refresh();
-                    await useSessionsStore.getState().refresh();
-                    setWealthResetState('done');
-                  }}
-                  className="px-4 py-2 rounded-lg bg-danger/15 border border-danger text-sm text-danger hover:bg-danger/25 transition-colors font-medium"
+                  onClick={clearFarmingHistory}
+                  disabled={runActive}
+                  title={clearBlock}
+                  className="px-4 py-2 rounded-lg bg-danger/15 border border-danger text-sm text-danger hover:bg-danger/25 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-danger/15"
                 >
                   {t('wealthReset.button')}
                 </button>

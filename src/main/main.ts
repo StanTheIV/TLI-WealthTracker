@@ -250,10 +250,11 @@ app.whenReady().then(() => {
   log.info('app', 'App starting');
 
   const sessions = new SqliteSessionStore(openDatabase());
-  // Before any tracking: sessions left open by a run that never reached Stop.
-  closeCrashedSessions(sessions, log);
   seedItemsIfEmpty();
   initLogger({logFile: join(app.getPath('userData'), LOG_FILENAME), settings: settingsGetAll});
+  // After the logger (so its lines reach the file), before any tracking:
+  // sessions left open by a run that never reached Stop.
+  closeCrashedSessions(sessions, log);
   initLeaguesAndPriceHistory(broadcast);
 
   const tracking = new TrackingService({

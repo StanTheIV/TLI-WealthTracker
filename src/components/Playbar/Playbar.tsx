@@ -62,7 +62,8 @@ export default function Playbar() {
               onConfirm={reset}
               holdMs={1000}
               size={36}
-              title={t('buttons.reset')}
+              title={t('buttons.resetHint')}
+              ariaLabel={t('buttons.reset')}
               className="bg-surface-elevated text-text-secondary hover:bg-gold/15 hover:text-gold"
               ringClass="stroke-gold"
             >
@@ -81,7 +82,8 @@ export default function Playbar() {
             onConfirm={reset}
             holdMs={1000}
             size={36}
-            title={t('buttons.reset')}
+            title={t('buttons.resetHint')}
+            ariaLabel={t('buttons.reset')}
             className="bg-surface-elevated text-text-secondary hover:bg-gold/15 hover:text-gold"
             ringClass="stroke-gold"
           >

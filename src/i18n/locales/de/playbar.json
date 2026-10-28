@@ -10,6 +10,7 @@
     "pause": "Pause",
     "resume": "Fortsetzen",
     "stop": "Stopp",
-    "reset": "Tracker zurücksetzen"
+    "reset": "Tracker zurücksetzen",
+    "resetHint": "Gedrückt halten zum Zurücksetzen: löscht die aktuelle Sitzung dauerhaft und startet eine neue"
   }
 }

@@ -10,6 +10,7 @@
     "pause": "Pause",
     "resume": "Resume",
     "stop": "Stop",
-    "reset": "Reset trackers"
+    "reset": "Reset trackers",
+    "resetHint": "Hold to reset: permanently deletes the current session and starts a new one"
   }
 }
