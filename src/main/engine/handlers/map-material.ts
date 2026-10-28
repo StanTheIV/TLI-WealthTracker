@@ -3,6 +3,9 @@ import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {log} from '@/main/logger';
 import type {Settings} from '@/shared/settings';
+import type {EngineEvent} from '@/shared/contracts/engine';
+
+type LowStockItem = Extract<EngineEvent, {type: 'map_material_warning'}>['items'][number];
 
 /**
  * MapMaterialHandler — detects map-creation material spends and warns when
@@ -46,8 +49,9 @@ export class MapMaterialHandler implements EventHandler {
   private _pendingSpends: Map<number, number>           = new Map();
   private _watch:         Map<number, {streak: number}> = new Map();
   private _dismissed:     Set<number>                   = new Set();
-  /** Items currently emitted as low-stock — used to detect new low events for logging. */
-  private _activeLow:     Set<number>                   = new Set();
+  /** The last emitted warning list — what the renderer shows (bag changes
+   *  between emissions do not republish it). */
+  private _published:     LowStockItem[]                = [];
   /** Item qty <= _threshold triggers a warning. Default 0 (warn only at 0). */
   private _threshold:     number                        = 0;
 
@@ -55,7 +59,7 @@ export class MapMaterialHandler implements EventHandler {
     this._pendingSpends.clear();
     this._watch.clear();
     this._dismissed.clear();
-    this._activeLow.clear();
+    this._published = [];
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -138,7 +142,6 @@ export class MapMaterialHandler implements EventHandler {
         const wasTracked = (this._watch.get(itemId)?.streak ?? 0) >= 2;
         this._watch.delete(itemId);
         this._dismissed.delete(itemId);
-        this._activeLow.delete(itemId);
         if (wasTracked) {
           log.info('engine', `Map material removed from tracking: itemId=${itemId}`);
         }
@@ -149,24 +152,37 @@ export class MapMaterialHandler implements EventHandler {
     this._pendingSpends.clear();
   }
 
-  /** Build and emit the current warning list from _watch + bag state. */
-  private _emitWarnings(ctx: EngineContext, emit: EmitFn): void {
-    const warnings: Array<{itemId: number; quantity: number}> = [];
-    const nowLow    = new Set<number>();
+  /** The current warning list: tracked (streak ≥ 2), not dismissed, at or
+   *  under the threshold. Pure — reads _watch, _dismissed and the bag. */
+  private _warnings(ctx: EngineContext): LowStockItem[] {
+    const warnings: LowStockItem[] = [];
     for (const [itemId, {streak}] of this._watch) {
-      if (streak < 2) continue;
-      if (this._dismissed.has(itemId)) continue;
+      if (streak < 2 || this._dismissed.has(itemId)) continue;
       const qty = ctx.bag.getTotalForItem(itemId);
-      if (qty <= this._threshold) {
-        warnings.push({itemId, quantity: qty});
-        nowLow.add(itemId);
-        if (!this._activeLow.has(itemId)) {
-          log.info('engine', `Map material low-stock detected: itemId=${itemId} qty=${qty} threshold=${this._threshold}`);
-        }
+      if (qty <= this._threshold) warnings.push({itemId, quantity: qty});
+    }
+    return warnings;
+  }
+
+  /** Emit the current warning list, logging each item that just went low. */
+  private _emitWarnings(ctx: EngineContext, emit: EmitFn): void {
+    const warnings = this._warnings(ctx);
+    const wasLow   = new Set(this._published.map(w => w.itemId));
+    for (const {itemId, quantity} of warnings) {
+      if (!wasLow.has(itemId)) {
+        log.info('engine', `Map material low-stock detected: itemId=${itemId} qty=${quantity} threshold=${this._threshold}`);
       }
     }
-    this._activeLow = nowLow;
+    this._published = warnings;
     emit({type: 'map_material_warning', items: warnings, timestamp: Date.now()});
+  }
+
+  /** The published list minus what the user dismissed since (the renderer
+   *  hides those rows itself), when anything is left to show. */
+  replay(ctx: EngineContext): EngineEvent[] {
+    if (ctx.phase !== 'tracking') return [];
+    const items = this._published.filter(w => !this._dismissed.has(w.itemId)).map(w => ({...w}));
+    return items.length > 0 ? [{type: 'map_material_warning', items, timestamp: Date.now()}] : [];
   }
 
   /** Called via IPC when the user clicks dismiss on a warning row. */

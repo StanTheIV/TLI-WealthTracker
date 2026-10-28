@@ -36,6 +36,10 @@ export interface EventHandler {
    *  nothing it saw before could start one: the session did not exist yet
    *  (pre-init), or the reset just discarded it. */
   onSessionOpen?(ctx: EngineContext, emit: EmitFn): void;
+  /** The UI state this handler alone holds, as the events that would rebuild
+   *  it in a fresh renderer (see Engine.getState). Pure: no emit, no logging,
+   *  no state change. */
+  replay?(ctx: EngineContext): EngineEvent[];
   /** Read this handler's fields from the parsed settings. A new value only
    *  affects runs started after it — a live tracker keeps its window. */
   configure?(settings: Settings): void;

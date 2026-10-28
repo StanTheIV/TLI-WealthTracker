@@ -3,7 +3,7 @@ import type {EventHandler, EmitFn, EngineSink} from './types';
 import {EngineContext} from './context';
 import type {LoadedSessionData} from './context';
 import {openSessionRun} from './session-run';
-import type {SessionIdentity} from '@/shared/contracts/engine';
+import type {EngineEvent, SessionIdentity} from '@/shared/contracts/engine';
 import {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/shared/item-filter';
 import type {ItemType} from '@/shared/items';
@@ -49,6 +49,8 @@ export class Engine {
   /** The one handler the Engine addresses directly: a dismiss is a user
    *  action on its private watch state, not a setting. */
   private _mapMaterial: MapMaterialHandler | null = null;
+  /** Every registered handler's `replay`, in registration order. */
+  private readonly _replayHooks: Array<(ctx: EngineContext) => EngineEvent[]> = [];
 
   constructor(sink: EngineSink) {
     this._sink = sink;
@@ -62,6 +64,8 @@ export class Engine {
     this._handlers.push(handler);
     const onSessionOpen = handler.onSessionOpen?.bind(handler);
     if (onSessionOpen) this._ctx.sessionOpenHooks.push(onSessionOpen);
+    const replay = handler.replay?.bind(handler);
+    if (replay) this._replayHooks.push(replay);
     if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
     return this;
   }
@@ -260,6 +264,53 @@ export class Engine {
   getBagDiagnostics(): {initialized: boolean; slots: Map<string, {itemId: number; quantity: number}>; totals: Map<number, number>} {
     const bag = this._ctx.bag;
     return {initialized: bag.initialized, slots: bag.getSlots(), totals: bag.getInventory()};
+  }
+
+  /**
+   * The run's UI-visible state as ordinary EngineEvents: fed to a fresh
+   * renderer store they rebuild what the live event stream built. Pure — emits,
+   * records and logs nothing; snapshots are taken now.
+   *
+   * Idle → []. Otherwise `init_started`, then once the session is open
+   * `init_complete` and the session `tracker_started` (identity, counters,
+   * `active` false while paused); the handlers' own UI state (the current
+   * zone, low-stock warnings); the map; every live seasonal in start order,
+   * `owner` stamped; one `loot_window_started` per running window — a window
+   * frozen by the pause has no deadline and is not shown. Never a drop, a
+   * persistence or a lifecycle-end event: history is not state.
+   */
+  getState(): EngineEvent[] {
+    const ctx = this._ctx;
+    if (ctx.phase === 'idle') return [];
+    const now = Date.now();
+    const events: EngineEvent[] = [{type: 'init_started'}];
+
+    // Pre-init trackers are never announced, so only an open session's count.
+    const session = ctx.phase === 'tracking' ? ctx.registry.session : null;
+    if (session) {
+      const {activeSessionId: sessionId, activeSessionName: name} = ctx;
+      if (sessionId === null || name === null) throw new Error('getState: an open session without identity');
+      events.push({type: 'init_complete', itemCount: ctx.bag.itemCount});
+      events.push({
+        type:        'tracker_started',
+        tracker:     session.snapshot(),
+        timestamp:   now,
+        sessionMeta: {sessionId, name, continued: ctx.sessionContinued, mapTime: ctx.accumulatedMapTime, mapCount: ctx.mapCount},
+      });
+    }
+
+    for (const replay of this._replayHooks) events.push(...replay(ctx));
+
+    if (!session) return events;
+    const map = ctx.registry.map;
+    if (map) events.push({type: 'tracker_started', tracker: map.snapshot(), timestamp: now});
+    const seasonals = ctx.registry.replaySeasonals();
+    for (const {snapshot} of seasonals) events.push({type: 'tracker_started', tracker: snapshot, timestamp: now});
+    for (const {tracker} of seasonals) {
+      const deadline = tracker.lootDeadline;
+      if (deadline !== null) events.push({type: 'loot_window_started', seasonalType: tracker.seasonalType, deadline, timestamp: now});
+    }
+    return events;
   }
 
   /** True once the session is open (bag baseline landed) until stop — paused included. */

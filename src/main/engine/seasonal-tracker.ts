@@ -170,6 +170,13 @@ export class SeasonalTracker extends Tracker {
     this._emit({type: 'loot_window_ended', seasonalType: this.seasonalType, timestamp: Date.now()});
   }
 
+  /** When the in-flight loot window closes (ms epoch) — the deadline its last
+   *  `loot_window_started` published. Null with no window, or while frozen by
+   *  the session pause (the renderer hides a frozen countdown). */
+  get lootDeadline(): number | null {
+    return this._lootTimer?.deadline ?? null;
+  }
+
   isLootCollecting(): boolean {
     return this._lootTimer?.active ?? false;
   }

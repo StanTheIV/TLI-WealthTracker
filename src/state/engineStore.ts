@@ -56,13 +56,28 @@ interface EngineState {
    *  collection window expires. Concurrent seasonals can each have their
    *  own loot timer, so this is keyed by SeasonalType. Updated on every
    *  loot_window_started event (initial start AND each refresh). Entries
-   *  are deleted on loot_window_ended and on tracker_finished. */
+   *  are deleted on loot_window_ended and on tracker_finished, and all of
+   *  them while the session is paused: a frozen window has no countdown —
+   *  resume republishes it with the remaining time. */
   lootWindowDeadlines:      Map<SeasonalType, number>;
+  /** The broadcast seq the last applied snapshot was taken at. */
+  lastSeq:                  number;
+}
+
+/** The engine's replay (`Engine.getState`) as of broadcast `seq`. */
+export interface EngineSnapshot {
+  seq:    number;
+  events: EngineEvent[];
 }
 
 interface EngineActions {
   init:                 () => void; // register IPC listener once
   handleEvent:          (event: EngineEvent) => void;
+  /** Rebuild the store from a snapshot: every engine field back to its
+   *  initial value, then each replay event reduced in order. The feed stays
+   *  empty — history is not reconstructible. `sessionsVersion` is kept: it is
+   *  a monotonic change counter, not engine state. */
+  applySnapshot:        (snapshot: EngineSnapshot) => void;
   reset:                () => void;
   dismissLowStockItem:  (itemId: number) => void;
 }
@@ -77,30 +92,234 @@ export function selectRunStatus(s: Pick<EngineState, 'phase' | 'sessionStatus'>)
   return s.sessionStatus;
 }
 
+function initialState(): EngineState {
+  return {
+    phase:                      'idle',
+    feed:                       [],
+    drops:                      {},
+    sessionSpent:               {},
+    mapCount:                   0,
+    currentZone:                null,
+    mapTracker:                 null,
+    seasonalTrackers:           new Map<SeasonalType, TrackerSnapshot>(),
+    mapTrackerReceivedAt:       null,
+    seasonalTrackersReceivedAt: new Map<SeasonalType, number>(),
+    sessionStatus:              'idle',
+    sessionElapsed:             0,
+    sessionReceivedAt:          null,
+    accumulatedMapTime:         0,
+    activeSessionId:            null,
+    activeSessionName:          null,
+    sessionsVersion:            0,
+    lowStockWarnings:           [],
+    dismissedMaterials:         new Set<number>(),
+    lootWindowDeadlines:        new Map<SeasonalType, number>(),
+    lastSeq:                    0,
+  };
+}
+
+/** The state after `event` — everything but the feed, which only live events
+ *  extend. No side effects beyond reading the clock for `*ReceivedAt`. */
+function reduce(s: EngineState, event: EngineEvent): EngineState {
+  let phase                      = s.phase;
+  let drops                      = s.drops;
+  let sessionSpent               = s.sessionSpent;
+  let mapCount                   = s.mapCount;
+  let currentZone                = s.currentZone;
+  let mapTracker                 = s.mapTracker;
+  let seasonalTrackers           = s.seasonalTrackers;
+  let mapTrackerReceivedAt       = s.mapTrackerReceivedAt;
+  let seasonalTrackersReceivedAt = s.seasonalTrackersReceivedAt;
+  let sessionStatus              = s.sessionStatus;
+  let sessionElapsed             = s.sessionElapsed;
+  let sessionReceivedAt          = s.sessionReceivedAt;
+
+  let activeSessionId      = s.activeSessionId;
+  let activeSessionName    = s.activeSessionName;
+  let sessionsVersion      = s.sessionsVersion;
+  let lowStockWarnings     = s.lowStockWarnings;
+  let dismissedMaterials   = s.dismissedMaterials;
+  let accumulatedMapTime   = s.accumulatedMapTime;
+  let lootWindowDeadlines  = s.lootWindowDeadlines;
+
+  // The run is over: the session's tracker_finished and engine_stopped
+  // clear the same state. The drops are kept. A stop drops a live map /
+  // seasonals without finishing them, so their rows go here.
+  const endRun = () => {
+    phase                      = 'idle';
+    mapTracker                 = null;
+    mapTrackerReceivedAt       = null;
+    seasonalTrackers           = new Map();
+    seasonalTrackersReceivedAt = new Map();
+    lootWindowDeadlines        = new Map();
+    sessionStatus      = 'idle';
+    sessionElapsed     = 0;
+    sessionReceivedAt  = null;
+    accumulatedMapTime = 0;
+    activeSessionId    = null;
+    activeSessionName  = null;
+  };
+
+  // The session pause freezes every loot window (the engine keeps the
+  // remaining time): no countdown shows until resume republishes it.
+  const hideFrozenWindows = () => {
+    if (lootWindowDeadlines.size > 0) lootWindowDeadlines = new Map();
+  };
+
+  switch (event.type) {
+    case 'init_started':
+      phase                      = 'initializing';
+      drops                      = {};
+      sessionSpent               = {};
+      mapCount                   = 0;
+      mapTracker                 = null;
+      seasonalTrackers           = new Map();
+      mapTrackerReceivedAt       = null;
+      seasonalTrackersReceivedAt = new Map();
+      sessionStatus              = 'idle';
+      sessionElapsed             = 0;
+      sessionReceivedAt          = null;
+      accumulatedMapTime         = 0;
+      lowStockWarnings           = [];
+      dismissedMaterials         = new Set<number>();
+      lootWindowDeadlines        = new Map();
+      break;
+
+    case 'init_complete':
+      phase = 'tracking';
+      break;
+
+    case 'drop':
+      drops = {...drops, [event.itemId]: (drops[event.itemId] ?? 0) + event.change};
+      break;
+
+    case 'zone_change':
+      currentZone = event.to;
+      break;
+
+    case 'map_started':
+      mapCount = event.mapCount;
+      break;
+
+    case 'map_ended':
+      accumulatedMapTime += event.elapsed;
+      break;
+
+    case 'tracker_started':
+    case 'tracker_update':
+      if (event.tracker.kind === 'map') {
+        mapTracker           = event.tracker;
+        mapTrackerReceivedAt = Date.now();
+      } else if (event.tracker.kind === 'seasonal' && event.tracker.seasonalType) {
+        const type = event.tracker.seasonalType;
+        seasonalTrackers           = new Map(seasonalTrackers).set(type, event.tracker);
+        seasonalTrackersReceivedAt = new Map(seasonalTrackersReceivedAt).set(type, Date.now());
+      } else if (event.tracker.kind === 'session') {
+        // `active` is false while paused: a drop accepted mid-pause
+        // re-emits the snapshot and must not flip the run back to running.
+        sessionStatus     = event.tracker.active ? 'running' : 'paused';
+        sessionElapsed    = event.tracker.elapsed;
+        sessionReceivedAt = Date.now();
+        sessionSpent      = event.tracker.spent ?? {};
+        if (!event.tracker.active) hideFrozenWindows();
+        // On session start, seed renderer state from the snapshot so that
+        // a continued session carries over its drops, map count, and
+        // accumulated map time. Also fires on Engine.reset() so the
+        // average-per-map metric resets correctly.
+        if (event.type === 'tracker_started') {
+          drops              = {...event.tracker.drops};
+          mapCount           = event.sessionMeta?.mapCount ?? mapCount;
+          accumulatedMapTime = event.sessionMeta?.mapTime  ?? accumulatedMapTime;
+          if (event.sessionMeta) {
+            activeSessionId   = event.sessionMeta.sessionId;
+            activeSessionName = event.sessionMeta.continued ? event.sessionMeta.name : null;
+          }
+        }
+      }
+      break;
+
+    case 'tracker_finished':
+      if (event.tracker.kind === 'map') {
+        mapTracker           = null;
+        mapTrackerReceivedAt = null;
+      } else if (event.tracker.kind === 'seasonal' && event.tracker.seasonalType) {
+        const type = event.tracker.seasonalType;
+        const nextSeasonalTrackers = new Map(seasonalTrackers); nextSeasonalTrackers.delete(type);
+        const nextReceivedAt       = new Map(seasonalTrackersReceivedAt); nextReceivedAt.delete(type);
+        const nextDeadlines        = new Map(lootWindowDeadlines); nextDeadlines.delete(type);
+        seasonalTrackers           = nextSeasonalTrackers;
+        seasonalTrackersReceivedAt = nextReceivedAt;
+        lootWindowDeadlines        = nextDeadlines;
+      } else if (event.tracker.kind === 'session') {
+        drops        = event.tracker.drops;
+        sessionSpent = event.tracker.spent ?? {};
+        endRun();
+      }
+      break;
+
+    case 'engine_stopped':
+      // Every stop ends with this — also one during bag init, which has no
+      // session to finish. The drops stay on screen until the next run.
+      endRun();
+      break;
+
+    case 'session_status':
+      sessionStatus     = event.status;
+      sessionElapsed    = event.elapsed;
+      sessionReceivedAt = Date.now();
+      if (event.status === 'paused') hideFrozenWindows();
+      break;
+
+    case 'session_saved':
+      sessionsVersion += 1;
+      break;
+
+    case 'map_material_warning':
+      // The engine is authoritative: its emitted list already excludes
+      // dismissed items. The local dismissedMaterials set is only used
+      // to hide a row optimistically between a click-dismiss and the
+      // next map entry. Reset it on each event so we trust the engine.
+      lowStockWarnings   = event.items;
+      dismissedMaterials = new Set<number>();
+      break;
+
+    case 'loot_window_started':
+      if (event.seasonalType) {
+        lootWindowDeadlines = new Map(lootWindowDeadlines).set(event.seasonalType, event.deadline);
+      }
+      break;
+
+    case 'loot_window_ended':
+      if (event.seasonalType) {
+        const next = new Map(lootWindowDeadlines);
+        next.delete(event.seasonalType);
+        lootWindowDeadlines = next;
+      }
+      break;
+
+    // new_item: handleEvent's cross-store write. price_update: the main
+    // process broadcasts price changes via items:changed, which itemsStore
+    // subscribes to directly.
+  }
+
+  return {
+    ...s,
+    phase, drops, sessionSpent, mapCount, currentZone,
+    mapTracker, seasonalTrackers,
+    mapTrackerReceivedAt, seasonalTrackersReceivedAt,
+    sessionStatus, sessionElapsed, sessionReceivedAt,
+    accumulatedMapTime,
+    activeSessionId, activeSessionName, sessionsVersion,
+    lowStockWarnings, dismissedMaterials,
+    lootWindowDeadlines,
+  };
+}
+
 let _nextId = 0;
 let _initialized = false;
 
 export const useEngineStore = create<EngineState & EngineActions>((set, get) => ({
-  phase:                     'idle',
-  feed:                      [],
-  drops:                     {},
-  sessionSpent:              {},
-  mapCount:                  0,
-  currentZone:               null,
-  mapTracker:                 null,
-  seasonalTrackers:           new Map<SeasonalType, TrackerSnapshot>(),
-  mapTrackerReceivedAt:       null,
-  seasonalTrackersReceivedAt: new Map<SeasonalType, number>(),
-  sessionStatus:             'idle',
-  sessionElapsed:            0,
-  sessionReceivedAt:         null,
-  accumulatedMapTime:        0,
-  activeSessionId:           null,
-  activeSessionName:         null,
-  sessionsVersion:           0,
-  lowStockWarnings:          [],
-  dismissedMaterials:        new Set<number>(),
-  lootWindowDeadlines:       new Map<SeasonalType, number>(),
+  ...initialState(),
 
   init: () => {
     if (_initialized) return;
@@ -109,214 +328,26 @@ export const useEngineStore = create<EngineState & EngineActions>((set, get) => 
   },
 
   handleEvent: (event) => {
-    const feedEntry: FeedEvent = {id: _nextId++, timestamp: Date.now(), event};
-
-    set(s => {
-      const feed = [...s.feed, feedEntry].slice(-MAX_EVENTS);
-      let phase                     = s.phase;
-      let drops                     = s.drops;
-      let sessionSpent              = s.sessionSpent;
-      let mapCount                  = s.mapCount;
-      let currentZone               = s.currentZone;
-      let mapTracker                 = s.mapTracker;
-      let seasonalTrackers           = s.seasonalTrackers;
-      let mapTrackerReceivedAt       = s.mapTrackerReceivedAt;
-      let seasonalTrackersReceivedAt = s.seasonalTrackersReceivedAt;
-      let sessionStatus              = s.sessionStatus;
-      let sessionElapsed             = s.sessionElapsed;
-      let sessionReceivedAt          = s.sessionReceivedAt;
-
-      let activeSessionId      = s.activeSessionId;
-      let activeSessionName    = s.activeSessionName;
-      let sessionsVersion      = s.sessionsVersion;
-      let lowStockWarnings     = s.lowStockWarnings;
-      let dismissedMaterials   = s.dismissedMaterials;
-      let accumulatedMapTime   = s.accumulatedMapTime;
-      let lootWindowDeadlines  = s.lootWindowDeadlines;
-
-      // The run is over: the session's tracker_finished and engine_stopped
-      // clear the same state. The drops are kept.
-      const endRun = () => {
-        phase              = 'idle';
-        sessionStatus      = 'idle';
-        sessionElapsed     = 0;
-        sessionReceivedAt  = null;
-        accumulatedMapTime = 0;
-        activeSessionId    = null;
-        activeSessionName  = null;
-      };
-
-      switch (event.type) {
-        case 'init_started':
-          phase                      = 'initializing';
-          drops                      = {};
-          sessionSpent               = {};
-          mapCount                   = 0;
-          mapTracker                 = null;
-          seasonalTrackers           = new Map();
-          mapTrackerReceivedAt       = null;
-          seasonalTrackersReceivedAt = new Map();
-          sessionStatus              = 'idle';
-          sessionElapsed             = 0;
-          sessionReceivedAt          = null;
-          accumulatedMapTime         = 0;
-          lowStockWarnings           = [];
-          dismissedMaterials         = new Set<number>();
-          lootWindowDeadlines        = new Map();
-          break;
-
-        case 'init_complete':
-          phase = 'tracking';
-          break;
-
-        case 'drop':
-          drops = {...drops, [event.itemId]: (drops[event.itemId] ?? 0) + event.change};
-          break;
-
-        case 'new_item': {
-          const id = String(event.itemId);
-          const itemsState = useItemsStore.getState();
-          if (!itemsState.items[id]) {
-            useItemsStore.setState({
-              items: {...itemsState.items, [id]: {id, name: '', type: 'other', price: 0, priceDate: 0}},
-            });
-          }
-          break;
-        }
-
-        case 'zone_change':
-          currentZone = event.to;
-          break;
-
-        case 'map_started':
-          mapCount = event.mapCount;
-          break;
-
-        case 'map_ended':
-          accumulatedMapTime += event.elapsed;
-          break;
-
-        case 'tracker_started':
-        case 'tracker_update':
-          if (event.tracker.kind === 'map') {
-            mapTracker           = event.tracker;
-            mapTrackerReceivedAt = Date.now();
-          } else if (event.tracker.kind === 'seasonal' && event.tracker.seasonalType) {
-            const type = event.tracker.seasonalType;
-            seasonalTrackers           = new Map(seasonalTrackers).set(type, event.tracker);
-            seasonalTrackersReceivedAt = new Map(seasonalTrackersReceivedAt).set(type, Date.now());
-          } else if (event.tracker.kind === 'session') {
-            // `active` is false while paused: a drop accepted mid-pause
-            // re-emits the snapshot and must not flip the run back to running.
-            sessionStatus     = event.tracker.active ? 'running' : 'paused';
-            sessionElapsed    = event.tracker.elapsed;
-            sessionReceivedAt = Date.now();
-            sessionSpent      = event.tracker.spent ?? {};
-            // On session start, seed renderer state from the snapshot so that
-            // a continued session carries over its drops, map count, and
-            // accumulated map time. Also fires on Engine.reset() so the
-            // average-per-map metric resets correctly.
-            if (event.type === 'tracker_started') {
-              drops              = {...event.tracker.drops};
-              mapCount           = event.sessionMeta?.mapCount ?? mapCount;
-              accumulatedMapTime = event.sessionMeta?.mapTime  ?? accumulatedMapTime;
-              if (event.sessionMeta) {
-                activeSessionId   = event.sessionMeta.sessionId;
-                activeSessionName = event.sessionMeta.continued ? event.sessionMeta.name : null;
-              }
-            }
-          }
-          break;
-
-        case 'tracker_finished':
-          if (event.tracker.kind === 'map') {
-            mapTracker           = null;
-            mapTrackerReceivedAt = null;
-          } else if (event.tracker.kind === 'seasonal' && event.tracker.seasonalType) {
-            const type = event.tracker.seasonalType;
-            const nextSeasonalTrackers = new Map(seasonalTrackers); nextSeasonalTrackers.delete(type);
-            const nextReceivedAt       = new Map(seasonalTrackersReceivedAt); nextReceivedAt.delete(type);
-            const nextDeadlines        = new Map(lootWindowDeadlines); nextDeadlines.delete(type);
-            seasonalTrackers           = nextSeasonalTrackers;
-            seasonalTrackersReceivedAt = nextReceivedAt;
-            lootWindowDeadlines        = nextDeadlines;
-          } else if (event.tracker.kind === 'session') {
-            drops        = event.tracker.drops;
-            sessionSpent = event.tracker.spent ?? {};
-            endRun();
-          }
-          break;
-
-        case 'engine_stopped':
-          // Every stop ends with this — also one during bag init, which has no
-          // session to finish. The drops stay on screen until the next run.
-          endRun();
-          break;
-
-        case 'session_status':
-          sessionStatus     = event.status;
-          sessionElapsed    = event.elapsed;
-          sessionReceivedAt = Date.now();
-          break;
-
-        case 'session_saved':
-          sessionsVersion += 1;
-          break;
-
-        case 'price_update':
-          // The main process now broadcasts price changes via items:changed,
-          // which itemsStore subscribes to directly. No work needed here.
-          break;
-
-        case 'map_material_warning':
-          // The engine is authoritative: its emitted list already excludes
-          // dismissed items. The local dismissedMaterials set is only used
-          // to hide a row optimistically between a click-dismiss and the
-          // next map entry. Reset it on each event so we trust the engine.
-          lowStockWarnings   = event.items;
-          dismissedMaterials = new Set<number>();
-          break;
-
-        case 'loot_window_started':
-          if (event.seasonalType) {
-            lootWindowDeadlines = new Map(lootWindowDeadlines).set(event.seasonalType, event.deadline);
-          }
-          break;
-
-        case 'loot_window_ended':
-          if (event.seasonalType) {
-            const next = new Map(lootWindowDeadlines);
-            next.delete(event.seasonalType);
-            lootWindowDeadlines = next;
-          }
-          break;
+    if (event.type === 'new_item') {
+      const id = String(event.itemId);
+      const itemsState = useItemsStore.getState();
+      if (!itemsState.items[id]) {
+        useItemsStore.setState({
+          items: {...itemsState.items, [id]: {id, name: '', type: 'other', price: 0, priceDate: 0}},
+        });
       }
-
-      return {
-        feed, phase, drops, sessionSpent, mapCount, currentZone,
-        mapTracker, seasonalTrackers,
-        mapTrackerReceivedAt, seasonalTrackersReceivedAt,
-        sessionStatus, sessionElapsed, sessionReceivedAt,
-        accumulatedMapTime,
-        activeSessionId, activeSessionName, sessionsVersion,
-        lowStockWarnings, dismissedMaterials,
-        lootWindowDeadlines,
-      };
-    });
+    }
+    const feedEntry: FeedEvent = {id: _nextId++, timestamp: Date.now(), event};
+    set(s => ({...reduce(s, event), feed: [...s.feed, feedEntry].slice(-MAX_EVENTS)}));
   },
 
-  reset: () => set({
-    phase: 'idle', feed: [], drops: {}, sessionSpent: {}, mapCount: 0,
-    currentZone: null, mapTracker: null,
-    seasonalTrackers: new Map(),
-    mapTrackerReceivedAt: null,
-    seasonalTrackersReceivedAt: new Map(),
-    sessionStatus: 'idle', sessionElapsed: 0, sessionReceivedAt: null,
-    accumulatedMapTime: 0,
-    activeSessionId: null, activeSessionName: null, sessionsVersion: 0,
-    lowStockWarnings: [], dismissedMaterials: new Set<number>(),
-    lootWindowDeadlines: new Map(),
+  applySnapshot: ({seq, events}) => set(s => {
+    let next: EngineState = {...initialState(), sessionsVersion: s.sessionsVersion};
+    for (const event of events) next = reduce(next, event);
+    return {...next, lastSeq: seq};
   }),
+
+  reset: () => set(initialState()),
 
   dismissLowStockItem: (itemId) => {
     window.electronAPI.engine.dismissMaterial(itemId);

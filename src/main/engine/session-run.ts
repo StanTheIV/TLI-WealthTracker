@@ -34,7 +34,8 @@ export function openSessionRun(
     throw new Error('openSessionRun: no session identity — Engine.start / Engine.reset set it');
   }
   const loaded = ctx.loadedSession;
-  ctx.loadedSession = null;
+  ctx.loadedSession    = null;
+  ctx.sessionContinued = loaded !== null;
 
   const session = ctx.registry.startSession();
   if (loaded) {
@@ -56,7 +57,7 @@ export function openSessionRun(
     sessionMeta: {
       sessionId,
       name,
-      continued: loaded !== null,
+      continued: ctx.sessionContinued,
       mapTime:   ctx.accumulatedMapTime,
       mapCount:  ctx.mapCount,
     },

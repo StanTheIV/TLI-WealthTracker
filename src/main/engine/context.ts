@@ -87,6 +87,11 @@ export class EngineContext {
    *  the session opens. */
   loadedSession: LoadedSessionData | null = null;
 
+  /** The open session continues a saved one (its `sessionMeta.continued`).
+   *  Set by openSessionRun, which consumes `loadedSession`, and kept for the
+   *  run so the session start can be replayed (Engine.getState). */
+  sessionContinued: boolean = false;
+
   /** The session identity (see SessionIdentity): set by Engine.start and
    *  Engine.reset, null while idle. */
   activeSessionId:   string | null = null;
@@ -131,6 +136,7 @@ export class EngineContext {
     this.mapCount          = 0;
     this.accumulatedMapTime = 0;
     this.loadedSession     = null;
+    this.sessionContinued  = false;
     this.activeSessionId   = null;
     this.activeSessionName = null;
     this.registry.reset();

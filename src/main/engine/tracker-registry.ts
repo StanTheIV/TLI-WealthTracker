@@ -347,6 +347,14 @@ export class TrackerRegistry {
     }
   }
 
+  /** Every live seasonal as published: snapshot stamped with `owner`, in
+   *  START order — `_seasonals` insertion order, which is the order the
+   *  renderer's rows were created in (`_startOrder` is activation order).
+   *  Read-only: records nothing, emits nothing. */
+  replaySeasonals(): Array<{tracker: SeasonalTracker; snapshot: TrackerSnapshot}> {
+    return [...this._seasonals.values()].map(tracker => ({tracker, snapshot: this._snapshotWithOwner(tracker)}));
+  }
+
   /** Snapshot stamped with the drop-ownership flag. */
   private _snapshotWithOwner(tracker: SeasonalTracker): TrackerSnapshot {
     const snap = tracker.snapshot();

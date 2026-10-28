@@ -65,6 +65,10 @@ export class OwnerWatcher {
       }
     } else if (ev.type === 'tracker_finished' && ev.tracker.seasonalType) {
       this.published.delete(ev.tracker.seasonalType);
+    } else if ((ev.type === 'tracker_finished' && ev.tracker.kind === 'session') || ev.type === 'engine_stopped') {
+      // The run is over: a stop drops the live seasonals without finishing
+      // them, and their rows go with it.
+      this.published.clear();
     }
     if (this._opts.store) {
       useEngineStore.getState().handleEvent(ev);

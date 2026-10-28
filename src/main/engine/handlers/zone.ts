@@ -54,6 +54,21 @@ export class ZoneHandler implements EventHandler {
   readonly name    = 'zone';
   readonly handles = ['zone_transition'] as const;
 
+  /** The run's last `zone_change` — the scene the renderer shows. */
+  private _lastChange: Extract<EngineEvent, {type: 'zone_change'}> | null = null;
+
+  onStart(): void {
+    this._lastChange = null;
+  }
+
+  onStop(): void {
+    this._lastChange = null;
+  }
+
+  replay(): EngineEvent[] {
+    return this._lastChange ? [{...this._lastChange}] : [];
+  }
+
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
     if (event.type !== 'zone_transition') return;
     // NOTE: we deliberately do NOT bail on ctx.paused. Zone transitions are
@@ -75,13 +90,14 @@ export class ZoneHandler implements EventHandler {
 
     const now = Date.now();
 
-    emit({
+    this._lastChange = {
       type: 'zone_change',
       from: shortScene(event.fromScene),
       to:   shortScene(event.toScene),
       entering: ENTERING[classifyScene(event.toScene)],
       timestamp: now,
-    });
+    };
+    emit({...this._lastChange});
 
     // The hub never starts a map: its sub-maps resolve to 'hub'. startMap()
     // still refuses while a bubble is up (a seasonal-scene detour out of the
