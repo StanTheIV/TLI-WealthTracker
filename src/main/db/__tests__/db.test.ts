@@ -34,6 +34,7 @@ const SESSION: DbSession = {
   attribution:   'drop-through',
   priceSnapshot: {'100': 2},
   spent:         {},
+  endedAt:       Date.parse('2026-10-01T00:00:00.000Z'),
 };
 
 beforeEach(() => {

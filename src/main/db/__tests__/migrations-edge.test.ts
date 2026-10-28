@@ -122,8 +122,8 @@ describe('runner edge cases', () => {
 });
 
 describe('v1 baseline vs the v0.19 schema code', () => {
-  /** The schema changes after v1: v2 adds the session total cost, v3 the row finish. */
-  const POST_V1_DDL = "ALTER TABLE sessions ADD COLUMN spent TEXT NOT NULL DEFAULT '{}'; ALTER TABLE session_maps ADD COLUMN ended_at INTEGER NOT NULL DEFAULT 0";
+  /** The schema changes after v1: v2 adds the session total cost, v3 the row finish, v4 the session end. */
+  const POST_V1_DDL = "ALTER TABLE sessions ADD COLUMN spent TEXT NOT NULL DEFAULT '{}'; ALTER TABLE session_maps ADD COLUMN ended_at INTEGER NOT NULL DEFAULT 0; ALTER TABLE sessions ADD COLUMN ended_at INTEGER";
 
   const schema = (c: SqlConn) => c.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name").all();
   const dump   = (c: SqlConn) => Object.fromEntries(
@@ -155,7 +155,7 @@ describe('v1 baseline vs the v0.19 schema code', () => {
     `);
   }
 
-  it('produces the identical sqlite_master (plus v2, v3) and an unchanged data set from a real v0.19 DB', () => {
+  it('produces the identical sqlite_master (plus v2, v3, v4) and an unchanged data set from a real v0.19 DB', () => {
     const conn = legacyDb();
     seedAll(conn);
     expect(version(conn)).toBe(0);
@@ -169,10 +169,11 @@ describe('v1 baseline vs the v0.19 schema code', () => {
     expect(schema(conn)).toEqual(schema(target));
     // Only differences allowed: the every-start empty-type normalisation,
     // v2's new column at its default (the seed has no row cost to move), and
-    // v3's row finish backfilled as started_at + duration.
+    // v3's row finish backfilled as started_at + duration, and v4's session end as the parsed saved_at.
     const expected = structuredClone(dataBefore) as Record<string, Record<string, unknown>[]>;
     expected.items.find(i => i.id === '200')!.type = 'other';
-    for (const s of expected.sessions) s.spent = '{}';
+    for (const s of expected.sessions) { s.spent = '{}'; s.ended_at = Date.parse(s.saved_at as string); }
+    expect(expected.sessions.map(s => s.ended_at)).toEqual([Date.parse('2026-10-01T00:00:00Z')]);
     for (const r of expected.session_maps) r.ended_at = (r.started_at as number) + (r.duration as number);
     expect(expected.session_maps.map(r => r.ended_at)).toEqual([3, 7]);
     expect(dump(conn)).toEqual(expected);
@@ -180,7 +181,7 @@ describe('v1 baseline vs the v0.19 schema code', () => {
     expect(getDb().prepare('PRAGMA foreign_key_check').all()).toEqual([]);
   });
 
-  it('a fresh DB gets the same sqlite_master as a fresh v0.19 DB plus v2, v3', () => {
+  it('a fresh DB gets the same sqlite_master as a fresh v0.19 DB plus v2, v3, v4', () => {
     const old = legacyDb();
     old.exec(POST_V1_DDL);
     const fresh = open();
@@ -212,7 +213,9 @@ describe('v1 baseline vs the v0.19 schema code', () => {
     runMigrations(ancient, MIGRATIONS, {backup: () => {}});
     const cols = (c: SqlConn, t: string) => c.prepare(`PRAGMA table_info(${t})`).all();
     for (const t of ['items', 'sessions', 'wealth_datapoints', 'session_maps']) expect(cols(ancient, t), t).toEqual(cols(old, t));
-    expect(ancient.prepare('SELECT * FROM sessions').all()).toEqual(old.prepare('SELECT * FROM sessions').all());
+    // saved_at 'x' is unparsable and the session has no rows: v4 falls back to 0, never NULL (NULL = live).
+    expect(ancient.prepare('SELECT * FROM sessions').all())
+      .toEqual(old.prepare('SELECT * FROM sessions').all().map(s => ({...s, ended_at: 0})));
     expect(ancient.prepare('SELECT * FROM items').all()).toEqual(old.prepare('SELECT * FROM items').all());
   });
 });

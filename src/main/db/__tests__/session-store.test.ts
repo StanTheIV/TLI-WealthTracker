@@ -10,8 +10,9 @@ import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 
 const session = (id: string, savedAt: string, extra: Partial<DbSession> = {}): DbSession => ({
   id, name: id, savedAt, totalTime: 1, mapTime: 1, mapCount: 1,
-  drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, ...extra,
+  drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, endedAt: null, ...extra,
 });
+
 
 const mapRow = (sessionId: string, mapIndex: number, extra: Partial<DbSessionMap> = {}): DbSessionMap => ({
   sessionId, mapIndex, startedAt: mapIndex, endedAt: mapIndex + 1, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null, ...extra,
@@ -42,9 +43,12 @@ describe('SqliteSessionStore — sessions', () => {
       attribution:   'drop-through',
       priceSnapshot: {'100': 2.5},
       spent:         {'300': 2},
+      endedAt:       1_790_000_000_000,
     };
     store.insertSession(s);
     expect(store.getSession('s1')).toEqual(s);
+    expect(store.getSession('s1')?.endedAt).toBe(1_790_000_000_000);
+    expect(conn.prepare('SELECT ended_at FROM sessions WHERE id = ?').get('s1')).toEqual({ended_at: 1_790_000_000_000});
     const raw = conn.prepare('SELECT total_time, drops, price_snapshot, spent FROM sessions WHERE id = ?').get('s1');
     expect(raw).toEqual({total_time: 3600.5, drops: '{"100":3,"200":1}', price_snapshot: '{"100":2.5}', spent: '{"300":2}'});
   });
@@ -70,7 +74,7 @@ describe('SqliteSessionStore — sessions', () => {
     expect(store.getSession('new')?.attribution).toBe('drop-through');
   });
 
-  it('updateSessionTotals overwrites run data but never the name', () => {
+  it('updateSessionTotals overwrites run data but never the name or the price snapshot', () => {
     store.insertSession(session('a', '2026-10-01T00:00:00Z', {name: 'My Run', priceSnapshot: {'100': 1, '300': 4}}));
     store.updateSessionTotals({
       id:            'a',
@@ -82,8 +86,9 @@ describe('SqliteSessionStore — sessions', () => {
       drops:         {'200': 9},
       dropsBySource: {sandlord: {'200': 9}},
       attribution:   'exclusive',
-      priceSnapshot: {'200': 1},
+      priceSnapshot: {'200': 1},   // ignored: the snapshot is only ever merged
       spent:         {'300': 2},
+      endedAt:       null,
     });
     expect(store.getSession('a')).toEqual({
       id:            'a',
@@ -95,9 +100,64 @@ describe('SqliteSessionStore — sessions', () => {
       drops:         {'200': 9},
       dropsBySource: {sandlord: {'200': 9}},
       attribution:   'exclusive',
-      priceSnapshot: {'200': 1},   // replaced whole
+      priceSnapshot: {'100': 1, '300': 4},   // kept as inserted (was: replaced whole)
       spent:         {'300': 2},
+      endedAt:       null,
     });
+  });
+
+  it('updateSessionTotals still bumps saved_at and leaves ended_at alone', () => {
+    store.insertSession(session('a', '2026-10-01T00:00:00Z', {endedAt: 555}));
+    store.updateSessionTotals(session('a', '2026-10-09T00:00:00Z', {totalTime: 42, endedAt: null}));
+    expect(store.getSession('a')).toMatchObject({savedAt: '2026-10-09T00:00:00Z', totalTime: 42});
+    expect(store.getSession('a')?.endedAt).toBe(555);
+  });
+
+  it('insertSession of a live session stores NULL ended_at; a given endedAt is stored', () => {
+    store.insertSession(session('live', 'x'));
+    store.insertSession(session('done', 'y', {endedAt: 1234}));
+    expect(store.getSession('live')?.endedAt).toBeNull();
+    expect(store.getSession('done')?.endedAt).toBe(1234);
+    expect(conn.prepare('SELECT ended_at FROM sessions WHERE id = ?').get('live')).toEqual({ended_at: null});
+  });
+
+  it('closeSession sets ended_at and touches nothing else; reopenSession sets it back to NULL', () => {
+    store.insertSession(session('a', 'x', {priceSnapshot: {'7': 1}}));
+    store.insertSession(session('b', 'y'));
+    store.closeSession('a', 99_000);
+    expect(store.getSession('a')?.endedAt).toBe(99_000);
+    expect(store.getSession('a')).toEqual({...session('a', 'x', {priceSnapshot: {'7': 1}}), endedAt: 99_000});
+    expect(store.getSession('b')?.endedAt).toBeNull();
+    store.reopenSession('a');
+    expect(store.getSession('a')).toEqual(session('a', 'x', {priceSnapshot: {'7': 1}}));
+    expect(conn.prepare('SELECT ended_at FROM sessions WHERE id = ?').get('a')).toEqual({ended_at: null});
+  });
+
+  it('closeSession / reopenSession of an unknown id are no-ops', () => {
+    store.insertSession(session('a', 'x'));
+    expect(() => store.closeSession('ghost', 1)).not.toThrow();
+    expect(() => store.reopenSession('ghost')).not.toThrow();
+    expect(countRows(conn, 'sessions')).toBe(1);
+    expect(store.getSession('a')?.endedAt).toBeNull();
+  });
+
+  it('listOpenSessions returns only live sessions, ordered like listSessions', () => {
+    store.insertSession(session('a', '2026-10-02T00:00:00Z'));
+    store.insertSession(session('b', '2026-10-03T00:00:00Z'));
+    store.insertSession(session('c', '2026-10-01T00:00:00Z'));
+    store.insertSession(session('d', '2026-10-04T00:00:00Z', {endedAt: 5}));
+    expect(store.listOpenSessions().map(x => x.id)).toEqual(['b', 'a', 'c']);
+    store.closeSession('b', 10);
+    expect(store.listOpenSessions().map(x => x.id)).toEqual(['a', 'c']);
+    store.reopenSession('d');
+    expect(store.listOpenSessions().map(x => x.id)).toEqual(['d', 'a', 'c']);
+    expect(store.listOpenSessions()[0]).toEqual(store.getSession('d'));
+  });
+
+  it('listOpenSessions is empty when there are no live sessions', () => {
+    expect(store.listOpenSessions()).toEqual([]);
+    store.insertSession(session('a', 'x', {endedAt: 1}));
+    expect(store.listOpenSessions()).toEqual([]);
   });
 
   it('updateSessionTotals of an unknown id writes nothing', () => {

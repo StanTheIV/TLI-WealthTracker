@@ -290,6 +290,7 @@ describe('SessionPersistence — auto-save', () => {
       attribution:   'drop-through',
       priceSnapshot: {},
       spent:         {},
+      endedAt:       new Date(2026, 9, 26, 14, 5).getTime(),   // saved at Stop: the save is the end
     });
   });
 
@@ -297,7 +298,7 @@ describe('SessionPersistence — auto-save', () => {
     store.insertSession({
       id: 's1', name: 'My Run', savedAt: '2026-10-01T00:00:00.000Z', totalTime: 100, mapTime: 80, mapCount: 2,
       drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {'100': 9},
-      spent: {},
+      spent: {}, endedAt: Date.parse('2026-10-01T00:00:00.000Z'),
     });
     store.insertRows([
       {sessionId: 's1', mapIndex: 1, startedAt: 1, endedAt: 2, duration: 1, drops: {'100': 1}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null},
@@ -311,7 +312,7 @@ describe('SessionPersistence — auto-save', () => {
     finish(p, {drops: {200: 2}, elapsed: 160_000, dropsBySource: {map: {200: 2}}, sessionMeta: {mapTime: 140_000, mapCount: 3}});
 
     // Known continue defects (fixed in 2.1), pinned as-is: dropsBySource holds
-    // only the new run, the snapshot is replaced, and mapIndex restarts at 1.
+    // only the new run and mapIndex restarts at 1. The snapshot is merged (2.1a).
     expect(store.getSession('s1')).toMatchObject({
       name:          'Renamed',
       totalTime:     160,
@@ -319,9 +320,12 @@ describe('SessionPersistence — auto-save', () => {
       mapCount:      3,
       drops:         {'200': 2},
       dropsBySource: {map: {'200': 2}},
-      priceSnapshot: {'200': 4},
+      priceSnapshot: {'100': 9, '200': 4},   // was: replaced by {'200': 4}
     });
     expect(rows().map(r => r.mapIndex)).toEqual([1, 2, 1]);
+    // The continued run's Stop re-closes it at this save (closeSession).
+    const saved = store.getSession('s1')!;
+    expect(saved.endedAt).toBe(Date.parse(saved.savedAt));
     expect(store.listSessions()).toHaveLength(1);
   });
 
@@ -395,7 +399,7 @@ describe('SessionPersistence — auto-save', () => {
   it('clears the buffer and index after a saved session event', () => {
     store.insertSession({
       id: 's1', name: 'Run', savedAt: 'x', totalTime: 0, mapTime: 0, mapCount: 0,
-      drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, spent: {},
+      drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, endedAt: 1,
     });
     const p = make({sessionName: 'Run', isOverride: true});
     onEngineEvent(p, unitFinished(snap('map', {100: 1}, 60_000)));

@@ -294,4 +294,31 @@ export const MIGRATIONS: readonly Migration[] = [
       log.info('database', `Row finish migration: ${changes} rows backfilled`);
     },
   },
+  {
+    // A session stores its end; NULL marks it live. Every session before this
+    // step was saved at Stop, so it ended at its save — the parsed `saved_at`
+    // (an over-estimate: the save comes after the last map). Parsed in JS per
+    // row: SQLite's date functions don't read every shape `Date.parse` does.
+    // An unparsable saved_at must not stay NULL (it would read as live).
+    version: 4,
+    name:    'session-ended-at',
+    backup:  'pre-session-ended-at',
+    up(conn) {
+      ensureColumn(conn, 'sessions', 'ended_at', 'INTEGER');
+      const sessions = conn.prepare('SELECT id, saved_at FROM sessions ORDER BY id').all<{id: string; saved_at: string}>();
+      const lastRowEnd = conn.prepare('SELECT MAX(ended_at) AS e FROM session_maps WHERE session_id = ?');
+      const update     = conn.prepare('UPDATE sessions SET ended_at = ? WHERE id = ?');
+      let fallbacks = 0;
+      for (const s of sessions) {
+        let endedAt = Date.parse(s.saved_at);
+        if (Number.isNaN(endedAt)) {
+          endedAt = lastRowEnd.get<{e: number | null}>(s.id)?.e ?? 0;
+          fallbacks++;
+          log.warn('database', `Session end migration: session ${s.id}: unparsable saved_at ${JSON.stringify(s.saved_at)}, using ${endedAt}`);
+        }
+        update.run(endedAt, s.id);
+      }
+      log.info('database', `Session end migration: ${sessions.length} sessions backfilled (${fallbacks} from fallback)`);
+    },
+  },
 ];

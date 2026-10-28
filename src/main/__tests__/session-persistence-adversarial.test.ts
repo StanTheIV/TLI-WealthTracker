@@ -39,7 +39,7 @@ function finish(p: SessionPersistence, drops: Record<number, number> = {}, elaps
 const existing: DbSession = {
   id: 's1', name: 'My Run', savedAt: '2026-10-01T00:00:00.000Z', totalTime: 100, mapTime: 80, mapCount: 2,
   drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {'100': 9},
-  spent: {},
+  spent: {}, endedAt: Date.parse('2026-10-01T00:00:00.000Z'),
 };
 
 describe('atomicity', () => {

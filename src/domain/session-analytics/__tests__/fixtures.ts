@@ -14,6 +14,7 @@ export function makeSession(over: Partial<DbSession> = {}): DbSession {
     attribution:   'drop-through',
     priceSnapshot: {},
     spent:         {},
+    endedAt:       Date.parse('2026-08-08T12:00:00.000Z'),
     ...over,
   };
 }

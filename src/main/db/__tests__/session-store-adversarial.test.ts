@@ -13,7 +13,7 @@ import {getDb, initDb} from '@/main/db';
 
 const session = (id: string, savedAt = 'x', extra: Partial<DbSession> = {}): DbSession => ({
   id, name: id, savedAt, totalTime: 1, mapTime: 1, mapCount: 1,
-  drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, ...extra,
+  drops: {'100': 1}, dropsBySource: {map: {'100': 1}}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, endedAt: null, ...extra,
 });
 const mapRow = (sessionId: string, mapIndex: number, extra: Partial<DbSessionMap> = {}): DbSessionMap => ({
   sessionId, mapIndex, startedAt: mapIndex, endedAt: mapIndex + 1, duration: 1, drops: {}, spent: {}, seasonalType: null, parentMapIndex: null, phase: null, ...extra,
@@ -32,9 +32,8 @@ describe('equivalence with the pre-0.3 db.ts SQL (inlined)', () => {
     UPDATE sessions
     SET name = @name, saved_at = @savedAt, total_time = @totalTime,
         map_time = @mapTime, map_count = @mapCount, drops = @drops,
-        drops_by_source = @dropsBySource, attribution = @attribution,
-        price_snapshot = @priceSnapshot
-    WHERE id = @id`;
+        drops_by_source = @dropsBySource, attribution = @attribution
+    WHERE id = @id`;   // price_snapshot dropped in 2.1a: the snapshot is only merged
   const oldParams = (s: DbSession) => ({
     ...s, drops: JSON.stringify(s.drops), dropsBySource: JSON.stringify(s.dropsBySource),
     priceSnapshot: JSON.stringify(s.priceSnapshot ?? {}),
@@ -78,7 +77,7 @@ describe('equivalence with the pre-0.3 db.ts SQL (inlined)', () => {
     expect(store.getSession('a')?.name).toBe('orig');
   });
 
-  it('updateSessionTotals == old sessionsUpdate on every column except name', () => {
+  it('updateSessionTotals == old sessionsUpdate on every column except name and price_snapshot', () => {
     const other = openMigratedNodeSqlite();
     const base = session('a', '2026-01-01', {name: 'Keep', priceSnapshot: {'1': 1}});
     other.prepare(OLD_INSERT).run(oldParams(base));
@@ -92,10 +91,55 @@ describe('equivalence with the pre-0.3 db.ts SQL (inlined)', () => {
     expect(raw(conn, 'a')).toEqual(raw(other, 'a'));
   });
 
-  it('updateSessionTotals with undefined priceSnapshot replaces with {}', () => {
+  it('updateSessionTotals with undefined priceSnapshot keeps the stored snapshot', () => {
     store.insertSession(session('a', 'x', {priceSnapshot: {'1': 1}}));
     store.updateSessionTotals({...session('a'), priceSnapshot: undefined} as unknown as DbSession);
-    expect(raw(conn, 'a')).toMatchObject({price_snapshot: '{}'});
+    expect(raw(conn, 'a')).toMatchObject({price_snapshot: '{"1":1}'});
+  });
+
+  it('updateSessionTotals never changes ended_at, in either direction', () => {
+    store.insertSession(session('live'));
+    store.insertSession(session('done', 'x', {endedAt: 77}));
+    store.updateSessionTotals(session('live', 'y', {endedAt: 123}));
+    store.updateSessionTotals(session('done', 'y', {endedAt: null}));
+    expect(store.getSession('live')?.endedAt).toBeNull();
+    expect(store.getSession('done')?.endedAt).toBe(77);
+  });
+
+  it('closeSession overwrites an earlier close, accepts 0 and huge ms values, and never throws on repeats', () => {
+    store.insertSession(session('a'));
+    store.closeSession('a', 5);
+    store.closeSession('a', 2 ** 53 - 1);
+    expect(store.getSession('a')?.endedAt).toBe(2 ** 53 - 1);
+    store.closeSession('a', 0);
+    expect(store.getSession('a')?.endedAt).toBe(0);   // 0 is closed, not live
+    expect(store.listOpenSessions()).toEqual([]);
+    store.reopenSession('a');
+    store.reopenSession('a');
+    expect(store.getSession('a')?.endedAt).toBeNull();
+  });
+
+  it('close / reopen are bound, not interpolated, and keep the session rows and other sessions intact', () => {
+    const id = "x'; DROP TABLE sessions; --";
+    store.insertSession(session(id));
+    store.insertSession(session('b'));
+    store.insertRows([mapRow(id, 1)]);
+    store.closeSession(id, 9);
+    expect(count(conn, 'sessions')).toBe(2);
+    expect(store.getRows(id)).toHaveLength(1);
+    expect(store.getSession('b')?.endedAt).toBeNull();
+  });
+
+  it('close and reopen roll back with an outer transaction', () => {
+    store.insertSession(session('a'));
+    expect(() => store.transaction(() => { store.closeSession('a', 5); throw new Error('boom'); })).toThrow('boom');
+    expect(store.getSession('a')?.endedAt).toBeNull();
+  });
+
+  it('a session with a NULL ended_at in the raw table is open (legacy-shaped row)', () => {
+    conn.prepare("INSERT INTO sessions (id, name, saved_at, drops) VALUES ('raw', 'Raw', 'x', '{}')").run();
+    expect(store.getSession('raw')?.endedAt).toBeNull();
+    expect(store.listOpenSessions().map(x => x.id)).toEqual(['raw']);
   });
 
   it('insertRows writes raw columns identical to the old statement, plus ended_at (v3)', () => {

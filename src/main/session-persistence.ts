@@ -196,10 +196,12 @@ export class SessionPersistence {
       }
     }
 
+    // Saved only at Stop, so a saved session has ended: its end is the save.
+    const now = Date.now();
     const record: DbSession = {
       id:        this._meta.sessionId,
       name:      this._meta.sessionName ?? generateSessionName(),
-      savedAt:   new Date().toISOString(),
+      savedAt:   new Date(now).toISOString(),
       totalTime: totalTimeMs / 1000,
       mapTime:   sessionMeta.mapTime / 1000,
       mapCount:  sessionMeta.mapCount,
@@ -208,12 +210,19 @@ export class SessionPersistence {
       attribution: 'drop-through',
       priceSnapshot: this._capturePrices(drops, spent),
       spent,
+      endedAt: now,
     };
 
     // The session row and its per-map rows commit together or not at all.
     this._store.transaction(() => {
-      if (this._meta.isOverride) this._store.updateSessionTotals(record);
-      else                       this._store.insertSession(record);
+      if (this._meta.isOverride) {
+        // The totals update leaves the snapshot and the end alone.
+        this._store.updateSessionTotals(record);
+        this._store.mergePriceSnapshot(record.id, record.priceSnapshot);
+        this._store.closeSession(record.id, now);
+      } else {
+        this._store.insertSession(record);
+      }
       this._store.insertRows(this._pendingRows);
     });
     if (this._pendingRows.length > 0) {

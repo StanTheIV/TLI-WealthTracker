@@ -99,7 +99,7 @@ function loggedId(h: Harness, prefix: string): string {
 function savedSession(over: Partial<DbSession> = {}): DbSession {
   return {
     id: 'old', name: 'My run', savedAt: '2026-02-01T10:00:00.000Z', totalTime: 120, mapTime: 100,
-    mapCount: 2, drops: {'300': 4}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, ...over,
+    mapCount: 2, drops: {'300': 4}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, endedAt: Date.parse('2026-02-01T10:00:00.000Z'), ...over,
   };
 }
 

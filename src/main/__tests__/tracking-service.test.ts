@@ -136,6 +136,7 @@ function savedSession(over: Partial<DbSession> = {}): DbSession {
     attribution:   'drop-through',
     priceSnapshot: {},
     spent:         {},
+    endedAt:       Date.parse('2026-02-01T10:00:00.000Z'),
     ...over,
   };
 }

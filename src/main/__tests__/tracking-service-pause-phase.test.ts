@@ -73,7 +73,7 @@ describe('TrackingService pause outside tracking', () => {
     const h = build();
     h.store.insertSession({
       id: 'old', name: 'My run', savedAt: '2026-02-01T10:00:00.000Z', totalTime: 120, mapTime: 100,
-      mapCount: 2, drops: {'300': 4}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, spent: {},
+      mapCount: 2, drops: {'300': 4}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {}, spent: {}, endedAt: Date.parse('2026-02-01T10:00:00.000Z'),
     });
     h.service.continueSession('old');
     h.service.pause();

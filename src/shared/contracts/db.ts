@@ -45,6 +45,10 @@ export interface DbSession {
   /** Total entry cost (positive magnitudes) — Σ of the primary rows' `spent`.
    *  Not part of `drops`. `{}` for a session that spent nothing; v2 backfilled it. */
   spent:         Record<string, number>;
+  /** ms epoch — when the session ended (Stop, or crash-close at startup).
+   *  `null` while it is live. Sessions saved before v4 were backfilled with
+   *  their `savedAt` (an over-estimate: the save came after the last map). */
+  endedAt:       number | null;
 }
 
 /**

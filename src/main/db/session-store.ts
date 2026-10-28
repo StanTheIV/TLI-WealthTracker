@@ -14,6 +14,7 @@ type SessionRow = {
   attribution:     string;
   price_snapshot:  string;
   spent:           string;
+  ended_at:        number | null;
 };
 
 type SessionMapRow = {
@@ -47,6 +48,7 @@ function rowToSession(r: SessionRow): DbSession {
     attribution,
     priceSnapshot: JSON.parse(r.price_snapshot ?? '{}'),
     spent:         JSON.parse(r.spent ?? '{}'),
+    endedAt:       r.ended_at,
   };
 }
 
@@ -78,22 +80,33 @@ export class SqliteSessionStore {
 
   insertSession(session: DbSession): void {
     this.conn.prepare(`
-      INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source, attribution, price_snapshot, spent)
-      VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource, @attribution, @priceSnapshot, @spent)
+      INSERT INTO sessions (id, name, saved_at, total_time, map_time, map_count, drops, drops_by_source, attribution, price_snapshot, spent, ended_at)
+      VALUES (@id, @name, @savedAt, @totalTime, @mapTime, @mapCount, @drops, @dropsBySource, @attribution, @priceSnapshot, @spent, @endedAt)
     `).run(sessionParams(session));
   }
 
-  /** Overwrite a saved session's run data (`price_snapshot` replaced whole).
-   *  Never writes `name` — the user may rename it during a continued run. */
+  /** Overwrite a saved session's run data and bump `saved_at`. Never writes
+   *  `name` (the user may rename a live session), `price_snapshot` (only ever
+   *  merged: `mergePriceSnapshot`) or `ended_at` (`closeSession`/`reopenSession`). */
   updateSessionTotals(session: DbSession): void {
     this.conn.prepare(`
       UPDATE sessions
       SET saved_at = @savedAt, total_time = @totalTime,
           map_time = @mapTime, map_count = @mapCount, drops = @drops,
           drops_by_source = @dropsBySource, attribution = @attribution,
-          price_snapshot = @priceSnapshot, spent = @spent
+          spent = @spent
       WHERE id = @id
     `).run(sessionParams(session));
+  }
+
+  /** Mark a session ended at `endedAt` (ms epoch). No-op for an unknown id. */
+  closeSession(id: string, endedAt: number): void {
+    this.conn.prepare('UPDATE sessions SET ended_at = ? WHERE id = ?').run(endedAt, id);
+  }
+
+  /** Make a session live again (`ended_at` NULL). No-op for an unknown id. */
+  reopenSession(id: string): void {
+    this.conn.prepare('UPDATE sessions SET ended_at = NULL WHERE id = ?').run(id);
   }
 
   getSession(id: string): DbSession | null {
@@ -105,6 +118,12 @@ export class SqliteSessionStore {
   /** Every saved session, newest first. */
   listSessions(): DbSession[] {
     const rows = this.conn.prepare('SELECT * FROM sessions ORDER BY saved_at DESC').all<SessionRow>();
+    return rows.map(rowToSession);
+  }
+
+  /** Live sessions (`ended_at` NULL), newest first. */
+  listOpenSessions(): DbSession[] {
+    const rows = this.conn.prepare('SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY saved_at DESC').all<SessionRow>();
     return rows.map(rowToSession);
   }
 

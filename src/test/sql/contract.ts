@@ -174,6 +174,20 @@ export const CONTRACT_CASES: ContractCase[] = [
     },
   },
   {
+    // sessions.ended_at (v4): NULL = live, else an ms epoch read back as an exact number.
+    name: 'null binds as NULL; integer ms epochs (negative, 2^53 − 1) round-trip as exact numbers',
+    run(conn) {
+      setup(conn);
+      const ins = conn.prepare('INSERT INTO t (b) VALUES (?)');
+      for (const v of [null, -1000, 0, 1_790_000_000_000, Number.MAX_SAFE_INTEGER]) ins.run(v);
+      conn.prepare('INSERT INTO t (b) VALUES (@b)').run({b: null});
+      const rows = conn.prepare('SELECT b, typeof(b) AS ty FROM t ORDER BY id').all<{b: number | null; ty: string}>();
+      assert.deepEqual(rows.map(r => r.b), [null, -1000, 0, 1_790_000_000_000, Number.MAX_SAFE_INTEGER, null]);
+      assert.deepEqual(rows.map(r => r.ty), ['null', 'integer', 'integer', 'integer', 'integer', 'null']);
+      assert.equal(conn.prepare('SELECT COUNT(*) AS n FROM t WHERE b IS NULL').get<{n: number}>()!.n, 2);
+    },
+  },
+  {
     name: 'bigint input binds as an integer',
     run(conn) {
       setup(conn);

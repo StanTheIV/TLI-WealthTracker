@@ -15,7 +15,7 @@ const V1_ONLY = MIGRATIONS.slice(0, 1);
 const EXPECTED_COLUMNS: Record<string, string[]> = {
   settings:           ['key', 'value'],
   items:              ['id', 'name', 'type', 'price', 'price_date', 'locked'],
-  sessions:           ['id', 'name', 'saved_at', 'total_time', 'map_time', 'map_count', 'drops', 'drops_by_source', 'attribution', 'price_snapshot', 'spent'],
+  sessions:           ['id', 'name', 'saved_at', 'total_time', 'map_time', 'map_count', 'drops', 'drops_by_source', 'attribution', 'price_snapshot', 'spent', 'ended_at'],
   seasonal_stats:     ['zone_type', 'zone_count', 'total_time', 'total_income', 'drop_list'],
   wealth_datapoints:  ['id', 'timestamp', 'value', 'session_id', 'breakdown'],
   api_lookups:        ['id', 'date', 'item_id', 'timestamp'],
@@ -157,6 +157,8 @@ describe('v1 baseline', () => {
     expect(conn.prepare('SELECT * FROM items').get()).toEqual({id: '100', name: 'Ember', type: '', price: 1.5, price_date: 0, locked: 0});
     expect(conn.prepare('SELECT drops_by_source, attribution, price_snapshot, spent FROM sessions').get())
       .toEqual({drops_by_source: '{}', attribution: '', price_snapshot: '{}', spent: '{}'});
+    // v4: saved_at '2026-01-01' parses (as UTC midnight) → ms epoch
+    expect(conn.prepare('SELECT ended_at FROM sessions').get()).toEqual({ended_at: Date.parse('2026-01-01')});
     expect(conn.prepare('SELECT seasonal_type, parent_map_index, phase, ended_at FROM session_maps').get())
       .toEqual({seasonal_type: null, parent_map_index: null, phase: null, ended_at: 3});   // v3: started_at + duration
     expect(conn.prepare('SELECT breakdown FROM wealth_datapoints').get()).toEqual({breakdown: '{}'});

@@ -23,6 +23,7 @@ function open(): SqlConn {
 }
 
 const V2 = MIGRATIONS.slice(0, 2);
+const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
 const version = (c: SqlConn) => Number(c.getPragma('user_version'));
 const migrate = (c: SqlConn, backup: (r: string) => void = () => {}) => runMigrations(c, MIGRATIONS, {backup});
 
@@ -63,12 +64,12 @@ describe('v3 backfill on extreme values', () => {
 });
 
 describe('v3 on small and already-migrated databases', () => {
-  it('a v2 DB with 0 rows migrates: column added, count 0 logged, version 3, one backup', () => {
+  it('a v2 DB with 0 rows migrates: column added, count 0 logged, latest version, one backup', () => {
     const c = v2Db();
     const backup = vi.fn();
     const info = vi.spyOn(log, 'info').mockImplementation(() => {});
     migrate(c, backup);
-    expect(version(c)).toBe(3);
+    expect(version(c)).toBe(LATEST);
     expect(backup.mock.calls).toEqual([['pre-row-ended-at']]);
     expect(c.prepare('PRAGMA table_info(session_maps)').all<{name: string}>().some(x => x.name === 'ended_at')).toBe(true);
     expect(info.mock.calls.some(([, msg]) => String(msg).includes('0 rows backfilled'))).toBe(true);
@@ -83,7 +84,7 @@ describe('v3 on small and already-migrated databases', () => {
     migrate(c, backup);
     migrate(c, backup);
     expect(backup).not.toHaveBeenCalled();
-    expect(version(c)).toBe(3);
+    expect(version(c)).toBe(LATEST);
     expect(ended(c)[0].e).toBe(999_999);
   });
 
@@ -117,7 +118,7 @@ describe('v3 is pure SQL', () => {
     c.exec('ALTER TABLE session_maps ADD COLUMN ended_at INTEGER NOT NULL DEFAULT 0');
     addRow(c, 1, 7_000, 3_000);
     migrate(c);
-    expect(version(c)).toBe(3);
+    expect(version(c)).toBe(LATEST);
     expect(ended(c)[0].e).toBe(10_000);
   });
 });

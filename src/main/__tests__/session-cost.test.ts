@@ -117,6 +117,7 @@ describe('session spent', () => {
       id: 's1', name: 'Run', savedAt: 'x', totalTime: 0, mapTime: 0, mapCount: 0,
       drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {},
       spent: {'100': 1},
+      endedAt: 1,
     } as DbSession);
     expect(sessionSpent(store.getSession('s1'))).toEqual({'100': 1});
 
@@ -131,6 +132,7 @@ describe('session spent', () => {
       id: 'p1', name: 'Run', savedAt: 'x', totalTime: 0, mapTime: 0, mapCount: 0,
       drops: {}, dropsBySource: {}, attribution: 'drop-through', priceSnapshot: {},
       spent: Object.fromEntries([['__proto__', 2], ['constructor', 1]]),
+      endedAt: 1,
     } as DbSession);
     const spent = sessionSpent(store.getSession('p1'))!;
     expect(Object.keys(spent).sort()).toEqual(['__proto__', 'constructor']);
