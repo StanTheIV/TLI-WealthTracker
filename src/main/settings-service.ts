@@ -2,9 +2,12 @@
  * The one write path for renderer settings: persist → side effect (engine key
  * → reconfigure, `logging.*` → reload the logger) → broadcast the parsed table
  * so both windows replace their state. A failing persist throws before any of
- * it. Main-only keys (window geometry, `last_seen_version`, …) bypass it.
+ * it. Once persisted the write is committed: a failing side effect is logged
+ * and the broadcast still goes out. Main-only keys (window geometry,
+ * `last_seen_version`, …) bypass it.
  */
 import type {Broadcast} from './broadcast';
+import type {Logger} from './logger';
 import {ENGINE_SETTING_KEYS, parseSettings} from '@/shared/settings';
 
 export interface SettingsServiceDeps {
@@ -13,8 +16,8 @@ export interface SettingsServiceDeps {
   broadcast: Broadcast;
   /** Re-reads the engine keys from the table; a no-op without a running engine. */
   tracking:  {reconfigure(): void};
-  /** Re-reads the `logging.*` keys from the table. */
-  log:       {reloadConfig(): void};
+  /** `reloadConfig` re-reads the `logging.*` keys from the table. */
+  log:       Pick<Logger, 'reloadConfig' | 'error'>;
 }
 
 const LOGGING_PREFIX = 'logging.';
@@ -29,8 +32,12 @@ export class SettingsService {
   set(key: string, value: string): void {
     const {store, broadcast, tracking, log} = this._deps;
     store.set(key, value);
-    if (ENGINE_SETTING_KEYS.has(key))         tracking.reconfigure();
-    else if (key.startsWith(LOGGING_PREFIX))  log.reloadConfig();
+    try {
+      if (ENGINE_SETTING_KEYS.has(key))         tracking.reconfigure();
+      else if (key.startsWith(LOGGING_PREFIX))  log.reloadConfig();
+    } catch (err) {
+      log.error('app', `Applying setting '${key}' failed: ${err}`);
+    }
     broadcast('settings:changed', parseSettings(store.getAll()));
   }
 }

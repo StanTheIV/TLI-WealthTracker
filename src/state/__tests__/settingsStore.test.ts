@@ -285,16 +285,55 @@ describe('settingsStore setters', () => {
     expect(DEFAULT_SETTINGS.lootWindowMs.carjack).toBe(5000);
   });
 
-  it('a rejected settings.set is swallowed (logged), and the optimistic value stays (pinned: no rollback)', async () => {
+  it('a rejected settings.set is logged and re-syncs the store from main: the store equals parseSettings(getAll())', async () => {
+    const table: Record<string, string> = {torchlightPath: 'C:/x', themeMode: 'light', carjackLootMs: '7000'};
+    const {api, store, get} = await load(table);
+    await store.getState().init({checkLogFile: true});
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    api.set.mockRejectedValueOnce(new Error('persist failed'));
+    expect(() => store.getState().setThemeMode('dark')).not.toThrow();
+    expect(get().themeMode).toBe('dark');                      // optimistic until main answers
+    table['rateTimeframe'] = 'minute';                         // another window's committed write meanwhile
+    await vi.waitFor(() => expect(get().themeMode).toBe('light'));
+    expect(err).toHaveBeenCalled();
+    expect(api.getAll).toHaveBeenCalledTimes(2);
+    const {isLoaded, logFileValid, ...typed} = get();
+    const typedOnly = Object.fromEntries(Object.entries(typed).filter(([k]) => k in DEFAULT_SETTINGS));
+    expect(typedOnly).toEqual(parseSettings(table));
+    expect({isLoaded, logFileValid}).toEqual({isLoaded: true, logFileValid: true});   // runtime fields untouched
+    err.mockRestore();
+  });
+
+  it('a rejected window write re-syncs that row back to the stored value', async () => {
+    const {api, store, get} = await load({carjackLootMs: '7000'});
+    await store.getState().init();
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    api.set.mockRejectedValueOnce(new Error('persist failed'));
+    store.getState().setLootWindowMs('carjack', 2500);
+    expect(get().lootWindowMs.carjack).toBe(2500);
+    await vi.waitFor(() => expect(get().lootWindowMs.carjack).toBe(7000));
+    err.mockRestore();
+  });
+
+  it('a re-sync that itself fails is logged, never throws, and leaves the store as it was', async () => {
     const {api, store, get} = await load();
     await store.getState().init();
     const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     api.set.mockRejectedValueOnce(new Error('persist failed'));
-    expect(() => store.getState().setThemeMode('dark')).not.toThrow();
-    await Promise.resolve(); await Promise.resolve();
-    expect(err).toHaveBeenCalled();
-    expect(get().themeMode).toBe('dark');   // FINDING: UI keeps a value the DB never got
+    api.getAll.mockRejectedValueOnce(new Error('ipc down'));
+    store.getState().setThemeMode('dark');
+    await vi.waitFor(() => expect(err).toHaveBeenCalledTimes(2));
+    expect(api.getAll).toHaveBeenCalledTimes(2);
+    expect(get().themeMode).toBe('dark');
     err.mockRestore();
+  });
+
+  it('a successful settings.set never re-fetches the table', async () => {
+    const {api, store} = await load();
+    await store.getState().init();
+    store.getState().setThemeMode('dark');
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(api.getAll).toHaveBeenCalledTimes(1);
   });
 
   it('setLanguage("") writes "" and sends i18n an empty language (pinned: parseSettings keeps "")', async () => {
@@ -307,12 +346,56 @@ describe('settingsStore setters', () => {
     expect(changeLanguage).toHaveBeenCalledWith('');
   });
 
-  it('setOverlayOpacity does not clamp optimistically (pinned): an out-of-range value drifts from the echo', async () => {
-    const {api, store, get} = await load();
+  it.each([[5, 1], [-0.5, 0], [Number.NaN, 0.9], [Infinity, 0.9], [0.35, 0.35]])(
+    'setOverlayOpacity(%d) -> optimistic %d, the value the echo will carry', async (input, expected) => {
+      const {api, store, get} = await load();
+      await store.getState().init();
+      store.getState().setOverlayOpacity(input);
+      expect(get().overlayOpacity).toBe(expected);
+      expect(Object.is(get().overlayOpacity, expected)).toBe(true);
+      expect(written(api)).toEqual(['overlayOpacity', String(expected)]);
+      expect(parseSettings({overlayOpacity: written(api)[1]}).overlayOpacity).toBe(expected);
+    });
+
+  // F3: one round-trip rule for every setter — the optimistic field equals
+  // parseSettings of the string written, so the settings:changed echo never moves it.
+  const field = <K extends keyof Settings>(k: K) => k;
+  it.each([
+    ['setTorchlightPath',           'C:/g',               field('torchlightPath')],
+    ['setTorchlightPath',           '',                   field('torchlightPath')],
+    ['setOverlayOpacity',           5,                    field('overlayOpacity')],
+    ['setOverlayOpacity',           -0.5,                 field('overlayOpacity')],
+    ['setOverlayOpacity',           -0,                   field('overlayOpacity')],
+    ['setOverlayOpacity',           Number.NaN,           field('overlayOpacity')],
+    ['setClickThroughWhileRunning', true,                 field('clickThroughWhileRunning')],
+    ['setPauseTotalTimerInTown',    false,                field('pauseTotalTimerInTown')],
+    ['setShowEventFeed',            true,                 field('showEventFeed')],
+    ['setAuctionTaxEnabled',        false,                field('auctionTaxEnabled')],
+    ['setLanguage',                 'de',                 field('language')],
+    ['setSerperApiKey',             'k-1',                field('serperApiKey')],
+    ['setRateTimeframe',            'minute',             field('rateTimeframe')],
+    ['setRateTimeframe',            'fortnight',          field('rateTimeframe')],
+    ['setThemeMode',                'dark',               field('themeMode')],
+    ['setThemeMode',                'neon',               field('themeMode')],
+    ['setLowStockThreshold',        -0,                   field('lowStockThreshold')],
+    ['setLowStockThreshold',        -0.5,                 field('lowStockThreshold')],
+    ['setLowStockThreshold',        2.9,                  field('lowStockThreshold')],
+    ['setLowStockThreshold',        Number.NaN,           field('lowStockThreshold')],
+  ] as const)('%s(%j): the optimistic %s equals parseSettings of the written string', async (setter, arg, f) => {
+    const {api, store, get} = await load({themeMode: 'light', rateTimeframe: 'minute', overlayOpacity: '0.3'});
     await store.getState().init();
-    store.getState().setOverlayOpacity(5);
-    expect(written(api)).toEqual(['overlayOpacity', '5']);
-    expect(get().overlayOpacity).toBe(5);
-    expect(parseSettings({overlayOpacity: '5'}).overlayOpacity).toBe(1);   // the echo will clamp to 1
+    (store.getState()[setter] as (v: unknown) => void)(arg);
+    const [key, str] = written(api);
+    const echo = parseSettings({[key]: str})[f];
+    expect(Object.is(get()[f], echo)).toBe(true);
   });
+
+  it.each(WINDOWED_MECHANICS.flatMap(m => [0, -0, 1.9, Number.NaN, 1e21].map(ms => [m.key, ms] as const)))(
+    'setLootWindowMs(%s, %d): the optimistic window equals parseSettings of the written string', async (type, ms) => {
+      const {api, store, get} = await load();
+      await store.getState().init();
+      store.getState().setLootWindowMs(type, ms);
+      const [key, str] = written(api);
+      expect(Object.is(get().lootWindowMs[type], parseSettings({[key]: str}).lootWindowMs[type])).toBe(true);
+    });
 });

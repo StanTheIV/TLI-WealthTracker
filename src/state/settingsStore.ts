@@ -3,7 +3,7 @@ import i18n from '@/i18n';
 import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/domain/valuation';
 import {mechanic, type WindowedSeasonalType} from '@/shared/mechanics';
 import {
-  DEFAULT_SETTINGS, SETTING_KEYS, parsePositiveInt, parseSettings,
+  DEFAULT_SETTINGS, SETTING_KEYS, parseSettings,
   type RateTimeframe, type Settings, type ThemeMode,
 } from '@/shared/settings';
 
@@ -39,25 +39,36 @@ interface SettingsActions {
 
 type Store = SettingsState & SettingsActions;
 
-function persist(key: string, value: string): void {
-  window.electronAPI.settings.set(key, value).catch(
-    (err: unknown) => console.error('[settings] persist failed:', err),
-  );
+/** `v` written to `key` as main will read it back. Setters store this
+ *  optimistically and write its string, so the `settings:changed` echo of the
+ *  write never moves the UI (opacity 5 → 1, an invalid window → its default). */
+function roundTrip(key: string, v: unknown): Settings {
+  return parseSettings({[key]: String(v)});
 }
 
-/** An integer setting as `parseSettings` would read it back — so the
- *  `settings:changed` echo of the write matches the optimistic value. */
-function toStoredInt(v: number, fallback: number, allowZero: boolean): number {
-  return parsePositiveInt(String(v), fallback, allowZero);
-}
+const fetchSettings = async (): Promise<Settings> =>
+  parseSettings(await window.electronAPI.settings.getAll());
 
 let _subscribed = false;
 
 export const useSettingsStore = create<Store>((set, get) => {
+  /** The write through main. A rejected write re-syncs the store from main, so
+   *  the UI never keeps a value the DB doesn't have. */
+  const persist = (key: string, value: string): void => {
+    window.electronAPI.settings.set(key, value)
+      .catch(async (err: unknown) => {
+        console.error('[settings] persist failed:', err);
+        set(await fetchSettings());
+      })
+      .catch((err: unknown) => console.error('[settings] re-sync failed:', err));
+  };
+
   /** Optimistic local set, then the write through main. */
-  const write = <K extends keyof typeof SETTING_KEYS>(field: K, value: Settings[K]) => {
+  const write = <K extends keyof typeof SETTING_KEYS>(field: K, v: Settings[K]) => {
+    const key   = SETTING_KEYS[field];
+    const value = roundTrip(key, v)[field];
     set({[field]: value} as Pick<Settings, K>);
-    persist(SETTING_KEYS[field], String(value));
+    persist(key, String(value));
   };
 
   return {
@@ -70,7 +81,7 @@ export const useSettingsStore = create<Store>((set, get) => {
         _subscribed = true;
         window.electronAPI.settings.onChanged(settings => set(settings));
       }
-      set({...parseSettings(await window.electronAPI.settings.getAll()), isLoaded: true});
+      set({...await fetchSettings(), isLoaded: true});
       if (checkLogFile) await get().validateLogFile();
     },
 
@@ -84,13 +95,13 @@ export const useSettingsStore = create<Store>((set, get) => {
     setSerperApiKey:             v => write('serperApiKey', v),
     setRateTimeframe:            v => write('rateTimeframe', v),
     setThemeMode:                v => write('themeMode', v),
-    setLowStockThreshold:        v =>
-      write('lowStockThreshold', toStoredInt(v, DEFAULT_SETTINGS.lowStockThreshold, /*allowZero*/ true)),
+    setLowStockThreshold:        v => write('lowStockThreshold', v),
 
     setLootWindowMs: (type, ms) => {
-      const value = toStoredInt(ms, DEFAULT_SETTINGS.lootWindowMs[type], /*allowZero*/ false);
+      const key   = mechanic(type).window.settingKey;
+      const value = roundTrip(key, ms).lootWindowMs[type];
       set({lootWindowMs: {...get().lootWindowMs, [type]: value}});
-      persist(mechanic(type).window.settingKey, String(value));
+      persist(key, String(value));
     },
 
     validateLogFile: async () => {

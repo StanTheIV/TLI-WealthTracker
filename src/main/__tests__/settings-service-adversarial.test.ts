@@ -29,34 +29,65 @@ function build(over: {
   const table = new Map<string, string>(Object.entries(over.initial ?? {}));
   const sent: Sent[] = [];
   const calls: string[] = [];
+  const errors: Array<[string, string]> = [];
   const service = new SettingsService({
     store: {
       set: (k, v) => { over.set?.(); table.set(k, v); calls.push(`persist:${k}`); },
       getAll: () => { over.getAll?.(); return Object.fromEntries(table); },
     },
-    broadcast: (channel, payload) => { over.broadcast?.(); sent.push({channel, payload}); },
+    broadcast: (channel, payload) => { over.broadcast?.(); sent.push({channel, payload}); calls.push('broadcast'); },
     tracking: {reconfigure: () => { calls.push('reconfigure'); over.reconfigure?.(); }},
-    log: {reloadConfig: () => { calls.push('reloadConfig'); over.reloadConfig?.(); }},
+    log: {
+      reloadConfig: () => { calls.push('reloadConfig'); over.reloadConfig?.(); },
+      error:        (feature, message) => { errors.push([feature, message]); calls.push('error'); },
+    },
   });
-  return {service, table, sent, calls};
+  return {service, table, sent, calls, errors};
 }
 const payloads = (sent: Sent[]) => sent.map(s => s.payload as Settings);
 
 describe('SettingsService failure semantics (persist is the commit point)', () => {
-  it('a throwing reconfigure: the value IS persisted, NO broadcast goes out, the error propagates', () => {
+  it('a throwing reconfigure: persisted, logged once, the broadcast still carries the value, set returns', () => {
     const h = build({reconfigure: () => { throw new Error('engine boom'); }});
-    expect(() => h.service.set('carjackLootMs', '7000')).toThrow('engine boom');
+    expect(() => h.service.set('carjackLootMs', '7000')).not.toThrow();
     expect(h.table.get('carjackLootMs')).toBe('7000');
-    expect(h.sent).toEqual([]);
-    // FINDING: the DB holds 7000, the renderer's invoke rejects (it reverts nothing: the store set
-    // optimistically) and the OTHER window never hears about it until the next successful write.
+    expect(h.calls).toEqual(['persist:carjackLootMs', 'reconfigure', 'error', 'broadcast']);
+    expect(h.errors).toHaveLength(1);
+    expect(h.errors[0][0]).toBe('app');
+    expect(h.errors[0][1]).toContain('engine boom');
+    expect(h.sent.map(s => s.channel)).toEqual(['settings:changed']);
+    expect(payloads(h.sent)[0]).toEqual(parseSettings(Object.fromEntries(h.table)));
+    expect(payloads(h.sent)[0].lootWindowMs.carjack).toBe(7000);
   });
 
-  it('a throwing reloadConfig: persisted, no broadcast, error propagates (same window-desync as reconfigure)', () => {
+  it('a throwing reloadConfig: persisted, logged once, the broadcast still goes out, set returns', () => {
     const h = build({reloadConfig: () => { throw new Error('log boom'); }});
-    expect(() => h.service.set('logging.file', 'true')).toThrow('log boom');
+    expect(() => h.service.set('logging.file', 'true')).not.toThrow();
     expect(h.table.get('logging.file')).toBe('true');
-    expect(h.sent).toEqual([]);
+    expect(h.calls).toEqual(['persist:logging.file', 'reloadConfig', 'error', 'broadcast']);
+    expect(h.errors).toHaveLength(1);
+    expect(h.errors[0][0]).toBe('app');
+    expect(h.errors[0][1]).toContain('log boom');
+    expect(h.sent.map(s => s.channel)).toEqual(['settings:changed']);
+  });
+
+  it('a non-Error throw from a side effect is logged too, and the write still commits', () => {
+    const h = build({reconfigure: () => { throw 'plain string'; }});
+    expect(() => h.service.set('lowStockThreshold', '4')).not.toThrow();
+    expect(h.errors).toHaveLength(1);
+    expect(h.errors[0][1]).toContain('plain string');
+    expect(payloads(h.sent)[0].lowStockThreshold).toBe(4);
+  });
+
+  it('a side effect failing once does not stick: the next write reconfigures and broadcasts normally', () => {
+    let fail = true;
+    const h = build({reconfigure: () => { if (fail) throw new Error('once'); }});
+    h.service.set('carjackLootMs', '7000');
+    fail = false;
+    h.service.set('carjackLootMs', '6000');
+    expect(h.errors).toHaveLength(1);
+    expect(h.calls.filter(c => c === 'reconfigure')).toHaveLength(2);
+    expect(payloads(h.sent).map(s => s.lootWindowMs.carjack)).toEqual([7000, 6000]);
   });
 
   it('a throwing broadcast: persisted and reconfigured, error propagates', () => {
@@ -64,26 +95,17 @@ describe('SettingsService failure semantics (persist is the commit point)', () =
     expect(() => h.service.set('lowStockThreshold', '3')).toThrow('send boom');
     expect(h.table.get('lowStockThreshold')).toBe('3');
     expect(h.calls).toEqual(['persist:lowStockThreshold', 'reconfigure']);
+    expect(h.errors).toEqual([]);
   });
 
-  it('a later write after a failed side effect still broadcasts the table INCLUDING the earlier value (self-heals)', () => {
-    let fail = true;
-    const h = build({reconfigure: () => { if (fail) throw new Error('once'); }});
-    expect(() => h.service.set('carjackLootMs', '7000')).toThrow();
-    fail = false;
-    h.service.set('themeMode', 'dark');
-    expect(payloads(h.sent)).toHaveLength(1);
-    expect(payloads(h.sent)[0].lootWindowMs.carjack).toBe(7000);
-    expect(payloads(h.sent)[0].themeMode).toBe('dark');
-  });
-
-  it('a throwing persist does nothing else (no reconfigure, no reload, no broadcast)', () => {
+  it('a throwing persist does nothing else (no reconfigure, no reload, no broadcast, no log)', () => {
     const h = build({set: () => { throw new Error('disk full'); }});
     for (const key of ['carjackLootMs', 'logging.console', 'themeMode']) {
       expect(() => h.service.set(key, 'x')).toThrow('disk full');
     }
     expect(h.calls).toEqual([]);
     expect(h.sent).toEqual([]);
+    expect(h.errors).toEqual([]);   // the caller's invoke rejects; nothing to log here
   });
 
   it('a getAll that throws AFTER persist and side effects: persisted + reconfigured, no broadcast', () => {
@@ -110,7 +132,7 @@ describe('SettingsService table handling', () => {
     h.service.set('carjackLootMs', '-5');
     expect(h.table.get('carjackLootMs')).toBe('-5');
     expect(payloads(h.sent)[0].lootWindowMs.carjack).toBe(5000);
-    expect(h.calls).toEqual(['persist:carjackLootMs', 'reconfigure']);   // reconfigure still fires (engine falls back)
+    expect(h.calls).toEqual(['persist:carjackLootMs', 'reconfigure', 'broadcast']);   // reconfigure still fires (engine falls back)
   });
 
   it('repeated identical writes: each one persists, reconfigures and broadcasts (no dedupe)', () => {
@@ -196,16 +218,17 @@ function e2e(initial: Record<string, string> = {torchlightPath: TORCHLIGHT}) {
     log:            {debug: noop, info: noop, warn: noop, error: noop},
   });
   const reloadConfig = vi.fn();
+  const logError = vi.fn();
   const settings = new SettingsService({
     store: {set: (k, v) => { table[k] = v; }, getAll: () => ({...table})},
     broadcast: (channel, payload) => { settingsBroadcasts.push({channel, payload}); },
     tracking,
-    log: {reloadConfig},
+    log: {reloadConfig, error: logError},
   });
   const d = createDispatcher();
   const feed = (l: string) => { for (const ev of d.dispatch(l)) onEvent(ev); };
   const initBag = () => { feed(log.bagInit(1, ITEM, 10)); feed(log.bagInit(2, 900, 1)); vi.advanceTimersByTime(600); };
-  return {tracking, settings, table, events, settingsBroadcasts, reloadConfig, feed, initBag, logPath: `${TORCHLIGHT}/${LOG_SUBPATH}`};
+  return {tracking, settings, table, events, settingsBroadcasts, reloadConfig, logError, feed, initBag, logPath: `${TORCHLIGHT}/${LOG_SUBPATH}`};
 }
 type Rig = ReturnType<typeof e2e>;
 
@@ -314,16 +337,19 @@ describe('settings -> real tracking service (end to end)', () => {
     expect(runMap(r, 'carjack')).toEqual([5000]);
   });
 
-  it('a throwing engine reconfigure leaves the DB changed but windows un-notified (finding), yet the next write recovers', () => {
+  it('a throwing engine reconfigure: the write commits, both windows hear it, the error is logged', () => {
     const r = e2e();
     r.tracking.start();
     r.initBag();
-    const configure = vi.spyOn(Engine.prototype, 'configure').mockImplementationOnce(() => { throw new Error('x'); });
-    expect(() => r.settings.set('carjackLootMs', '2500')).toThrow('x');
+    const configure = vi.spyOn(Engine.prototype, 'configure').mockImplementationOnce(() => { throw new Error('configure boom'); });
+    expect(() => r.settings.set('carjackLootMs', '2500')).not.toThrow();
     expect(r.table['carjackLootMs']).toBe('2500');
-    expect(r.settingsBroadcasts).toHaveLength(0);
-    configure.mockRestore();
-    r.settings.set('themeMode', 'dark');
+    expect(r.settingsBroadcasts).toHaveLength(1);
     expect((r.settingsBroadcasts[0].payload as Settings).lootWindowMs.carjack).toBe(2500);
+    expect(r.logError).toHaveBeenCalledTimes(1);
+    expect(r.logError).toHaveBeenCalledWith('app', expect.stringContaining('configure boom'));
+    configure.mockRestore();
+    r.settings.set('carjackLootMs', '2600');   // the next engine write reconfigures normally
+    expect(runMap(r, 'carjack')).toEqual([2600]);
   });
 });

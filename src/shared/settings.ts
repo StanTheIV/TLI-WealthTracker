@@ -72,13 +72,13 @@ export const DEFAULT_SETTINGS: Settings = {
 
 /**
  * Read an integer setting. Missing, non-numeric, or (after flooring) below the
- * minimum → `fallback`. The minimum is 1, or 0 with `allowZero`.
+ * minimum → `fallback`. The minimum is 1, or 0 with `allowZero`. Never -0.
  */
 export function parsePositiveInt(raw: string | undefined, fallback: number, allowZero: boolean): number {
   if (raw === undefined) return fallback;
   const n = Math.floor(Number(raw));
   if (!Number.isFinite(n)) return fallback;
-  return (allowZero ? n >= 0 : n > 0) ? n : fallback;
+  return (allowZero ? n >= 0 : n > 0) ? n + 0 : fallback;   // + 0: '-0' reads as +0
 }
 
 /** Every windowed mechanic's window (ms, ≥ 1) from its row's setting key. */
@@ -88,9 +88,9 @@ function lootWindows(raw: Readonly<Record<string, string>>): Record<WindowedSeas
   return out;
 }
 
-/** Missing or empty → the default; a finite value is clamped to [0, 1]. */
+/** Missing or blank → the default (`Number('  ')` is 0); a finite value is clamped to [0, 1]. */
 function parseOpacity(raw: string | undefined): number {
-  const n = raw ? Number(raw) : NaN;
+  const n = raw === undefined || !/\S/.test(raw) ? NaN : Number(raw);
   return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : DEFAULT_SETTINGS.overlayOpacity;
 }
 

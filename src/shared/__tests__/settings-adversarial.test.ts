@@ -98,9 +98,8 @@ describe('parseSettings: number formats', () => {
     expect(Object.is(opacity('-0'), 0)).toBe(true);
   });
 
-  it('opacity whitespace-only reads as 0 (pinned: truthy string, Number("  ") = 0), unlike empty', () => {
-    expect(opacity('   ')).toBe(0);
-    expect(opacity('')).toBe(0.9);
+  it.each(['', ' ', '   ', '\t', '\n', ' \r\n\t '])('opacity blank %j reads as missing -> the 0.9 default (not Number(" ") = 0)', v => {
+    expect(opacity(v)).toBe(DEFAULT_SETTINGS.overlayOpacity);
   });
 
   it.each([['0', 0], ['3', 3], ['5e1', 50], ['-1', 0], ['-0.5', 0], ['0.9', 0], ['abc', 0], [' 4 ', 4], ['', 0]])(
@@ -108,11 +107,13 @@ describe('parseSettings: number formats', () => {
       expect(lowStock(v)).toBe(expected);
     });
 
-  it('lowStock "-0" yields negative zero (pinned; surfaced by Object.is)', () => {
-    // floor(-0) = -0 and -0 >= 0: the "0" threshold leaks out as -0. Harmless for
-    // comparisons; String(-0) === '0' so the echo through the DB is clean.
-    expect(Object.is(lowStock('-0'), -0)).toBe(true);
-    expect(String(lowStock('-0'))).toBe('0');
+  it.each(['-0', '-0.0', '-0e5', ' -0 '])('lowStock %j reads as +0, never -0 (Object.is)', v => {
+    expect(Object.is(lowStock(v), 0)).toBe(true);
+  });
+
+  it('parsePositiveInt never returns -0, with or without allowZero', () => {
+    expect(Object.is(parsePositiveInt('-0', 7, true), 0)).toBe(true);
+    expect(parsePositiveInt('-0', 7, false)).toBe(7);
   });
 
   it('parsePositiveInt fallback is returned untouched (even a non-integer fallback)', () => {

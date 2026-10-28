@@ -8,7 +8,7 @@ import {ENGINE_SETTING_KEYS, parseSettings, type Settings} from '@/shared/settin
 
 interface Harness {
   service: SettingsService;
-  /** Every call, in order: 'persist:k=v' | 'reconfigure' | 'reloadConfig' | 'broadcast:channel'. */
+  /** Every call, in order: 'persist:k=v' | 'reconfigure' | 'reloadConfig' | 'error:feature' | 'broadcast:channel'. */
   calls:   string[];
   table:   Map<string, string>;
   sent:    {channel: string; payload: unknown}[];
@@ -18,6 +18,7 @@ function build(opts: {
   initial?:   Record<string, string>;
   persist?:   (key: string, value: string) => void;
   reconfigure?: () => void;
+  reloadConfig?: () => void;
 } = {}): Harness {
   const calls: string[] = [];
   const sent: {channel: string; payload: unknown}[] = [];
@@ -36,7 +37,10 @@ function build(opts: {
       calls.push(`broadcast:${channel}`);
     },
     tracking: {reconfigure: () => { opts.reconfigure?.(); calls.push('reconfigure'); }},
-    log:      {reloadConfig: () => { calls.push('reloadConfig'); }},
+    log:      {
+      reloadConfig: () => { opts.reloadConfig?.(); calls.push('reloadConfig'); },
+      error:        feature => { calls.push(`error:${feature}`); },
+    },
   });
   return {service, calls, table, sent};
 }
@@ -159,6 +163,18 @@ describe('SettingsService', () => {
       const f = build({persist: () => { throw new Error('nope'); }});
       expect(() => f.service.set('logging.console', 'true')).toThrow('nope');
       expect(f.calls).toEqual([]);
+    });
+  });
+
+  describe('a failing side effect (the persisted write is committed)', () => {
+    it.each([
+      ['reconfigure',  'carjackLootMs',   {reconfigure:  () => { throw new Error('engine'); }}],
+      ['reloadConfig', 'logging.console', {reloadConfig: () => { throw new Error('logger'); }}],
+    ] as const)('a throwing %s is logged once and the broadcast still goes out; set returns', (_name, key, fault) => {
+      const f = build(fault);
+      expect(() => f.service.set(key, 'true')).not.toThrow();
+      expect(f.calls).toEqual([`persist:${key}=true`, 'error:app', 'broadcast:settings:changed']);
+      expect(f.sent[0].payload).toEqual(parseSettings(Object.fromEntries(f.table)));
     });
   });
 
