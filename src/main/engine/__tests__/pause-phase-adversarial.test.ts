@@ -7,6 +7,7 @@ import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {checkUnits} from '@/test/unit-invariant';
 import {
+  TEST_IDENTITY,
   boot, createDispatcher, createEngine, createEngineWithEmit, ctx, feed, log,
   MAP, TOWN, ARCANA_FIGHT,
 } from './seasonal-fixtures';
@@ -29,7 +30,7 @@ function run(spam: boolean): EngineEvent[] {
   const events: EngineEvent[] = [];
   const d = createDispatcher();
   const e = createEngine(events);
-  e.start();
+  e.start(TEST_IDENTITY);
   if (spam) { e.pause(); e.pause(); e.resume(); e.pause(); e.resume(); e.resume(); }
   feed(d, e, log.bagInit(1, 100, 0));
   if (spam) { e.pause(); e.resume(); }
@@ -57,8 +58,8 @@ describe('continue-session (loadSession) paused during init', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
-    e.loadSession({id: 's1', name: 'old', drops: {'300': 4}, totalTime: 120, mapTime: 100, mapCount: 2});
-    e.start();
+    e.loadSession({drops: {'300': 4}, dropsBySource: {}, spent: {}, totalTime: 120, mapTime: 100, mapCount: 2});
+    e.start({sessionId: 's1', name: 'old'});
     e.pause();
     e.pause();
     expect(ctx(e).paused).toBe(false);
@@ -94,7 +95,7 @@ describe('no stale pause flag across runs', () => {
     expect(ctx(e).phase).toBe('idle');
 
     const before = events.length;
-    e.start();
+    e.start(TEST_IDENTITY);
     e.pause();
     expect(ctx(e).paused).toBe(false);
     expect(statuses(events.slice(before))).toEqual([]);
@@ -114,7 +115,7 @@ describe('no stale pause flag across runs', () => {
     const d = createDispatcher();
     boot(d, e, [{slotId: 1, itemId: 100, quantity: 0}]);
     e.pause();
-    e.start();
+    e.start(TEST_IDENTITY);
     expect(ctx(e).phase).toBe('initializing');
     expect(ctx(e).paused).toBe(false);
   });
@@ -128,7 +129,7 @@ describe('reset while paused', () => {
     boot(d, e, [{slotId: 1, itemId: 100, quantity: 0}]);
     feed(d, e, log.zoneTransition(TOWN, MAP));
     e.pause();
-    e.reset();
+    e.reset(TEST_IDENTITY);
     expect(ctx(e).phase).toBe('tracking');
     expect(ctx(e).paused).toBe(true);
     expect(ctx(e).registry.session!.active).toBe(false);
@@ -145,8 +146,8 @@ describe('reset while paused', () => {
   it('reset during initializing is dropped; pause afterwards is still dropped', () => {
     const events: EngineEvent[] = [];
     const e = createEngine(events);
-    e.start();
-    e.reset();
+    e.start(TEST_IDENTITY);
+    e.reset(TEST_IDENTITY);
     e.pause();
     expect(ctx(e).paused).toBe(false);
     expect(ctx(e).phase).toBe('initializing');
@@ -202,27 +203,27 @@ describe('invariant sweep: paused implies tracking', () => {
     };
 
     step('pause idle', () => e.pause());
-    step('start', () => e.start());
+    step('start', () => e.start(TEST_IDENTITY));
     step('pause init', () => e.pause());
-    step('reset init', () => e.reset());
+    step('reset init', () => e.reset(TEST_IDENTITY));
     step('bag', () => feed(d, e, log.bagInit(1, 100, 0)));
     step('pause init2', () => e.pause());
     step('debounce', () => vi.advanceTimersByTime(600));
     step('pause', () => e.pause());
     step('map', () => feed(d, e, log.zoneTransition(TOWN, MAP)));
-    step('reset paused', () => e.reset());
+    step('reset paused', () => e.reset(TEST_IDENTITY));
     step('resume', () => e.resume());
     step('arcana', () => feed(d, e, log.zoneTransition(MAP, ARCANA_FIGHT)));
     step('pause arcana', () => e.pause());
     step('town', () => feed(d, e, log.zoneTransition(ARCANA_FIGHT, TOWN)));
     step('stop', () => e.stop());
     step('pause after stop', () => e.pause());
-    step('restart', () => e.start());
+    step('restart', () => e.start(TEST_IDENTITY));
     step('pause restart', () => e.pause());
     step('bag again', () => feed(d, e, log.bagInit(1, 100, 0)));
     step('debounce2', () => vi.advanceTimersByTime(600));
     step('pause tracking', () => e.pause());
-    step('restart paused', () => e.start());
+    step('restart paused', () => e.start(TEST_IDENTITY));
 
     expect(violations).toEqual([]);
     expect(ctx(e).paused).toBe(false);

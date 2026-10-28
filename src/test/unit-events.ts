@@ -3,7 +3,7 @@
  * `SessionPersistence.onEngineEvent`.
  */
 import type {AutoSaveOutcome, SessionPersistence} from '@/main/session-persistence';
-import type {EngineEvent, SeasonalPhase, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {EngineEvent, SeasonalPhase, SeasonalType, TrackerSnapshot, UnitCheckpoint} from '@/shared/contracts/engine';
 
 export type UnitFinishedEvent = Extract<EngineEvent, {type: 'unit_finished'}>;
 
@@ -34,17 +34,20 @@ export function snap(kind: TrackerSnapshot['kind'], drops: Record<number, number
   };
 }
 
-/** A unit event built by hand: `primary` is a map or a standalone seasonal. */
+/** A unit event built by hand: `primary` is a map or a standalone seasonal.
+ *  `checkpoint` defaults to an empty session (no maps yet). */
 export function unitFinished(
   primary: TrackerSnapshot,
   overlaps: Array<{tracker: TrackerSnapshot; timestamp?: number}> = [],
   timestamp = 1_000_000,
+  checkpoint: UnitCheckpoint = {session: snap('session', {}, 0), mapTime: 0, mapCount: 0},
 ): UnitFinishedEvent {
   return {
     type: 'unit_finished',
     tracker: primary,
     overlaps: overlaps.map(o => ({tracker: o.tracker, timestamp: o.timestamp ?? timestamp})),
     timestamp,
+    checkpoint,
   };
 }
 

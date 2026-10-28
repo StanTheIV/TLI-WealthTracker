@@ -14,6 +14,7 @@ import {checkUnits, countUnitRuns} from '@/test/unit-invariant';
 import {unitsOf} from '@/test/unit-events';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {
+  TEST_IDENTITY,
   ARCANA_FIGHT, boot, createDispatcher, createEngineWithEmit, ctx, feed, log, MAP, SANDLORD_HUB,
   TARTARUS_FIGHT, TOWN, VOREX_REWARD,
 } from './seasonal-fixtures';
@@ -53,7 +54,7 @@ function rig() {
     drop:  (n = 1) => { lootTotal += n; feed(d, e, log.bagUpdate(1, LOOT, lootTotal)); },
     spend: () => feed(d, e, log.bagUpdate(2, MATERIAL, 7)),
     adv:   (ms: number) => vi.advanceTimersByTime(ms),
-    reset: () => { resets.push(events.length); persistence.discard(); e.reset(); },
+    reset: () => { resets.push(events.length); persistence.discard(); e.reset(TEST_IDENTITY); },
     stop:  () => e.stop(),
     saved: () => saved,
     rows:  (): DbSessionMap[] => (saved ? store.getRows(saved) : []),

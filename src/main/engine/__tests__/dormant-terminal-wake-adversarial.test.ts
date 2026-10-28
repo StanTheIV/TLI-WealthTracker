@@ -11,7 +11,8 @@ import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
 import {TrackerRegistry} from '@/main/engine/tracker-registry';
 import {
-  ARCANA_FIGHT, boot, createDispatcher, createEngine, ctx, feed, log, MAP, SANDLORD_HUB, TOWN,
+  TEST_IDENTITY,
+  ARCANA_FIGHT, boot, createDispatcher, createEngine, ctx, feed, internalEmit, log, MAP, SANDLORD_HUB, TOWN,
 } from './seasonal-fixtures';
 
 beforeEach(() => { vi.useFakeTimers(); });
@@ -290,7 +291,7 @@ describe('Engine.reset around a woken window', () => {
     bag(2);
 
     events.length = 0;
-    e.reset();
+    e.reset(TEST_IDENTITY);
     expect(finished(events, 'carjack')).toHaveLength(1);
     expect(finishedSnap(events, 'carjack').drops[ITEM]).toBe(2);
     expect(reg().seasonalsSize()).toBe(0);
@@ -313,7 +314,7 @@ describe('Engine.reset around a woken window', () => {
     line(log.afterlightStart);
     adv(5_100);
     const stale = reg().seasonal('afterlight')!;
-    e.reset();
+    e.reset(TEST_IDENTITY);
     events.length = 0;
     line(log.afterlightEnd);
     stale.resetLootTimer();
@@ -334,7 +335,7 @@ describe('Engine.reset around a woken window', () => {
     e.pause();
 
     events.length = 0;
-    e.reset();
+    e.reset(TEST_IDENTITY);
     expect(finished(events, 'carjack')).toHaveLength(1);
     expect(reg().seasonalsSize()).toBe(0);
 
@@ -838,7 +839,7 @@ describe('resetLootTimerThrottled timing edges (carjack waves through the chain)
 
   it('registry level: wake, park and wake again in the same millisecond - every dormant call arms, the active one is swallowed', () => {
     const events: EngineEvent[] = [];
-    const emit = (ev: EngineEvent) => { events.push(ev); };
+    const emit = internalEmit(ev => { events.push(ev); });
     const r = new TrackerRegistry();
     r.startSession();
     r.startMap();

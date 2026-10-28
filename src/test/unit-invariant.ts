@@ -15,7 +15,7 @@
  * - nothing is emitted as a unit after the session `tracker_finished` (until the
  *   next session `tracker_started`), and nothing is left unclaimed at that point.
  */
-import type {EngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {EngineEvent, TrackerSnapshot, UnitCheckpoint} from '@/shared/contracts/engine';
 
 export interface UnitCheckOptions {
   /** Indexes in `events` where `Engine.reset()` was called. The events from
@@ -126,4 +126,52 @@ export function countUnitRuns(events: ReadonlyArray<EngineEvent>): number {
   let n = 0;
   for (const e of events) if (e.type === 'unit_finished') n += 1 + e.overlaps.length;
   return n;
+}
+
+/**
+ * Checkpoint consistency (step 2.1b): every `unit_finished` carries the session
+ * state at that moment. Checked from the stream alone:
+ * - a session snapshot with per-source drops sums, per item, to its total drops;
+ * - the session `spent` covers the unit's own entry cost;
+ * - a map unit's time fits in `mapTime`, and its drops in the session's;
+ * - `mapCount` / `mapTime` never decrease within a session (a session
+ *   `tracker_started` starts a new baseline).
+ * Drops are compared only for non-negative items (loot-context negatives are not
+ * credited to a source).
+ */
+export function checkCheckpoints(events: ReadonlyArray<EngineEvent>): string[] {
+  const bad: string[] = [];
+  let prev = {mapTime: 0, mapCount: 0};
+  events.forEach((ev, i) => {
+    if (ev.type === 'tracker_started' && ev.tracker.kind === 'session') { prev = {mapTime: 0, mapCount: 0}; return; }
+    if (ev.type !== 'unit_finished') return;
+    // Typed as always present, but checked: the stream may be hand-built.
+    const cp: UnitCheckpoint | undefined = ev.checkpoint;
+    if (!cp) { bad.push(`#${i}: unit_finished has no checkpoint`); return; }
+    if (cp.session.kind !== 'session') bad.push(`#${i}: checkpoint snapshot of kind ${cp.session.kind}`);
+
+    if (cp.session.dropsBySource) {
+      const sums = new Map<string, number>();
+      for (const bucket of Object.values(cp.session.dropsBySource)) {
+        for (const [id, qty] of Object.entries(bucket)) sums.set(id, (sums.get(id) ?? 0) + qty);
+      }
+      for (const [id, qty] of sums) {
+        if ((cp.session.drops[Number(id)] ?? 0) !== qty) bad.push(`#${i}: item ${id} dropsBySource sums to ${qty}, drops has ${cp.session.drops[Number(id)] ?? 0}`);
+      }
+    }
+    for (const [id, qty] of Object.entries(ev.tracker.spent ?? {})) {
+      if ((cp.session.spent?.[Number(id)] ?? 0) < qty) bad.push(`#${i}: unit spent ${qty} of ${id}, checkpoint session spent ${cp.session.spent?.[Number(id)] ?? 0}`);
+    }
+    if (ev.tracker.kind === 'map') {
+      if (cp.mapTime < ev.tracker.elapsed) bad.push(`#${i}: checkpoint mapTime ${cp.mapTime} < map elapsed ${ev.tracker.elapsed}`);
+      if (cp.mapCount < 1) bad.push(`#${i}: map unit with checkpoint mapCount ${cp.mapCount}`);
+      for (const [id, qty] of Object.entries(ev.tracker.drops)) {
+        if (qty > 0 && (cp.session.drops[Number(id)] ?? 0) < qty) bad.push(`#${i}: map dropped ${qty} of ${id}, session checkpoint has ${cp.session.drops[Number(id)] ?? 0}`);
+      }
+    }
+    if (cp.mapCount < prev.mapCount) bad.push(`#${i}: checkpoint mapCount fell ${prev.mapCount} -> ${cp.mapCount}`);
+    if (cp.mapTime < prev.mapTime) bad.push(`#${i}: checkpoint mapTime fell ${prev.mapTime} -> ${cp.mapTime}`);
+    prev = {mapTime: cp.mapTime, mapCount: cp.mapCount};
+  });
+  return bad;
 }

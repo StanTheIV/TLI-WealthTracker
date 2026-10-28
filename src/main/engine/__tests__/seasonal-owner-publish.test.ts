@@ -7,7 +7,7 @@
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
-import {boot, createDispatcher, createEngine, ctx, feed, log, MAP, TOWN} from './seasonal-fixtures';
+import {boot, createDispatcher, createEngine, ctx, feed, internalEmit, log, MAP, TOWN} from './seasonal-fixtures';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -24,7 +24,7 @@ function setup() {
   const line = (l: string) => feed(d, e, l);
   const reg  = () => ctx(e).registry;
   const seasonal = (type: SeasonalType) => reg().seasonal(type)!;
-  return {events, e, line, reg, seasonal, emit: (ev: EngineEvent) => events.push(ev)};
+  return {events, e, line, reg, seasonal, emit: internalEmit(ev => { events.push(ev); })};
 }
 
 /** The `{active, owner}` of every tracker_update a seasonal published. */

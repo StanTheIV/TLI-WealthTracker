@@ -6,7 +6,7 @@
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
-import {MAP, TOWN, boot, createDispatcher, createEngine, ctx, feed, log} from './seasonal-fixtures';
+import {TEST_IDENTITY, MAP, TOWN, boot, createDispatcher, createEngine, ctx, feed, log} from './seasonal-fixtures';
 import {dropEvents, sessionDrops} from './location-fixtures';
 
 beforeEach(() => {
@@ -184,11 +184,11 @@ describe('reset', () => {
     const s = setup();
     s.bag(S_MATERIAL, MATERIAL, 7);
     s.go(TOWN, MAP);
-    s.e.reset();
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
+    s.e.reset(TEST_IDENTITY);
     expect(s.map()?.spent).toEqual({[MATERIAL]: 3});
     expect(s.sess()?.spent).toEqual({[MATERIAL]: 3});
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
     expect(s.sess()?.spent).toEqual({[MATERIAL]: 3});
   });
 
@@ -196,8 +196,8 @@ describe('reset', () => {
     const s = setup();
     s.bag(S_MATERIAL, MATERIAL, 7);
     s.go(TOWN, MAP);
-    s.e.reset();
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
+    s.e.reset(TEST_IDENTITY);
     const fin = finished(s.events, 'map');
     expect(fin).toHaveLength(2);
     for (const f of fin) expect(f.spent).toEqual({[MATERIAL]: 3});
@@ -207,7 +207,7 @@ describe('reset', () => {
     const s = setup();
     s.bag(S_MATERIAL, MATERIAL, 7);
     s.go(TOWN, MAP);
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
     s.bag(S_LOOT, LOOT, 4);
     s.events.length = 0;
     s.go(MAP, TOWN);
@@ -222,7 +222,7 @@ describe('reset', () => {
     const s = setup();
     s.bag(S_MATERIAL, MATERIAL, 7);
     s.go(TOWN, MAP);
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
     s.go(MAP, TOWN);
     s.bag(S_MATERIAL, MATERIAL, 5);
     s.go(TOWN, MAP);
@@ -235,7 +235,7 @@ describe('reset', () => {
     s.bag(S_MATERIAL, MATERIAL, 7);
     s.go(TOWN, MAP);
     s.e.pause();
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
     expect(s.map()?.spent).toEqual({[MATERIAL]: 3});
     expect(s.sess()?.spent).toEqual({[MATERIAL]: 3});
   });
@@ -244,14 +244,14 @@ describe('reset', () => {
     const s = setup();
     s.go(TOWN, MAP);
     s.events.length = 0;
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
     expect(updatesWithSpent(s.events, 'session')).toEqual([]);
 
     const t = setup();
     t.bag(S_MATERIAL, MATERIAL, 7);
     t.go(TOWN, MAP);
     t.events.length = 0;
-    t.e.reset();
+    t.e.reset(TEST_IDENTITY);
     expect(updatesWithSpent(t.events, 'session')).toHaveLength(1);
   });
 
@@ -259,7 +259,7 @@ describe('reset', () => {
     const s = setup();
     s.bag(S_MATERIAL, MATERIAL, 7);
     s.go(TOWN, MAP);
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
     const old = finished(s.events, 'map')[0].spent;
     ctx(s.e).registry.map!.addCost(MATERIAL, 9);
     expect(old).toEqual({[MATERIAL]: 3});

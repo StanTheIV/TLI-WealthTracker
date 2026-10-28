@@ -1,7 +1,9 @@
 import type {RawEvent} from '@/worker/processors/types';
-import type {EventHandler, EmitFn} from './types';
+import type {EventHandler, EmitFn, EngineSink} from './types';
 import {EngineContext} from './context';
 import type {LoadedSessionData} from './context';
+import {openSessionRun} from './session-run';
+import type {SessionIdentity} from '@/shared/contracts/engine';
 import {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/shared/item-filter';
 import type {ItemType} from '@/shared/items';
@@ -24,7 +26,26 @@ import {log} from '@/main/logger';
  */
 export class Engine {
   private _ctx  = new EngineContext();
-  private _emit: EmitFn;
+  private readonly _sink: EngineSink;
+  /** What handlers, trackers and the registry emit through. Stamps each
+   *  `unit_finished` with its checkpoint — the session state as of the unit —
+   *  which only the context holds (the registry has no counters). */
+  private readonly _emit: EmitFn = (event) => {
+    if (event.type !== 'unit_finished') {
+      this._sink(event);
+      return;
+    }
+    const session = this._ctx.registry.session;
+    if (!session) throw new Error('unit_finished without a session'); // the registry emits units only while one exists
+    this._sink({
+      ...event,
+      checkpoint: {
+        session:  session.snapshot(),
+        mapTime:  this._ctx.accumulatedMapTime,
+        mapCount: this._ctx.mapCount,
+      },
+    });
+  };
   // Map from event type → ordered list of handlers (a handler appears in
   // multiple buckets if it registered for multiple event types).
   private _routes = new Map<string, EventHandler[]>();
@@ -40,8 +61,8 @@ export class Engine {
   private _hunting:     HuntingHandler     | null = null;
   private _afterlight:  AfterlightHandler  | null = null;
 
-  constructor(emit: EmitFn) {
-    this._emit = emit;
+  constructor(sink: EngineSink) {
+    this._sink = sink;
   }
 
   register(handler: EventHandler): this {
@@ -61,14 +82,20 @@ export class Engine {
     return this;
   }
 
-  start(): void {
+  /** Start a run as `identity`. The session itself opens once the bag
+   *  baseline lands (BagInitHandler); a `loadSession` call before this makes
+   *  it a continue. */
+  start(identity: SessionIdentity): void {
     const preserved = this._ctx.loadedSession;
     this._ctx.reset();
-    this._ctx.loadedSession = preserved;
+    this._ctx.loadedSession     = preserved;
+    this._ctx.activeSessionId   = identity.sessionId;
+    this._ctx.activeSessionName = identity.name;
     this._ctx.phase = 'initializing';
     for (const h of this._handlers) h.onStart?.(this._ctx, this._emit);
   }
 
+  /** Continue: the saved run data the next `start` seeds the session with. */
   loadSession(data: LoadedSessionData): void {
     this._ctx.loadedSession = data;
   }
@@ -97,12 +124,13 @@ export class Engine {
   }
 
   /**
-   * Reset the in-flight session WITHOUT touching bag state, filters, or known
-   * items. Drops and elapsed for session/map/seasonal go to zero. Map count
-   * resets to 0 (or 1 if currently in a map — that map becomes "map #1" of the
-   * new run) and keeps that map's entry cost. Pause/run state preserved.
+   * Replace the in-flight session with a fresh one as `identity`, WITHOUT
+   * touching bag state, filters, or known items. Drops and elapsed for
+   * session/map/seasonal go to zero. Map count resets to 0 (or 1 if currently
+   * in a map — that map becomes "map #1" of the new run) and keeps that map's
+   * entry cost. Pause/run state preserved. A no-op unless tracking.
    */
-  reset(): void {
+  reset(identity: SessionIdentity): void {
     if (this._ctx.phase !== 'tracking') return;
 
     const now = Date.now();
@@ -122,34 +150,10 @@ export class Engine {
     this._ctx.registry.discardForReset(this._emit, now);
     this._ctx.registry.session = null;
 
-    this._ctx.mapCount           = 0;
-    this._ctx.accumulatedMapTime = 0;
-    this._ctx.activeSessionId    = null;
-    this._ctx.activeSessionName  = null;
-    this._ctx.loadedSession      = null;
-
-    const session = this._ctx.registry.startSession();
-    if (wasPaused) session.pause();
-    this._emit({
-      type:        'tracker_started',
-      tracker:     session.snapshot(),
-      timestamp:   now,
-      sessionMeta: {mapTime: 0, mapCount: 0},
-    });
-
-    if (this._ctx.inMap) {
-      this._ctx.mapCount     = 1;
-      const map = this._ctx.registry.startMap();
-      if (map) {
-        if (wasPaused) map.pause();
-        this._ctx.registry.chargeEntryCost(carriedCost);
-        this._emit({type: 'map_started', mapCount: 1, timestamp: now});
-        this._emit({type: 'tracker_started', tracker: map.snapshot(), timestamp: now});
-        if (carriedCost.size > 0) {
-          this._emit({type: 'tracker_update', tracker: session.snapshot(), timestamp: now});
-        }
-      }
-    }
+    this._ctx.activeSessionId   = identity.sessionId;
+    this._ctx.activeSessionName = identity.name;
+    this._ctx.loadedSession     = null;
+    openSessionRun(this._ctx, this._emit, now, carriedCost);
 
     this._emit({
       type:      'session_status',

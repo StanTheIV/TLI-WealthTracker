@@ -15,7 +15,7 @@ import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
 import {TrackerRegistry} from '@/main/engine/tracker-registry';
 import type {SeasonalTracker} from '@/main/engine/seasonal-tracker';
-import {boot, createDispatcher, createEngine, ctx, feed, log, MAP, TOWN} from './seasonal-fixtures';
+import {boot, createDispatcher, createEngine, ctx, feed, internalEmit, log, MAP, TOWN} from './seasonal-fixtures';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -442,7 +442,7 @@ const wake = (r: TrackerRegistry, t: SeasonalTracker): boolean => (r as unknown 
 
 function makeRegistry(opts: {lootDurationMs?: number; session?: boolean; type?: SeasonalType} = {}) {
   const events: EngineEvent[] = [];
-  const emit = (ev: EngineEvent) => { events.push(ev); };
+  const emit = internalEmit(ev => { events.push(ev); });
   const r = new TrackerRegistry();
   if (opts.session !== false) r.startSession();
   r.startMap();

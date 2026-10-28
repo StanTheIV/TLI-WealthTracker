@@ -3,6 +3,7 @@ import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import type {SlotSnapshotEntry} from '@/main/engine/bag-state';
 import {publishDrops} from '@/main/engine/drop-publisher';
+import {openSessionRun} from '@/main/engine/session-run';
 import {log} from '@/main/logger';
 
 const INIT_DEBOUNCE_MS   = 500;
@@ -75,10 +76,17 @@ export class BagInitHandler implements EventHandler {
   // Initializing — the first dump is the baseline
   // ---------------------------------------------------------------------
 
+  /**
+   * The session begins here, so nothing before it is the session's: a map
+   * the player left while initializing was no unit and is not counted, and
+   * one they are still inside is rebuilt as the session's first (next, on a
+   * continue) map — see openSessionRun. Nothing pre-init was announced
+   * (ZoneHandler and the seasonal handlers publish only while tracking), so
+   * it is dropped silently.
+   */
   private _initialize(entries: SlotSnapshotEntry[], ctx: EngineContext, emit: EmitFn): void {
     ctx.bag.init(entries);
-    ctx.phase   = 'tracking';
-    const session = ctx.registry.startSession();
+    ctx.phase = 'tracking';
 
     const now = Date.now();
     for (const itemId of ctx.bag.getInventory().keys()) {
@@ -89,28 +97,12 @@ export class BagInitHandler implements EventHandler {
       }
     }
 
-    if (ctx.loadedSession) {
-      const loaded = ctx.loadedSession;
-      ctx.activeSessionId    = loaded.id;
-      ctx.activeSessionName  = loaded.name;
-      ctx.mapCount           = loaded.mapCount;
-      ctx.accumulatedMapTime = loaded.mapTime * 1000;
-
-      for (const [idStr, qty] of Object.entries(loaded.drops)) {
-        session.addDrop(Number(idStr), qty);
-      }
-      session.addTimeOffset(loaded.totalTime * 1000);
-      ctx.loadedSession = null;
-    }
+    const carriedCost: ReadonlyMap<number, number> = new Map(ctx.registry.map?.entryCost ?? []);
+    ctx.registry.reset();
 
     log.info('engine', `Phase: initializing -> tracking (${ctx.bag.itemCount} items)`);
     emit({type: 'init_complete', itemCount: ctx.bag.itemCount});
-    emit({
-      type:        'tracker_started',
-      tracker:     session.snapshot(),
-      timestamp:   Date.now(),
-      sessionMeta: {mapTime: ctx.accumulatedMapTime, mapCount: ctx.mapCount},
-    });
+    openSessionRun(ctx, emit, now, carriedCost);
   }
 
   // ---------------------------------------------------------------------

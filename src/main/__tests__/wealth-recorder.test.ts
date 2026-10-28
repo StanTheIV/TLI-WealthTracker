@@ -9,7 +9,7 @@ import {WealthRecorder} from '@/main/wealth-recorder';
 import {createEngine} from '@/main/engine/create-engine';
 import type {DbItem, DbWealthDatapoint} from '@/shared/contracts/db';
 import type {EngineEvent} from '@/shared/contracts/engine';
-import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
+import {TEST_IDENTITY, TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
 
 const NOW = new Date('2026-03-01T12:00:00Z').getTime();
 
@@ -97,7 +97,7 @@ describe('WealthRecorder', () => {
   it('an engine filter hiding an item in every scope (wealth included) does not hide it here', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(e => { events.push(e); });
-    engine.start();
+    engine.start(TEST_IDENTITY);
     engine.setItemTypes([['200', 'equipment']]);
     engine.setFilterRules([{
       id: 'r1', action: 'hide', scopes: ['session', 'map', 'wealth'], kind: {type: 'by-type', itemType: 'equipment'},

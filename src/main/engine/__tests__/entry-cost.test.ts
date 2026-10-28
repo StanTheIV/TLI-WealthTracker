@@ -29,6 +29,7 @@ import type {FilterRule} from '@/shared/item-filter';
 import {Tracker} from '@/main/engine/tracker';
 import {TrackerRegistry} from '@/main/engine/tracker-registry';
 import {
+  TEST_IDENTITY,
   ARCANA_FIGHT, MAP, SANDLORD_HUB, TARTARUS_FIGHT, TOWN, VOREX_REWARD,
   boot, createDispatcher, createEngine, ctx, feed, log,
 } from './seasonal-fixtures';
@@ -393,7 +394,7 @@ describe('pause and reset', () => {
     s.bag(S_LOOT, LOOT, 5);
     const before = s.events.length;
 
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
 
     expect(spentOf(s.mapSnap())).toEqual({[MATERIAL]: 3});
     expect(spentOf(s.sessionSnap())).toEqual({[MATERIAL]: 3});
@@ -407,7 +408,7 @@ describe('pause and reset', () => {
   it('reset mid-map: a map with no cost carries nothing [PASS-today]', () => {
     const s = setup();
     s.go(TOWN, MAP);
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
     expect(spentOf(s.mapSnap())).toBeUndefined();
     expect(spentOf(s.sessionSnap())).toBeUndefined();
   });
@@ -417,7 +418,7 @@ describe('pause and reset', () => {
     spend3(s);
     s.go(TOWN, MAP);
     s.go(MAP, TOWN);
-    s.e.reset();
+    s.e.reset(TEST_IDENTITY);
     expect(spentOf(s.sessionSnap())).toBeUndefined();
   });
 });

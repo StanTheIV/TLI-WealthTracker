@@ -6,7 +6,18 @@ import type {EngineEvent} from '@/shared/contracts/engine';
 // Handler interface
 // ---------------------------------------------------------------------------
 
-export type EmitFn = (event: EngineEvent) => void;
+/** A `unit_finished` as the registry builds it: the Engine adds the
+ *  `checkpoint` on its way out (the session counters live on the context). */
+export type UnstampedUnit = Omit<Extract<EngineEvent, {type: 'unit_finished'}>, 'checkpoint'>;
+
+/** What the engine's internals emit — every EngineEvent, with units unstamped. */
+export type InternalEvent = Exclude<EngineEvent, {type: 'unit_finished'}> | UnstampedUnit;
+
+/** The emitter handed to handlers, trackers and the registry. */
+export type EmitFn = (event: InternalEvent) => void;
+
+/** The Engine's outlet: finished EngineEvents only. */
+export type EngineSink = (event: EngineEvent) => void;
 
 export interface EventHandler {
   readonly name: string;

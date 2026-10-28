@@ -10,6 +10,7 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {
+  TEST_IDENTITY,
   boot, createDispatcher, createEngine, ctx, feed, log,
   ARCANA_FIGHT, MAP, TOWN,
 } from './seasonal-fixtures';
@@ -290,7 +291,7 @@ describe('Pause outside tracking is dropped', () => {
     const d = createDispatcher();
     const e = createEngine(events);
 
-    e.start();
+    e.start(TEST_IDENTITY);
     expect(ctx(e).phase).toBe('initializing');
     const before = events.length;
     e.pause(); // before the bag baseline lands

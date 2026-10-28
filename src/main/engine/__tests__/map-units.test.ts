@@ -16,6 +16,7 @@ import type {EngineEvent} from '@/shared/contracts/engine';
 import {OwnerWatcher} from '@/test/owner-invariant';
 import {unitIndexes, unitsOf} from '@/test/unit-events';
 import {
+  TEST_IDENTITY,
   ARCANA_FIGHT, boot, createDispatcher, createEngineWithEmit, ctx, feed, log, MAP, SANDLORD_HUB,
   TARTARUS_FIGHT, TOWN, VOREX_REWARD,
 } from './seasonal-fixtures';
@@ -409,7 +410,7 @@ describe('stop and reset', () => {
     o.e.stop();
     const before = o.units().length;
 
-    o.e.start();
+    o.e.start(TEST_IDENTITY);
     expect(o.units()).toHaveLength(before);
     o.e.stop();
     expect(o.units()).toHaveLength(before);
@@ -422,7 +423,7 @@ describe('stop and reset', () => {
     o.go(MAP, ARCANA_FIGHT);
     o.go(ARCANA_FIGHT, MAP);           // finished child waiting for its map
     o.line(log.s14Strum);              // live seasonal
-    o.e.reset();
+    o.e.reset(TEST_IDENTITY);
 
     expect(o.units()).toEqual([]);
     expect(finishedTypes(o).sort()).toEqual(['arcana', 'lunaria']);
@@ -436,7 +437,7 @@ describe('stop and reset', () => {
     o.line(log.s9Minigame);
     o.go(MAP, ARCANA_FIGHT);
     o.go(ARCANA_FIGHT, MAP);
-    o.e.reset();                       // the player is still in the map: it becomes map #1
+    o.e.reset(TEST_IDENTITY);                       // the player is still in the map: it becomes map #1
     o.adv(5_000);
     o.go(MAP, TOWN);
 
@@ -448,7 +449,7 @@ describe('stop and reset', () => {
     const o = rig();
     o.line(log.s9Minigame);
     o.line(log.s9Close);
-    o.e.reset();
+    o.e.reset(TEST_IDENTITY);
 
     expect(o.units()).toEqual([]);
   });
@@ -521,7 +522,7 @@ describe('real start time', () => {
     o.go(TOWN, MAP);
     o.adv(10_000);
     const resetAt = Date.now();
-    o.e.reset();
+    o.e.reset(TEST_IDENTITY);
     o.adv(5_000);
     o.go(MAP, TOWN);
 

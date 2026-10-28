@@ -1,5 +1,14 @@
 import type {SeasonalType, Source, TrackerKind, TrackerSnapshot} from '@/shared/contracts/engine';
 
+/** A saved session's totals, for `Tracker.seed`: item-id keyed records as the
+ *  DB stores them, and the active time in ms. */
+export interface TrackerSeed {
+  drops:         Record<string, number>;
+  dropsBySource: Partial<Record<Source, Record<string, number>>>;
+  spent:         Record<string, number>;
+  timeOffsetMs:  number;
+}
+
 /**
  * Tracker — a self-contained drop accumulator with independent pause/resume.
  *
@@ -90,11 +99,27 @@ export class Tracker {
   }
 
   /**
-   * Add a time offset to the accumulated elapsed — used when continuing a saved session.
-   * @param ms Milliseconds to add (e.g. totalTime * 1000 from DB where DB stores seconds).
+   * Continue a saved session: add its drops, per-source drops and entry cost
+   * (item-id keyed, as stored) and its active time. The input is copied.
+   * `startedAt` is untouched — a continued run starts when it is continued.
    */
-  addTimeOffset(ms: number): void {
-    this._accumulated += ms;
+  seed(data: TrackerSeed): void {
+    for (const [id, qty] of Object.entries(data.drops)) {
+      this._drops.set(Number(id), (this._drops.get(Number(id)) ?? 0) + qty);
+    }
+    for (const [source, bucket] of Object.entries(data.dropsBySource) as Array<[Source, Record<string, number> | undefined]>) {
+      if (!bucket) continue;
+      for (const [id, qty] of Object.entries(bucket)) {
+        let target = this._dropsBySource.get(source);
+        if (!target) {
+          target = new Map();
+          this._dropsBySource.set(source, target);
+        }
+        target.set(Number(id), (target.get(Number(id)) ?? 0) + qty);
+      }
+    }
+    for (const [id, qty] of Object.entries(data.spent)) this.addCost(Number(id), qty);
+    this._accumulated += data.timeOffsetMs;
   }
 
   pause(): void {

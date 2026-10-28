@@ -35,7 +35,7 @@ function stringKeyed(rec: Record<number, number>): Record<string, number> {
   return Object.fromEntries(Object.entries(rec));
 }
 
-function generateSessionName(): string {
+export function generateSessionName(): string {
   const now   = new Date();
   const month = now.toLocaleString('en', {month: 'short'});
   const day   = now.getDate();

@@ -262,7 +262,13 @@ export class TrackerRegistry {
   // pause still counts — and rides that map's `unit_finished` as an overlap.
   // Any other run is a STANDALONE unit. A seasonal sits under at most one map
   // (town finishes every seasonal, a bubble start the rest). Stamping emits
-  // nothing.
+  // nothing. No session, no unit: a run that finishes before the bag baseline
+  // is not the session's (the Engine stamps each unit with the session state).
+
+  /** Units are emitted: a session exists and no reset is discarding the run. */
+  private _unitsLive(): boolean {
+    return this._emitUnits && this.session !== null;
+  }
 
   /** Record the current map, if any, as `t`'s parent. */
   private _stampParent(t: SeasonalTracker): void {
@@ -272,7 +278,7 @@ export class TrackerRegistry {
   /** A seasonal just finished: held for the current map's unit if it is that
    *  map's child, else emitted as a standalone unit now. */
   private _unitForSeasonal(t: SeasonalTracker, snap: TrackerSnapshot, timestamp: number, emit: EmitFn): void {
-    if (!this._emitUnits) return;
+    if (!this._unitsLive()) return;
     if (this.map !== null && t.parentMapSeq === this.map.seq) {
       this._mapChildren.push({tracker: snap, timestamp});
       return;
@@ -286,6 +292,7 @@ export class TrackerRegistry {
   promoteMapChildren(emit: EmitFn): void {
     const children = this._mapChildren;
     this._mapChildren = [];
+    if (!this._unitsLive()) return;
     for (const c of children) {
       emit({type: 'unit_finished', tracker: c.tracker, overlaps: [], timestamp: c.timestamp});
     }
@@ -514,7 +521,7 @@ export class TrackerRegistry {
     emit({type: 'tracker_finished', tracker: snap, timestamp: now});
     const overlaps = this._mapChildren;
     this._mapChildren = [];
-    emit({type: 'unit_finished', tracker: snap, overlaps, timestamp: now});
+    if (this._unitsLive()) emit({type: 'unit_finished', tracker: snap, overlaps, timestamp: now});
   }
 
   /** Engine.reset: the plain tracker_finished of every seasonal and the map,
@@ -536,7 +543,8 @@ export class TrackerRegistry {
   }
 
   /** Drop every tracker silently (no events) — EngineContext.reset(), where
-   *  the engine has its own emission policy. Cancels seasonal loot timers as a
+   *  the engine has its own emission policy, and bag-init completion, which
+   *  drops the unannounced pre-init state. Cancels seasonal loot timers as a
    *  side-effect so no callbacks fire after teardown. */
   reset(): void {
     for (const t of this._seasonals.values()) t.cancelLootTimer();

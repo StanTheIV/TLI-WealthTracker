@@ -1,12 +1,12 @@
 import type {Engine} from '@/main/engine/engine';
-import type {EmitFn} from '@/main/engine/types';
+import type {EngineSink} from '@/main/engine/types';
 import {configureEngine} from '@/main/engine/configure-engine';
 import type {SqliteSessionStore} from '@/main/db/session-store';
 import type {Logger} from '@/main/logger';
-import {SessionPersistence, type SessionMeta} from '@/main/session-persistence';
+import {SessionPersistence, generateSessionName, type SessionMeta} from '@/main/session-persistence';
 import type {RawEvent} from '@/worker/processors/types';
 import type {DbItem, DbItemFilter} from '@/shared/contracts/db';
-import type {EngineEvent} from '@/shared/contracts/engine';
+import type {EngineEvent, SessionIdentity} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
 import {LOG_SUBPATH} from '@/shared/paths';
@@ -19,7 +19,7 @@ export interface LogWorker {
 }
 
 export interface TrackingDeps {
-  createEngine:   (emit: EmitFn) => Engine;
+  createEngine:   (sink: EngineSink) => Engine;
   store:          SqliteSessionStore;
   broadcast:      Broadcast;
   /** Called once, in the constructor. */
@@ -38,6 +38,11 @@ export interface TrackingDeps {
   };
   wealthRecorder: {snapshot(engine: Engine, sessionId: string | null): void};
   log:            Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
+}
+
+/** A fresh session's identity; the name is taken at start, in local time. */
+function newIdentity(): SessionIdentity {
+  return {sessionId: crypto.randomUUID(), name: generateSessionName()};
 }
 
 /** Emit consumers, named in error logs. */
@@ -106,12 +111,13 @@ export class TrackingService {
   /** Discard the run in progress and keep tracking under a new session id. */
   reset(): void {
     if (!this._engine) return;
-    this._engine.reset();
+    const identity = newIdentity();
+    this._engine.reset(identity);
     // The discarded run's identity must not be reused by the next Stop, and
     // any buffered per-run rows belong to the discarded run — replacing the
     // SessionPersistence instance drops both.
     this._persistence?.discard();
-    this._persistence = this._newPersistence({sessionId: crypto.randomUUID(), sessionName: null, isOverride: false});
+    this._persistence = this._newPersistence({sessionId: identity.sessionId, sessionName: null, isOverride: false});
     this._log.info('session', `Session reset; new id=${this._persistence.getSessionId()}`);
   }
 
@@ -197,24 +203,27 @@ export class TrackingService {
     this._engine = this._deps.createEngine(event => this._emit(event));
 
     const loaded = loadSessionId ? this._deps.store.getSession(loadSessionId) : null;
+    let identity: SessionIdentity;
     if (loaded) {
+      identity = {sessionId: loaded.id, name: loaded.name};
       this._persistence = this._newPersistence({sessionId: loaded.id, sessionName: loaded.name, isOverride: true});
       this._log.info('session', `Session loaded: id=${loaded.id}, name="${loaded.name}"`);
       this._engine.loadSession({
-        id:        loaded.id,
-        name:      loaded.name,
-        drops:     loaded.drops,
-        totalTime: loaded.totalTime, // seconds — engine converts to ms
-        mapTime:   loaded.mapTime,
-        mapCount:  loaded.mapCount,
+        drops:         loaded.drops,
+        dropsBySource: loaded.dropsBySource,
+        spent:         loaded.spent,
+        totalTime:     loaded.totalTime, // seconds — engine converts to ms
+        mapTime:       loaded.mapTime,
+        mapCount:      loaded.mapCount,
       });
     } else {
-      this._persistence = this._newPersistence({sessionId: crypto.randomUUID(), sessionName: null, isOverride: false});
-      this._log.info('session', `Session created: id=${this._persistence.getSessionId()}`);
+      identity = newIdentity();
+      this._persistence = this._newPersistence({sessionId: identity.sessionId, sessionName: null, isOverride: false});
+      this._log.info('session', `Session created: id=${identity.sessionId}`);
     }
 
     // Emits synchronously — engine and persistence must be set before this.
-    this._engine.start();
+    this._engine.start(identity);
 
     // After start(): ctx.reset() inside it wipes the configuration.
     const activeFilter = this._deps.filters.getAll().find(f => f.enabled);

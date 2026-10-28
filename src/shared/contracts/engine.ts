@@ -54,6 +54,34 @@ export interface UnitOverlap {
   timestamp: number;
 }
 
+/** Who the tracked session is. Owned by the tracking service (it generates
+ *  the id and name, or hands over a continued session's); the engine only
+ *  carries it, stamping it on the session `tracker_started`. */
+export interface SessionIdentity {
+  sessionId: string;
+  name:      string;
+}
+
+/** A session's map counters: `mapTime` (ms) is the summed time of its
+ *  finished maps, `mapCount` every map it has started (a live one included). */
+export interface SessionMapMeta {
+  mapTime:  number;
+  mapCount: number;
+}
+
+/** The session `tracker_started` meta: the identity plus the counters the run
+ *  starts from — the loaded values on a continue (`continued`), else zero —
+ *  plus one for a map the player is already inside. */
+export interface SessionStartMeta extends SessionIdentity, SessionMapMeta {
+  continued: boolean;
+}
+
+/** The session state as of a `unit_finished`: the session snapshot (drops,
+ *  dropsBySource, spent, elapsed) and its map counters at that moment. */
+export interface UnitCheckpoint extends SessionMapMeta {
+  session: TrackerSnapshot;
+}
+
 // ---------------------------------------------------------------------------
 // EngineEvents — sent from the main-process engine to every renderer via IPC,
 // except `unit_finished`, which stays in the main process (persistence only).
@@ -67,15 +95,19 @@ export type EngineEvent =
   | {type: 'zone_change';      from: string; to: string; entering: 'map' | 'town' | 'unknown'; timestamp: number}
   | {type: 'map_started';      mapCount: number; timestamp: number}
   | {type: 'map_ended';        elapsed: number; timestamp: number}
-  | {type: 'tracker_started';  tracker: TrackerSnapshot; timestamp: number; sessionMeta?: {mapTime: number; mapCount: number}}
+  /** `sessionMeta`: on the SESSION tracker's start only. */
+  | {type: 'tracker_started';  tracker: TrackerSnapshot; timestamp: number; sessionMeta?: SessionStartMeta}
   | {type: 'tracker_update';   tracker: TrackerSnapshot; timestamp: number}
-  | {type: 'tracker_finished'; tracker: TrackerSnapshot; timestamp: number; sessionMeta?: {mapTime: number; mapCount: number}}
+  /** `sessionMeta`: on the SESSION tracker's finish only. */
+  | {type: 'tracker_finished'; tracker: TrackerSnapshot; timestamp: number; sessionMeta?: SessionMapMeta}
   /** The saved unit, built by the engine: a map with the seasonal runs that
    *  were its children (`overlaps`, in finish order), or a STANDALONE seasonal
    *  run (`overlaps` empty). Emitted after the primary's own tracker_finished;
-   *  `timestamp` is the primary's finish time. Persistence-only — never
+   *  `timestamp` is the primary's finish time; `checkpoint` is the session
+   *  state as of this unit. Emitted only while a session exists: a run that
+   *  finishes before the bag baseline is no unit. Persistence-only — never
    *  broadcast to the renderer, which keeps reading each tracker_finished. */
-  | {type: 'unit_finished';    tracker: TrackerSnapshot; overlaps: UnitOverlap[]; timestamp: number}
+  | {type: 'unit_finished';    tracker: TrackerSnapshot; overlaps: UnitOverlap[]; timestamp: number; checkpoint: UnitCheckpoint}
   | {type: 'session_status';   status: 'running' | 'paused'; elapsed: number; timestamp: number}
   | {type: 'session_saved';    sessionId: string}
   | {type: 'price_update';     itemId: number; price: number; timestamp: number}

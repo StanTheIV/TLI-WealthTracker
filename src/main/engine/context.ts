@@ -2,6 +2,7 @@ import {BagState, type SlotChange} from './bag-state';
 import {TrackerRegistry} from './tracker-registry';
 import type {ItemFilterEngine} from './item-filter';
 import type {ItemType} from '@/shared/items';
+import type {Source} from '@/shared/contracts/engine';
 
 export type {DistributeResult} from './tracker-registry';
 
@@ -27,14 +28,16 @@ export interface LocationTransition {
   mapStarted: boolean;
 }
 
-/** Session data to merge into the engine after bag initialization completes. */
+/** A saved session's run data, merged into the new session once the bag
+ *  baseline lands (Continue). Item-id keyed as stored; times in SECONDS. The
+ *  identity is not part of it — that comes from `Engine.start`. */
 export interface LoadedSessionData {
-  id:        string;
-  name:      string;
-  drops:     Record<string, number>;
-  totalTime: number;
-  mapTime:   number;
-  mapCount:  number;
+  drops:         Record<string, number>;
+  dropsBySource: Partial<Record<Source, Record<string, number>>>;
+  spent:         Record<string, number>;
+  totalTime:     number;
+  mapTime:       number;
+  mapCount:      number;
 }
 
 /**
@@ -74,10 +77,12 @@ export class EngineContext {
   /** Cumulative elapsed ms of all completed maps in this session. */
   accumulatedMapTime: number = 0;
 
-  /** Set before engine.start() to continue a previous session. Cleared after init. */
+  /** Set before engine.start() to continue a previous session. Cleared when
+   *  the session opens. */
   loadedSession: LoadedSessionData | null = null;
 
-  /** Non-null when continuing an existing saved session. */
+  /** The session identity (see SessionIdentity): set by Engine.start and
+   *  Engine.reset, null while idle. */
   activeSessionId:   string | null = null;
   activeSessionName: string | null = null;
 

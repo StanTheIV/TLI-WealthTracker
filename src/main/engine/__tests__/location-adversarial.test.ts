@@ -6,6 +6,7 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {
+  TEST_IDENTITY,
   ARCANA_FIGHT, MAP, SANDLORD_HUB, SANDLORD_SUB_MAP, TARTARUS_FIGHT, TOWN, VOREX_REWARD,
   boot, createDispatcher, createEngine, ctx, feed, log,
 } from './seasonal-fixtures';
@@ -163,7 +164,7 @@ describe('Engine.reset() and location', () => {
     const {e, go} = setup();
     go(TOWN, MAP);
     go(MAP, TOWN);
-    e.reset();
+    e.reset(TEST_IDENTITY);
     expect(ctx(e).location).toBe('town');
     go(TOWN, MAP);
     expect(ctx(e).mapCount).toBe(1);
@@ -174,7 +175,7 @@ describe('Engine.reset() and location', () => {
     const {e, go, events} = setup();
     go(TOWN, MAP);
     vi.advanceTimersByTime(5_000);
-    e.reset();
+    e.reset(TEST_IDENTITY);
     expect(ctx(e).mapCount).toBe(1);
     vi.advanceTimersByTime(3_000);
     go(MAP, TOWN);
@@ -186,7 +187,7 @@ describe('Engine.reset() and location', () => {
   it('reset mid-hub keeps location hub; a sub-map transition afterwards starts no phantom map', () => {
     const {e, go, reg} = setup();
     go(TOWN, SANDLORD_HUB);
-    e.reset();
+    e.reset(TEST_IDENTITY);
     expect(ctx(e).location).toBe('hub');
     go(SANDLORD_HUB, SANDLORD_SUB_MAP);
     expect(ctx(e).location).toBe('hub');
@@ -197,7 +198,7 @@ describe('Engine.reset() and location', () => {
   it('reset mid-seasonal-scene keeps seasonal-scene', () => {
     const {e, go} = setup();
     go(TOWN, VOREX_REWARD);
-    e.reset();
+    e.reset(TEST_IDENTITY);
     expect(ctx(e).location).toBe('seasonal-scene');
     expect(ctx(e).inMap).toBe(false);
   });
@@ -401,7 +402,7 @@ describe('zone_change.entering contract (unchanged values)', () => {
     const events: EngineEvent[] = [];
     const d = createDispatcher();
     const e = createEngine(events);
-    e.start();                           // initializing
+    e.start(TEST_IDENTITY);                           // initializing
     feed(d, e, log.zoneTransition(TOWN, MAP));
     expect(entering(events)).toEqual(['map']);
     feed(d, e, log.bagInit(1, ITEM, 10));

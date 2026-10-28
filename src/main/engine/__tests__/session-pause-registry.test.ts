@@ -7,6 +7,7 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {
+  TEST_IDENTITY,
   ARCANA_FIGHT, MAP, SANDLORD_HUB, SANDLORD_SUB_MAP, TARTARUS_FIGHT, TOWN, VOREX_REWARD,
   boot, createDispatcher, createEngine, ctx, feed, log,
 } from './seasonal-fixtures';
@@ -152,7 +153,7 @@ describe('session pause: whoever paused it resumes it', () => {
     go(TOWN, MAP);
     line(log.s11Start);
     e.pause();
-    e.reset();                          // finishes seasonals, keeps pause state
+    e.reset(TEST_IDENTITY);                          // finishes seasonals, keeps pause state
     expect(reg().seasonal('carjack')).toBeNull();
     e.resume();
     expect(reg().session?.active).toBe(true);
@@ -166,7 +167,7 @@ describe('session pause: whoever paused it resumes it', () => {
     line(log.s11Start);
     e.pause();
     e.stop();
-    e.start();
+    e.start(TEST_IDENTITY);
     feed(d, e, log.bagInit(1, ITEM, 10));
     vi.advanceTimersByTime(600);
     feed(d, e, log.zoneTransition(TOWN, MAP));

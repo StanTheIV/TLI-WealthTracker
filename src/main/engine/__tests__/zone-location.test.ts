@@ -9,8 +9,9 @@ import type {EmitFn} from '@/main/engine/types';
 import {EngineContext, type Location} from '@/main/engine/context';
 import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {
+  TEST_IDENTITY,
   ARCANA_FIGHT, MAP, SANDLORD_HUB, SANDLORD_SUB_MAP, TARTARUS_FIGHT, TOWN, VOREX_REWARD,
-  boot, createDispatcher, createEngine, ctx, feed, log,
+  boot, createDispatcher, createEngine, ctx, feed, internalEmit, log,
 } from './seasonal-fixtures';
 import {UNKNOWN_SCENE} from './location-fixtures';
 
@@ -146,7 +147,7 @@ describe('ctx.location — real engine chain', () => {
   it('Engine.reset() mid-map keeps location map', () => {
     const {e, go} = setup();
     go(TOWN, MAP);
-    e.reset();
+    e.reset(TEST_IDENTITY);
 
     expect(ctx(e).inMap).toBe(true);
     expect(ctx(e).location).toBe('map');
@@ -239,7 +240,7 @@ describe('zone_change.entering (characterization — values must not change in 1
     const events: EngineEvent[] = [];
     const c = new EngineContext();
     c.phase = 'tracking';
-    new ZoneHandler().handle({type: 'zone_transition', fromScene: 'XZ_Elsewhere', toScene: scene}, c, e => events.push(e));
+    new ZoneHandler().handle({type: 'zone_transition', fromScene: 'XZ_Elsewhere', toScene: scene}, c, internalEmit(e => { events.push(e); }));
 
     expect(events.find(ev => ev.type === 'zone_change')).toMatchObject({entering});
   });

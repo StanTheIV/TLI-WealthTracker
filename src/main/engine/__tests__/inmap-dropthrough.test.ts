@@ -32,6 +32,7 @@ import {SandlordMapHandler} from '@/main/engine/handlers/sandlord-map-handler';
 import {ItemHandler}        from '@/main/engine/handlers/item';
 import type {EngineEvent}   from '@/shared/contracts/engine';
 import type {EngineContext} from '@/main/engine/context';
+import {TEST_IDENTITY} from './seasonal-fixtures';
 
 const TOWN_SCENE = 'XZ_YuJinZhiXiBiNanSuo200';
 const MAP_SCENE  = '/Game/Art/Maps/S5_Boss';
@@ -58,7 +59,7 @@ function boot(
   engine:    Engine,
   inventory: Array<{slotId: number; itemId: number; quantity: number}>,
 ): void {
-  engine.start();
+  engine.start(TEST_IDENTITY);
   for (const {slotId, itemId, quantity} of inventory) {
     engine.onRawEvent({type: 'bag_init', pageId: 0, slotId, itemId, quantity});
   }

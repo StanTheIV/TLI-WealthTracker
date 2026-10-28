@@ -12,7 +12,8 @@ import type {EngineEvent} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
 import {OwnerWatcher} from '@/test/owner-invariant';
 import {
-  ARCANA_FIGHT, boot, createDispatcher, createEngineWithEmit, ctx, feed, log, MAP, SANDLORD_HUB, TOWN,
+  TEST_IDENTITY,
+  ARCANA_FIGHT, boot, createDispatcher, createEngineWithEmit, ctx, feed, internalEmit, log, MAP, SANDLORD_HUB, TOWN,
 } from './seasonal-fixtures';
 import type {Engine} from '@/main/engine/engine';
 
@@ -45,14 +46,14 @@ function rig() {
   };
   const o = {
     events, e, w, reg, settle, d,
-    emit: (ev: EngineEvent) => { events.push(ev); w.onEmit(ev); },
+    emit: internalEmit(ev => { events.push(ev); w.onEmit(ev); }),
     line(l: string, label = l.slice(0, 60)) { feed(d, e, l); settle(label); },
     adv(ms: number)  { vi.advanceTimersByTime(ms); settle(`adv ${ms}`); },
     drop(slot: 1 | 2 = 1, n = 1) { totals[slot] += n; feed(d, e, log.bagUpdate(slot, slot === 1 ? A : B, totals[slot])); settle(`drop ${slot}`); },
     go(z: Zone) { if (z === zone) return; feed(d, e, log.zoneTransition(scene(zone), scene(z))); zone = z; settle(`go ${z}`); },
     pause()  { e.pause();  settle('pause'); },
     resume() { e.resume(); settle('resume'); },
-    reset()  { e.reset();  settle('reset'); },
+    reset()  { e.reset(TEST_IDENTITY);  settle('reset'); },
     rules(r: FilterRule[] | null) { e.setFilterRules(r); },
   };
   o.go('map');

@@ -138,7 +138,7 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
       // Always named: the generated name is local time (TZ-dependent).
       persistence = new SessionPersistence({sessionId: id, sessionName: id, isOverride: false}, opts.persistence);
       engine = createEngine(emit);
-      engine.start();
+      engine.start({sessionId: id, name: id});
       opts.configure?.(engine);
     } else if (op === 'pause')  engine?.pause();
     else if (op === 'resume')   engine?.resume();
