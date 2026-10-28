@@ -26,8 +26,15 @@ function stop(): void {
 
 function refresh(): void {
   now = Date.now();
-  // A copy: a listener may unsubscribe (unmount) while being notified.
-  for (const l of [...listeners]) l();
+  // A copy: a listener may unsubscribe (unmount) while being notified. One that
+  // throws must neither skip the rest nor escape the tick.
+  for (const l of [...listeners]) {
+    try {
+      l();
+    } catch (err) {
+      console.error('[clock] listener threw:', err);
+    }
+  }
 }
 
 function tick(): void {
