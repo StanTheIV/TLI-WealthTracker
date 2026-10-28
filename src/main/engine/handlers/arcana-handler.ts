@@ -33,11 +33,31 @@ export class ArcanaHandler implements EventHandler {
   readonly name    = 'arcana';
   readonly handles = ['s9_minigame', 's9_fight', 's9_close', 'zone_transition'] as const;
 
+  // The Tarot panel is up: s9_minigame/s9_fight seen, no s9_close or scene
+  // change since. Tracked in every phase (see _observe).
+  private _panelOpen = false;
+
+  onStart(): void {
+    this._panelOpen = false;
+  }
+
   onStop(ctx: EngineContext): void {
+    this._panelOpen = false;
     ctx.mapPausedForInterludeAt = null;
   }
 
+  /** The session opened mid-interlude (panel up, or in the fight scene): the
+   *  rebuilt map freezes again and the run starts fresh, as on s9_minigame —
+   *  frozen with the session if it is paused. */
+  onSessionOpen(ctx: EngineContext, emit: EmitFn): void {
+    if (!this._panelOpen && !ctx.currentScene.includes(ARCANA_FIGHT_SCENE)) return;
+    pauseMapForInterlude(ctx, emit);
+    const run = ctx.registry.activateSeasonal({type: 'arcana'}, emit);
+    if (run && ctx.paused) ctx.registry.freezeForSessionPause(run);
+  }
+
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
+    this._observe(event);
     if (ctx.phase !== 'tracking') return;
 
     switch (event.type) {
@@ -83,6 +103,23 @@ export class ArcanaHandler implements EventHandler {
         }
         break;
       }
+    }
+  }
+
+  /** Interlude STATE, in every phase, so an interlude already in progress
+   *  when the session opens is known to onSessionOpen; only handle()'s
+   *  effects wait for tracking. The fight half is `ctx.currentScene` (Zone
+   *  runs first, so on a zone_transition it is already the new scene). */
+  private _observe(event: RawEvent): void {
+    switch (event.type) {
+      case 's9_minigame':
+      case 's9_fight':
+        this._panelOpen = true;
+        break;
+      case 's9_close':
+      case 'zone_transition':
+        this._panelOpen = false;
+        break;
     }
   }
 }

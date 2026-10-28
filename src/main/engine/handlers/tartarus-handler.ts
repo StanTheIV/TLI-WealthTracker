@@ -23,20 +23,38 @@ export class TartarusHandler implements EventHandler {
   // Every device open first replays the last settled board's checkout; its
   // Ignore/close are a dismissal, not part of any run.
   private _viewingSettled = false;
+  // A live board is up: opened, not yet closed / ignored / zoned away from.
+  private _boardOpen = false;
   // Suppress clicked; the board closes and the prison scene loads next.
   private _committed = false;
 
+  onStart(): void {
+    this._resetState();
+  }
+
   onStop(): void {
-    this._viewingSettled = false;
-    this._committed      = false;
+    this._resetState();
+  }
+
+  /** The session opened mid-interlude (live board up, Suppress committed, or
+   *  in the prison): the rebuilt map freezes again and the run starts fresh,
+   *  as on a live board open — frozen with the session if it is paused. */
+  onSessionOpen(ctx: EngineContext, emit: EmitFn): void {
+    if (!this._boardOpen && !this._committed && !ctx.currentScene.includes(TARTARUS_PRISON_SCENE)) return;
+    pauseMapForInterlude(ctx, emit);
+    const run = ctx.registry.activateSeasonal({type: 'tartarus'}, emit);
+    if (run && ctx.paused) ctx.registry.freezeForSessionPause(run);
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
+    // What this event found — _observe moves the state on.
+    const viewingSettled = this._viewingSettled;
+    const committed      = this._committed;
+    this._observe(event);
     if (ctx.phase !== 'tracking') return;
 
     switch (event.type) {
       case 's16_board_open': {
-        this._viewingSettled = event.settled;
         if (event.settled) break;
         // Crediting start/resume — inert while the session is paused.
         if (ctx.paused) break;
@@ -46,23 +64,17 @@ export class TartarusHandler implements EventHandler {
         ctx.registry.activateSeasonal({type: 'tartarus'}, emit);
         break;
       }
-      case 's16_suppress':
-        if (!this._viewingSettled) this._committed = true;
-        break;
       case 's16_ignore':
-        if (this._viewingSettled) break;
+        if (viewingSettled) break;
         // Structural: the riot was abandoned, no fight follows. Runs while
         // paused so the run doesn't hang; it keeps its board time, 0 drops.
         resolveMapInterlude(ctx, emit);
         ctx.registry.seasonal('tartarus')?.finish();
         break;
       case 's16_board_close':
-        if (this._viewingSettled) {
-          this._viewingSettled = false;
-          break;
-        }
+        if (viewingSettled) break;
         // Committed: the prison scene is next — map stays frozen, clock runs.
-        if (this._committed) break;
+        if (committed) break;
         // Structural: the board IS closed — the player is back on the map.
         resolveMapInterlude(ctx, emit);
         if (ctx.paused) break;
@@ -71,12 +83,10 @@ export class TartarusHandler implements EventHandler {
       case 'zone_transition': {
         const enteringFight = !event.fromScene.includes(TARTARUS_PRISON_SCENE) && event.toScene.includes(TARTARUS_PRISON_SCENE);
         const leavingFight  = event.fromScene.includes(TARTARUS_PRISON_SCENE) && !event.toScene.includes(TARTARUS_PRISON_SCENE);
-        const committed = this._committed;
-        this._committed = false;
 
         if (enteringFight) {
           // The fight is part of the interlude. Activation also self-heals a
-          // run whose board opened before the session started.
+          // run whose board opened while the session was paused.
           pauseMapForInterlude(ctx, emit);
           if (ctx.paused) break;
           ctx.registry.activateSeasonal({type: 'tartarus'}, emit);
@@ -93,5 +103,37 @@ export class TartarusHandler implements EventHandler {
         break;
       }
     }
+  }
+
+  /** Interlude STATE, in every phase, so an interlude already in progress
+   *  when the session opens is known to onSessionOpen; only handle()'s
+   *  effects wait for tracking. The prison half is `ctx.currentScene`. */
+  private _observe(event: RawEvent): void {
+    switch (event.type) {
+      case 's16_board_open':
+        this._viewingSettled = event.settled;
+        this._boardOpen      = !event.settled;
+        break;
+      case 's16_suppress':
+        if (!this._viewingSettled) this._committed = true;
+        break;
+      case 's16_ignore':
+        if (!this._viewingSettled) this._boardOpen = false;
+        break;
+      case 's16_board_close':
+        if (this._viewingSettled) this._viewingSettled = false;
+        else                      this._boardOpen      = false;
+        break;
+      case 'zone_transition':
+        this._boardOpen = false;
+        this._committed = false;
+        break;
+    }
+  }
+
+  private _resetState(): void {
+    this._viewingSettled = false;
+    this._boardOpen      = false;
+    this._committed      = false;
   }
 }

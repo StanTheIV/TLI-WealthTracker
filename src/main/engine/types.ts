@@ -29,6 +29,12 @@ export interface EventHandler {
   onStart?(ctx: EngineContext, emit: EmitFn): void;
   /** Called on engine stop — must clean up any timers */
   onStop?(ctx: EngineContext): void;
+  /** The session just opened (bag-init completion or Engine.reset) — run at
+   *  the end of openSessionRun, after the map rebuild. A handler whose run is
+   *  still in progress (an interlude, a Dream) starts it fresh here, since
+   *  nothing it saw before could start one: the session did not exist yet
+   *  (pre-init), or the reset just discarded it. */
+  onSessionOpen?(ctx: EngineContext, emit: EmitFn): void;
   /** Read this handler's keys from the raw settings table; a missing or
    *  unparseable value falls back to the handler's default. A new value only
    *  affects runs started after it — a live tracker keeps its window. */

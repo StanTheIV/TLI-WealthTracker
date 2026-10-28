@@ -3,8 +3,12 @@ import {TrackerRegistry} from './tracker-registry';
 import type {ItemFilterEngine} from './item-filter';
 import type {ItemType} from '@/shared/items';
 import type {Source} from '@/shared/contracts/engine';
+import type {EmitFn} from './types';
 
 export type {DistributeResult} from './tracker-registry';
+
+/** A registered handler's `onSessionOpen` (see EventHandler). */
+export type SessionOpenHook = (ctx: EngineContext, emit: EmitFn) => void;
 
 export type Phase = 'idle' | 'initializing' | 'tracking';
 
@@ -97,6 +101,13 @@ export class EngineContext {
 
   /** IDs of items already known in the DB — used to detect first-time drops. */
   knownItems: Set<string> = new Set();
+
+  /** Every registered handler's `onSessionOpen`, in registration order — run
+   *  by openSessionRun. Here because the session opens from BagInitHandler,
+   *  which cannot reach its sibling handlers. Wiring, not session state:
+   *  filled once by Engine.register and deliberately left alone by reset(),
+   *  since the handlers outlive every session. */
+  readonly sessionOpenHooks: SessionOpenHook[] = [];
 
   /** Bag changes here are loot (credited) rather than town activity. A pure
    *  function of where the player is: which trackers happen to exist is

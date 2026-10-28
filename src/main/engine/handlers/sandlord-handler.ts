@@ -14,11 +14,20 @@ import {SANDLORD_HUB_SCENE, TOWN_SCENE} from '@/shared/scenes';
  *
  * Must be registered BEFORE ZoneHandler so the bubble is in the registry by
  * the time Zone runs on the same event — hence it reads scene names, never
- * `ctx.location`, which Zone has not updated yet.
+ * `ctx.location`, which Zone has not updated yet. (onSessionOpen runs outside
+ * any event, so there `ctx.location` is current: 'hub' is the hub visit.)
  */
 export class SandlordHandler implements EventHandler {
   readonly name    = 'sandlord';
   readonly handles = ['zone_transition'] as const;
+
+  /** The session opened inside the hub (ZoneHandler keeps `ctx.location` in
+   *  every phase): the rebuilt map, if the hub was entered from one, freezes
+   *  again and the bubble starts fresh, as on entering the hub. */
+  onSessionOpen(ctx: EngineContext, emit: EmitFn): void {
+    if (ctx.location !== 'hub') return;
+    this._startHubRun(ctx, emit);
+  }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
     if (event.type !== 'zone_transition') return;
@@ -32,17 +41,10 @@ export class SandlordHandler implements EventHandler {
     // direct map → hub transition — counting it here would suppress the bubble.
     const inHubRun = existing !== null && existing.phase !== 'map';
 
-    // Entering the hub starts a bubble seasonal — while the session is paused
-    // too, frozen like a map entered while paused, so the session resume
-    // starts its clock. A direct map → hub transition is possible: the map
-    // freezes for the whole Sandlord run (it ends at town with the Sandlord
-    // time excluded).
     if (enteringHub && !inHubRun) {
       // Retire a map-phase run first so the type is free for the bubble.
       if (existing) existing.finish();
-      pauseMapForInterlude(ctx, emit);
-      const run = ctx.registry.startSeasonal({type: 'sandlord', ownsBubble: true, phase: 'hub'}, emit);
-      if (run && ctx.paused) ctx.registry.freezeForSessionPause(run);
+      this._startHubRun(ctx, emit);
       return;
     }
 
@@ -58,5 +60,15 @@ export class SandlordHandler implements EventHandler {
       resolveMapInterlude(ctx, emit);
       existing?.finish();
     }
+  }
+
+  /** Start the hub's bubble seasonal — while the session is paused too, frozen
+   *  like a map entered while paused, so the session resume starts its clock.
+   *  A direct map → hub transition is possible: the map freezes for the whole
+   *  Sandlord run (it ends at town with the Sandlord time excluded). */
+  private _startHubRun(ctx: EngineContext, emit: EmitFn): void {
+    pauseMapForInterlude(ctx, emit);
+    const run = ctx.registry.startSeasonal({type: 'sandlord', ownsBubble: true, phase: 'hub'}, emit);
+    if (run && ctx.paused) ctx.registry.freezeForSessionPause(run);
   }
 }

@@ -81,8 +81,10 @@ export class BagInitHandler implements EventHandler {
    * the player left while initializing was no unit and is not counted, and
    * one they are still inside is rebuilt as the session's first (next, on a
    * continue) map — see openSessionRun. Nothing pre-init was announced
-   * (ZoneHandler and the seasonal handlers publish only while tracking), so
-   * it is dropped silently.
+   * (ZoneHandler and the seasonal handlers act and publish only while
+   * tracking), so the pre-init trackers are dropped silently. The handlers'
+   * STATE did follow the log, though: an interlude still in progress starts
+   * its run in openSessionRun's session-open hooks.
    */
   private _initialize(entries: SlotSnapshotEntry[], ctx: EngineContext, emit: EmitFn): void {
     ctx.bag.init(entries);

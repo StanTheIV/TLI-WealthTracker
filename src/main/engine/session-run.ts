@@ -16,6 +16,11 @@ import type {EmitFn} from './types';
  * Emits the session tracker_started (identity + counters), then for a rebuilt
  * map its map_started and tracker_started, and a session update when the
  * carried cost changed the session's spent.
+ *
+ * Last, the handlers' session-open hooks (EventHandler.onSessionOpen): an
+ * interlude still in progress — seen by its handler, but with no session to
+ * run in (pre-init) or its run just discarded (Reset) — starts fresh and
+ * re-freezes the rebuilt map, which is why the hooks run after it.
  */
 export function openSessionRun(
   ctx: EngineContext,
@@ -69,5 +74,7 @@ export function openSessionRun(
       }
     }
   }
+
+  for (const hook of ctx.sessionOpenHooks) hook(ctx, emit);
   return session;
 }

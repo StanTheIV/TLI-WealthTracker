@@ -59,6 +59,8 @@ export class Engine {
       this._routes.get(type)!.push(handler);
     }
     this._handlers.push(handler);
+    const onSessionOpen = handler.onSessionOpen?.bind(handler);
+    if (onSessionOpen) this._ctx.sessionOpenHooks.push(onSessionOpen);
     if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
     return this;
   }
@@ -109,7 +111,9 @@ export class Engine {
    * touching bag state, filters, or known items. Drops and elapsed for
    * session/map/seasonal go to zero. Map count resets to 0 (or 1 if currently
    * in a map — that map becomes "map #1" of the new run) and keeps that map's
-   * entry cost. Pause/run state preserved. A no-op unless tracking.
+   * entry cost. Pause/run state preserved. An interlude (or Dream) still in
+   * progress starts a fresh run and re-freezes that map (onSessionOpen, run by
+   * openSessionRun). A no-op unless tracking.
    */
   reset(identity: SessionIdentity): void {
     if (this._ctx.phase !== 'tracking') return;
