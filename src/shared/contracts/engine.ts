@@ -43,7 +43,8 @@ export interface TrackerSnapshot {
   /** Per-source breakdown — populated only on the session tracker's snapshot.
    *  Each drop is attributed to exactly one source (newest active tracker at
    *  the moment the drop fired) so summing per-source totals reproduces
-   *  session FE. Omitted on map and seasonal snapshots. */
+   *  session FE. Omitted on map and seasonal snapshots. Main-process only:
+   *  persistence reads it; the renderer gets a WireTrackerSnapshot. */
   dropsBySource?: Record<Source, Record<number, number>>;
   /** Entry cost, as positive magnitudes. Map: the materials consumed in town
    *  right before it started. Session: the running total of its maps' costs.
@@ -88,8 +89,8 @@ export interface UnitCheckpoint extends SessionMapMeta {
 
 // ---------------------------------------------------------------------------
 // EngineEvents — sent from the main-process engine to every renderer via IPC
-// (each in an EngineEnvelope), except `unit_finished`, which stays in the main
-// process (persistence only).
+// (each in an EngineEnvelope, as a WireEngineEvent), except `unit_finished`,
+// which stays in the main process (persistence only).
 // ---------------------------------------------------------------------------
 
 export type EngineEvent =
@@ -128,17 +129,40 @@ export type EngineEvent =
   | {type: 'loot_window_ended';   seasonalType: TrackerSnapshot['seasonalType']; timestamp: number}
   | {type: 'error';            message: string};
 
+// ---------------------------------------------------------------------------
+// Wire types — what leaves the main process. TrackingService converts at its
+// two exits (the `engine:event` broadcast and `engine:get-state`); in-process
+// consumers (persistence, the wealth snapshot, the engine itself) keep the
+// full EngineEvent. Each EngineEvent but `unit_finished` is assignable to its
+// wire form (an Omit is a supertype).
+// ---------------------------------------------------------------------------
+
+/** A tracker snapshot as the renderer receives it: without `dropsBySource`,
+ *  which only persistence reads (and which, per source × item, would double
+ *  every session snapshot). Everything else — `drops`, `spent` — is kept. */
+export type WireTrackerSnapshot = Omit<TrackerSnapshot, 'dropsBySource'>;
+
+/** `E` with its `tracker` (if it has one) in wire form, every other field as is. */
+type WithWireTracker<E> = E extends {tracker: TrackerSnapshot}
+  ? {[K in keyof E]: K extends 'tracker' ? WireTrackerSnapshot : E[K]}
+  : E;
+
+/** An EngineEvent as the renderer receives it: every event but the
+ *  persistence-only `unit_finished`, its tracker snapshot in wire form. */
+export type WireEngineEvent = WithWireTracker<Exclude<EngineEvent, {type: 'unit_finished'}>>;
+
 /** One `engine:event` broadcast. `seq` is the main process's broadcast
  *  sequence: +1 per broadcast, never reset across runs — a window that loaded
  *  a snapshot taken at seq N applies only envelopes with seq > N. */
 export interface EngineEnvelope {
   seq:   number;
-  event: EngineEvent;
+  event: WireEngineEvent;
 }
 
-/** `engine:get-state`: the engine's replay (ordinary EngineEvents that rebuild
- *  a fresh renderer store) as of broadcast `seq`. No run → `events` empty. */
+/** `engine:get-state`: the engine's replay (ordinary events, in wire form,
+ *  that rebuild a fresh renderer store) as of broadcast `seq`. No run →
+ *  `events` empty. */
 export interface EngineSnapshot {
   seq:    number;
-  events: EngineEvent[];
+  events: WireEngineEvent[];
 }

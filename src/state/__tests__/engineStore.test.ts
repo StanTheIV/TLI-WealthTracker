@@ -4,10 +4,10 @@
  * every session snapshot (absent -> {}) and clear with the rest of the state.
  */
 import {beforeEach, describe, expect, it} from 'vitest';
-import type {EngineEvent, SessionStartMeta, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {WireEngineEvent, SessionStartMeta, TrackerSnapshot} from '@/shared/contracts/engine';
 import {useEngineStore} from '../engineStore';
 
-const handle = (e: EngineEvent) => useEngineStore.getState().handleEvent(e);
+const handle = (e: WireEngineEvent) => useEngineStore.getState().handleEvent(e);
 const state = () => useEngineStore.getState() as unknown as {sessionSpent: Record<number, number>; drops: Record<number, number>};
 
 const session = (over: Partial<TrackerSnapshot> = {}): TrackerSnapshot =>
@@ -57,7 +57,7 @@ describe('engineStore.sessionSpent', () => {
 
   it('is cleared by init_started', () => {
     handle({type: 'tracker_update', tracker: session({spent: {2: 1}}), timestamp: 1});
-    handle({type: 'init_started'} as EngineEvent);
+    handle({type: 'init_started'} as WireEngineEvent);
     expect(state().sessionSpent).toEqual({});
   });
 
@@ -69,7 +69,7 @@ describe('engineStore.sessionSpent', () => {
 
   it('does not disturb session drops, which keep accumulating from drop events', () => {
     handle({type: 'tracker_started', tracker: session(), timestamp: 1});
-    handle({type: 'drop', itemId: 1, change: 5} as EngineEvent);
+    handle({type: 'drop', itemId: 1, change: 5} as WireEngineEvent);
     handle({type: 'tracker_update', tracker: session({spent: {2: 1}}), timestamp: 2});
     expect(state().drops).toEqual({1: 5});
     expect(state().sessionSpent).toEqual({2: 1});
@@ -78,14 +78,14 @@ describe('engineStore.sessionSpent', () => {
 
 describe('engineStore live session state, adversarial', () => {
   const full = () => useEngineStore.getState();
-  const drop = (itemId: number, change: number) => handle({type: 'drop', itemId, change} as EngineEvent);
+  const drop = (itemId: number, change: number) => handle({type: 'drop', itemId, change} as WireEngineEvent);
 
   it('a continued session seeds drops, spent, map count and map time from tracker_started, then keeps accumulating', () => {
     handle({
       type: 'tracker_started', timestamp: 1,
       tracker: session({drops: {1: 100, 2: -3}, spent: {2: 4}}),
       sessionMeta: {mapCount: 7, mapTime: 12345},
-    } as unknown as EngineEvent);
+    } as unknown as WireEngineEvent);
     expect(state().drops).toEqual({1: 100, 2: -3});
     expect(state().sessionSpent).toEqual({2: 4});
     expect(full().mapCount).toBe(7);
@@ -160,7 +160,7 @@ describe('engineStore live session state, adversarial', () => {
 
   it('init_started wipes drops and spent even after a continued session', () => {
     handle({type: 'tracker_started', tracker: session({drops: {1: 5}, spent: {2: 1}}), timestamp: 1});
-    handle({type: 'init_started'} as EngineEvent);
+    handle({type: 'init_started'} as WireEngineEvent);
     expect(state().drops).toEqual({});
     expect(state().sessionSpent).toEqual({});
   });

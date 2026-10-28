@@ -110,7 +110,7 @@ describe('engine:event envelope', () => {
     const h = build();
     h.service.start(); init(h); runMap(h); h.service.stop();
     expect(h.engineEmitted.some(e => e.type === 'unit_finished')).toBe(true); // not vacuous
-    expect(envelopes(h).some(e => e.event.type === 'unit_finished')).toBe(false);
+    expect(envelopes(h).some(e => (e.event.type as string) === 'unit_finished')).toBe(false);
     const envs = envelopes(h);
     for (let i = 1; i < envs.length; i++) expect(envs[i].seq).toBe(envs[i - 1].seq + 1);
   });
@@ -160,14 +160,22 @@ describe('TrackingService.getState', () => {
     expect(state(h)).toEqual({seq: envelopes(h).at(-1)!.seq, events: []});
   });
 
-  it('after every step: seq = last broadcast seq, events = engine.getState()', () => {
+  it('after every step: seq = last broadcast seq, events = engine.getState() without dropsBySource', () => {
     const h = build();
+    const wire = (e: EngineEvent) => {
+      if (!('tracker' in e)) return e;
+      const {dropsBySource: _dbs, ...tracker} = e.tracker;
+      return {...e, tracker};
+    };
+    let stripped = 0;
     const check = (label: string) => {
       const envs = envelopes(h);
       const st = state(h);
       expect(st.seq, label).toBe(envs.at(-1)?.seq ?? 0);
       const engine = h.engines.at(-1);
-      expect(st.events, label).toEqual(engine ? engine.getState() : []);
+      const replay = engine ? engine.getState() : [];
+      stripped += replay.filter(e => 'tracker' in e && 'dropsBySource' in e.tracker).length;
+      expect(st.events, label).toStrictEqual(replay.map(wire));
     };
     check('fresh');
     h.service.start();       check('started');
@@ -178,6 +186,7 @@ describe('TrackingService.getState', () => {
     h.service.resume();      check('resumed');
     h.service.stop();        check('stopped');
     expect(state(h).events).toEqual([]);
+    expect(stripped, 'the session replay carried dropsBySource at some step').toBeGreaterThan(0);
   });
 
   it('a running session replays: init_started first, session tracker present', () => {

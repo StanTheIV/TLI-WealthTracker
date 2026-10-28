@@ -6,7 +6,7 @@ import type {Logger} from '@/main/logger';
 import {SessionPersistence, type SessionMeta} from '@/main/session-persistence';
 import type {RawEvent} from '@/worker/processors/types';
 import type {DbItem, DbItemFilter, DbSession, ItemChangedPatch} from '@/shared/contracts/db';
-import type {EngineEnvelope, EngineEvent, EngineSnapshot, SessionIdentity} from '@/shared/contracts/engine';
+import type {EngineEnvelope, EngineEvent, EngineSnapshot, SessionIdentity, WireEngineEvent} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
 import {LOG_SUBPATH} from '@/shared/paths';
@@ -161,10 +161,15 @@ export class TrackingService {
     return this._engine !== null;
   }
 
-  /** The engine's replay and the seq of the last broadcast, read together: a
-   *  window applies it, then only envelopes with a later seq. */
+  /** The engine's replay, in wire form, and the seq of the last broadcast,
+   *  read together: a window applies it, then only envelopes with a later seq.
+   *  (The replay holds no `unit_finished`; the filter only narrows the type.) */
   getState(): EngineSnapshot {
-    return {seq: this._seq, events: this._engine?.getState() ?? []};
+    const events: WireEngineEvent[] = [];
+    for (const event of this._engine?.getState() ?? []) {
+      if (event.type !== 'unit_finished') events.push(this._toWire(event));
+    }
+    return {seq: this._seq, events};
   }
 
   /** Delete a saved session and its rows. Refuses (throws) the active one. */
@@ -379,8 +384,19 @@ export class TrackingService {
     // reads each tracker's own tracker_finished) — skipped before stamping,
     // so the seq stays contiguous.
     if (event.type === 'unit_finished') return;
-    const envelope: EngineEnvelope = {seq: ++this._seq, event};
+    const envelope: EngineEnvelope = {seq: ++this._seq, event: this._toWire(event)};
     this._isolate('broadcast', event, () => this._deps.broadcast('engine:event', envelope));
+  }
+
+  /** `event` as it leaves the process — for `_send` and `getState()` alike: a
+   *  tracker snapshot carrying `dropsBySource` (the session's) is COPIED
+   *  without it, never mutated — the same event object feeds persistence
+   *  before `_send` and the wealth snapshot after it. Anything else passes
+   *  through as is. */
+  private _toWire(event: Exclude<EngineEvent, {type: 'unit_finished'}>): WireEngineEvent {
+    if (!('tracker' in event) || !('dropsBySource' in event.tracker)) return event;
+    const {dropsBySource: _dropsBySource, ...tracker} = event.tracker;
+    return {...event, tracker};
   }
 
   /** Run one emit consumer; a throw is logged and swallowed so the rest still run. */

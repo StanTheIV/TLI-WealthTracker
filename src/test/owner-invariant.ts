@@ -71,7 +71,7 @@ export class OwnerWatcher {
       this.published.clear();
     }
     if (this._opts.store) {
-      useEngineStore.getState().handleEvent(ev);
+      if (ev.type !== 'unit_finished') useEngineStore.getState().handleEvent(ev); // never on the wire
       this._storeParity();
     }
   }

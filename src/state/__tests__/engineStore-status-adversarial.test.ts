@@ -1,9 +1,9 @@
 /** 4.1 adversarial: out-of-order / duplicate events against the derived run status. */
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import type {EngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {WireEngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
 import {selectRunStatus, useEngineStore} from '@/state/engineStore';
 
-const handle = (e: EngineEvent) => useEngineStore.getState().handleEvent(e);
+const handle = (e: WireEngineEvent) => useEngineStore.getState().handleEvent(e);
 const state  = () => useEngineStore.getState();
 const status = () => selectRunStatus(state());
 

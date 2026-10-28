@@ -4,10 +4,10 @@
  * sessionStatus. `engine_stopped` is the one signal that every stop happened.
  */
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import type {EngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {WireEngineEvent, TrackerSnapshot} from '@/shared/contracts/engine';
 import {type RunStatus, selectRunStatus, useEngineStore} from '@/state/engineStore';
 
-const handle = (e: EngineEvent) => useEngineStore.getState().handleEvent(e);
+const handle = (e: WireEngineEvent) => useEngineStore.getState().handleEvent(e);
 const state  = () => useEngineStore.getState();
 const status = (): RunStatus => selectRunStatus(state());
 

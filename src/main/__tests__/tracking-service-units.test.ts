@@ -56,7 +56,7 @@ describe('TrackingService does not broadcast unit_finished', () => {
     vi.advanceTimersByTime(31_000);
     h.service.stop();
 
-    expect(h.events().some(e => e.type === 'unit_finished')).toBe(false);
+    expect(h.events().some(e => (e.type as string) === 'unit_finished')).toBe(false);
     const types = h.events().map(e => e.type);
     expect(types).toContain('tracker_finished');
     const finished = h.events().flatMap(e => (e.type === 'tracker_finished' ? [e.tracker.kind] : []));

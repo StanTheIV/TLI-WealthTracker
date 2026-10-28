@@ -5,15 +5,15 @@
  * interface so the file typechecks.
  */
 import {describe, it, expect, beforeEach} from 'vitest';
-import type {EngineEvent, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {WireEngineEvent, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
 import {useEngineStore, selectRunStatus} from '@/state/engineStore';
 
 interface SnapshotStore {
-  applySnapshot(snapshot: {seq: number; events: EngineEvent[]}): void;
+  applySnapshot(snapshot: {seq: number; events: WireEngineEvent[]}): void;
   lastSeq: number;
 }
 const store = () => useEngineStore.getState();
-const apply = (seq: number, events: EngineEvent[]) => (store() as unknown as SnapshotStore).applySnapshot({seq, events});
+const apply = (seq: number, events: WireEngineEvent[]) => (store() as unknown as SnapshotStore).applySnapshot({seq, events});
 const lastSeq = () => (store() as unknown as SnapshotStore).lastSeq;
 
 const T = 1_000;
@@ -22,17 +22,17 @@ const snap = (kind: TrackerSnapshot['kind'], over: Partial<TrackerSnapshot> = {}
 const seasonal = (seasonalType: SeasonalType, over: Partial<TrackerSnapshot> = {}) =>
   snap('seasonal', {seasonalType, owner: true, ...over});
 
-const started = (tracker: TrackerSnapshot, extra: Partial<Extract<EngineEvent, {type: 'tracker_started'}>> = {}): EngineEvent =>
+const started = (tracker: TrackerSnapshot, extra: Partial<Extract<WireEngineEvent, {type: 'tracker_started'}>> = {}): WireEngineEvent =>
   ({type: 'tracker_started', tracker, timestamp: T, ...extra});
-const sessionStarted = (over: Partial<TrackerSnapshot> = {}, meta?: {name?: string; continued?: boolean; mapCount?: number; mapTime?: number}): EngineEvent =>
+const sessionStarted = (over: Partial<TrackerSnapshot> = {}, meta?: {name?: string; continued?: boolean; mapCount?: number; mapTime?: number}): WireEngineEvent =>
   started(snap('session', over), {
     sessionMeta: {sessionId: 'sid', name: meta?.name ?? 'Run', continued: meta?.continued ?? false, mapTime: meta?.mapTime ?? 0, mapCount: meta?.mapCount ?? 0},
   });
-const lootStarted = (seasonalType: SeasonalType, deadline: number): EngineEvent => ({type: 'loot_window_started', seasonalType, deadline, timestamp: T});
-const status = (s: 'running' | 'paused'): EngineEvent => ({type: 'session_status', status: s, elapsed: 5_000, timestamp: T});
+const lootStarted = (seasonalType: SeasonalType, deadline: number): WireEngineEvent => ({type: 'loot_window_started', seasonalType, deadline, timestamp: T});
+const status = (s: 'running' | 'paused'): WireEngineEvent => ({type: 'session_status', status: s, elapsed: 5_000, timestamp: T});
 
 /** A replay of a mid-run state: tracking, in a map, a seasonal, a window, a warning. */
-const REPLAY: EngineEvent[] = [
+const REPLAY: WireEngineEvent[] = [
   {type: 'init_started'},
   {type: 'init_complete', itemCount: 0},
   sessionStarted({elapsed: 9_000, drops: {1: 4}, spent: {100: 3}}, {name: 'Old run', continued: true, mapCount: 2, mapTime: 30_000}),

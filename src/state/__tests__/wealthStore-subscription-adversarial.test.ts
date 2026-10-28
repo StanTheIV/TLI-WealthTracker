@@ -5,18 +5,18 @@
  * the first load is still in flight.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
-import type {EngineEnvelope, EngineEvent} from '@/shared/contracts/engine';
+import type {EngineEnvelope, WireEngineEvent} from '@/shared/contracts/engine';
 import type {DbWealthDatapoint} from '@/shared/contracts/db';
 
 const row = (id: number, value: number): DbWealthDatapoint => ({id, timestamp: id, value, breakdown: '{}'});
-const recorded: EngineEvent = {type: 'wealth_recorded', timestamp: 1};
-const other:    EngineEvent[] = [
+const recorded: WireEngineEvent = {type: 'wealth_recorded', timestamp: 1};
+const other:    WireEngineEvent[] = [
   {type: 'init_started'},
   {type: 'drop', itemId: 1, change: 1, timestamp: 1},
   {type: 'price_update', itemId: 1, price: 1, timestamp: 1},
   {type: 'session_saved', sessionId: 's'},
 ];
-const env = (seq: number, event: EngineEvent): EngineEnvelope => ({seq, event});
+const env = (seq: number, event: WireEngineEvent): EngineEnvelope => ({seq, event});
 
 function deferred<V>() {
   let resolve!: (v: V) => void;
@@ -42,7 +42,7 @@ async function load() {
   return {
     s: () => useWealthStore.getState(), getRange, getLatest, getAll, onEvent,
     setRows: (r: DbWealthDatapoint[]) => { rows = r; },
-    push: (e: EngineEvent, seq = 1) => { for (const l of listeners) l(env(seq, e)); },
+    push: (e: WireEngineEvent, seq = 1) => { for (const l of listeners) l(env(seq, e)); },
   };
 }
 

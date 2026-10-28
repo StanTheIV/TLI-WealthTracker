@@ -1,12 +1,12 @@
 import {create} from 'zustand';
-import type {EngineEnvelope, EngineEvent, EngineSnapshot, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {EngineEnvelope, EngineSnapshot, SeasonalType, WireEngineEvent, WireTrackerSnapshot} from '@/shared/contracts/engine';
 
 const MAX_EVENTS = 200;
 
 export interface FeedEvent {
   id:        number;
   timestamp: number;
-  event:     EngineEvent;
+  event:     WireEngineEvent;
 }
 
 export interface LowStockWarning {
@@ -23,10 +23,10 @@ interface EngineState {
   sessionSpent:             Record<number, number>;
   mapCount:                 number;
   currentZone:              string | null;
-  mapTracker:                TrackerSnapshot | null;
+  mapTracker:                WireTrackerSnapshot | null;
   /** Active seasonal trackers keyed by seasonalType. Multiple can run at
    *  once (e.g. Lunaria during Overrealm). UI renders one row per entry. */
-  seasonalTrackers:          Map<SeasonalType, TrackerSnapshot>;
+  seasonalTrackers:          Map<SeasonalType, WireTrackerSnapshot>;
   mapTrackerReceivedAt:      number | null;
   /** Per-seasonal `Date.now()` of the last tracker_started/tracker_update
    *  event — used by the elapsed-time hook to interpolate between snapshots. */
@@ -71,7 +71,7 @@ interface EngineActions {
    *  call returns the first call's promise, settled once the snapshot is in. */
   init:                 () => Promise<void>;
   /** Apply one live event (feed included). */
-  handleEvent:          (event: EngineEvent) => void;
+  handleEvent:          (event: WireEngineEvent) => void;
   /** Rebuild the store from a snapshot: every engine field back to its
    *  initial value, then each replay event reduced in order. The feed stays
    *  empty — history is not reconstructible. `sessionsVersion` is kept: it is
@@ -100,7 +100,7 @@ function initialState(): EngineState {
     mapCount:                   0,
     currentZone:                null,
     mapTracker:                 null,
-    seasonalTrackers:           new Map<SeasonalType, TrackerSnapshot>(),
+    seasonalTrackers:           new Map<SeasonalType, WireTrackerSnapshot>(),
     mapTrackerReceivedAt:       null,
     seasonalTrackersReceivedAt: new Map<SeasonalType, number>(),
     sessionStatus:              'idle',
@@ -119,7 +119,7 @@ function initialState(): EngineState {
 
 /** The state after `event` — everything but the feed, which only live events
  *  extend. No side effects beyond reading the clock for `*ReceivedAt`. */
-function reduce(s: EngineState, event: EngineEvent): EngineState {
+function reduce(s: EngineState, event: WireEngineEvent): EngineState {
   let phase                      = s.phase;
   let drops                      = s.drops;
   let sessionSpent               = s.sessionSpent;
@@ -318,7 +318,7 @@ let _nextId = 0;
 let _init: Promise<void> | null = null;
 
 /** `event` reduced live: the state change plus its feed entry. */
-function applyLive(s: EngineState, event: EngineEvent): EngineState {
+function applyLive(s: EngineState, event: WireEngineEvent): EngineState {
   const feedEntry: FeedEvent = {id: _nextId++, timestamp: Date.now(), event};
   return {...reduce(s, event), feed: [...s.feed, feedEntry].slice(-MAX_EVENTS)};
 }

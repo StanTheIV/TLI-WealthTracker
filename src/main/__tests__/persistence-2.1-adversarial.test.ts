@@ -513,7 +513,7 @@ describe('session_saved stream', () => {
       {type: 'session_saved', sessionId: c, deleted: true},
     ]);
     for (const e of h.saved()) expect(e.deleted === undefined || e.deleted === true).toBe(true);
-    expect(h.events().some(e => e.type === 'unit_finished')).toBe(false);
+    expect(h.events().some(e => (e.type as string) === 'unit_finished')).toBe(false);
     expect(h.store.getSession(c)).toBeNull();
     expect(h.store.listSessions().map(s => s.id)).toEqual([b]);
   });

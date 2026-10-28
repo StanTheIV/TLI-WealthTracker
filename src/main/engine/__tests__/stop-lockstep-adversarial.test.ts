@@ -31,7 +31,7 @@ function lockstep() {
   e = createEngineWithEmit(ev => {
     events.push(ev);
     w.onEmit(ev);
-    store().handleEvent(ev);
+    if (ev.type !== 'unit_finished') store().handleEvent(ev); // never on the wire
     const resets = ev.type === 'init_started' || ev.type === 'engine_stopped'
       || (ev.type === 'tracker_started' && ev.tracker.kind === 'session')
       || (ev.type === 'tracker_finished' && ev.tracker.kind === 'session');

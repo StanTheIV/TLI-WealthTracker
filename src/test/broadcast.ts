@@ -4,7 +4,7 @@
  * an assertion over the unwrapped events can never pass vacuously on a payload
  * of the wrong shape.
  */
-import type {EngineEnvelope, EngineEvent} from '@/shared/contracts/engine';
+import type {EngineEnvelope, WireEngineEvent} from '@/shared/contracts/engine';
 
 export interface Sent { channel: string; payload: unknown }
 
@@ -18,7 +18,7 @@ export function asEnvelope(payload: unknown): EngineEnvelope {
 }
 
 /** The event inside one `engine:event` payload. */
-export function unwrapEngineEvent(payload: unknown): EngineEvent {
+export function unwrapEngineEvent(payload: unknown): WireEngineEvent {
   return asEnvelope(payload).event;
 }
 
@@ -28,6 +28,6 @@ export function engineEnvelopes(sent: readonly Sent[]): EngineEnvelope[] {
 }
 
 /** Every broadcast engine event, in order. */
-export function engineEvents(sent: readonly Sent[]): EngineEvent[] {
+export function engineEvents(sent: readonly Sent[]): WireEngineEvent[] {
   return engineEnvelopes(sent).map(e => e.event);
 }

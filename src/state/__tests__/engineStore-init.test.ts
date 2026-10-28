@@ -6,13 +6,13 @@
  * store keeps a module-level "initialized" flag.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
-import type {EngineEnvelope as Envelope, EngineEvent, EngineSnapshot as Snapshot} from '@/shared/contracts/engine';
+import type {EngineEnvelope as Envelope, WireEngineEvent, EngineSnapshot as Snapshot} from '@/shared/contracts/engine';
 
 const T = 1_000;
-const drop = (change: number, itemId = 1): EngineEvent => ({type: 'drop', itemId, change, timestamp: T});
-const zone = (to: string): EngineEvent => ({type: 'zone_change', from: 'x', to, entering: 'town', timestamp: T});
-const env  = (seq: number, event: EngineEvent): Envelope => ({seq, event});
-const BASE: EngineEvent[] = [
+const drop = (change: number, itemId = 1): WireEngineEvent => ({type: 'drop', itemId, change, timestamp: T});
+const zone = (to: string): WireEngineEvent => ({type: 'zone_change', from: 'x', to, entering: 'town', timestamp: T});
+const env  = (seq: number, event: WireEngineEvent): Envelope => ({seq, event});
+const BASE: WireEngineEvent[] = [
   {type: 'init_started'},
   {type: 'init_complete', itemCount: 0},
   {type: 'tracker_started', tracker: {kind: 'session', drops: {}, elapsed: 0, startedAt: T, active: true}, timestamp: T,

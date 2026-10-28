@@ -99,7 +99,8 @@ const dismissMaterial = vi.fn<(id: number) => void>();
 
 function rig(inv = INV) {
   const events: EngineEvent[] = [];
-  const e =createEngineWithEmit(ev => { events.push(ev); store().handleEvent(ev); });
+  // The store gets what the wire carries: never unit_finished.
+  const e =createEngineWithEmit(ev => { events.push(ev); if (ev.type !== 'unit_finished') store().handleEvent(ev); });
   const d = createDispatcher();
   let total = 0;
 

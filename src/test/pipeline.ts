@@ -180,7 +180,7 @@ function liveMatchesAnalytics(events: EngineEvent[], result: PipelineResult, a: 
   const finish = events.findIndex(e => e.type === 'tracker_finished' && e.tracker.kind === 'session');
   const upToStop = finish === -1 ? events : events.slice(0, finish);
   useEngineStore.getState().reset();
-  for (const event of upToStop) useEngineStore.getState().handleEvent(event);
+  for (const event of upToStop) if (event.type !== 'unit_finished') useEngineStore.getState().handleEvent(event); // never on the wire
   const {drops, sessionSpent} = useEngineStore.getState();
   useEngineStore.getState().reset();
   const live = liveValue({drops, spent: sessionSpent}, result.items, result.tax).net;

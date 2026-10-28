@@ -61,10 +61,14 @@ function norm(s: StoreState) {
   };
 }
 
+/** Every event the renderer can receive. */
+const onWire = (e: EngineEvent): e is Exclude<EngineEvent, {type: 'unit_finished'}> => e.type !== 'unit_finished';
+
 function viaReplay(events: EngineEvent[]) {
   const saved = useEngineStore.getState();
   try {
-    useEngineStore.getState().applySnapshot({seq: 0, events});
+    // Engine.getState() holds no unit_finished; the filter narrows to what the wire carries.
+    useEngineStore.getState().applySnapshot({seq: 0, events: events.filter(onWire)});
     return norm(useEngineStore.getState());
   } finally {
     useEngineStore.setState(saved, true);
@@ -94,7 +98,7 @@ function drive(lines: LogLine[], d: Drive = {}) {
   if (useStore) useEngineStore.getState().reset();
   clock = installReplayClock(lines[0].ts - 1);
   const dispatcher = createDispatcher();
-  const engine = createEngine(ev => { events.push(ev); if (useStore) useEngineStore.getState().handleEvent(ev); });
+  const engine = createEngine(ev => { events.push(ev); if (useStore && onWire(ev)) useEngineStore.getState().handleEvent(ev); });
   engine.start({sessionId: 'rl-1', name: 'rl-1'});
   configureEngine(engine, {items: Object.values(GOLDEN_ITEMS), filterRules: null, settings: {}});
   d.step?.('start', engine);
