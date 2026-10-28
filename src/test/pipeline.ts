@@ -293,7 +293,6 @@ function itemCount(t: TrackerSnapshot): number {
 function describeEvent(e: EngineEvent, flags: Map<string, string>): string | null {
   switch (e.type) {
     case 'drop':
-    case 'price_update':
     case 'wealth_recorded':
     case 'unit_finished':
       return null;

@@ -122,7 +122,6 @@ export type EngineEvent =
   | {type: 'engine_stopped';   timestamp: number}
   /** After every session write; `deleted`: the write removed it (an empty run at Stop, or Reset). */
   | {type: 'session_saved';    sessionId: string; deleted?: true}
-  | {type: 'price_update';     itemId: number; price: number; timestamp: number}
   | {type: 'wealth_recorded';  timestamp: number}
   | {type: 'map_material_warning'; items: Array<{itemId: number; quantity: number}>; timestamp: number}
   | {type: 'loot_window_started'; seasonalType: TrackerSnapshot['seasonalType']; deadline: number; timestamp: number}

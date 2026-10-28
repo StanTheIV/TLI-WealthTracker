@@ -803,15 +803,29 @@ describe('TrackingService — idempotency', () => {
 describe('TrackingService — price routing', () => {
   const price: RawEvent = {type: 'price_update', itemId: 555, price: 12.5, listings: [12, 13]};
 
-  it('records the scrape, then items:changed (with priceDate), then engine:event — no engine needed', () => {
+  it('records the scrape, then items:changed (with priceDate) — and no engine:event; no engine needed', () => {
     const h = build();
     h.raw(price);
 
     expect(h.items.recordScrapedPrice).toHaveBeenCalledWith('555', 12.5, [12, 13], {updateItem: true});
     expect(h.sent).toEqual([
       {channel: 'items:changed', payload: {id: '555', changes: {price: 12.5, priceDate: NOW}}},
-      {channel: 'engine:event',  payload: {seq: 1, event: {type: 'price_update', itemId: 555, price: 12.5, timestamp: NOW}}},
     ]);
+  });
+
+  it('while tracking: items:changed only — no engine:event, and the engine never sees it', () => {
+    const h = build();
+    h.service.start();
+    init(h);
+    const engine = h.engines[0];
+    const onRaw = vi.spyOn(engine, 'onRawEvent');
+    const n = h.sent.length;
+    h.raw(price);
+
+    expect(h.sent.slice(n)).toEqual([
+      {channel: 'items:changed', payload: {id: '555', changes: {price: 12.5, priceDate: NOW}}},
+    ]);
+    expect(onRaw).not.toHaveBeenCalled();
   });
 
   it('omits priceDate from the patch when the item row was not updated', () => {

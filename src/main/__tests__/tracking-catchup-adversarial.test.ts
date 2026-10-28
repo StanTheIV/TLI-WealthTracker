@@ -23,6 +23,7 @@ import {createDispatcher} from '@/worker/create-dispatcher';
 const NOW  = new Date('2026-03-01T12:00:00Z').getTime();
 const BAG  = 100;
 const LOOT = 200;
+const FOUND = 300;
 
 function build() {
   const store = new SqliteSessionStore(openMigratedNodeSqlite());
@@ -54,6 +55,8 @@ const bag     = (h: H, qty: number) => h.raw({type: 'bag_update', pageId: 0, slo
 const dispatcher = createDispatcher();
 const line    = (h: H, text: string) => { for (const r of dispatcher.dispatch(text)) h.raw(r); };
 const price   = (h: H, id: number) => h.raw({type: 'price_update', itemId: id, price: 3, listings: [3]});
+/** A first-seen item picked up in town: once the town buffer settles, a lone `new_item`. */
+const pickup  = (h: H, id: number) => h.raw({type: 'bag_update', pageId: 0, slotId: 3, itemId: id, quantity: 1});
 
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(NOW); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -65,7 +68,7 @@ function script(h: H): Array<[string, () => void]> {
   return [
     ['start',        () => h.service.start()],
     ['init',         () => bagInit(h)],
-    ['price',        () => price(h, 1)],
+    ['town pickup',  () => { pickup(h, FOUND); adv(1_500)(); }],
     ['enter map',    () => { adv(2_000)(); go(h, TOWN, MAP); }],
     ['drop',         () => { adv(3_000)(); bag(h, ++q); }],
     ['price',        () => price(h, 2)],
@@ -137,7 +140,14 @@ describe('catch-up: subscribe at a, getState at b, resolve at c (a <= b <= c, ov
     const {boundaries, envelopes} = record();
     expect(envelopes.length).toBeGreaterThan(40);
     expect(envelopes.some(e => e.event.type === 'loot_window_started')).toBe(true); // the carjack window is in play
-    expect(envelopes.some(e => e.event.type === 'price_update')).toBe(true);
+    // Boundaries whose envelopes no replay holds: a lone feed-only new_item, and a scraped price that broadcasts none.
+    const addedAt = (label: string) => {
+      const i = boundaries.findIndex(b => b.label === label);
+      return envelopes.filter(e => e.seq > boundaries[i - 1].seqAfter && e.seq <= boundaries[i].seqAfter).map(e => e.event.type);
+    };
+    expect(addedAt('town pickup')).toEqual(['new_item']);
+    expect(boundaries.every(b => !b.snapshot.events.some(e => e.type === 'new_item'))).toBe(true);
+    expect(addedAt('price')).toEqual([]);
 
     const ref = await freshStore();
     for (const {event} of envelopes) ref.store.getState().handleEvent(event);
@@ -210,10 +220,19 @@ describe('seq contract across every control', () => {
       for (let i = 1; i < envs.length; i++) expect(envs[i].seq, `${label} #${i} ${envs[i].event.type}`).toBe(envs[i - 1].seq + 1);
       expect(h.service.getState().seq, label).toBe(envs.at(-1)?.seq ?? 0);
     };
-    price(h, 9); check('price, no engine');
+    // A scraped price broadcasts items:changed and no envelope, so it must consume no seq.
+    const quietPrice = (id: number, label: string) => {
+      const n = h.sent.length;
+      price(h, id);
+      expect(h.sent.slice(n).map(s => s.channel), label).toEqual(['items:changed']);
+      check(label);
+    };
+    quietPrice(9, 'price, no engine');
+    expect(engineEnvelopes(h.sent)).toEqual([]);
     h.service.start(); check('start');
+    expect(engineEnvelopes(h.sent)[0].seq).toBe(1);
     bagInit(h); check('init');
-    price(h, 1); check('price');
+    quietPrice(1, 'price');
     go(h, TOWN, MAP); bag(h, 1); check('map');
     h.service.pause(); check('pause');
     h.service.resume(); check('resume');
@@ -223,6 +242,12 @@ describe('seq contract across every control', () => {
     bagInit(h); check('init 2');
     h.service.stop(); check('stop');
     h.service.stop(); check('double stop');
+    const idle = engineEnvelopes(h.sent).at(-1)!.seq;
+    quietPrice(2, 'price between runs');
+    h.service.start(); check('start after an idle price');
+    expect(engineEnvelopes(h.sent).find(e => e.seq > idle)?.event.type).toBe('init_started');
+    expect(engineEnvelopes(h.sent).find(e => e.seq > idle)?.seq).toBe(idle + 1);
+    h.service.stop(); check('stop 2');
     const doneId = (h.sent.find(s => s.channel === 'engine:event' && (s.payload as EngineEnvelope).event.type === 'session_saved')?.payload as EngineEnvelope | undefined)?.event;
     expect(doneId).toBeDefined();
     h.service.shutdown?.(); check('shutdown');

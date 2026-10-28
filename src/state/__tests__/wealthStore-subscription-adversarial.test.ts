@@ -13,7 +13,7 @@ const recorded: WireEngineEvent = {type: 'wealth_recorded', timestamp: 1};
 const other:    WireEngineEvent[] = [
   {type: 'init_started'},
   {type: 'drop', itemId: 1, change: 1, timestamp: 1},
-  {type: 'price_update', itemId: 1, price: 1, timestamp: 1},
+  {type: 'new_item', itemId: 1, timestamp: 1},
   {type: 'session_saved', sessionId: 's'},
 ];
 const env = (seq: number, event: WireEngineEvent): EngineEnvelope => ({seq, event});

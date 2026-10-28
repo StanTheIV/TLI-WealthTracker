@@ -296,7 +296,7 @@ function reduce(s: EngineState, event: WireEngineEvent): EngineState {
       }
       break;
 
-    // new_item / price_update: feed only — the item row itself arrives on
+    // new_item: feed only — the item row itself arrives on
     // items:changed, which itemsStore subscribes to directly.
   }
 

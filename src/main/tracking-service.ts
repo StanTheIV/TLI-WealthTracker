@@ -311,11 +311,9 @@ export class TrackingService {
       }
       this._log.info('price', `Price update: item=${id} -> ${raw.price} FE`);
 
-      // Sync renderer itemsStores via the unified items:changed broadcast.
+      // Sync renderer itemsStores via the unified items:changed broadcast — the
+      // one price signal; no engine:event (a price is not engine state).
       this._deps.broadcast('items:changed', {id, changes: {price: raw.price, ...(priceDate !== null && {priceDate})}});
-
-      // Also the engine event, for the feed — items:changed is the source of truth.
-      this._send({type: 'price_update', itemId: raw.itemId, price: raw.price, timestamp: Date.now()});
       return;
     }
 

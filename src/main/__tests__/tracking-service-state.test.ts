@@ -115,33 +115,43 @@ describe('engine:event envelope', () => {
     for (let i = 1; i < envs.length; i++) expect(envs[i].seq).toBe(envs[i - 1].seq + 1);
   });
 
-  it('price_update uses the same envelope and the same counter, with or without an engine', () => {
+  it('a scraped price is items:changed only — no engine:event, no seq — with or without an engine', () => {
     const h = build();
-    h.raw(rawPrice(1)); // no engine yet
+    const price = (id: number, label: string) => {
+      const engineBefore = engineSent(h).length;
+      const itemsBefore  = h.sent.filter(s => s.channel === 'items:changed').length;
+      h.raw(rawPrice(id));
+      expect(engineSent(h), label).toHaveLength(engineBefore);
+      expect(h.sent.filter(s => s.channel === 'items:changed'), label).toHaveLength(itemsBefore + 1);
+    };
+    price(1, 'no engine yet');
+    expect(engineSent(h)).toEqual([]);
     h.service.start();
-    h.raw(rawPrice(2));
+    expect(envelopes(h)[0].seq).toBe(1); // the price consumed no seq
+    price(2, 'initializing');
     init(h);
-    h.raw(rawPrice(3));
+    price(3, 'tracking');
+    h.service.stop();
+    price(4, 'after stop');
 
     const envs = envelopes(h);
-    const prices = envs.filter(e => e.event.type === 'price_update');
-    expect(prices).toHaveLength(3);
-    expect(prices[0]).toEqual({seq: expect.any(Number), event: {type: 'price_update', itemId: 1, price: 12.5, timestamp: NOW}});
     for (let i = 1; i < envs.length; i++) expect(envs[i].seq).toBe(envs[i - 1].seq + 1);
     // no raw (un-enveloped) engine:event anywhere
     expect(engineSent(h).every(s => 'seq' in (s.payload as object) && 'event' in (s.payload as object))).toBe(true);
   });
 
-  it('a locked item\'s price broadcasts nothing and consumes no seq', () => {
+  it('a locked item\'s price broadcasts nothing at all; an unlocked one only items:changed', () => {
     const h = build();
     h.service.start();
+    const n = h.sent.length;
     const before = envelopes(h).at(-1)!.seq;
     h.items.getLocked.mockReturnValue(true);
     h.raw(rawPrice());
-    expect(envelopes(h).at(-1)!.seq).toBe(before);
+    expect(h.sent).toHaveLength(n);
     h.items.getLocked.mockReturnValue(false);
     h.raw(rawPrice());
-    expect(envelopes(h).at(-1)!.seq).toBe(before + 1);
+    expect(h.sent.slice(n).map(s => s.channel)).toEqual(['items:changed']);
+    expect(envelopes(h).at(-1)!.seq).toBe(before);
   });
 
   it('non-engine channels are not enveloped', () => {
@@ -156,8 +166,14 @@ describe('TrackingService.getState', () => {
   it('no engine: {seq, events: []} where seq is the last broadcast (0 before any)', () => {
     const h = build();
     expect(state(h)).toEqual({seq: 0, events: []});
+    h.raw(rawPrice()); // broadcasts no envelope
+    expect(state(h)).toEqual({seq: 0, events: []});
+    h.service.start(); init(h); h.service.stop();
+    const last = envelopes(h).at(-1)!.seq;
+    expect(last).toBeGreaterThan(0);
+    expect(state(h)).toEqual({seq: last, events: []});
     h.raw(rawPrice());
-    expect(state(h)).toEqual({seq: envelopes(h).at(-1)!.seq, events: []});
+    expect(state(h)).toEqual({seq: last, events: []});
   });
 
   it('after every step: seq = last broadcast seq, events = engine.getState() without dropsBySource', () => {

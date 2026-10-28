@@ -463,7 +463,7 @@ describe('replay == live store: pause, reset, continue, low stock', () => {
 });
 
 describe('replay shape', () => {
-  const EXCLUDED = ['drop', 'new_item', 'session_saved', 'price_update', 'wealth_recorded', 'unit_finished', 'engine_stopped', 'error'];
+  const EXCLUDED = ['drop', 'new_item', 'session_saved', 'wealth_recorded', 'unit_finished', 'engine_stopped', 'error'];
 
   /** A busy mid-run state: map, two concurrent seasonals, a loot window, drops, a warning. */
   function busy(): Rig {
