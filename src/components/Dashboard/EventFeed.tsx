@@ -42,6 +42,8 @@ function eventDescription(fe: FeedEvent, items: Record<string, DbItem>, t: TFunc
   switch (e.type) {
     case 'init_started':
       return t('feed.desc.initStarted');
+    case 'engine_stopped':
+      return t('feed.desc.engineStopped');
     case 'init_complete':
       return t('feed.desc.initComplete', {count: e.itemCount});
     case 'new_item': {

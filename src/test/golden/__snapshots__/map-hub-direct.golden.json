@@ -3,6 +3,7 @@
   "events": {
     "counts": {
       "drop": 4,
+      "engine_stopped": 1,
       "init_complete": 1,
       "init_started": 1,
       "map_ended": 1,
@@ -29,7 +30,8 @@
       "+70.000s zone_change town YunDuanLvZhou.YunDuanLvZhou -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
       "+70.000s tracker_finished map elapsed=24.000s items=2",
       "+70.000s map_ended elapsed=24.000s",
-      "+135.000s tracker_finished session elapsed=134.250s items=3"
+      "+135.000s tracker_finished session elapsed=134.250s items=3",
+      "+135.000s engine_stopped"
     ]
   },
   "linesDelivered": 20,

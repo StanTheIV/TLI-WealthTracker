@@ -36,6 +36,7 @@
     "label": {
       "init_started": "INIT",
       "init_complete": "BEREIT",
+      "engine_stopped": "STOPP",
       "drop": "DROP",
       "new_item": "NEU",
       "zone_change": "ZONE",
@@ -51,6 +52,7 @@
     "desc": {
       "initStarted": "Inventar-Initialisierung gestartet…",
       "initComplete": "Inventar bereit — {{count}} Gegenstandstypen erfasst",
+      "engineStopped": "Tracking beendet",
       "newItem": "Neuer Gegenstand — {{label}}",
       "mapStarted": "Map #{{count}} gestartet",
       "mapEnded": "Map beendet — {{seconds}}s",

@@ -3,6 +3,7 @@
   "events": {
     "counts": {
       "drop": 27,
+      "engine_stopped": 1,
       "init_complete": 1,
       "init_started": 1,
       "loot_window_ended": 1,
@@ -43,7 +44,8 @@
       "+182.500s zone_change town JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000 -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
       "+182.500s tracker_finished map elapsed=86.000s items=12",
       "+182.500s map_ended elapsed=86.000s",
-      "+243.500s tracker_finished session elapsed=241.500s items=12"
+      "+243.500s tracker_finished session elapsed=241.500s items=12",
+      "+243.500s engine_stopped"
     ]
   },
   "linesDelivered": 353,

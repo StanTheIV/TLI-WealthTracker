@@ -3,6 +3,7 @@
   "events": {
     "counts": {
       "drop": 5,
+      "engine_stopped": 1,
       "init_complete": 1,
       "init_started": 1,
       "map_ended": 1,
@@ -32,7 +33,8 @@
       "+90.000s tracker_finished seasonal vorex elapsed=44.250s items=3",
       "+90.000s tracker_finished map elapsed=24.750s items=2",
       "+90.000s map_ended elapsed=24.750s",
-      "+155.000s tracker_finished session elapsed=154.250s items=4"
+      "+155.000s tracker_finished session elapsed=154.250s items=4",
+      "+155.000s engine_stopped"
     ]
   },
   "linesDelivered": 24,

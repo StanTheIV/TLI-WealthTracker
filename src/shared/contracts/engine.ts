@@ -113,6 +113,11 @@ export type EngineEvent =
    *  broadcast to the renderer, which keeps reading each tracker_finished. */
   | {type: 'unit_finished';    tracker: TrackerSnapshot; overlaps: UnitOverlap[]; timestamp: number; checkpoint: UnitCheckpoint}
   | {type: 'session_status';   status: 'running' | 'paused'; elapsed: number; timestamp: number}
+  /** The run is over: `Engine.stop()` ended a run that existed (initializing,
+   *  tracking or paused). Exactly once per run, the LAST event of its stop —
+   *  after the session `tracker_finished`, if a session had opened. Never on
+   *  reset, never for a stop with no run. */
+  | {type: 'engine_stopped';   timestamp: number}
   /** After every session write; `deleted`: the write removed it (an empty run at Stop, or Reset). */
   | {type: 'session_saved';    sessionId: string; deleted?: true}
   | {type: 'price_update';     itemId: number; price: number; timestamp: number}

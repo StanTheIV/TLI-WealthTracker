@@ -3,6 +3,7 @@
   "events": {
     "counts": {
       "drop": 32,
+      "engine_stopped": 1,
       "init_complete": 1,
       "init_started": 1,
       "loot_window_ended": 2,
@@ -52,7 +53,8 @@
       "+814.250s tracker_finished seasonal hunting elapsed=11.000s items=3",
       "+814.250s tracker_finished map elapsed=147.500s items=7",
       "+814.250s map_ended elapsed=147.500s",
-      "+875.500s tracker_finished session elapsed=874.750s items=7"
+      "+875.500s tracker_finished session elapsed=874.750s items=7",
+      "+875.500s engine_stopped"
     ]
   },
   "linesDelivered": 334,

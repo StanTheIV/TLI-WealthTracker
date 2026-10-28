@@ -84,12 +84,15 @@ export class Engine {
     this._ctx.loadedSession = data;
   }
 
+  /**
+   * End the run. The live map's already-finished children go out first as
+   * standalone units, then the final session snapshot (with the map/session
+   * metadata for the final write); active map / seasonals are silently dropped.
+   * `engine_stopped` comes last whenever a run existed — initializing included,
+   * where no session has opened yet. A stop with no run emits nothing.
+   */
   stop(): void {
-    // Emit final session snapshot before tearing down, including map/session
-    // metadata for the final write. Active map / seasonals are silently dropped —
-    // session-level finish is the renderer's signal that the run is over. The
-    // live map's already-finished children go out first as standalone units,
-    // so they are saved with the session.
+    const hadRun = this._ctx.phase !== 'idle';
     this._ctx.registry.promoteMapChildren(this._emit);
     if (this._ctx.registry.session) {
       this._emit({
@@ -105,6 +108,7 @@ export class Engine {
 
     for (const h of this._handlers) h.onStop?.(this._ctx);
     this._ctx.reset();
+    if (hadRun) this._emit({type: 'engine_stopped', timestamp: Date.now()});
   }
 
   /**

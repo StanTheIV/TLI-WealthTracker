@@ -3,6 +3,7 @@
   "events": {
     "counts": {
       "drop": 109,
+      "engine_stopped": 1,
       "init_complete": 1,
       "init_started": 1,
       "loot_window_ended": 1,
@@ -49,7 +50,8 @@
       "+431.500s zone_change map SQ_NvShenQunBai100.SQ_NvShenQunBai100 -> YunDuanLvZhou.YunDuanLvZhou",
       "+517.500s tracker_finished seasonal sandlord/hub elapsed=185.750s items=16",
       "+517.500s zone_change town YunDuanLvZhou.YunDuanLvZhou -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
-      "+577.750s tracker_finished session elapsed=577.000s items=31"
+      "+577.750s tracker_finished session elapsed=577.000s items=31",
+      "+577.750s engine_stopped"
     ]
   },
   "linesDelivered": 640,

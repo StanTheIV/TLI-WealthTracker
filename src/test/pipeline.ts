@@ -322,6 +322,7 @@ function describeEvent(e: EngineEvent, flags: Map<string, string>): string | nul
     case 'loot_window_ended':    return `loot_window_ended ${e.seasonalType ?? '?'}`;
     case 'error':                return `error ${e.message}`;
     case 'init_started':         return 'init_started';
+    case 'engine_stopped':       return 'engine_stopped';
   }
 }
 
