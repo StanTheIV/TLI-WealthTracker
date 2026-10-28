@@ -17,6 +17,7 @@ import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import type {EngineEvent, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
 import type {Engine} from '@/main/engine/engine';
 import {useEngineStore, selectRunStatus} from '@/state/engineStore';
+import {elapsedAt} from '@/state/clock';
 import {parseSettings} from '@/shared/settings';
 import {
   ARCANA_FIGHT, MAP, SANDLORD_HUB, SANDLORD_SUB_MAP, TARTARUS_FIGHT, TEST_IDENTITY, TOWN, VOREX_REWARD,
@@ -47,7 +48,7 @@ const INV      = [{slotId: 1, itemId: LOOT, quantity: 0}, {slotId: 2, itemId: MA
  *  replay's snapshots are taken now, the live ones whenever last emitted —
  *  what the user sees must agree all the same. */
 const shown = (elapsed: number, receivedAt: number | null, running: boolean) =>
-  running && receivedAt !== null ? elapsed + (Date.now() - receivedAt) : elapsed;
+  elapsedAt(elapsed, receivedAt, Date.now(), running);
 
 /** The comparable view of the store. */
 function norm(s: ReturnType<typeof useEngineStore.getState>) {
