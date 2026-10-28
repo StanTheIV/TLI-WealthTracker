@@ -20,6 +20,7 @@ import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
 import {FILTER_SCOPES, type FilterRule, type FilterScope} from '@/shared/item-filter';
 import {MECHANICS, mechanic, type WindowedSeasonalType} from '@/shared/mechanics';
 import {LOG_SUBPATH} from '@/shared/paths';
+import {parseSettings} from '@/shared/settings';
 import {
   MAP, SANDLORD_HUB, SANDLORD_SUB_MAP, TEST_IDENTITY, TOWN,
   boot, createDispatcher, createEngine, ctx, feed, log,
@@ -87,7 +88,7 @@ describe('(A) a reconfigure never alters a LIVE tracker', () => {
 
     expect(runMechanic(f, type)).not.toEqual([]);
     const at = f.events.length;
-    f.e.configure({[key]: '9000'});
+    f.e.configure(parseSettings({[key]: '9000'}));
     // The live run re-arms its window. Clockwork is the exception: its arming
     // lines start the 10 s cogwheel idle window; see the turn-in test below.
     if (type !== 'clockwork') for (const l of ARM[type]) f.line(l);
@@ -108,7 +109,7 @@ describe('(A) a reconfigure never alters a LIVE tracker', () => {
     f.go(TOWN, MAP);
     f.line(log.s7Podium);
     const at = f.events.length;
-    f.e.configure({clockworkLootMs: '9000'});
+    f.e.configure(parseSettings({clockworkLootMs: '9000'}));
     expect(windows(f.events, 'clockwork', at)).toEqual([]);
     f.line(log.s7Turnin);
     expect(windows(f.events, 'clockwork', at).pop()).toBe(9000);
@@ -116,9 +117,9 @@ describe('(A) a reconfigure never alters a LIVE tracker', () => {
 
   it('a reconfigure of ONE key leaves every other mechanic at its own value', () => {
     const f = fresh();
-    f.e.configure({carjackLootMs: '7000', lunariaLootMs: '3000'});
+    f.e.configure(parseSettings({carjackLootMs: '7000', lunariaLootMs: '3000'}));
     f.begin();
-    f.e.configure({carjackLootMs: '7000', lunariaLootMs: '3000', overrealmLootMs: '9000'});
+    f.e.configure(parseSettings({carjackLootMs: '7000', lunariaLootMs: '3000', overrealmLootMs: '9000'}));
     expect(runMechanic(f, 'carjack').pop()).toBe(7000);
     f.go(MAP, TOWN);
     expect(runMechanic(f, 'lunaria').pop()).toBe(3000);
@@ -134,7 +135,7 @@ describe('(A) configured values survive the engine lifecycle', () => {
 
   it.each(WINDOWED)('%s: set BEFORE start applies to the first run, and survives Reset and stop -> start', (type) => {
     const f = fresh();
-    f.e.configure({[mechanic(type).window.settingKey]: String(VALUE)});   // before any start
+    f.e.configure(parseSettings({[mechanic(type).window.settingKey]: String(VALUE)}));   // before any start
 
     f.begin();
     expect(runMechanic(f, type).pop(), 'first run').toBe(VALUE);
@@ -156,7 +157,7 @@ describe('(A) configured values survive the engine lifecycle', () => {
 
   it('lowStockThreshold set before start / across stop -> start still warns at the configured level', () => {
     const f = fresh();
-    f.e.configure({lowStockThreshold: '8'});
+    f.e.configure(parseSettings({lowStockThreshold: '8'}));
     const warnedItems = (): Array<{itemId: number; quantity: number}> => {
       const w = f.events.filter((ev): ev is Extract<EngineEvent, {type: 'map_material_warning'}> => ev.type === 'map_material_warning');
       return w[w.length - 1]?.items ?? [];
@@ -194,7 +195,7 @@ describe('(A) MapMaterial: a threshold change mid-map keeps the watch state and 
     expect(warnings().pop()?.items).toEqual([]);
 
     if (dismissA) e.dismissMaterial(A);
-    e.configure({lowStockThreshold: '9'});                  // mid-map
+    e.configure(parseSettings({lowStockThreshold: '9'}));                  // mid-map
     // B is picked up in the map (8 -> 9 >= 2): a refresh runs with the NEW threshold
     line(log.bagUpdate(2, B, 9));
     return warnings().pop()?.items;

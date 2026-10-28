@@ -10,6 +10,7 @@ import type {EngineEvent, SessionIdentity} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
 import {LOG_SUBPATH} from '@/shared/paths';
+import {parseSettings} from '@/shared/settings';
 import type {Broadcast} from '@/main/broadcast';
 
 /** The log-reader process. `start` is idempotent while running; `stop` is safe when stopped. */
@@ -190,11 +191,11 @@ export class TrackingService {
   }
 
   /** Re-apply the settings table to the running engine. `overrides` win over
-   *  the stored values, so a caller holding a value that may not be persisted
-   *  yet (an `engine:set-*` IPC racing the renderer's `settings:set`) still
-   *  applies it. */
+   *  the stored values (merged before parsing), so a caller holding a value
+   *  that may not be persisted yet (an `engine:set-*` IPC racing the
+   *  renderer's `settings:set`) still applies it. */
   reconfigure(overrides?: Readonly<Record<string, string>>): void {
-    this._engine?.configure({...this._deps.settings.getAll(), ...overrides});
+    this._engine?.configure(parseSettings({...this._deps.settings.getAll(), ...overrides}));
   }
 
   setFilterRules(rules: FilterRule[] | null): void {

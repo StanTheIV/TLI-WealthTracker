@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {MECHANICS, isMapFreezing, mechanic, parsePositiveInt, windowMs} from '@/shared/mechanics';
+import {MECHANICS, isMapFreezing, mechanic} from '@/shared/mechanics';
 import {FILTER_SCOPES} from '@/shared/item-filter';
 import {
   ARCANA_FIGHT_SCENE, SANDLORD_HUB_SCENE, SEASONAL_SCENE_MARKERS, TARTARUS_PRISON_SCENE, TOWN_SCENE,
@@ -114,24 +114,5 @@ describe('map freezing derived from the table', () => {
   it('an unknown type (a legacy row) freezes nothing', () => {
     expect(isMapFreezing('nope' as SeasonalType, null)).toBe(false);
     expect(runsConcurrentlyWithMap('nope' as SeasonalType)).toBe(true);
-  });
-});
-
-describe('setting parse', () => {
-  it.each([
-    [undefined, 5_000], ['', 5_000], ['0', 5_000], ['-5', 5_000], ['abc', 5_000], ['0.5', 5_000],
-    ['Infinity', 5_000], ['NaN', 5_000], ['7000', 7_000], ['7000.9', 7_000], [' 7000 ', 7_000], ['1', 1],
-  ])('window %j → %d', (raw, ms) => {
-    expect(windowMs(raw === undefined ? {} : {carjackLootMs: raw}, mechanic('carjack'))).toBe(ms);
-  });
-
-  it('allowZero accepts 0 and still rejects negatives', () => {
-    expect(parsePositiveInt('0', 9, true)).toBe(0);
-    expect(parsePositiveInt('0.5', 9, true)).toBe(0);
-    expect(parsePositiveInt('-1', 9, true)).toBe(9);
-    expect(parsePositiveInt('-0.5', 9, true)).toBe(9);
-    expect(parsePositiveInt('abc', 9, true)).toBe(9);
-    expect(parsePositiveInt(undefined, 9, true)).toBe(9);
-    expect(parsePositiveInt('3.7', 9, true)).toBe(3);
   });
 });

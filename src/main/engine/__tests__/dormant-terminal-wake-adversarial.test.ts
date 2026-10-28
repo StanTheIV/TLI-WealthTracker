@@ -9,6 +9,7 @@
  */
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
+import {parseSettings} from '@/shared/settings';
 import {TrackerRegistry} from '@/main/engine/tracker-registry';
 import {
   TEST_IDENTITY,
@@ -439,7 +440,7 @@ describe('Sandlord hub bubble evicts an in-map tracker', () => {
 describe('ownership follows the latest wake', () => {
   it('two dormant seasonals woken in sequence: the later wake owns, and ownership falls back when it finishes', () => {
     const {events, e, line, bag, adv, reg} = setup();
-    e.configure({carjackLootMs: '20000'});
+    e.configure(parseSettings({carjackLootMs: '20000'}));
     line(log.s11Start);                                // carjack first
     line(log.afterlightStart);                         // afterlight second (newest)
     adv(20_100);                                       // both parked
@@ -470,7 +471,7 @@ describe('ownership follows the latest wake', () => {
 
   it('woken in the opposite order: the carjack wake is the newest and owns', () => {
     const {e, line, bag, adv, reg} = setup();
-    e.configure({carjackLootMs: '20000'});
+    e.configure(parseSettings({carjackLootMs: '20000'}));
     line(log.s11Start);
     line(log.afterlightStart);
     adv(20_100);
@@ -487,7 +488,7 @@ describe('ownership follows the latest wake', () => {
 
   it('a wake while a later-started, still-active seasonal runs: the woken one owns until it finishes', () => {
     const {events, e, line, bag, adv, reg} = setup();
-    e.configure({lunariaLootMs: '30000'});
+    e.configure(parseSettings({lunariaLootMs: '30000'}));
     line(log.afterlightStart);
     adv(5_100);                                        // afterlight dormant
     line(log.s14Strum);                                // lunaria started later, active, owner
@@ -805,7 +806,7 @@ describe('resetLootTimerThrottled timing edges (carjack waves through the chain)
 
   it('a dormant wave inside 1s of the previous wake stamp still wakes (bypass), and then stamps afresh', () => {
     const {events, e, line, adv, reg} = setup();
-    e.configure({carjackLootMs: '300'});
+    e.configure(parseSettings({carjackLootMs: '300'}));
     line(log.s11Start);
     adv(400);                                          // parked
     line(log.s11Wave);                                 // wake, stamp T

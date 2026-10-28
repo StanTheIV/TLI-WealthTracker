@@ -5,6 +5,7 @@
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent} from '@/shared/contracts/engine';
+import {parseSettings} from '@/shared/settings';
 import {
   TEST_IDENTITY,
   ARCANA_FIGHT, MAP, SANDLORD_HUB, SANDLORD_SUB_MAP, TARTARUS_FIGHT, TOWN, VOREX_REWARD,
@@ -22,7 +23,7 @@ function setup(threshold?: number) {
   const events: EngineEvent[] = [];
   const d = createDispatcher();
   const e = createEngine(events);
-  if (threshold !== undefined) e.configure({lowStockThreshold: String(threshold)});
+  if (threshold !== undefined) e.configure(parseSettings({lowStockThreshold: String(threshold)}));
   boot(d, e, [{slotId: 1, itemId: ITEM, quantity: 10}]);
   events.length = 0;
   let qty = 10;

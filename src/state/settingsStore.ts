@@ -1,9 +1,11 @@
 import {create} from 'zustand';
 import i18n from '@/i18n';
 import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/domain/valuation';
+import {
+  DEFAULT_SETTINGS, parseSettings, type RateTimeframe, type Settings, type ThemeMode,
+} from '@/shared/settings';
 
-export type RateTimeframe = 'hour' | 'minute';
-export type ThemeMode = 'system' | 'dark' | 'light';
+export type {RateTimeframe, ThemeMode};
 
 interface SettingsState {
   torchlightPath:           string;
@@ -66,35 +68,26 @@ interface SettingsActions {
 const DEFAULT_LOOT_SEC = 5;
 const DEFAULT_SANDLORD_WAVE_SEC = 10;
 
-const DEFAULTS: SettingsState = {
-  torchlightPath:           '',
-  overlayOpacity:           0.9,
-  clickThroughWhileRunning: false,
-  pauseTotalTimerInTown:    false,
-  showEventFeed:            false,
-  auctionTaxEnabled:        true,
-  language:                 'en',
-  logFileValid:             false,
-  serperApiKey:             '',
-  rateTimeframe:            'hour',
-  themeMode:                'system',
-  lowStockThreshold:        0,
-  overrealmLootSec:         DEFAULT_LOOT_SEC,
-  carjackLootSec:           DEFAULT_LOOT_SEC,
-  clockworkLootSec:         DEFAULT_LOOT_SEC,
-  lunariaLootSec:           DEFAULT_LOOT_SEC,
-  sandlordWaveSec:          DEFAULT_SANDLORD_WAVE_SEC,
-  huntingLootSec:           DEFAULT_LOOT_SEC,
-  afterlightLootSec:        DEFAULT_LOOT_SEC,
-  isLoaded:                 false,
-};
-
-function parseLootSec(raw: string | undefined, fallback: number = DEFAULT_LOOT_SEC): number {
-  if (raw === undefined) return fallback;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return fallback;
-  return Math.floor(n);
+/** The store fields read from the settings table; loot windows in seconds. */
+function fromSettings(s: Settings): Omit<SettingsState, 'logFileValid' | 'isLoaded'> {
+  const {lootWindowMs: ms, ...rest} = s;
+  return {
+    ...rest,
+    overrealmLootSec:  ms.overrealm  / 1000,
+    carjackLootSec:    ms.carjack    / 1000,
+    clockworkLootSec:  ms.clockwork  / 1000,
+    lunariaLootSec:    ms.lunaria    / 1000,
+    sandlordWaveSec:   ms.sandlord   / 1000,
+    huntingLootSec:    ms.hunting    / 1000,
+    afterlightLootSec: ms.afterlight / 1000,
+  };
 }
+
+const DEFAULTS: SettingsState = {
+  ...fromSettings(DEFAULT_SETTINGS),
+  logFileValid: false,
+  isLoaded:     false,
+};
 
 function persist(key: string, value: string) {
   window.electronAPI.db.settings.set(key, value).catch(
@@ -110,59 +103,21 @@ export const useSettingsStore = create<Store>((set, get) => ({
   ...DEFAULTS,
 
   load: async () => {
-    const raw = await window.electronAPI.db.settings.getAll();
-    const language      = raw.language ?? 'en';
-    const torchlightPath = raw.torchlightPath ?? '';
-    i18n.changeLanguage(language);
-    const logFileValid = torchlightPath
-      ? await window.electronAPI.checkLogFile(torchlightPath)
+    const settings = parseSettings(await window.electronAPI.db.settings.getAll());
+    i18n.changeLanguage(settings.language);
+    const logFileValid = settings.torchlightPath
+      ? await window.electronAPI.checkLogFile(settings.torchlightPath)
       : false;
-    const parsedThreshold = raw.lowStockThreshold !== undefined ? Number(raw.lowStockThreshold) : 0;
-    const lowStockThreshold = Number.isFinite(parsedThreshold) && parsedThreshold >= 0
-      ? Math.floor(parsedThreshold)
-      : 0;
-    const overrealmLootSec = parseLootSec(raw.overrealmLootMs ? String(Number(raw.overrealmLootMs) / 1000) : undefined);
-    const carjackLootSec   = parseLootSec(raw.carjackLootMs   ? String(Number(raw.carjackLootMs)   / 1000) : undefined);
-    const clockworkLootSec = parseLootSec(raw.clockworkLootMs ? String(Number(raw.clockworkLootMs) / 1000) : undefined);
-    const lunariaLootSec   = parseLootSec(raw.lunariaLootMs   ? String(Number(raw.lunariaLootMs)   / 1000) : undefined);
-    const huntingLootSec   = parseLootSec(raw.huntingLootMs   ? String(Number(raw.huntingLootMs)   / 1000) : undefined);
-    const afterlightLootSec = parseLootSec(raw.afterlightLootMs ? String(Number(raw.afterlightLootMs) / 1000) : undefined);
-    const sandlordWaveSec  = parseLootSec(
-      raw.sandlordWaveMs ? String(Number(raw.sandlordWaveMs) / 1000) : undefined,
-      DEFAULT_SANDLORD_WAVE_SEC,
-    );
-    set({
-      torchlightPath,
-      overlayOpacity: raw.overlayOpacity ? Number(raw.overlayOpacity) : 0.9,
-      clickThroughWhileRunning: raw.clickThroughWhileRunning === 'true',
-      pauseTotalTimerInTown:    raw.pauseTotalTimerInTown === 'true',
-      showEventFeed:            raw.showEventFeed === 'true',
-      // Not the usual `=== 'true'` idiom: this setting defaults ON, so an
-      // absent key must read true while an explicit 'false' opt-out sticks.
-      auctionTaxEnabled:        raw.auctionTaxEnabled === undefined ? true : raw.auctionTaxEnabled === 'true',
-      language,
-      logFileValid,
-      serperApiKey: raw.serper_api_key ?? '',
-      rateTimeframe: (raw.rateTimeframe === 'minute' ? 'minute' : 'hour') as RateTimeframe,
-      themeMode: (['system', 'dark', 'light'].includes(raw.themeMode ?? '') ? raw.themeMode : 'system') as ThemeMode,
-      lowStockThreshold,
-      overrealmLootSec,
-      carjackLootSec,
-      clockworkLootSec,
-      lunariaLootSec,
-      sandlordWaveSec,
-      huntingLootSec,
-      afterlightLootSec,
-      isLoaded: true,
-    });
-    window.electronAPI.engine.setLowStockThreshold(lowStockThreshold);
-    window.electronAPI.engine.setOverrealmLootMs(overrealmLootSec * 1000);
-    window.electronAPI.engine.setCarjackLootMs(carjackLootSec * 1000);
-    window.electronAPI.engine.setClockworkLootMs(clockworkLootSec * 1000);
-    window.electronAPI.engine.setLunariaLootMs(lunariaLootSec * 1000);
-    window.electronAPI.engine.setSandlordWaveMs(sandlordWaveSec * 1000);
-    window.electronAPI.engine.setHuntingLootMs(huntingLootSec * 1000);
-    window.electronAPI.engine.setAfterlightLootMs(afterlightLootSec * 1000);
+    set({...fromSettings(settings), logFileValid, isLoaded: true});
+    const ms = settings.lootWindowMs;
+    window.electronAPI.engine.setLowStockThreshold(settings.lowStockThreshold);
+    window.electronAPI.engine.setOverrealmLootMs(ms.overrealm);
+    window.electronAPI.engine.setCarjackLootMs(ms.carjack);
+    window.electronAPI.engine.setClockworkLootMs(ms.clockwork);
+    window.electronAPI.engine.setLunariaLootMs(ms.lunaria);
+    window.electronAPI.engine.setSandlordWaveMs(ms.sandlord);
+    window.electronAPI.engine.setHuntingLootMs(ms.hunting);
+    window.electronAPI.engine.setAfterlightLootMs(ms.afterlight);
   },
 
   setTorchlightPath: (v) => {

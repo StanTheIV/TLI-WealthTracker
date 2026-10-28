@@ -7,6 +7,7 @@ import type {SessionIdentity} from '@/shared/contracts/engine';
 import {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/shared/item-filter';
 import type {ItemType} from '@/shared/items';
+import type {Settings} from '@/shared/settings';
 import {MapMaterialHandler} from './handlers/map-material';
 import {log} from '@/main/logger';
 
@@ -284,10 +285,10 @@ export class Engine {
     this._mapMaterial?.dismiss(itemId);
   }
 
-  /** Hand the raw settings table to every handler; each reads its own keys
-   *  (the windowed mechanics their MECHANICS row, MapMaterial the low-stock
-   *  threshold). */
-  configure(settings: Readonly<Record<string, string>>): void {
+  /** Hand the parsed settings to every handler; each reads its own fields
+   *  (the windowed mechanics their `lootWindowMs` entry, MapMaterial the
+   *  low-stock threshold). */
+  configure(settings: Settings): void {
     for (const h of this._handlers) h.configure?.(settings);
   }
 

@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react';
 import {useEngineStore} from '@/state/engineStore';
 import {useSettingsStore, type RateTimeframe} from '@/state/settingsStore';
 import TrackerPanel from '@/components/Dashboard/TrackerPanel';
+import {parseSettings} from '@/shared/settings';
 
 export default function OverlayWindow() {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -22,16 +23,14 @@ export default function OverlayWindow() {
 
   useEffect(() => {
     window.electronAPI.db.settings.getAll().then((raw: Record<string, string>) => {
-      if (raw.overlayOpacity)           setOpacity(Number(raw.overlayOpacity));
-      if (raw.clickThroughWhileRunning) setClickThroughWhileRunning(raw.clickThroughWhileRunning === 'true');
-      if (raw.pauseTotalTimerInTown !== undefined) {
-        useSettingsStore.setState({pauseTotalTimerInTown: raw.pauseTotalTimerInTown === 'true'});
-      }
-      // Defaults ON, so an absent key must read true — matching settingsStore's
-      // hydration. The overlay never calls load(), so without this it would show
-      // gross FE while the dashboard shows net.
+      const settings = parseSettings(raw);
+      setOpacity(settings.overlayOpacity);
+      setClickThroughWhileRunning(settings.clickThroughWhileRunning);
+      // The overlay never calls load(), so without this it would show gross FE
+      // while the dashboard shows net.
       useSettingsStore.setState({
-        auctionTaxEnabled: raw.auctionTaxEnabled === undefined ? true : raw.auctionTaxEnabled === 'true',
+        pauseTotalTimerInTown: settings.pauseTotalTimerInTown,
+        auctionTaxEnabled:     settings.auctionTaxEnabled,
       });
     });
   }, []);

@@ -1,7 +1,8 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {mechanic, windowMs} from '@/shared/mechanics';
+import {mechanic} from '@/shared/mechanics';
+import type {Settings} from '@/shared/settings';
 
 const MECHANIC = mechanic('afterlight');
 
@@ -40,8 +41,8 @@ export class AfterlightHandler implements EventHandler {
     this._terminal = false;
   }
 
-  configure(settings: Readonly<Record<string, string>>): void {
-    this._lootMs = windowMs(settings, MECHANIC);
+  configure(settings: Settings): void {
+    this._lootMs = settings.lootWindowMs[MECHANIC.key];
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {

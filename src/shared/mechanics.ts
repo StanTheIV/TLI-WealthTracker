@@ -78,22 +78,6 @@ export function mechanic<T extends SeasonalType>(type: T): Extract<Mechanic, {ke
   return BY_KEY.get(type) as Extract<Mechanic, {key: T}>;
 }
 
-/**
- * Read an integer setting. Missing, non-numeric, or (after flooring) below the
- * minimum → `fallback`. The minimum is 1, or 0 with `allowZero`.
- */
-export function parsePositiveInt(raw: string | undefined, fallback: number, allowZero: boolean): number {
-  if (raw === undefined) return fallback;
-  const n = Math.floor(Number(raw));
-  if (!Number.isFinite(n)) return fallback;
-  return (allowZero ? n >= 0 : n > 0) ? n : fallback;
-}
-
-/** A windowed mechanic's window (ms) as configured in `settings`. */
-export function windowMs(settings: Readonly<Record<string, string>>, row: {readonly window: MechanicWindow}): number {
-  return parsePositiveInt(settings[row.window.settingKey], row.window.defaultMs, false);
-}
-
 /** True when a run of `type` in `phase` freezes the map clock — so its time is
  *  NOT inside the map's. `phase` matters only for a phased mechanic, where
  *  anything but 'map' is the own area (a null phase is legacy 'hub'). An

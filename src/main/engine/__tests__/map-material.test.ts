@@ -13,6 +13,7 @@ import {ZoneHandler}         from '@/main/engine/handlers/zone';
 import {ItemHandler}         from '@/main/engine/handlers/item';
 import {MapMaterialHandler}  from '@/main/engine/handlers/map-material';
 import type {EngineEvent}    from '@/shared/contracts/engine';
+import {parseSettings}       from '@/shared/settings';
 import {TEST_IDENTITY} from './seasonal-fixtures';
 
 const TOWN_SCENE     = 'XZ_YuJinZhiXiBiNanSuo200';
@@ -21,7 +22,7 @@ const SEASONAL_SCENE = '/Game/Art/Season/S13_Vorex';
 
 function makeEngine(events: EngineEvent[], threshold = 1): {engine: Engine; handler: MapMaterialHandler} {
   const handler = new MapMaterialHandler();
-  handler.configure({lowStockThreshold: String(threshold)});
+  handler.configure(parseSettings({lowStockThreshold: String(threshold)}));
   const engine  = new Engine(e => events.push(e))
     .register(new BagInitHandler())
     .register(new ZoneHandler())
@@ -405,7 +406,7 @@ describe('MapMaterialHandler — edge cases', () => {
     // Raise threshold to 2 — next map entry would warn at qty=1, but we
     // haven't entered another map. The threshold only takes effect on the
     // next emission. Validate via the next map entry path.
-    handler.configure({lowStockThreshold: '2'});
+    handler.configure(parseSettings({lowStockThreshold: '2'}));
     exitMap(engine);
     engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 1, itemId: 100, quantity: 0});
     // qty=0 still <= threshold=2 so this should warn even before threshold raise.

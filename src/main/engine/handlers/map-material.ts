@@ -2,7 +2,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {log} from '@/main/logger';
-import {parsePositiveInt} from '@/shared/mechanics';
+import type {Settings} from '@/shared/settings';
 
 /**
  * MapMaterialHandler — detects map-creation material spends and warns when
@@ -175,9 +175,9 @@ export class MapMaterialHandler implements EventHandler {
   }
 
   /** `lowStockThreshold`: the qty at/under which warnings fire. Applies live
-   *  (watch state is kept). Missing/invalid → 0. */
-  configure(settings: Readonly<Record<string, string>>): void {
-    const next = parsePositiveInt(settings['lowStockThreshold'], 0, /*allowZero*/ true);
+   *  (watch state is kept). */
+  configure(settings: Settings): void {
+    const next = settings.lowStockThreshold;
     if (next === this._threshold) return;
     this._threshold = next;
     log.info('engine', `Low-stock threshold set: ${next}`);

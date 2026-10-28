@@ -1,7 +1,8 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
-import {mechanic, windowMs} from '@/shared/mechanics';
+import {mechanic} from '@/shared/mechanics';
+import type {Settings} from '@/shared/settings';
 
 const MECHANIC = mechanic('sandlord');
 
@@ -47,8 +48,8 @@ export class SandlordMapHandler implements EventHandler {
   readonly handles = ['s10_wave', 's10_quench'] as const;
 
   private _waveMs: number = MECHANIC.window.defaultMs;
-  configure(settings: Readonly<Record<string, string>>): void {
-    this._waveMs = windowMs(settings, MECHANIC);
+  configure(settings: Settings): void {
+    this._waveMs = settings.lootWindowMs[MECHANIC.key];
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {

@@ -1,6 +1,6 @@
 /**
- * Engine.configure — every handler reads its own keys from the raw settings
- * table (the windowed mechanics their MECHANICS row, MapMaterial the low-stock
+ * Engine.configure — every handler reads its own field of the parsed settings
+ * (the windowed mechanics their `lootWindowMs` entry, MapMaterial the low-stock
  * threshold) — and the table's 'interlude' categories against the handlers
  * that actually freeze the map. Production chain only.
  */
@@ -8,6 +8,7 @@ import {readFileSync, readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent, SeasonalType} from '@/shared/contracts/engine';
+import {parseSettings} from '@/shared/settings';
 import {MECHANICS, mechanic, type WindowedSeasonalType} from '@/shared/mechanics';
 import {MAP, TOWN, boot, createDispatcher, createEngine, feed, log} from './seasonal-fixtures';
 
@@ -50,7 +51,7 @@ function lastWindowMs(events: EngineEvent[], type: SeasonalType): number | undef
 /** Configure, then start `type` in a fresh map and report its armed window. */
 function armedWindow(type: WindowedSeasonalType, settings: Record<string, string>): number | undefined {
   const {events, e, line, go} = setup();
-  e.configure(settings);
+  e.configure(parseSettings(settings));
   go(TOWN, MAP);
   for (const l of ARM[type]) line(l);
   return lastWindowMs(events, type);
@@ -88,8 +89,8 @@ describe('Engine.configure: windowed mechanics', () => {
 
   it('a reconfigure resets a key that disappeared back to the default', () => {
     const {events, e, line, go} = setup();
-    e.configure({carjackLootMs: '7000'});
-    e.configure({});
+    e.configure(parseSettings({carjackLootMs: '7000'}));
+    e.configure(parseSettings({}));
     go(TOWN, MAP);
     line(log.s11Start);
     expect(lastWindowMs(events, 'carjack')).toBe(5_000);
@@ -101,7 +102,7 @@ describe('Engine.configure: windowed mechanics', () => {
     line(log.s11Start);
     expect(lastWindowMs(events, 'carjack')).toBe(5_000);
 
-    e.configure({carjackLootMs: '7000'});
+    e.configure(parseSettings({carjackLootMs: '7000'}));
     line(log.s11End);                               // re-arms the live tracker
     expect(lastWindowMs(events, 'carjack')).toBe(5_000);
 
@@ -127,16 +128,18 @@ describe('Engine.configure: low-stock threshold', () => {
   }
 
   it('warns at or under the configured threshold', () => {
-    expect(lowStock(e => e.configure({lowStockThreshold: '8'}))).toEqual([{itemId: ITEM, quantity: 8}]);
-    expect(lowStock(e => e.configure({lowStockThreshold: '7'}))).toEqual([]);
+    expect(lowStock(e => e.configure(parseSettings({lowStockThreshold: '8'})))).toEqual([{itemId: ITEM, quantity: 8}]);
+    expect(lowStock(e => e.configure(parseSettings({lowStockThreshold: '7'})))).toEqual([]);
   });
 
   it('0 is a valid threshold; missing or invalid values reset to 0', () => {
     for (const raw of ['0', '-1', 'abc']) {
-      expect(lowStock(e => { e.configure({lowStockThreshold: '100'}); e.configure({lowStockThreshold: raw}); }))
-        .toEqual([]);
+      expect(lowStock(e => {
+        e.configure(parseSettings({lowStockThreshold: '100'}));
+        e.configure(parseSettings({lowStockThreshold: raw}));
+      })).toEqual([]);
     }
-    expect(lowStock(e => { e.configure({lowStockThreshold: '100'}); e.configure({}); })).toEqual([]);
+    expect(lowStock(e => { e.configure(parseSettings({lowStockThreshold: '100'})); e.configure(parseSettings({})); })).toEqual([]);
   });
 });
 

@@ -14,6 +14,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {DbItemFilter, DbSession} from '@/shared/contracts/db';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {LOG_SUBPATH} from '@/shared/paths';
+import {parseSettings} from '@/shared/settings';
 import type {SqlConn} from '@/main/db/sql-conn';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
@@ -924,7 +925,7 @@ describe('TrackingService — worker and wiring', () => {
     try {
       h.service.start();
       expect(configure).toHaveBeenCalledTimes(1);
-      expect(configure).toHaveBeenCalledWith({torchlightPath: TORCHLIGHT, carjackLootMs: '7000'});
+      expect(configure).toHaveBeenCalledWith(parseSettings({torchlightPath: TORCHLIGHT, carjackLootMs: '7000'}));
     } finally {
       configure.mockRestore();
     }
@@ -937,15 +938,16 @@ describe('TrackingService — worker and wiring', () => {
 
     // The override wins over a stale stored value (the IPC can outrun settings:set).
     h.service.reconfigure({overrealmLootMs: '4000'});
-    expect(configure).toHaveBeenLastCalledWith({torchlightPath: TORCHLIGHT, carjackLootMs: '7000', overrealmLootMs: '4000'});
+    expect(configure).toHaveBeenLastCalledWith(
+      parseSettings({torchlightPath: TORCHLIGHT, carjackLootMs: '7000', overrealmLootMs: '4000'}));
     expect(h.settings['overrealmLootMs']).toBe('9000');   // the stored table is not written
 
     // Without overrides: the stored table as it is now.
     h.settings['lowStockThreshold'] = '2';
     h.service.reconfigure();
-    expect(configure).toHaveBeenLastCalledWith({
+    expect(configure).toHaveBeenLastCalledWith(parseSettings({
       torchlightPath: TORCHLIGHT, carjackLootMs: '7000', overrealmLootMs: '9000', lowStockThreshold: '2',
-    });
+    }));
     expect(configure).toHaveBeenCalledTimes(2);
   });
 });

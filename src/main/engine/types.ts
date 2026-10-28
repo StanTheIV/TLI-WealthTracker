@@ -1,6 +1,7 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EngineContext} from './context';
 import type {EngineEvent} from '@/shared/contracts/engine';
+import type {Settings} from '@/shared/settings';
 
 // ---------------------------------------------------------------------------
 // Handler interface
@@ -35,8 +36,7 @@ export interface EventHandler {
    *  nothing it saw before could start one: the session did not exist yet
    *  (pre-init), or the reset just discarded it. */
   onSessionOpen?(ctx: EngineContext, emit: EmitFn): void;
-  /** Read this handler's keys from the raw settings table; a missing or
-   *  unparseable value falls back to the handler's default. A new value only
+  /** Read this handler's fields from the parsed settings. A new value only
    *  affects runs started after it — a live tracker keeps its window. */
-  configure?(settings: Readonly<Record<string, string>>): void;
+  configure?(settings: Settings): void;
 }

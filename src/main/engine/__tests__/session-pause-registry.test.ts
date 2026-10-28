@@ -6,6 +6,7 @@
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import type {EngineEvent} from '@/shared/contracts/engine';
+import {parseSettings} from '@/shared/settings';
 import {
   TEST_IDENTITY,
   ARCANA_FIGHT, MAP, SANDLORD_HUB, SANDLORD_SUB_MAP, TARTARUS_FIGHT, TOWN, VOREX_REWARD,
@@ -64,7 +65,7 @@ describe('session pause: whoever paused it resumes it', () => {
 
   it('the loot window keeps its remaining time across a pause', () => {
     const {e, line, go, reg} = setup();
-    e.configure({overrealmLootMs: '10000'});
+    e.configure(parseSettings({overrealmLootMs: '10000'}));
     go(TOWN, MAP);
     line(log.s12Entry);
     line(log.s12Exit);
