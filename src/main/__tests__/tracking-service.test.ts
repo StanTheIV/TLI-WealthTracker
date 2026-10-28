@@ -195,9 +195,19 @@ describe('TrackingService — full run', () => {
 
   it('configures the engine after start (filter + item types survive ctx.reset)', () => {
     const h = build();
-    h.filters.push({id: 'f1', name: 'Mine', enabled: true, rules: '[]'});
+    // ITEM_LOOT is hidden only through its type, so both must reach the engine.
+    h.items.getAll.mockReturnValue([{id: String(ITEM_LOOT), name: 'Sword', type: 'equipment', price: 0, priceDate: 0}]);
+    h.filters.push({id: 'f1', name: 'Mine', enabled: true, rules: JSON.stringify([
+      {id: 'r1', action: 'hide', scopes: ['session', 'map'], kind: {type: 'by-type', itemType: 'equipment'}},
+    ])});
     h.service.start();
-    expect(h.engines[0].getFilter()).not.toBeNull();
+    init(h);
+    runMap(h, ITEM_LOOT, 3);
+    runMap(h, ITEM_LOOT2, 2, 3);
+    h.service.stop();
+
+    const [id] = savedIds(h);
+    expect(h.store.getSession(id)!.drops).toEqual({[ITEM_LOOT2]: 2});
     expect(h.log.info).toHaveBeenCalledWith('filter', 'Filter set: "Mine"');
     expect(h.log.info).toHaveBeenCalledWith('engine', 'Engine started');
   });

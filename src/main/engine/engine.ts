@@ -232,10 +232,6 @@ export class Engine {
     }
   }
 
-  getFilter(): ItemFilterEngine | null {
-    return this._ctx.filter;
-  }
-
   /** The one way to change filtering: null clears it, a rule list builds the
    *  filter on first use and replaces its rules after that. */
   setFilterRules(rules: FilterRule[] | null): void {

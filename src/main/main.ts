@@ -3,7 +3,7 @@ import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
 import {
   initDb, itemsCount, itemsImportBatch, itemsGetAll, itemsGetLocked, itemsInsertIfMissing, priceRecord,
-  filtersGetAll, settingsGetAll, settingsSet,
+  filtersGetAll, settingsGetAll, settingsSet, wealthInsert,
 } from './db';
 import {backupDb} from './db/backup';
 import {openBetterSqlite3} from './db/drivers/better-sqlite3';
@@ -260,7 +260,7 @@ app.whenReady().then(() => {
       insertIfMissing:    itemsInsertIfMissing,
       recordScrapedPrice: (id, price, listings, opts) => priceRecord(id, 'scrape', price, listings, opts),
     },
-    wealthRecorder: new WealthRecorder(),
+    wealthRecorder: new WealthRecorder({items: {getAll: itemsGetAll}, insert: wealthInsert, log}),
     log,
   });
 

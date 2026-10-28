@@ -152,6 +152,7 @@ describe('Engine (integration)', () => {
     it('reaches an existing filter live', () => {
       const events: EngineEvent[] = [];
       const engine = createEngine(events);
+      engine.start();
       engine.setItemTypes([['42', 'other']]);
       engine.setFilterRules([{
         id: 'r1',
@@ -159,10 +160,16 @@ describe('Engine (integration)', () => {
         scopes: ['session'],
         kind: {type: 'by-type', itemType: 'equipment'},
       }]);
-      expect(engine.getFilter()!.shouldInclude(42, 'session')).toBe(true);
+      engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 100, quantity: 1});
+      vi.advanceTimersByTime(600);
+      engine.onRawEvent({type: 'zone_transition', fromScene: 'XZ_YuJinZhiXiBiNanSuo200', toScene: '/Game/Art/Maps/S5_Boss'});
 
+      engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: 42, quantity: 1}); // +1, shown
       engine.setItemType('42', 'equipment');
-      expect(engine.getFilter()!.shouldInclude(42, 'session')).toBe(false);
+      engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: 42, quantity: 3}); // +2, hidden
+
+      const drops = events.flatMap(e => (e.type === 'drop' ? [{itemId: e.itemId, change: e.change}] : []));
+      expect(drops).toEqual([{itemId: 42, change: 1}]);
     });
 
     it('is a no-op when no filter is set', () => {
