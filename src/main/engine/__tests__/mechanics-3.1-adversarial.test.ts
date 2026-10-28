@@ -260,35 +260,41 @@ describe('(A) TrackingService.reconfigure keeps every OTHER window at its stored
     vi.advanceTimersByTime(600);
   };
 
+  // Each case writes these rows to the stored table (as SettingsService does
+  // before it calls reconfigure), then reconfigures.
   const CASES: Array<[string, Record<string, string> | undefined, Record<string, number>]> = [
-    ['no overrides',                  undefined,                          {carjack: 7000, lunaria: 3000, overrealm: 9000, hunting: 5000}],
-    ['empty overrides',               {},                                 {carjack: 7000, lunaria: 3000, overrealm: 9000, hunting: 5000}],
+    ['no write',                      undefined,                          {carjack: 7000, lunaria: 3000, overrealm: 9000, hunting: 5000}],
+    ['an empty write',                {},                                 {carjack: 7000, lunaria: 3000, overrealm: 9000, hunting: 5000}],
     ['an unrelated key',              {somethingElse: 'x'},               {carjack: 7000, lunaria: 3000, overrealm: 9000, hunting: 5000}],
-    ['one valid override',            {huntingLootMs: '2500'},            {carjack: 7000, lunaria: 3000, overrealm: 9000, hunting: 2500}],
-    ['a garbage override of one key', {overrealmLootMs: 'abc'},           {carjack: 7000, lunaria: 3000, overrealm: 5000, hunting: 5000}],
-    ['an empty-string override',      {carjackLootMs: ''},                {carjack: 5000, lunaria: 3000, overrealm: 9000, hunting: 5000}],
-    ['a negative override',           {lunariaLootMs: '-1'},              {carjack: 7000, lunaria: 5000, overrealm: 9000, hunting: 5000}],
+    ['one valid write',               {huntingLootMs: '2500'},            {carjack: 7000, lunaria: 3000, overrealm: 9000, hunting: 2500}],
+    ['a garbage write of one key',    {overrealmLootMs: 'abc'},           {carjack: 7000, lunaria: 3000, overrealm: 5000, hunting: 5000}],
+    ['an empty-string write',         {carjackLootMs: ''},                {carjack: 5000, lunaria: 3000, overrealm: 9000, hunting: 5000}],
+    ['a negative write',              {lunariaLootMs: '-1'},              {carjack: 7000, lunaria: 5000, overrealm: 9000, hunting: 5000}],
     ['garbage everywhere new',        {huntingLootMs: 'NaN', x: '', afterlightLootMs: '0'}, {carjack: 7000, lunaria: 3000, overrealm: 9000, hunting: 5000}],
   ];
 
-  it.each(CASES)('%s', (_n, overrides, expected) => {
+  it.each(CASES)('%s', (_n, writes, expected) => {
     const h = service({...STORED});
     h.s.start();
     initBag(h);
     expect(measure(h, ['carjack', 'lunaria', 'overrealm', 'hunting'])).toEqual(expect.objectContaining(
       {carjack: 7000, lunaria: 3000, overrealm: 9000, hunting: 5000}));   // the stored table is live
 
-    h.s.reconfigure(overrides);
+    Object.assign(h.settings, writes);
+    const written = {...h.settings};
+    h.s.reconfigure();
     expect(measure(h, ['carjack', 'lunaria', 'overrealm', 'hunting'])).toEqual(expected);
-    expect(h.settings).toEqual(STORED);                                    // reconfigure never writes the table
+    expect(h.settings).toEqual(written);                                   // reconfigure never writes the table
   });
 
   it('a window applied by one reconfigure is NOT sticky: the next one rebuilds from the table', () => {
     const h = service({...STORED});
     h.s.start();
     initBag(h);
-    h.s.reconfigure({huntingLootMs: '2500'});
+    h.settings['huntingLootMs'] = '2500';
+    h.s.reconfigure();
     expect(measure(h, ['hunting']).hunting).toBe(2500);
+    delete h.settings['huntingLootMs'];
     h.s.reconfigure();                                                     // the table has no hunting key
     expect(measure(h, ['hunting']).hunting).toBe(5000);
   });

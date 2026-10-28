@@ -65,8 +65,15 @@ export type Mechanic = (typeof MECHANICS)[number];
 
 export type SeasonalType = Mechanic['key'];
 
+/** A row with a settings-backed window. */
+export type WindowedMechanic = Extract<Mechanic, {window: MechanicWindow}>;
+
 /** The mechanics with a settings-backed window. */
-export type WindowedSeasonalType = Extract<Mechanic, {window: MechanicWindow}>['key'];
+export type WindowedSeasonalType = WindowedMechanic['key'];
+
+/** The windowed rows, in table order. */
+export const WINDOWED_MECHANICS: readonly WindowedMechanic[] =
+  MECHANICS.filter((m): m is WindowedMechanic => m.window !== null);
 
 /** Every Theme key a mechanic is coloured with; the renderer checks they exist. */
 export type MechanicThemeKey = Mechanic['themeKey'];

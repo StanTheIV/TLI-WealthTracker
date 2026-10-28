@@ -190,12 +190,10 @@ export class TrackingService {
     this._engine?.dismissMaterial(itemId);
   }
 
-  /** Re-apply the settings table to the running engine. `overrides` win over
-   *  the stored values (merged before parsing), so a caller holding a value
-   *  that may not be persisted yet (an `engine:set-*` IPC racing the
-   *  renderer's `settings:set`) still applies it. */
-  reconfigure(overrides?: Readonly<Record<string, string>>): void {
-    this._engine?.configure(parseSettings({...this._deps.settings.getAll(), ...overrides}));
+  /** Re-apply the stored settings table to the running engine — called after
+   *  the write (SettingsService persists first). */
+  reconfigure(): void {
+    this._engine?.configure(parseSettings(this._deps.settings.getAll()));
   }
 
   setFilterRules(rules: FilterRule[] | null): void {

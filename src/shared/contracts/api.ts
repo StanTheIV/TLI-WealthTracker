@@ -1,4 +1,5 @@
 import type {FilterRule} from '../item-filter';
+import type {Settings} from '../settings';
 import type {
   DbItem,
   DbItemFilter,
@@ -25,8 +26,7 @@ export interface ElectronAPI {
   checkLogFile: (folder: string) => Promise<boolean>;
 
   logging: {
-    reloadConfig: () => Promise<void>;
-    getLogPath:   () => Promise<string>;
+    getLogPath: () => Promise<string>;
   };
 
   updater: {
@@ -47,16 +47,8 @@ export interface ElectronAPI {
     resume:          () => void;
     reset:           () => void;
     updateFilterRules: (rules: FilterRule[] | null) => void;
-    dismissMaterial:      (itemId: number) => void;
-    setLowStockThreshold: (n: number) => void;
-    setOverrealmLootMs:   (ms: number) => void;
-    setCarjackLootMs:     (ms: number) => void;
-    setClockworkLootMs:   (ms: number) => void;
-    setLunariaLootMs:     (ms: number) => void;
-    setSandlordWaveMs:    (ms: number) => void;
-    setHuntingLootMs:     (ms: number) => void;
-    setAfterlightLootMs:  (ms: number) => void;
-    onEvent:         (cb: (event: EngineEvent) => void) => () => void;
+    dismissMaterial: (itemId: number) => void;
+    onEvent:        (cb: (event: EngineEvent) => void) => () => void;
   };
 
   overlay: {
@@ -66,17 +58,19 @@ export interface ElectronAPI {
     setSize:        (w: number, h: number) => void;
     notifyReady:    () => void;
     moveBy:         (dx: number, dy: number) => void;
-    setOpacity:       (v: number) => void;
-    onOpacity:        (cb: (v: number) => void) => () => void;
-    broadcastSetting: (key: string, value: string) => void;
-    onSettingChange:  (cb: (key: string, value: string) => void) => () => void;
+  };
+
+  /** Every renderer settings write goes through `set` (main persists, applies
+   *  its side effect, then pushes the parsed table to both windows). */
+  settings: {
+    /** The raw settings table. */
+    getAll:    () => Promise<Record<string, string>>;
+    /** Rejects when the write fails to persist. */
+    set:       (key: string, value: string) => Promise<void>;
+    onChanged: (cb: (settings: Settings) => void) => () => void;
   };
 
   db: {
-    settings: {
-      getAll: () => Promise<Record<string, string>>;
-      set:    (key: string, value: string) => Promise<void>;
-    };
     items: {
       getAll:     () => Promise<DbItem[]>;
       setName:    (id: string, name: string) => Promise<void>;

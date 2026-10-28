@@ -1,16 +1,15 @@
 import {useEffect, useRef, useState} from 'react';
 import {useEngineStore} from '@/state/engineStore';
-import {useSettingsStore, type RateTimeframe} from '@/state/settingsStore';
+import {useSettingsStore} from '@/state/settingsStore';
 import TrackerPanel from '@/components/Dashboard/TrackerPanel';
-import {parseSettings} from '@/shared/settings';
 
 export default function OverlayWindow() {
   const contentRef = useRef<HTMLDivElement>(null);
   const dragState  = useRef<{startX: number; startY: number} | null>(null);
-  const [opacity, setOpacity]       = useState(0.9);
-  const [clickThroughWhileRunning, setClickThroughWhileRunning] = useState(false);
   const [handleHovered, setHandleHovered] = useState(false);
 
+  const opacity                  = useSettingsStore(s => s.overlayOpacity);
+  const clickThroughWhileRunning = useSettingsStore(s => s.clickThroughWhileRunning);
   const sessionStatus = useEngineStore(s => s.sessionStatus);
   const enginePhase   = useEngineStore(s => s.phase);
 
@@ -21,36 +20,9 @@ export default function OverlayWindow() {
     window.electronAPI.overlay.setClickThrough(clickThrough);
   }, [clickThrough]);
 
+  // Load the settings and follow every change made in the main window.
   useEffect(() => {
-    window.electronAPI.db.settings.getAll().then((raw: Record<string, string>) => {
-      const settings = parseSettings(raw);
-      setOpacity(settings.overlayOpacity);
-      setClickThroughWhileRunning(settings.clickThroughWhileRunning);
-      // The overlay never calls load(), so without this it would show gross FE
-      // while the dashboard shows net.
-      useSettingsStore.setState({
-        pauseTotalTimerInTown: settings.pauseTotalTimerInTown,
-        auctionTaxEnabled:     settings.auctionTaxEnabled,
-      });
-    });
-  }, []);
-
-  // Keep settings in sync when the main window changes them
-  useEffect(() => {
-    return window.electronAPI.overlay.onSettingChange((key, value) => {
-      if (key === 'rateTimeframe' && (value === 'hour' || value === 'minute')) {
-        useSettingsStore.setState({rateTimeframe: value as RateTimeframe});
-      }
-      if (key === 'clickThroughWhileRunning') {
-        setClickThroughWhileRunning(value === 'true');
-      }
-      if (key === 'pauseTotalTimerInTown') {
-        useSettingsStore.setState({pauseTotalTimerInTown: value === 'true'});
-      }
-      if (key === 'auctionTaxEnabled') {
-        useSettingsStore.setState({auctionTaxEnabled: value === 'true'});
-      }
-    });
+    void useSettingsStore.getState().init();
   }, []);
 
   useEffect(() => {
@@ -64,11 +36,9 @@ export default function OverlayWindow() {
     };
     const onMouseUp = () => { dragState.current = null; };
 
-    const removeOpacity = window.electronAPI.overlay.onOpacity(setOpacity);
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onMouseUp);
     return () => {
-      removeOpacity();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onMouseUp);
     };

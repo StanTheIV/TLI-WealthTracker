@@ -4,7 +4,7 @@
  * Each message carries a feature (domain) and a type (level).
  * Two output targets (console, file) are independently configurable.
  * Configuration is read from the SQLite settings table on init and on
- * explicit reloadConfig() calls (triggered via IPC when the user saves settings).
+ * explicit reloadConfig() calls (SettingsService, after a `logging.*` write).
  *
  * The logger is intentionally kept dependency-free (no imports from db.ts,
  * none from electron) so it loads anywhere main-process code does — the app,
@@ -164,7 +164,7 @@ export const log = {
   error: (feature: LogFeature, message: string) => write('error', feature, message),
   debug: (feature: LogFeature, message: string) => write('debug', feature, message),
 
-  /** Re-reads configuration from the DB. Called via IPC when the user saves logging settings. */
+  /** Re-reads configuration from the DB. Called by SettingsService after a `logging.*` write. */
   reloadConfig(): void {
     _config = loadConfig();
   },

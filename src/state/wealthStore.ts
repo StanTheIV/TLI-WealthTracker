@@ -84,7 +84,7 @@ const VALID_RANGES: readonly WealthRange[] = ['1d', '3d', '7d', '1m', 'all'];
  *  written by an older build that no longer exists is treated as absent. */
 async function loadPersistedRange(): Promise<WealthRange | null> {
   try {
-    const raw = await window.electronAPI.db.settings.getAll();
+    const raw = await window.electronAPI.settings.getAll();
     const stored = raw[WEALTH_RANGE_KEY] as WealthRange | undefined;
     return stored && VALID_RANGES.includes(stored) ? stored : null;
   } catch (err) {
@@ -140,7 +140,7 @@ export const useWealthStore = create<WealthState & WealthActions>((set, get) => 
 
   setRange: async (range) => {
     set({range});
-    window.electronAPI.db.settings.set(WEALTH_RANGE_KEY, range).catch(
+    window.electronAPI.settings.set(WEALTH_RANGE_KEY, range).catch(
       (err: unknown) => console.error('[wealth] persist range failed:', err)
     );
     const points = await fetchPoints(range);

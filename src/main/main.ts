@@ -17,7 +17,9 @@ import {registerOverlayHandlers} from './ipc/overlay';
 import {registerEngineHandlers} from './ipc/engine';
 import {registerUpdaterHandlers} from './ipc/updater';
 import {registerLoggingHandlers} from './ipc/logging';
+import {registerSettingsHandlers} from './ipc/settings';
 import {initLeaguesAndPriceHistory} from './leagues-sync';
+import {SettingsService} from './settings-service';
 import {TrackingService} from './tracking-service';
 import {closeCrashedSessions} from './session-recovery';
 import {createEngine} from './engine/create-engine';
@@ -286,6 +288,12 @@ app.whenReady().then(() => {
     createTrackerWindow,
   );
   registerEngineHandlers(tracking);
+  registerSettingsHandlers(new SettingsService({
+    store: {set: settingsSet, getAll: settingsGetAll},
+    broadcast,
+    tracking,
+    log,
+  }));
   tracking.startWorker(); // tail the game log now if the torchlight path is already set
   registerUpdaterHandlers(() => mainWindow);
   registerLoggingHandlers();

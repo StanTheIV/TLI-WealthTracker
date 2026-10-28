@@ -1,7 +1,7 @@
 import {ipcMain} from 'electron';
 import {log} from '@/main/logger';
 import {
-  settingsGetAll, settingsSet,
+  settingsGetAll,
   itemsGetAll, itemsSetName, itemsSetType, priceRecord, itemsSetLocked, itemsImportBatch,
   leaguesGetAll, leaguesInsertUser, leaguesSetStart, pricesHistory, pricesMovers, pricesExport,
   wealthGetRange, wealthGetLatest, wealthDelete, wealthClear,
@@ -25,9 +25,6 @@ interface RegisterDeps {
 
 export function registerDbHandlers(deps: RegisterDeps): void {
   const {broadcast} = deps;
-  ipcMain.handle('db:settings:get-all',  ()               => settingsGetAll());
-  ipcMain.handle('db:settings:set',      (_e, k, v)       => settingsSet(k, v));
-
   ipcMain.handle('db:items:get-all',     ()               => itemsGetAll());
   ipcMain.handle('db:items:set-name',    (_e, id: string, name: string)   => {
     itemsSetName(id, name);

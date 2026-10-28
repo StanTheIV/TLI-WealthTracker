@@ -7,6 +7,7 @@ import type {
 } from '@/shared/contracts/db';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
+import type {Settings} from '@/shared/settings';
 
 const api = {
   pickFolder:    () => ipcRenderer.invoke('dialog:pick-folder') as Promise<string | null>,
@@ -19,15 +20,13 @@ const api = {
     setSize:        (w: number, h: number)   => ipcRenderer.send('overlay:set-size', w, h),
     notifyReady:    ()                       => ipcRenderer.send('overlay:notify-ready'),
     moveBy:         (dx: number, dy: number) => ipcRenderer.send('overlay:move-by', dx, dy),
-    setOpacity:     (v: number)              => ipcRenderer.send('overlay:set-opacity', v),
-    onOpacity: (cb: (v: number) => void) => {
-      const wrapped = (_e: Electron.IpcRendererEvent, v: number) => cb(v);
-      ipcRenderer.on('overlay:opacity-changed', wrapped);
-      return () => ipcRenderer.removeListener('overlay:opacity-changed', wrapped);
-    },
-    broadcastSetting: (key: string, value: string) => ipcRenderer.send('settings:broadcast', key, value),
-    onSettingChange: (cb: (key: string, value: string) => void) => {
-      const wrapped = (_e: Electron.IpcRendererEvent, key: string, value: string) => cb(key, value);
+  },
+
+  settings: {
+    getAll: ()                           => ipcRenderer.invoke('settings:get-all'),
+    set:    (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
+    onChanged: (cb: (settings: Settings) => void) => {
+      const wrapped = (_e: Electron.IpcRendererEvent, settings: Settings) => cb(settings);
       ipcRenderer.on('settings:changed', wrapped);
       return () => ipcRenderer.removeListener('settings:changed', wrapped);
     },
@@ -42,14 +41,6 @@ const api = {
     reset:           ()                  => ipcRenderer.send('engine:reset'),
     updateFilterRules: (rules: FilterRule[] | null) => ipcRenderer.send('engine:update-filter-rules', rules),
     dismissMaterial:   (itemId: number) => ipcRenderer.send('engine:dismiss-material', itemId),
-    setLowStockThreshold: (n: number)   => ipcRenderer.send('engine:set-low-stock-threshold', n),
-    setOverrealmLootMs:   (ms: number)  => ipcRenderer.send('engine:set-overrealm-loot-ms', ms),
-    setCarjackLootMs:     (ms: number)  => ipcRenderer.send('engine:set-carjack-loot-ms', ms),
-    setClockworkLootMs:   (ms: number)  => ipcRenderer.send('engine:set-clockwork-loot-ms', ms),
-    setLunariaLootMs:     (ms: number)  => ipcRenderer.send('engine:set-lunaria-loot-ms', ms),
-    setSandlordWaveMs:    (ms: number)  => ipcRenderer.send('engine:set-sandlord-wave-ms', ms),
-    setHuntingLootMs:     (ms: number)  => ipcRenderer.send('engine:set-hunting-loot-ms', ms),
-    setAfterlightLootMs:  (ms: number)  => ipcRenderer.send('engine:set-afterlight-loot-ms', ms),
     onEvent: (cb: (event: EngineEvent) => void) => {
       const wrapped = (_e: Electron.IpcRendererEvent, ev: EngineEvent) => cb(ev);
       ipcRenderer.on('engine:event', wrapped);
@@ -58,8 +49,7 @@ const api = {
   },
 
   logging: {
-    reloadConfig: () => ipcRenderer.invoke('logging:reload-config'),
-    getLogPath:   () => ipcRenderer.invoke('logging:get-log-path'),
+    getLogPath: () => ipcRenderer.invoke('logging:get-log-path'),
   },
 
   updater: {
@@ -76,10 +66,6 @@ const api = {
   },
 
   db: {
-    settings: {
-      getAll: ()                            => ipcRenderer.invoke('db:settings:get-all'),
-      set:    (key: string, value: string)  => ipcRenderer.invoke('db:settings:set', key, value),
-    },
     items: {
       getAll:     ()                                    => ipcRenderer.invoke('db:items:get-all'),
       setName:    (id: string, name: string)            => ipcRenderer.invoke('db:items:set-name', id, name),

@@ -25,7 +25,8 @@ function AppInner() {
     useItemsStore.getState().initBroadcastListener();
     Promise.all([
       useItemsStore.getState().load(),
-      windowType === 'main' ? useSettingsStore.getState().load() : Promise.resolve(),
+      // The overlay inits its settings in OverlayWindow (no log-file check).
+      windowType === 'main' ? useSettingsStore.getState().init({checkLogFile: true}) : Promise.resolve(),
       windowType === 'main' ? useWealthStore.getState().load()   : Promise.resolve(),
       windowType === 'main' ? useLeaguesStore.getState().load()  : Promise.resolve(),
     ]).then(() => setReady(true));

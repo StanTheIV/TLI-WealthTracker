@@ -3,7 +3,7 @@
  * table — main window, overlay and engine; a missing or invalid value falls
  * back to its field's default. Loot windows come from the MECHANICS rows.
  */
-import {MECHANICS, type Mechanic, type MechanicWindow, type WindowedSeasonalType} from './mechanics';
+import {WINDOWED_MECHANICS as WINDOWED, type WindowedSeasonalType} from './mechanics';
 
 export type RateTimeframe = 'hour' | 'minute';
 export type ThemeMode = 'system' | 'dark' | 'light';
@@ -44,11 +44,6 @@ export const SETTING_KEYS = {
   themeMode:                'themeMode',
   lowStockThreshold:        'lowStockThreshold',
 } as const satisfies Record<Exclude<keyof Settings, 'lootWindowMs'>, string>;
-
-type WindowedMechanic = Extract<Mechanic, {window: MechanicWindow}>;
-
-const WINDOWED: readonly WindowedMechanic[] =
-  MECHANICS.filter((m): m is WindowedMechanic => m.window !== null);
 
 /** The keys the engine reads: a change to one of them must reconfigure it. */
 export const ENGINE_SETTING_KEYS: ReadonlySet<string> = new Set([

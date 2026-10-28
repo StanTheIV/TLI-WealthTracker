@@ -900,7 +900,6 @@ describe('TrackingService — worker and wiring', () => {
     expect(() => {
       h.service.setItemType('7', 'not-a-type');
       h.service.dismissMaterial(1);
-      h.service.reconfigure({lowStockThreshold: '3'});
       h.service.reconfigure();
       h.service.setFilterRules(null);
     }).not.toThrow();
@@ -931,18 +930,20 @@ describe('TrackingService — worker and wiring', () => {
     }
   });
 
-  it('reconfigure re-applies the stored table with the overrides on top', () => {
+  it('reconfigure re-applies the stored table as it is now', () => {
     const h = build({settings: {torchlightPath: TORCHLIGHT, carjackLootMs: '7000', overrealmLootMs: '9000'}});
     h.service.start();
     const configure = vi.spyOn(h.engines[0], 'configure');
 
-    // The override wins over a stale stored value (the IPC can outrun settings:set).
-    h.service.reconfigure({overrealmLootMs: '4000'});
+    // A written value replaces the stored one; the other keys keep theirs.
+    h.settings['overrealmLootMs'] = '4000';
+    h.service.reconfigure();
     expect(configure).toHaveBeenLastCalledWith(
       parseSettings({torchlightPath: TORCHLIGHT, carjackLootMs: '7000', overrealmLootMs: '4000'}));
-    expect(h.settings['overrealmLootMs']).toBe('9000');   // the stored table is not written
+    expect(h.settings).toEqual(
+      {torchlightPath: TORCHLIGHT, carjackLootMs: '7000', overrealmLootMs: '4000'});   // reconfigure never writes
 
-    // Without overrides: the stored table as it is now.
+    h.settings['overrealmLootMs'] = '9000';
     h.settings['lowStockThreshold'] = '2';
     h.service.reconfigure();
     expect(configure).toHaveBeenLastCalledWith(parseSettings({

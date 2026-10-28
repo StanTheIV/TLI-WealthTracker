@@ -60,11 +60,11 @@ function toggle<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
 }
 
-async function persist(key: string, config: LogTargetConfig): Promise<void> {
-  await window.electronAPI.db.settings.set(key, JSON.stringify(config)).catch(
+/** Main reloads the logger config itself after a `logging.*` write. */
+function persist(key: string, config: LogTargetConfig): void {
+  window.electronAPI.settings.set(key, JSON.stringify(config)).catch(
     (err: unknown) => console.error('[loggingStore] persist failed:', err),
   );
-  await window.electronAPI.logging.reloadConfig();
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ export const useLoggingStore = create<Store>((set, get) => ({
 
   load: async () => {
     const [raw, logFilePath] = await Promise.all([
-      window.electronAPI.db.settings.getAll(),
+      window.electronAPI.settings.getAll(),
       window.electronAPI.logging.getLogPath(),
     ]);
     set({

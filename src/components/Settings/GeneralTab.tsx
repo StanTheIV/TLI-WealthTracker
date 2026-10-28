@@ -7,6 +7,7 @@ import {useSessionsStore} from '@/state/sessionsStore';
 import {useEngineStore} from '@/state/engineStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
 import type {DbItem} from '@/shared/contracts/db';
+import {WINDOWED_MECHANICS} from '@/shared/mechanics';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import LeagueSection from './LeagueSection';
 
@@ -34,20 +35,8 @@ export default function GeneralTab() {
   const setShowEventFeed         = useSettingsStore(s => s.setShowEventFeed);
   const auctionTaxEnabled        = useSettingsStore(s => s.auctionTaxEnabled);
   const setAuctionTaxEnabled     = useSettingsStore(s => s.setAuctionTaxEnabled);
-  const overrealmLootSec    = useSettingsStore(s => s.overrealmLootSec);
-  const setOverrealmLootSec = useSettingsStore(s => s.setOverrealmLootSec);
-  const carjackLootSec      = useSettingsStore(s => s.carjackLootSec);
-  const setCarjackLootSec   = useSettingsStore(s => s.setCarjackLootSec);
-  const clockworkLootSec    = useSettingsStore(s => s.clockworkLootSec);
-  const setClockworkLootSec = useSettingsStore(s => s.setClockworkLootSec);
-  const lunariaLootSec      = useSettingsStore(s => s.lunariaLootSec);
-  const setLunariaLootSec   = useSettingsStore(s => s.setLunariaLootSec);
-  const sandlordWaveSec     = useSettingsStore(s => s.sandlordWaveSec);
-  const setSandlordWaveSec  = useSettingsStore(s => s.setSandlordWaveSec);
-  const huntingLootSec      = useSettingsStore(s => s.huntingLootSec);
-  const setHuntingLootSec   = useSettingsStore(s => s.setHuntingLootSec);
-  const afterlightLootSec    = useSettingsStore(s => s.afterlightLootSec);
-  const setAfterlightLootSec = useSettingsStore(s => s.setAfterlightLootSec);
+  const lootWindowMs             = useSettingsStore(s => s.lootWindowMs);
+  const setLootWindowMs          = useSettingsStore(s => s.setLootWindowMs);
 
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
@@ -240,15 +229,8 @@ export default function GeneralTab() {
           {t('lootTimers.heading')}
         </h2>
         <p className="text-xs text-text-secondary mb-3">{t('lootTimers.hint')}</p>
-        {([
-          {key: 'overrealm', value: overrealmLootSec, set: setOverrealmLootSec},
-          {key: 'carjack',   value: carjackLootSec,   set: setCarjackLootSec},
-          {key: 'clockwork', value: clockworkLootSec, set: setClockworkLootSec},
-          {key: 'lunaria',   value: lunariaLootSec,   set: setLunariaLootSec},
-          {key: 'sandlord',  value: sandlordWaveSec,  set: setSandlordWaveSec},
-          {key: 'hunting',   value: huntingLootSec,   set: setHuntingLootSec},
-          {key: 'afterlight', value: afterlightLootSec, set: setAfterlightLootSec},
-        ] as const).map(row => (
+        {/* Stored in ms; the inputs are seconds. */}
+        {WINDOWED_MECHANICS.map(row => (
           <div key={row.key} className="bg-surface rounded-lg p-4 border border-border mb-3">
             <div className="flex items-center justify-between mb-2 gap-3">
               <p className="text-sm text-text-primary">{t(`lootTimers.${row.key}.label`)}</p>
@@ -257,8 +239,8 @@ export default function GeneralTab() {
                   type="number"
                   min={1}
                   step={1}
-                  value={row.value}
-                  onChange={e => row.set(Number(e.target.value))}
+                  value={lootWindowMs[row.key] / 1000}
+                  onChange={e => setLootWindowMs(row.key, Math.round(Number(e.target.value) * 1000))}
                   className="w-20 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm font-mono tabular-nums text-text-primary text-right outline-none focus:border-accent/50 transition-colors"
                 />
                 <span className="text-xs text-text-secondary">{t('lootTimers.unit')}</span>
