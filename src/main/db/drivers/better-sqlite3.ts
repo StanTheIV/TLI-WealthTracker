@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3';
 import {normalizeArgs, pragmaBody, type SqlConn, type SqlStatement} from '../sql-conn';
 
-/** The app's driver. Loads only under Electron (native ABI) — never import it
- *  from anything vitest or Bun loads. */
+/** The app's driver (an N-API prebuild: loads under Electron and Node, crashes
+ *  Bun) — never import it from anything vitest or Bun loads. */
 export function openBetterSqlite3(path: string, opts?: Database.Options): SqlConn {
   const db = new Database(path, opts);
 

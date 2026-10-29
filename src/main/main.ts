@@ -35,6 +35,7 @@ import {WealthSeries} from './wealth-series';
 import {OverlayPosition, readSavedOverlayPosition} from './overlay-position';
 import {lockDownWebContents} from './window-guards';
 import {LOG_FILENAME, LOG_SUBPATH} from '@/shared/paths';
+import {SETTING_KEYS} from '@/shared/settings';
 
 // First, before anything can fail: until initLogger() runs, `log` writes to
 // the console only and the error box names no log file.
@@ -276,7 +277,13 @@ function createTrackerWindow() {
 
 ipcMain.handle('dialog:pick-folder', async () => {
   if (!mainWindow) return null;
-  const result = await dialog.showOpenDialog(mainWindow, {properties: ['openDirectory']});
+  // Since Electron 43 the dialog no longer reopens the last folder (it starts
+  // in Downloads), so start it in the configured game folder when there is one.
+  const current = settingsGet(SETTING_KEYS.torchlightPath);
+  const result  = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    ...(current ? {defaultPath: current} : {}),
+  });
   return result.canceled ? null : result.filePaths[0];
 });
 

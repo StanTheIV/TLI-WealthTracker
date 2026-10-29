@@ -24,14 +24,14 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       # Tests run the DB layer on node:sqlite (src/test/sql/node-sqlite.ts),
-      # which needs a current Node; better-sqlite3 loads only under Electron.
+      # which needs a current Node.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # Full install (unlike ci.yml): the postinstall electron-rebuild builds
-      # better-sqlite3 for the packaged app. The checks below don't load it.
+      # better-sqlite3 ships N-API prebuilds, so packaging skips the native
+      # rebuild (build.npmRebuild: false); electron-builder fetches its own Electron.
       - name: Install dependencies
         run: bun install
 

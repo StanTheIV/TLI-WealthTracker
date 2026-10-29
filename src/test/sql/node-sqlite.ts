@@ -3,8 +3,8 @@ import {firstColumn, normalizeArgs, pragmaBody, type SqlConn, type SqlStatement}
 
 type Row = Record<string, unknown>;
 
-/** Test driver: node:sqlite (vitest runs under Node, where better-sqlite3's
- *  Electron-ABI binary can't load). */
+/** Test driver: node:sqlite (built into Node — keeps the app's native
+ *  better-sqlite3 out of the test path). */
 export function openNodeSqlite(path = ':memory:'): SqlConn {
   const db = new DatabaseSync(path);
   let depth = 0;
