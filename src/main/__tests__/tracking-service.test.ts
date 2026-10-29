@@ -714,6 +714,33 @@ describe('TrackingService — consumer isolation', () => {
     expect(savedIds(h)).toHaveLength(1);
   });
 
+  it('a consumer throwing an unstringifiable value is logged, not rethrown', () => {
+    const h = build();
+    h.wealth.snapshot.mockImplementation(() => { throw Object.create(null); });
+
+    h.service.start();
+    init(h);
+    expect(() => runMap(h)).not.toThrow();
+    h.service.stop();
+
+    expect(types(h)).not.toContain('wealth_recorded');
+    expect(h.log.error).toHaveBeenCalledWith('engine', expect.stringMatching(/'wealth' failed on \w+: \[object Object\]$/));
+    expect(savedIds(h)).toHaveLength(1);
+  });
+
+  it('a consumer throwing an Error logs its stack', () => {
+    const h = build();
+    h.wealth.snapshot.mockImplementation(() => { throw new Error('wealth boom'); });
+
+    h.service.start();
+    init(h);
+    runMap(h);
+    h.service.stop();
+
+    const line = (h.log.error.mock.calls as [string, string][]).find(([, m]) => m.includes("'wealth'"))?.[1];
+    expect(line).toMatch(/: Error: wealth boom\n\s+at /);
+  });
+
   it('a throwing broadcast does not stop the item insert, wealth or persistence', () => {
     const h = build({
       broadcast: sent => (channel, payload) => {

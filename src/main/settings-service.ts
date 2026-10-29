@@ -8,6 +8,7 @@
  */
 import type {Broadcast} from './broadcast';
 import type {Logger} from './logger';
+import {describeError} from '@/shared/describe-error';
 import {ENGINE_SETTING_KEYS, SETTING_KEYS, parseSettings} from '@/shared/settings';
 
 export interface SettingsServiceDeps {
@@ -36,7 +37,7 @@ export class SettingsService {
       if (ENGINE_SETTING_KEYS.has(key))         tracking.reconfigure();
       else if (key.startsWith(LOGGING_PREFIX))  log.reloadConfig();
     } catch (err) {
-      log.error('app', `Applying setting '${key}' failed: ${err}`);
+      log.error('app', `Applying setting '${key}' failed: ${describeError(err)}`);
     }
     broadcast('settings:changed', parseSettings(store.getAll()));
     // Main values the displayed wealth with the tax: every window must re-fetch it.

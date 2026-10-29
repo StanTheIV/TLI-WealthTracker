@@ -8,6 +8,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {DbItem, DbItemFilter, DbSession, ItemChangedPatch, StoredWealthDatapoint} from '@/shared/contracts/db';
 import type {WealthSeriesPoint} from '@/shared/contracts/wealth';
 import type {EngineEnvelope, EngineEvent, EngineSnapshot, SessionIdentity, WireEngineEvent} from '@/shared/contracts/engine';
+import {describeError} from '@/shared/describe-error';
 import type {FilterRule} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
 import {LOG_SUBPATH} from '@/shared/paths';
@@ -406,7 +407,7 @@ export class TrackingService {
     try {
       fn();
     } catch (err) {
-      this._log.error('engine', `Emit consumer '${consumer}' failed on ${event.type}: ${err}`);
+      this._log.error('engine', `Emit consumer '${consumer}' failed on ${event.type}: ${describeError(err)}`);
     }
   }
 }

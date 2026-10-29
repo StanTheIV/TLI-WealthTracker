@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'fs';
+import {describeError} from '@/shared/describe-error';
 
 export class Watcher {
   private _logPath = '';
@@ -25,9 +26,8 @@ export class Watcher {
     try {
       const stat = fs.statSync(logPath);
       this._filePosition = stat.size; // seek to end
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this._onError(`Cannot open log file: ${msg}`);
+    } catch (err) {
+      this._onError(`Cannot open log file: ${describeError(err)}`);
       return false;
     }
 
@@ -84,7 +84,7 @@ export class Watcher {
       this._textBuffer += chunks.join('');
       this._processBuffer();
     });
-    stream.on('error', (err) => this._onError(err.message));
+    stream.on('error', (err: unknown) => this._onError(describeError(err)));
   }
 
   private _processBuffer(): void {

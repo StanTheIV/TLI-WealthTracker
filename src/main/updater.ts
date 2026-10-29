@@ -4,6 +4,7 @@ import {join} from 'path';
 import {spawn} from 'child_process';
 import {log} from './logger';
 import type {UpdateInfo} from '@/shared/contracts/api';
+import {describeError} from '@/shared/describe-error';
 
 export const REPO = 'StanTheIV/TLI-WealthTracker';
 const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
@@ -65,7 +66,7 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
       downloadUrl: setupAsset.browser_download_url,
     };
   } catch (err) {
-    log.warn('update', `Update check failed: ${err}`);
+    log.warn('update', `Update check failed: ${describeError(err)}`);
     return null;
   }
 }

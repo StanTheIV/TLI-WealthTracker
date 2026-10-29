@@ -3,6 +3,7 @@ import {app} from 'electron';
 import {checkForUpdate, downloadUpdate, launchInstallerAndQuit, fetchChangelog} from '../updater';
 import {settingsGet, settingsSet} from '../db';
 import {log} from '../logger';
+import {describeError, describeErrorBrief} from '@/shared/describe-error';
 
 function isNewer(current: string, last: string): boolean {
   const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number);
@@ -36,8 +37,8 @@ export function registerUpdaterHandlers(getMainWindow: () => BrowserWindow | nul
 
       return {success: true, path: dest};
     } catch (err) {
-      log.error('update', `Download failed: ${err}`);
-      return {success: false, error: String(err)};
+      log.error('update', `Download failed: ${describeError(err)}`);
+      return {success: false, error: describeErrorBrief(err)};
     }
   });
 

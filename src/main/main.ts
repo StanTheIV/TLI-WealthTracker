@@ -12,6 +12,7 @@ import {SqliteSessionStore} from './db/session-store';
 import type {SqlConn} from './db/sql-conn';
 import {initLogger, log} from './logger';
 import type {DbItem} from '@/shared/contracts/db';
+import {describeError} from '@/shared/describe-error';
 import {registerDbHandlers} from './ipc/db';
 import {registerOverlayHandlers} from './ipc/overlay';
 import {registerEngineHandlers} from './ipc/engine';
@@ -247,7 +248,7 @@ function seedItemsIfEmpty(): void {
     const count = itemsImportBatch(items).length;
     log.info('database', `Auto-seeded ${count} items from full_table.json`);
   } catch (err) {
-    log.error('database', `Failed to seed items: ${err}`);
+    log.error('database', `Failed to seed items: ${describeError(err)}`);
   }
 }
 

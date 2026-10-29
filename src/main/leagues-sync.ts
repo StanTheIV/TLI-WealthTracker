@@ -4,6 +4,7 @@ import {leaguesGetAll, leaguesApply, priceBackfillOnce} from './db';
 import type {Broadcast} from './broadcast';
 import {REPO} from './updater';
 import {mergeLeagues, parseLeaguesJson} from '@/lib/leagues';
+import {describeError} from '@/shared/describe-error';
 import bundledLeagues from '../../resources/leagues.json';
 
 const REMOTE_URL = `https://raw.githubusercontent.com/${REPO}/main/resources/leagues.json`;
@@ -31,7 +32,7 @@ async function syncRemote(broadcast: Broadcast): Promise<void> {
     }
     if (applyOfficial(await res.json(), 'remote')) broadcast('leagues:changed');
   } catch (err) {
-    log.warn('price', `Remote leagues sync failed: ${err}`);
+    log.warn('price', `Remote leagues sync failed: ${describeError(err)}`);
   }
 }
 
@@ -40,13 +41,13 @@ export function initLeaguesAndPriceHistory(broadcast: Broadcast): void {
   try {
     applyOfficial(bundledLeagues, 'bundled');
   } catch (err) {
-    log.error('price', `Bundled leagues merge failed: ${err}`);
+    log.error('price', `Bundled leagues merge failed: ${describeError(err)}`);
   }
   try {
     const r = priceBackfillOnce();
     if (!r.skipped) log.info('price', `Backfill complete: ${r.inserted} rows`);
   } catch (err) {
-    log.error('price', `Price backfill failed: ${err}`);
+    log.error('price', `Price backfill failed: ${describeError(err)}`);
   }
   void syncRemote(broadcast);
 }
