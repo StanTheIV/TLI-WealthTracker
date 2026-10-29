@@ -168,7 +168,7 @@ describe('wealth:changed — SettingsService', () => {
 
   it.each([
     ['language', 'de'], ['overlayOpacity', '0.5'], ['themeMode', 'dark'], ['lowStockThreshold', '3'],
-    ['carjackLootMs', '7000'], ['logging.level', 'debug'], ['serper_api_key', 'k'], ['showEventFeed', 'true'],
+    ['carjackLootMs', '7000'], ['logging.level', 'debug'], ['wealthChartRange', '7d'], ['showEventFeed', 'true'],
   ])('does NOT fire for unrelated setting %s', (key, value) => {
     const h = build();
     h.service.set(key, value);
@@ -195,6 +195,7 @@ describe('wealth:changed — db IPC handlers', () => {
       tracking,
       wealthSeries: series,
       onFiltersChanged: () => undefined,
+      serperKey:    {get: () => 'k'},
     });
   }
   const call = async (channel: string, ...args: unknown[]) => handlers.get(channel)!({}, ...args);
@@ -294,7 +295,6 @@ describe('wealth:changed — db IPC handlers', () => {
     afterEach(() => { vi.unstubAllGlobals(); });
 
     function stubLookup(tag: string): void {
-      settingsSet('serper_api_key', 'k');
       const search = {organic: [{title: 'Thing', link: 'https://tlidb.com/Some_Thing', snippet: 'ID: 100'}]};
       vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('serper')
         ? new Response(JSON.stringify(search))

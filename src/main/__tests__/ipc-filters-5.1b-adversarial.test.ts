@@ -27,6 +27,7 @@ beforeEach(() => {
     tracking:     {isTracking: () => false, deleteSession: () => undefined},
     wealthSeries: {series: () => [], latestBreakdown: () => null, forget: () => undefined, invalidate: () => undefined},
     onFiltersChanged: changed,
+    serperKey:    {get: () => null},
   });
 });
 

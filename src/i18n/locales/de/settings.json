@@ -161,7 +161,13 @@
     "serperApiKey": {
       "label": "Serper API-Schlüssel",
       "hint": "Für die Item-Namenssuche über serper.dev (max. 10/Tag, 2500 kostenlos/Monat). Kostenlosen Schlüssel unter serper.dev erstellen.",
-      "placeholder": "Serper API-Schlüssel eingeben…"
+      "placeholder": "Serper API-Schlüssel eingeben…",
+      "replacePlaceholder": "Neuen Schlüssel eingeben, um den gespeicherten zu ersetzen…",
+      "save": "Speichern",
+      "remove": "Entfernen",
+      "saved": "Schlüssel gespeichert",
+      "saveFailed": "Der Schlüssel konnte nicht sicher gespeichert werden und wurde daher nicht abgelegt. Möglicherweise ist der sichere Speicher auf diesem System nicht verfügbar.",
+      "removeFailed": "Der Schlüssel konnte nicht entfernt werden."
     }
   }
 }

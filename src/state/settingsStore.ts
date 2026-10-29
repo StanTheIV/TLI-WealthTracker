@@ -29,7 +29,6 @@ interface SettingsActions {
   setAuctionTaxEnabled:         (v: boolean) => void;
   setLanguage:                  (v: string) => void;
   validateLogFile:              () => Promise<boolean>;
-  setSerperApiKey:              (v: string) => void;
   setRateTimeframe:             (v: RateTimeframe) => void;
   setThemeMode:                 (v: ThemeMode) => void;
   setLowStockThreshold:         (v: number) => void;
@@ -92,7 +91,6 @@ export const useSettingsStore = create<Store>((set, get) => {
     setShowEventFeed:            v => write('showEventFeed', v),
     setAuctionTaxEnabled:        v => write('auctionTaxEnabled', v),
     setLanguage:                 v => write('language', v),
-    setSerperApiKey:             v => write('serperApiKey', v),
     setRateTimeframe:            v => write('rateTimeframe', v),
     setThemeMode:                v => write('themeMode', v),
     setLowStockThreshold:        v => write('lowStockThreshold', v),

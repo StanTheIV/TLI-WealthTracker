@@ -169,7 +169,6 @@ describe('settingsStore setters', () => {
     ['setShowEventFeed',            true,      'showEventFeed',            'true'],
     ['setAuctionTaxEnabled',        false,     'auctionTaxEnabled',        'false'],
     ['setLanguage',                 'de',      'language',                 'de'],
-    ['setSerperApiKey',             'k-1',     'serper_api_key',           'k-1'],
     ['setRateTimeframe',            'minute',  'rateTimeframe',            'minute'],
     ['setThemeMode',                'dark',    'themeMode',                'dark'],
     ['setLowStockThreshold',        7,         'lowStockThreshold',        '7'],
@@ -192,7 +191,6 @@ describe('settingsStore setters', () => {
     s.setThemeMode('light');
     s.setLowStockThreshold(5);
     s.setLootWindowMs('carjack', 7000);
-    s.setSerperApiKey('abc');
     const table = Object.fromEntries(api.set.mock.calls as Array<[string, string]>);
     const {isLoaded: _l, logFileValid: _v, ...typed} = get();
     const typedKeys = Object.keys(DEFAULT_SETTINGS);
@@ -372,7 +370,6 @@ describe('settingsStore setters', () => {
     ['setShowEventFeed',            true,                 field('showEventFeed')],
     ['setAuctionTaxEnabled',        false,                field('auctionTaxEnabled')],
     ['setLanguage',                 'de',                 field('language')],
-    ['setSerperApiKey',             'k-1',                field('serperApiKey')],
     ['setRateTimeframe',            'minute',             field('rateTimeframe')],
     ['setRateTimeframe',            'fortnight',          field('rateTimeframe')],
     ['setThemeMode',                'dark',               field('themeMode')],

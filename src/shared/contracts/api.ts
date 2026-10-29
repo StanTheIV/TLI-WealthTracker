@@ -75,6 +75,13 @@ export interface ElectronAPI {
     /** Rejects when the write fails to persist. */
     set:       (key: string, value: string) => Promise<void>;
     onChanged: (cb: (settings: Settings) => void) => () => void;
+    /** The Serper API key stays in main (encrypted): whether one is saved, never the value. */
+    serper: {
+      has:   () => Promise<boolean>;
+      /** Rejects (storing nothing) when the key is empty or secure storage is unavailable. */
+      set:   (key: string) => Promise<void>;
+      clear: () => Promise<void>;
+    };
   };
 
   db: {

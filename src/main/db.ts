@@ -64,6 +64,10 @@ export function settingsSet(key: string, value: string): void {
     .run(key, value);
 }
 
+export function settingsDelete(key: string): void {
+  db.prepare('DELETE FROM settings WHERE key = ?').run(key);
+}
+
 // ---------------------------------------------------------------------------
 // Items (price table)
 // ---------------------------------------------------------------------------

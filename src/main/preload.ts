@@ -30,6 +30,11 @@ const api = {
       ipcRenderer.on('settings:changed', wrapped);
       return () => ipcRenderer.removeListener('settings:changed', wrapped);
     },
+    serper: {
+      has:   ()            => ipcRenderer.invoke('settings:serper:has') as Promise<boolean>,
+      set:   (key: string) => ipcRenderer.invoke('settings:serper:set', key) as Promise<void>,
+      clear: ()            => ipcRenderer.invoke('settings:serper:clear') as Promise<void>,
+    },
   },
 
   engine: {

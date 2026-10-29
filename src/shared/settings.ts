@@ -20,7 +20,6 @@ export interface Settings {
    *  ON: only an explicit 'false' opts out. */
   readonly auctionTaxEnabled:        boolean;
   readonly language:                 string;
-  readonly serperApiKey:             string;
   readonly rateTimeframe:            RateTimeframe;
   readonly themeMode:                ThemeMode;
   /** The map-material qty at/under which warnings fire; 0 is valid. */
@@ -39,7 +38,6 @@ export const SETTING_KEYS = {
   showEventFeed:            'showEventFeed',
   auctionTaxEnabled:        'auctionTaxEnabled',
   language:                 'language',
-  serperApiKey:             'serper_api_key',
   rateTimeframe:            'rateTimeframe',
   themeMode:                'themeMode',
   lowStockThreshold:        'lowStockThreshold',
@@ -62,7 +60,6 @@ export const DEFAULT_SETTINGS: Settings = {
   showEventFeed:            false,
   auctionTaxEnabled:        true,
   language:                 'en',
-  serperApiKey:             '',
   rateTimeframe:            'hour',
   themeMode:                'system',
   lowStockThreshold:        0,
@@ -110,7 +107,6 @@ export function parseSettings(raw: Readonly<Record<string, string>>): Settings {
     showEventFeed:            raw[K.showEventFeed] === 'true',
     auctionTaxEnabled:        raw[K.auctionTaxEnabled] !== 'false',
     language:                 raw[K.language] ?? D.language,
-    serperApiKey:             raw[K.serperApiKey] ?? D.serperApiKey,
     rateTimeframe:            parseEnum(raw[K.rateTimeframe], RATE_TIMEFRAMES, D.rateTimeframe),
     themeMode:                parseEnum(raw[K.themeMode], THEME_MODES, D.themeMode),
     lowStockThreshold:        parsePositiveInt(raw[K.lowStockThreshold], D.lowStockThreshold, /*allowZero*/ true),

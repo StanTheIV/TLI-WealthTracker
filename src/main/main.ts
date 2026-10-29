@@ -1,9 +1,10 @@
-import {app, BrowserWindow, ipcMain, dialog, Menu, screen, type WebContents} from 'electron';
+import {app, BrowserWindow, ipcMain, dialog, Menu, safeStorage, screen, type WebContents} from 'electron';
 import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
 import {
   adoptDb, migrateDb, itemsCount, itemsImportBatch, itemsGetAll, itemsGetLocked, itemsInsertIfMissing, priceRecord,
-  filtersGetAll, settingsGetAll, settingsSet, wealthInsert, wealthGetRange, wealthGetRangeHeads, wealthGetLatest,
+  filtersGetAll, settingsDelete, settingsGet, settingsGetAll, settingsSet,
+  wealthInsert, wealthGetRange, wealthGetRangeHeads, wealthGetLatest,
 } from './db';
 import {backupDb} from './db/backup';
 import {openBetterSqlite3} from './db/drivers/better-sqlite3';
@@ -20,6 +21,7 @@ import {registerUpdaterHandlers} from './ipc/updater';
 import {registerLoggingHandlers} from './ipc/logging';
 import {registerSettingsHandlers} from './ipc/settings';
 import {initLeaguesAndPriceHistory} from './leagues-sync';
+import {SerperKey} from './serper-key';
 import {SettingsService} from './settings-service';
 import {TrackingService} from './tracking-service';
 import {closeCrashedSessions} from './session-recovery';
@@ -350,6 +352,12 @@ function startApp(): void {
   log.info('app', 'App starting');
 
   const sessions = new SqliteSessionStore(openDatabase(userData));
+  const serperKey = new SerperKey({
+    crypto: safeStorage,
+    store:  {get: settingsGet, set: settingsSet, delete: settingsDelete},
+    log,
+  });
+  serperKey.migratePlaintext();
   seedItemsIfEmpty();
   // Before any tracking: sessions left open by a run that never reached Stop.
   closeCrashedSessions(sessions, log);
@@ -386,6 +394,7 @@ function startApp(): void {
     sessions,
     tracking,
     wealthSeries,
+    serperKey,
   });
   registerOverlayHandlers(
     () => trackerWindow,
@@ -399,7 +408,7 @@ function startApp(): void {
     broadcast,
     tracking,
     log,
-  }));
+  }), serperKey);
   registerUpdaterHandlers(() => mainWindow);
   registerLoggingHandlers({windowName: rendererWindowName});
 

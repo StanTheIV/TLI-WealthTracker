@@ -58,8 +58,7 @@ describe('parseSettings: hostile tables', () => {
 
   it('a very long string is carried verbatim into the string fields', () => {
     const big = 'a'.repeat(1_000_000);
-    const s = parseSettings({serper_api_key: big, torchlightPath: big});
-    expect(s.serperApiKey).toBe(big);
+    const s = parseSettings({torchlightPath: big});
     expect(s.torchlightPath).toBe(big);
   });
 
@@ -153,14 +152,14 @@ describe('parseSettings: enums, booleans and strings', () => {
     expect(parseSettings({language: ''}).language).toBe('');
   });
 
-  it('an empty torchlightPath / serper key are kept as ""', () => {
-    expect(parseSettings({torchlightPath: '', serper_api_key: ''}))
-      .toMatchObject({torchlightPath: '', serperApiKey: ''});
+  it('an empty torchlightPath is kept as ""', () => {
+    expect(parseSettings({torchlightPath: ''})).toMatchObject({torchlightPath: ''});
   });
 
-  it('the DB key of serperApiKey is snake_case, not the field name', () => {
-    expect(parseSettings({serperApiKey: 'nope'}).serperApiKey).toBe('');
-    expect(parseSettings({serper_api_key: 'yes'}).serperApiKey).toBe('yes');
+  it('the Serper key rows never reach the typed settings (main-only secret)', () => {
+    const s = parseSettings({serper_api_key: 'plain', serper_api_key_enc: 'cipher'});
+    expect(s).toEqual(parseSettings({}));
+    expect(JSON.stringify(s)).not.toMatch(/plain|cipher/);
   });
 });
 

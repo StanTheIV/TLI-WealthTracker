@@ -1,7 +1,6 @@
 import {ipcMain} from 'electron';
 import {log} from '@/main/logger';
 import {
-  settingsGetAll,
   itemsGetAll, itemsSetName, itemsSetType, priceRecord, itemsSetLocked, itemsImportBatch,
   leaguesGetAll, leaguesInsertUser, leaguesSetStart, pricesHistory, pricesMovers, pricesExport,
   wealthDelete, wealthClear,
@@ -12,6 +11,7 @@ import type {DbItem} from '@/shared/contracts/db';
 import type {ItemFilter} from '@/shared/item-filter';
 import type {SqliteSessionStore} from '@/main/db/session-store';
 import type {Broadcast} from '@/main/broadcast';
+import type {SerperKey} from '@/main/serper-key';
 import type {TrackingService} from '@/main/tracking-service';
 import type {WealthSeries} from '@/main/wealth-series';
 
@@ -27,6 +27,8 @@ interface RegisterDeps {
   onItemTypeChanged?: (id: string, type: string) => void;
   /** A filter write landed: the engine re-reads the stored active filter. */
   onFiltersChanged:   () => void;
+  /** The decrypted Serper key for the name lookup — never sent to a renderer. */
+  serperKey:          Pick<SerperKey, 'get'>;
 }
 
 export function registerDbHandlers(deps: RegisterDeps): void {
@@ -53,7 +55,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
     broadcast('items:changed', {id, changes: {locked}});
   });
   ipcMain.handle('db:items:lookup-name',  async (_e, id: string) => {
-    const result = await lookupName(id);
+    const result = await lookupName(id, deps.serperKey.get());
     if ('name' in result || 'type' in result) {
       // Persist whatever we found and broadcast the patch so all renderers
       // (including the overlay) update without an extra round-trip.
@@ -147,8 +149,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
 // Item name lookup via Serper (Google Search)
 // ---------------------------------------------------------------------------
 
-async function lookupName(id: string): Promise<{name?: string | null; type?: string | null; error?: string; lookupsToday: number}> {
-  const apiKey = settingsGetAll()['serper_api_key'];
+async function lookupName(id: string, apiKey: string | null): Promise<{name?: string | null; type?: string | null; error?: string; lookupsToday: number}> {
   if (!apiKey) return {error: 'no_api_key', lookupsToday: getLookupCountToday()};
 
   const count = getLookupCountToday();

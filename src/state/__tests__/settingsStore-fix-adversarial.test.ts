@@ -174,9 +174,8 @@ describe('F3: optimistic === parse(written) === echo, and the written string is 
 
   it.each(STRS)('string setters carry %j verbatim', async v => {
     await check(s => s.setTorchlightPath(v));
-    await check(s => s.setLanguage(v));
-    const {state} = await check(s => s.setSerperApiKey(v));
-    expect(state().serperApiKey).toBe(v);
+    const {state} = await check(s => s.setLanguage(v));
+    expect(state().language).toBe(v);
   });
 
   it.each(['', 'HOUR', ' hour', 'week', '__proto__', 'minute'])('setRateTimeframe(%j) cast garbage never reaches state', async g => {

@@ -60,9 +60,8 @@ describe('field parse', () => {
   });
 
   it('strings pass through as stored; missing → the default', () => {
-    const s = parseSettings({torchlightPath: 'C:/TL', language: 'de', serper_api_key: 'k'});
-    expect([s.torchlightPath, s.language, s.serperApiKey]).toEqual(['C:/TL', 'de', 'k']);
-    expect(parseSettings({serperApiKey: 'k'}).serperApiKey).toBe('');     // the DB key is serper_api_key
+    const s = parseSettings({torchlightPath: 'C:/TL', language: 'de'});
+    expect([s.torchlightPath, s.language]).toEqual(['C:/TL', 'de']);
     expect(parseSettings({language: ''}).language).toBe('');             // `??`: only a missing key defaults
   });
 
@@ -97,7 +96,7 @@ describe('ENGINE_SETTING_KEYS', () => {
   // or a change to it would not reconfigure the engine.
   it('no other key moves an engine-read field', () => {
     const others = [
-      ...Object.values(SETTING_KEYS), 'wealthChartRange', 'logging.console', 'logging.file', 'serperApiKey',
+      ...Object.values(SETTING_KEYS), 'wealthChartRange', 'logging.console', 'logging.file', 'serper_api_key',
       'carjackLootSec', 'sandlordLootMs', 'lowStock',
     ].filter(k => !ENGINE_SETTING_KEYS.has(k));
     expect(others.length).toBeGreaterThan(0);

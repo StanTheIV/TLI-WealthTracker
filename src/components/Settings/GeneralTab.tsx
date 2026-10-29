@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useSettingsStore, type ThemeMode} from '@/state/settingsStore';
 import {useItemsStore} from '@/state/itemsStore';
@@ -17,11 +17,9 @@ export default function GeneralTab() {
   const clickThroughWhileRunning    = useSettingsStore(s => s.clickThroughWhileRunning);
   const setClickThroughWhileRunning = useSettingsStore(s => s.setClickThroughWhileRunning);
   const language        = useSettingsStore(s => s.language);
-  const serperApiKey    = useSettingsStore(s => s.serperApiKey);
   const setTorchlightPath = useSettingsStore(s => s.setTorchlightPath);
   const setOverlayOpacity = useSettingsStore(s => s.setOverlayOpacity);
   const setLanguage       = useSettingsStore(s => s.setLanguage);
-  const setSerperApiKey   = useSettingsStore(s => s.setSerperApiKey);
   const rateTimeframe     = useSettingsStore(s => s.rateTimeframe);
   const setRateTimeframe  = useSettingsStore(s => s.setRateTimeframe);
   const themeMode         = useSettingsStore(s => s.themeMode);
@@ -363,17 +361,82 @@ export default function GeneralTab() {
           {t('apiKeys.heading')}
         </h2>
         <div className="bg-surface rounded-lg p-4 border border-border">
-          <p className="text-sm text-text-primary mb-3">{t('apiKeys.serperApiKey.label')}</p>
-          <input
-            type="password"
-            value={serperApiKey}
-            onChange={e => setSerperApiKey(e.target.value)}
-            placeholder={t('apiKeys.serperApiKey.placeholder')}
-            className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-secondary outline-none focus:border-accent/50 transition-colors placeholder:text-text-disabled"
-          />
-          <p className="text-xs text-text-secondary mt-2">{t('apiKeys.serperApiKey.hint')}</p>
+          <SerperKeyField />
         </div>
       </section>
+    </>
+  );
+}
+
+const SECONDARY_BUTTON = 'px-4 py-2 rounded-lg bg-surface-elevated border border-border text-sm text-text-primary hover:bg-accent/10 hover:border-accent transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface-elevated disabled:hover:border-border';
+
+type SerperKeyError = 'saveFailed' | 'removeFailed';
+
+/** The Serper key stays in main: this field saves, removes, and shows whether one is saved — never the value. */
+function SerperKeyField() {
+  const {t} = useTranslation('settings');
+  const serper = window.electronAPI.settings.serper;
+  const [saved, setSaved] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy,  setBusy]  = useState(false);
+  const [error, setError] = useState<SerperKeyError | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    serper.has()
+      .then(has => { if (live) setSaved(has); })
+      .catch((err: unknown) => console.error('[settings] serper key check failed:', err));
+    return () => { live = false; };
+  }, [serper]);
+
+  /** Run a write, then re-read whether a key is saved (after a failure too). */
+  const run = async (write: () => Promise<void>, failure: SerperKeyError) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await write();
+      setDraft('');
+    } catch (err) {
+      console.error(`[settings] serper key ${failure}:`, err);
+      setError(failure);
+    }
+    try {
+      setSaved(await serper.has());
+    } catch (err) {
+      console.error('[settings] serper key check failed:', err);
+    }
+    setBusy(false);
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-sm text-text-primary">{t('apiKeys.serperApiKey.label')}</p>
+        {saved && <span className="text-xs text-success">{t('apiKeys.serperApiKey.saved')}</span>}
+      </div>
+      <form
+        className="flex gap-2"
+        onSubmit={e => { e.preventDefault(); void run(() => serper.set(draft), 'saveFailed'); }}
+      >
+        <input
+          type="password"
+          autoComplete="off"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          placeholder={t(saved ? 'apiKeys.serperApiKey.replacePlaceholder' : 'apiKeys.serperApiKey.placeholder')}
+          className="flex-1 min-w-0 bg-bg border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-secondary outline-none focus:border-accent/50 transition-colors placeholder:text-text-disabled"
+        />
+        <button type="submit" disabled={busy || draft.trim() === ''} className={SECONDARY_BUTTON}>
+          {t('apiKeys.serperApiKey.save')}
+        </button>
+        {saved && (
+          <button type="button" disabled={busy} onClick={() => void run(serper.clear, 'removeFailed')} className={SECONDARY_BUTTON}>
+            {t('apiKeys.serperApiKey.remove')}
+          </button>
+        )}
+      </form>
+      {error && <p className="text-xs text-danger mt-2">{t(`apiKeys.serperApiKey.${error}`)}</p>}
+      <p className="text-xs text-text-secondary mt-2">{t('apiKeys.serperApiKey.hint')}</p>
     </>
   );
 }

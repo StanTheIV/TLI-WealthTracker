@@ -93,7 +93,6 @@ describe('SettingsService', () => {
       ['language',        'de'],
       ['overlayOpacity',  '0.5'],
       ['wealthChartRange', '7d'],
-      ['serper_api_key',  'abc'],
       ['someUnknownKey',  'x'],
     ])('%s', (key, value) => {
       h.service.set(key, value);
@@ -147,6 +146,29 @@ describe('SettingsService', () => {
       h.service.set('themeMode', 'dark');
       h.service.set('someUnknownKey', 'x');
       expect(h.service.getAll()).toEqual({themeMode: 'dark', someUnknownKey: 'x'});
+    });
+  });
+
+  describe('the Serper key rows stay in main', () => {
+    const SECRET = {serper_api_key: 'plain-secret', serper_api_key_enc: 'cipher-secret'};
+
+    it('getAll filters both rows out and leaves the table untouched', () => {
+      const f = build({initial: {themeMode: 'dark', ...SECRET}});
+      expect(f.service.getAll()).toEqual({themeMode: 'dark'});
+      expect(Object.fromEntries(f.table)).toEqual({themeMode: 'dark', ...SECRET});
+    });
+
+    it.each(Object.keys(SECRET))('set(%s) throws and persists, applies and broadcasts nothing', key => {
+      expect(() => h.service.set(key, 'x')).toThrow(/not writable/);
+      expect(h.calls).toEqual([]);
+      expect(h.sent).toEqual([]);
+      expect(h.table.has(key)).toBe(false);
+    });
+
+    it('the settings:changed payload never carries either row', () => {
+      const f = build({initial: SECRET});
+      f.service.set('themeMode', 'dark');
+      expect(JSON.stringify(f.sent[0].payload)).not.toMatch(/secret/);
     });
   });
 

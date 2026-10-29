@@ -185,9 +185,10 @@ describe('SettingsService table handling', () => {
     expect(h.calls).not.toContain('reconfigure');
   });
 
-  it('getAll returns the store table verbatim', () => {
-    const h = build({initial: {a: '1', 'serper_api_key': 'k'}});
-    expect(h.service.getAll()).toEqual({a: '1', serper_api_key: 'k'});
+  it('getAll returns the store table verbatim but for the Serper key rows', () => {
+    const h = build({initial: {a: '1', main_window_x: '5', serper_api_key: 'k', serper_api_key_enc: 'c'}});
+    expect(h.service.getAll()).toEqual({a: '1', main_window_x: '5'});
+    expect(h.table.get('serper_api_key')).toBe('k');   // hidden, not deleted
   });
 });
 
@@ -322,7 +323,7 @@ describe('settings -> real tracking service (end to end)', () => {
     expect(configure).toHaveBeenLastCalledWith(expect.objectContaining({lowStockThreshold: 12}));
 
     configure.mockClear();
-    for (const key of ['themeMode', 'language', 'overlayOpacity', 'serper_api_key', 'wealthChartRange',
+    for (const key of ['themeMode', 'language', 'overlayOpacity', 'someUnknownKey', 'wealthChartRange',
       'logging.console', 'torchlightPath', 'auctionTaxEnabled', 'main_window_x', 'rateTimeframe']) {
       r.settings.set(key, 'dark');
     }
