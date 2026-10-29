@@ -4,12 +4,7 @@ import {useTracking} from '@/state/TrackingContext';
 import {selectRunStatus, useEngineStore} from '@/state/engineStore';
 import {useTrackerElapsed} from '@/hooks/useTrackerElapsed';
 import HoldButton from '@/components/ui/HoldButton';
-
-function formatElapsed(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
-}
+import {formatElapsed} from '@/lib/format';
 
 export default function Playbar() {
   const {t} = useTranslation('playbar');

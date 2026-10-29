@@ -3,22 +3,8 @@ import {useTranslation} from 'react-i18next';
 import {ChevronUp, ChevronDown, ArrowUpRight} from 'lucide-react';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
+import {formatDateTime, formatFEFull} from '@/lib/format';
 import {breakdownChipTypes, keepShownChips} from './breakdownChips';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatFE(value: number): string {
-  return value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-}
-
-function formatDate(ts: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }).format(new Date(ts));
-}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -129,12 +115,12 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
         <div className="flex items-center gap-3">
           {rows.length > 0 && (
             <span className="font-mono text-sm font-bold text-gold tabular-nums">
-              {formatFE(grandTotal)} FE
+              {formatFEFull(grandTotal, {unit: true})}
             </span>
           )}
           {latestTimestamp !== null && (
             <span className="text-[11px] text-text-disabled">
-              {t('breakdown.lastUpdated')}: {formatDate(latestTimestamp)}
+              {t('breakdown.lastUpdated')}: {formatDateTime(latestTimestamp)}
             </span>
           )}
         </div>
@@ -205,10 +191,10 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
                   {row.qty.toLocaleString()}
                 </span>
                 <span className="font-mono text-xs text-text-secondary w-20 text-right shrink-0 tabular-nums">
-                  {formatFE(row.unitPrice)}
+                  {formatFEFull(row.unitPrice)}
                 </span>
                 <span className="font-mono text-xs text-gold w-24 text-right shrink-0 tabular-nums">
-                  {formatFE(row.total)}
+                  {formatFEFull(row.total)}
                 </span>
               </div>
             ))}

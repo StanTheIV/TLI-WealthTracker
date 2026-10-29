@@ -4,7 +4,8 @@ import {useTheme} from '@/theme/ThemeContext';
 import type {SessionAnalytics, TimelineSegment} from '@/domain/session-analytics';
 import {mechanicColors} from './colors';
 import {Swatch} from './primitives';
-import {formatFEFull, formatSeconds, mechanicLabel, pick, type ValueMode} from './format';
+import {formatFEFull} from '@/lib/format';
+import {formatSeconds, mechanicLabel, pick, type ValueMode} from './format';
 
 const COLLAPSED_RUNS = 12;
 
@@ -74,7 +75,7 @@ export default function RunLog({analytics, mode}: {analytics: SessionAnalytics; 
                     {cost > 0 ? formatFEFull(cost) : '—'}
                   </td>
                   <td className={`py-2 px-2.5 text-right tabular-nums ${net < 0 ? 'text-danger' : 'text-success'}`}>
-                    {net >= 0 ? '+' : ''}{formatFEFull(net)}
+                    {formatFEFull(net, {plus: true})}
                   </td>
                   <td className="py-2 px-2.5 text-right tabular-nums text-text-secondary">
                     {formatFEFull(rate)}

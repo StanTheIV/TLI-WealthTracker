@@ -3,7 +3,8 @@ import {useTheme} from '@/theme/ThemeContext';
 import type {SessionAnalytics, TimelineSegment} from '@/domain/session-analytics';
 import {mechanicColors} from './colors';
 import {Swatch} from './primitives';
-import {formatFEFull, formatSeconds, mechanicLabel, pick, type ValueMode} from './format';
+import {formatFEFull} from '@/lib/format';
+import {formatSeconds, mechanicLabel, pick, type ValueMode} from './format';
 
 /** Minimum flex weight so a very short run stays visible and hoverable. */
 const MIN_WEIGHT = 0.35;
@@ -23,7 +24,7 @@ export default function SessionTimeline({analytics, mode}: {analytics: SessionAn
   }
 
   const label = (s: TimelineSegment) =>
-    `${mechanicLabel(t, s.mechanic, s.phase)} #${s.mapIndex} · ${formatSeconds(s.seconds)} · ${formatFEFull(pick(s.income, mode))} FE`;
+    `${mechanicLabel(t, s.mechanic, s.phase)} #${s.mapIndex} · ${formatSeconds(s.seconds)} · ${formatFEFull(pick(s.income, mode), {unit: true})}`;
 
   const legendKeys = [...new Set(timeline.flatMap(s => [s.mechanic, ...s.children.map(c => c.mechanic)]))];
 

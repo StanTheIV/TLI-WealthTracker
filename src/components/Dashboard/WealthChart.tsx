@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import {useWealthStore, type WealthRange} from '@/state/wealthStore';
 import {activePointIndex} from '@/lib/chartPointer';
+import {formatDateTime, formatFECompact, formatFEFull} from '@/lib/format';
 import {useTheme} from '@/theme/ThemeContext';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 
@@ -39,19 +40,6 @@ function tickFormatterFor(range: WealthRange): (ts: number) => string {
   return formatDate;
 }
 
-function formatDateFull(ts: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }).format(new Date(ts));
-}
-
-function formatFE(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
-  if (value >= 1_000)     return `${(value / 1_000).toFixed(1)}k`;
-  return value.toLocaleString();
-}
-
 // ---------------------------------------------------------------------------
 // Custom tooltip
 // ---------------------------------------------------------------------------
@@ -61,18 +49,14 @@ interface TooltipEntry {
   payload?: {time: number; value: number};
 }
 
-function formatValue(value: number): string {
-  return `${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE`;
-}
-
 function CustomTooltip({active, payload}: {active?: boolean; payload?: TooltipEntry[]}) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   if (!entry.payload) return null;
   return (
     <div className="bg-surface border border-border rounded px-3 py-2 text-xs shadow-lg">
-      <p className="text-text-secondary mb-1">{formatDateFull(entry.payload.time)}</p>
-      <p className="font-mono font-semibold text-gold">{formatValue(entry.value ?? 0)}</p>
+      <p className="text-text-secondary mb-1">{formatDateTime(entry.payload.time)}</p>
+      <p className="font-mono font-semibold text-gold">{formatFEFull(entry.value ?? 0, {unit: true})}</p>
     </div>
   );
 }
@@ -140,8 +124,8 @@ function PointMenu({menu, onDelete, onClose}: {menu: MenuState; onDelete: () => 
       style={{left: pos.left, top: pos.top}}
     >
       <div className="px-3 py-1.5 border-b border-border">
-        <p className="text-text-secondary">{formatDateFull(menu.point.time)}</p>
-        <p className="font-mono font-semibold text-gold">{formatValue(menu.point.value)}</p>
+        <p className="text-text-secondary">{formatDateTime(menu.point.time)}</p>
+        <p className="font-mono font-semibold text-gold">{formatFEFull(menu.point.value, {unit: true})}</p>
       </div>
       <button
         role="menuitem"
@@ -187,7 +171,7 @@ export default function WealthChart() {
     if (!menu) return;
     const {point} = menu;
     setMenu(null);
-    if (window.confirm(t('chart.contextMenu.confirm', {time: formatDateFull(point.time), value: formatValue(point.value)}))) {
+    if (window.confirm(t('chart.contextMenu.confirm', {time: formatDateTime(point.time), value: formatFEFull(point.value, {unit: true})}))) {
       deletePoint(point.id).catch((err: unknown) => console.error('[wealth] delete failed:', err));
     }
   };
@@ -239,7 +223,7 @@ export default function WealthChart() {
             minTickGap={60}
           />
           <YAxis
-            tickFormatter={formatFE}
+            tickFormatter={formatFECompact}
             tick={{fill: theme.textDisabled, fontSize: 11}}
             axisLine={false}
             tickLine={false}

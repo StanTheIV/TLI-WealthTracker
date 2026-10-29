@@ -7,7 +7,8 @@ import {
 import {useTheme} from '@/theme/ThemeContext';
 import type {MechanicKey, SessionAnalytics} from '@/domain/session-analytics';
 import {mechanicColors, typeColors} from './colors';
-import {formatFE, formatFEFull, pick, type ValueMode} from './format';
+import {formatFECompact, formatFEFull} from '@/lib/format';
+import {pick, type ValueMode} from './format';
 
 /** Beyond this, adjacent runs are bucketed so bars stay readable. */
 const MAX_BARS = 50;
@@ -21,12 +22,6 @@ interface Datum {
   bySeasonal:     Partial<Record<MechanicKey, number>>;
   cost:           number;
   cumulative:     number;
-}
-
-/** Income figures are signed (a map whose overlaps exceeded it, a net-negative
- *  seasonal), so the sign is rendered, never assumed. */
-function signedFull(value: number): string {
-  return `${value >= 0 ? '+' : ''}${formatFEFull(value)}`;
 }
 
 function PerMapTooltip({active, payload}: {active?: boolean; payload?: {payload: Datum}[]}) {
@@ -43,21 +38,21 @@ function PerMapTooltip({active, payload}: {active?: boolean; payload?: {payload:
           : t('details.tooltipMapRange', {from: d.firstIndex, to: d.lastIndex})}
       </p>
       {d.mapIncome !== 0 && (
-        <p className={`font-mono ${d.mapIncome > 0 ? 'text-success' : 'text-danger'}`}>{t('details.tooltipIncome')}: {signedFull(d.mapIncome)}</p>
+        <p className={`font-mono ${d.mapIncome > 0 ? 'text-success' : 'text-danger'}`}>{t('details.tooltipIncome')}: {formatFEFull(d.mapIncome, {plus: true})}</p>
       )}
       {Object.entries(d.bySeasonal)
         .sort((a, b) => b[1] - a[1])
         .map(([key, value]) => (
           <p key={key} className={`font-mono ${value >= 0 ? 'text-gold' : 'text-danger'}`}>
-            {t(`details.source.${key}` as never)}: {signedFull(value)}
+            {t(`details.source.${key}` as never)}: {formatFEFull(value, {plus: true})}
           </p>
         ))}
       <p className="font-mono text-danger">{t('details.tooltipCost')}: {formatFEFull(d.cost)}</p>
       <p className={`font-mono font-semibold ${net >= 0 ? 'text-gold' : 'text-danger'}`}>
-        {t('details.tooltipNet')}: {signedFull(net)}
+        {t('details.tooltipNet')}: {formatFEFull(net, {plus: true})}
       </p>
       <p className="font-mono text-text-secondary text-[10px]">
-        {t('details.tooltipCumulative')}: {d.cumulative >= 0 ? '+' : ''}{formatFEFull(d.cumulative)}
+        {t('details.tooltipCumulative')}: {formatFEFull(d.cumulative, {plus: true})}
       </p>
     </div>
   );
@@ -119,7 +114,7 @@ export function PerMapChart({analytics, mode}: {analytics: SessionAnalytics; mod
           axisLine={{stroke: theme.border}} tickLine={false} interval="preserveStartEnd"
         />
         <YAxis
-          tickFormatter={formatFE} tick={{fill: theme.textDisabled, fontSize: 11}}
+          tickFormatter={formatFECompact} tick={{fill: theme.textDisabled, fontSize: 11}}
           axisLine={false} tickLine={false} width={56}
         />
         <ReferenceLine y={0} stroke={theme.border} strokeWidth={1.5} />
@@ -156,7 +151,7 @@ function SliceTooltip({active, payload}: {active?: boolean; payload?: {payload: 
   return (
     <div className="bg-surface border border-border rounded px-3 py-2 text-xs shadow-lg">
       <p className="text-text-primary font-semibold mb-1">{d.label}</p>
-      <p className="font-mono text-gold">{formatFEFull(d.value)} FE</p>
+      <p className="font-mono text-gold">{formatFEFull(d.value, {unit: true})}</p>
       <p className="text-text-secondary">{d.pct.toFixed(1)}%</p>
     </div>
   );

@@ -4,6 +4,7 @@ import {useItemsStore} from '@/state/itemsStore';
 import {useTaxConfig} from '@/state/settingsStore';
 import {makePriceLookup, valueItem, type PriceLookup} from '@/domain/valuation';
 import type {DbItem} from '@/shared/contracts/db';
+import {formatFEFull} from '@/lib/format';
 
 interface DropTableProps {
   drops: Record<number, number>;
@@ -21,12 +22,6 @@ interface DropRow {
 
 function feClass(value: number): string {
   return value < 0 ? 'text-danger' : 'text-gold';
-}
-
-function formatFE(value: number): string {
-  const abs  = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  return `${sign}${abs.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 }
 
 /** Live leg of the analytics rule. `sign` flips spent rows to read as what they
@@ -56,13 +51,13 @@ function Rows({rows}: {rows: DropRow[]}) {
             {row.name}
           </span>
           <span className="font-mono text-xs text-text-secondary w-16 text-right shrink-0 tabular-nums">
-            {row.unitPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+            {formatFEFull(row.unitPrice)}
           </span>
           <span className={`font-mono text-xs w-12 text-right shrink-0 tabular-nums ${row.quantity < 0 ? 'text-danger' : 'text-text-primary'}`}>
             {row.quantity > 0 ? '+' : ''}{row.quantity}
           </span>
           <span className={`font-mono text-xs w-20 text-right shrink-0 tabular-nums ${feClass(row.totalValue)}`}>
-            {formatFE(row.totalValue)}
+            {formatFEFull(row.totalValue)}
           </span>
         </div>
       ))}

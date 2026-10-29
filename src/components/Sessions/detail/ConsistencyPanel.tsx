@@ -1,6 +1,7 @@
 import {useTranslation} from 'react-i18next';
 import type {SessionAnalytics} from '@/domain/session-analytics';
-import {formatFEFull, formatFE, pick, type ValueMode} from './format';
+import {formatFECompact, formatFEFull} from '@/lib/format';
+import {pick, type ValueMode} from './format';
 
 function Row({label, value, tone}: {label: string; value: string; tone?: 'pos' | 'neg'}) {
   const cls = tone === 'pos' ? 'text-success' : tone === 'neg' ? 'text-danger' : 'text-text-primary';
@@ -29,15 +30,15 @@ export function ConsistencyPanel({analytics, mode}: {analytics: SessionAnalytics
         {stats.histogram.map((b, i) => (
           <div
             key={i}
-            title={`${formatFE(b.from)} – ${formatFE(b.to)}: ${b.count}`}
+            title={`${formatFECompact(b.from)} – ${formatFECompact(b.to)}: ${b.count}`}
             className={`flex-1 rounded-t-sm min-h-[2px] ${b.from < 0 ? 'bg-danger' : 'bg-accent'}`}
             style={{height: `${(b.count / maxCount) * 100}%`}}
           />
         ))}
       </div>
       <div className="flex justify-between text-[10px] text-text-disabled tabular-nums">
-        <span>{formatFE(stats.histogram[0].from)}</span>
-        <span>{formatFE(stats.histogram[stats.histogram.length - 1].to)}</span>
+        <span>{formatFECompact(stats.histogram[0].from)}</span>
+        <span>{formatFECompact(stats.histogram[stats.histogram.length - 1].to)}</span>
       </div>
 
       <div className="flex flex-col">

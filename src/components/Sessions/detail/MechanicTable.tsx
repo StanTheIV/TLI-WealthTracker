@@ -4,7 +4,8 @@ import {useTheme} from '@/theme/ThemeContext';
 import type {MechanicStats, SessionAnalytics} from '@/domain/session-analytics';
 import {mechanicColors} from './colors';
 import {ColHeader, Swatch} from './primitives';
-import {formatFEFull, formatPct, formatSeconds, pick, type ValueMode} from './format';
+import {formatFEFull} from '@/lib/format';
+import {formatPct, formatSeconds, pick, type ValueMode} from './format';
 
 type Field = 'mechanic' | 'runs' | 'seconds' | 'timePct' | 'net' | 'valuePct' | 'fePerHour' | 'avgPerRun' | 'avgSeconds';
 

@@ -3,7 +3,8 @@ import {useTheme} from '@/theme/ThemeContext';
 import type {SessionAnalytics} from '@/domain/session-analytics';
 import {mechanicColors} from './colors';
 import {Swatch} from './primitives';
-import {formatFEFull, formatSeconds, pick, type ValueMode} from './format';
+import {formatFEFull} from '@/lib/format';
+import {formatSeconds, pick, type ValueMode} from './format';
 
 /** Below this share a segment gets no inline label — the text would overflow. */
 const LABEL_THRESHOLD = 7;
@@ -31,7 +32,7 @@ export default function TimeValueBars({analytics, mode}: {analytics: SessionAnal
       />
       <Bar
         label={t('details.shareOfValue')}
-        total={`${formatFEFull(pick(analytics.totals.income, mode))} FE`}
+        total={formatFEFull(pick(analytics.totals.income, mode), {unit: true})}
         segments={byValue.map(m => ({key: m.key, pct: pick(m.valuePct, mode), color: colors[m.key]}))}
       />
 

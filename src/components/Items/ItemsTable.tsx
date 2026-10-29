@@ -3,6 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {Search, Loader2, Check, X, Lock, LockOpen, LineChart} from 'lucide-react';
 import {useItemsStore} from '@/state/itemsStore';
 import {useCurrentLeague, useLeaguesStore} from '@/state/leaguesStore';
+import {formatDateTime, formatFEFull} from '@/lib/format';
 import {isStalePrice, leagueAt} from '@/lib/leagues';
 import type {DbItem} from '@/shared/contracts/db';
 import {ITEM_TYPES} from '@/shared/items';
@@ -23,14 +24,6 @@ interface EditingCell {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatDate(ts: number): string {
-  if (!ts) return '—';
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }).format(new Date(ts));
-}
 
 function sortRows(rows: DbItem[], field: SortField, dir: SortDir): DbItem[] {
   return [...rows].sort((a, b) => {
@@ -286,7 +279,7 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
                       item.price === 0 || stale ? 'text-text-disabled' : 'text-text-secondary',
                     ].join(' ')}
                   >
-                    {item.price === 0 ? '—' : item.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    {formatFEFull(item.price, {zeroAsDash: true})}
                   </button>
                 )}
                 <button
@@ -316,7 +309,7 @@ export default function ItemsTable({rows, focusItemId = null, onFocusConsumed}: 
                   stale ? 'line-through decoration-text-disabled/50' : '',
                 ].join(' ')}
               >
-                {formatDate(item.priceDate)}
+                {item.priceDate ? formatDateTime(item.priceDate) : '—'}
               </span>
             </div>
           );

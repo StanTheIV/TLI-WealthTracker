@@ -2,6 +2,7 @@ import {useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
 import type {DbItem, DbSession} from '@/shared/contracts/db';
 import {makePriceLookup, valueQty, type TaxConfig} from '@/domain/valuation';
+import {formatFEFull} from '@/lib/format';
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -19,10 +20,6 @@ function formatDuration(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-function formatNet(fe: number): string {
-  return fe === 0 ? '—' : `${fe.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE`;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +116,7 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
                   {session.mapCount}
                 </td>
                 <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${net < 0 ? 'text-danger' : 'text-accent'}`}>
-                  {formatNet(net)}
+                  {formatFEFull(net, {unit: true, zeroAsDash: true})}
                 </td>
               </tr>
             );
@@ -130,4 +127,4 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
   );
 }
 
-export {formatDate, formatDuration, formatNet};
+export {formatDate, formatDuration};
