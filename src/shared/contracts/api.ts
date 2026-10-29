@@ -26,6 +26,8 @@ export interface ElectronAPI {
 
   logging: {
     getLogPath: () => Promise<string>;
+    /** A renderer error for the main log (fire-and-forget; main names the window and rate-limits). */
+    report:     (tag: string, message: string) => void;
   };
 
   updater: {

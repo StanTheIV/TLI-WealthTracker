@@ -28,7 +28,8 @@
       "price": "Price",
       "wealth": "Wealth",
       "app": "App",
-      "filter": "Filter"
+      "filter": "Filter",
+      "update": "Updater"
     },
     "typeNames": {
       "info": "Info",

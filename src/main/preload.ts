@@ -50,6 +50,7 @@ const api = {
 
   logging: {
     getLogPath: () => ipcRenderer.invoke('logging:get-log-path'),
+    report:     (tag: string, message: string) => ipcRenderer.send('logging:report', tag, message),
   },
 
   updater: {

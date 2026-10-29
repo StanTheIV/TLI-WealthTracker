@@ -12,7 +12,12 @@ export function registerOverlayHandlers(
   let sizedOnce   = false;
 
   ipcMain.on('overlay:show', () => {
-    if (!getTrackerWindow()) { createTrackerWindow(); }
+    // A new window (first show, or after a crash give-up destroyed the last
+    // one) shows once its renderer has sized it.
+    if (!getTrackerWindow()) {
+      createTrackerWindow();
+      sizedOnce = false;
+    }
     if (sizedOnce) {
       getTrackerWindow()?.show();
     } else {

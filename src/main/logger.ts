@@ -119,8 +119,8 @@ function write(type: LogType, feature: LogFeature, message: string): void {
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Called once in main.ts right after adoptDb(), so the migrations' lines reach
- *  the file; log.reloadConfig() after migrateDb() then reads the stored config. */
+/** Called once in main.ts before the DB is opened (the reader throws → defaults),
+ *  so a failed open reaches the file; log.reloadConfig() reads the stored config. */
 export function initLogger(opts: LoggerOptions): void {
   _configReader = opts.settings;
   _logFilePath  = opts.logFile ?? '';

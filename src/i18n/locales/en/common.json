@@ -1,3 +1,9 @@
 {
-  "appName": "TLI Tracker"
+  "appName": "TLI Tracker",
+  "error": {
+    "title": "Something went wrong",
+    "message": "This window hit an unexpected error. Tracking is not affected — reload the window.",
+    "compact": "Overlay error",
+    "reload": "Reload"
+  }
 }

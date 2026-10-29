@@ -24,7 +24,8 @@ export interface LogConfig {
   file:    LogTargetConfig;
 }
 
-const ALL_LOG_FEATURES: readonly LogFeature[] = [
+/** Every feature, in display order (Settings → Logging lists them like this). */
+export const ALL_LOG_FEATURES: readonly LogFeature[] = [
   'engine', 'worker', 'database', 'ipc', 'overlay',
   'session', 'price', 'wealth', 'app', 'filter', 'update',
 ];

@@ -96,6 +96,37 @@ describe('the logger between adoptDb and migrateDb (main.ts order)', () => {
     expect(() => log.reloadConfig()).not.toThrow();
   });
 
+  it('5.1e: the logger starts BEFORE any DB is adopted — the reader throws, defaults apply, an error reaches the file', async () => {
+    const {settingsGetAll, initLogger, log} = await fresh();
+    expect(() => settingsGetAll()).toThrow('Database not initialized');
+
+    const file = join(dir, 'pre-db.log');
+    expect(() => initLogger({logFile: file, settings: settingsGetAll})).not.toThrow();
+    log.error('app', 'Startup failed: cannot open the database');
+    log.info('app', 'not in the file');
+    expect(readFileSync(file, 'utf8')).toContain('Startup failed: cannot open the database');
+    expect(readFileSync(file, 'utf8')).not.toContain('not in the file');
+    expect(() => log.reloadConfig()).not.toThrow();
+  });
+
+  it('5.1e: reloadConfig right after adoptDb applies an existing DB\'s stored config to the migrations', async () => {
+    const conn = openNodeSqlite();
+    const first = await fresh();
+    first.initDb(conn, {backup: noBackup});
+    first.settingsSet('logging.file', JSON.stringify({enabled: true, features: ['database'], types: ['info']}));
+
+    const {adoptDb, settingsGetAll, initLogger, log} = await fresh();
+    const file = join(dir, 'stored.log');
+    initLogger({logFile: file, settings: settingsGetAll});
+    log.info('database', 'before adopt');
+    adoptDb(conn);
+    log.reloadConfig();
+    log.info('database', 'after adopt');
+    const text = readFileSync(file, 'utf8');
+    expect(text).toContain('after adopt');
+    expect(text).not.toContain('before adopt');
+  });
+
   it('after migrateDb, reloadConfig respects a stored logging.file', async () => {
     const {adoptDb, migrateDb, settingsGetAll, settingsSet, initLogger, log} = await fresh();
     adoptDb(openNodeSqlite());

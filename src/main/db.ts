@@ -21,7 +21,7 @@ export function getDb(): SqlConn {
 }
 
 /** Adopt an open connection (WAL + foreign keys). The schema may still be old:
- *  main.ts starts the logger here, before migrateDb(), so migrations log to file. */
+ *  main.ts reloads the logger config here, before migrateDb(). */
 export function adoptDb(conn: SqlConn): void {
   db = conn;
   db.setPragma('journal_mode', 'WAL');
@@ -48,8 +48,9 @@ export function initDb(conn: SqlConn, opts: MigrateOptions): MigrationResult {
 // Settings
 // ---------------------------------------------------------------------------
 
+/** Throws before adoptDb() (the logger's config reader relies on it: defaults then). */
 export function settingsGetAll(): Record<string, string> {
-  const rows = db.prepare('SELECT key, value FROM settings').all() as {key: string; value: string}[];
+  const rows = getDb().prepare('SELECT key, value FROM settings').all() as {key: string; value: string}[];
   return Object.fromEntries(rows.map(r => [r.key, r.value]));
 }
 

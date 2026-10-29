@@ -1,4 +1,4 @@
-import {app, BrowserWindow, ipcMain, dialog, Menu, screen} from 'electron';
+import {app, BrowserWindow, ipcMain, dialog, Menu, screen, type WebContents} from 'electron';
 import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
 import {
@@ -87,8 +87,9 @@ const mainCrashBudget    = createCrashBudget({max: 3, windowMs: 60_000, now: () 
 const overlayCrashBudget = createCrashBudget({max: 3, windowMs: 60_000, now: () => Date.now()});
 
 /** A crashed renderer reloads its window (all state lives in main; the page
- *  catches up on load). Over budget: an error box, and the window stays dead. */
-function reloadOnCrash(win: BrowserWindow, name: string, budget: CrashBudget): void {
+ *  catches up on load). Over budget: an error box; the main window stays dead,
+ *  the overlay is destroyed ('closed' nulls it) so the next show recreates it. */
+function reloadOnCrash(win: BrowserWindow, name: string, budget: CrashBudget, onGiveUp?: () => void): void {
   win.webContents.on('render-process-gone', (_event, {reason, exitCode}) => {
     const what    = `${name} renderer gone (${reason}, exit code ${exitCode})`;
     const verdict = budget.onGone(reason);
@@ -101,8 +102,16 @@ function reloadOnCrash(win: BrowserWindow, name: string, budget: CrashBudget): v
       log.error('app', `${what} — crashed too often, not reloading`);
       dialog.showErrorBox(ERROR_BOX_TITLE, errorBoxContent(
         `The ${name} keeps crashing and was not reloaded. Please restart TLI Tracker.`, getLogFilePath()));
+      onGiveUp?.();
     }
   });
+}
+
+/** A `logging:report` sender's name for the log line and the per-window rate limit. */
+function rendererWindowName(sender: WebContents): string {
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.id === sender.id) return 'main window';
+  if (liveTrackerWindow()?.webContents.id === sender.id) return 'overlay';
+  return 'unknown window';
 }
 
 /** The page load's rejection (dev server down, missing bundle) — logged; the window stays blank. */
@@ -239,7 +248,8 @@ function createTrackerWindow() {
     },
   });
 
-  reloadOnCrash(trackerWindow, 'overlay', overlayCrashBudget);
+  const overlay = trackerWindow;
+  reloadOnCrash(overlay, 'overlay', overlayCrashBudget, () => { if (!overlay.isDestroyed()) overlay.destroy(); });
   logLoadFailure('Overlay', DEV
     ? trackerWindow.loadURL(`${VITE_DEV_SERVER}?window=overlay`)
     : trackerWindow.loadFile(join(__dirname, '../dist/index.html'), {query: {window: 'overlay'}}));
@@ -298,17 +308,16 @@ function seedItemsIfEmpty(): void {
 }
 
 /**
- * Open the app database: adopt it, start the logger on it (before the
- * migrations, so they log to file — on a fresh DB the settings table doesn't
- * exist yet and the logger runs on its defaults), migrate, then re-read the
- * stored logging config.
+ * Open the app database (the logger is already up, on its defaults: a failed
+ * open is logged to file). Once adopted, the stored logging config applies to
+ * the migrations' lines (a fresh DB has no settings table yet — defaults);
+ * after them it is read again.
  */
-function openDatabase(): SqlConn {
-  const userData = app.getPath('userData');
-  const dbPath   = join(userData, 'tli-tracker.db');
-  const conn     = openBetterSqlite3(dbPath);
+function openDatabase(userData: string): SqlConn {
+  const dbPath = join(userData, 'tli-tracker.db');
+  const conn   = openBetterSqlite3(dbPath);
   adoptDb(conn);
-  initLogger({logFile: join(userData, LOG_FILENAME), settings: settingsGetAll});
+  log.reloadConfig();
   const result = migrateDb({backup: reason => backupDb(conn, userData, reason)});
   log.reloadConfig();
   log.info('database', `Database initialized at ${dbPath}`);
@@ -324,10 +333,16 @@ function openDatabase(): SqlConn {
 
 /** Everything from ready to the main window. Any throw is fatal (failStartup). */
 function startApp(): void {
+  // Before the DB: its reader throws until a connection is adopted, so the
+  // logger starts on its defaults (file on for warn + error) and a failed
+  // open reaches the log file — and failStartup's box can name it.
+  const userData = app.getPath('userData');
+  initLogger({logFile: join(userData, LOG_FILENAME), settings: settingsGetAll});
+
   Menu.setApplicationMenu(null);
   log.info('app', 'App starting');
 
-  const sessions = new SqliteSessionStore(openDatabase());
+  const sessions = new SqliteSessionStore(openDatabase(userData));
   seedItemsIfEmpty();
   // Before any tracking: sessions left open by a run that never reached Stop.
   closeCrashedSessions(sessions, log);
@@ -379,7 +394,7 @@ function startApp(): void {
     log,
   }));
   registerUpdaterHandlers(() => mainWindow);
-  registerLoggingHandlers();
+  registerLoggingHandlers({windowName: rendererWindowName});
 
   log.debug('app', 'IPC handlers registered');
 
