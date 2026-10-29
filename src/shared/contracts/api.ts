@@ -45,7 +45,8 @@ export interface ElectronAPI {
     stop:            () => void;
     pause:           () => void;
     resume:          () => void;
-    reset:           () => void;
+    /** Discard the run in progress for a new session; rejects when main's reset failed. */
+    reset:           () => Promise<void>;
     dismissMaterial: (itemId: number) => void;
     /** The engine's replay as of a broadcast seq — apply it, then only `onEvent` envelopes with a later seq. */
     getState:        () => Promise<EngineSnapshot>;

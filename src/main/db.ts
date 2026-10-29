@@ -20,17 +20,28 @@ export function getDb(): SqlConn {
   return db;
 }
 
-/**
- * Adopt an open connection: pragmas, schema migrations, start-up data fixes.
- * Returns the migration result so the caller can warn about a newer-than-app schema.
- */
-export function initDb(conn: SqlConn, opts: MigrateOptions): MigrationResult {
+/** Adopt an open connection (WAL + foreign keys). The schema may still be old:
+ *  main.ts starts the logger here, before migrateDb(), so migrations log to file. */
+export function adoptDb(conn: SqlConn): void {
   db = conn;
   db.setPragma('journal_mode', 'WAL');
   db.setPragma('foreign_keys', 'ON');
-  const result = runMigrations(db, MIGRATIONS, opts);
+}
+
+/**
+ * Bring the adopted connection's schema up to date, then the start-up data fixes.
+ * Returns the migration result so the caller can warn about a newer-than-app schema.
+ */
+export function migrateDb(opts: MigrateOptions): MigrationResult {
+  const result = runMigrations(getDb(), MIGRATIONS, opts);
   normalizeItemTypes();
   return result;
+}
+
+/** adoptDb + migrateDb in one call — tests and tools that need no logger in between. */
+export function initDb(conn: SqlConn, opts: MigrateOptions): MigrationResult {
+  adoptDb(conn);
+  return migrateDb(opts);
 }
 
 // ---------------------------------------------------------------------------

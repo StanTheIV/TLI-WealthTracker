@@ -12,10 +12,13 @@ interface TrackingCommands {
   pause:           () => void;
   resume:          () => void;
   stop:            () => void;
-  reset:           () => void;
+  /** Resolves once main reset the run; a failed reset is logged (main is
+   *  then idle — the old session kept, closed). */
+  reset:           () => Promise<void>;
 }
 
-const commands: TrackingCommands = {
+/** Exported for tests; components use `useTracking()`. */
+export const commands: TrackingCommands = {
   start: async () => {
     try {
       await window.electronAPI.engine.start();
@@ -48,7 +51,13 @@ const commands: TrackingCommands = {
     window.electronAPI.overlay.hide();
   },
 
-  reset: () => window.electronAPI.engine.reset(),
+  reset: async () => {
+    try {
+      await window.electronAPI.engine.reset();
+    } catch (err) {
+      console.error('[session] reset failed:', err);
+    }
+  },
 };
 
 const TrackingContext = createContext<TrackingCommands | null>(null);

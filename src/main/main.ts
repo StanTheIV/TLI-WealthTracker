@@ -2,7 +2,7 @@ import {app, BrowserWindow, ipcMain, dialog, Menu, screen} from 'electron';
 import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
 import {
-  initDb, itemsCount, itemsImportBatch, itemsGetAll, itemsGetLocked, itemsInsertIfMissing, priceRecord,
+  adoptDb, migrateDb, itemsCount, itemsImportBatch, itemsGetAll, itemsGetLocked, itemsInsertIfMissing, priceRecord,
   filtersGetAll, settingsGetAll, settingsSet, wealthInsert, wealthGetRange, wealthGetRangeHeads, wealthGetLatest,
 } from './db';
 import {backupDb} from './db/backup';
@@ -10,9 +10,9 @@ import {openBetterSqlite3} from './db/drivers/better-sqlite3';
 import {newerSchemaMessage} from './db/schema-newer';
 import {SqliteSessionStore} from './db/session-store';
 import type {SqlConn} from './db/sql-conn';
-import {initLogger, log} from './logger';
+import {getLogFilePath, initLogger, log} from './logger';
 import type {DbItem} from '@/shared/contracts/db';
-import {describeError} from '@/shared/describe-error';
+import {describeError, describeErrorBrief} from '@/shared/describe-error';
 import {registerDbHandlers} from './ipc/db';
 import {registerOverlayHandlers} from './ipc/overlay';
 import {registerEngineHandlers} from './ipc/engine';
@@ -24,12 +24,23 @@ import {SettingsService} from './settings-service';
 import {TrackingService} from './tracking-service';
 import {closeCrashedSessions} from './session-recovery';
 import {runShutdownSteps, type ShutdownStep} from './shutdown';
+import {ERROR_BOX_TITLE, errorBoxContent, installProcessErrorHandlers} from './process-errors';
+import {createCrashBudget, type CrashBudget} from './crash-budget';
 import {createEngine} from './engine/create-engine';
 import {WorkerProcess} from './worker-process';
 import {WealthRecorder} from './wealth-recorder';
 import {WealthSeries} from './wealth-series';
 import {OverlayPosition, readSavedOverlayPosition} from './overlay-position';
 import {LOG_FILENAME, LOG_SUBPATH} from '@/shared/paths';
+
+// First, before anything can fail: until initLogger() runs, `log` writes to
+// the console only and the error box names no log file.
+installProcessErrorHandlers({
+  on:           (event, listener) => { process.on(event, listener); },
+  log,
+  showErrorBox: (title, content) => dialog.showErrorBox(title, content),
+  logPath:      getLogFilePath,
+});
 
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER = 'http://localhost:5173';
@@ -65,6 +76,38 @@ function broadcast(channel: string, payload?: unknown): void {
   for (const win of [mainWindow, trackerWindow]) {
     if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Renderer crashes and load failures (both windows)
+// ---------------------------------------------------------------------------
+
+// One budget per window, kept across overlay re-creations.
+const mainCrashBudget    = createCrashBudget({max: 3, windowMs: 60_000, now: () => Date.now()});
+const overlayCrashBudget = createCrashBudget({max: 3, windowMs: 60_000, now: () => Date.now()});
+
+/** A crashed renderer reloads its window (all state lives in main; the page
+ *  catches up on load). Over budget: an error box, and the window stays dead. */
+function reloadOnCrash(win: BrowserWindow, name: string, budget: CrashBudget): void {
+  win.webContents.on('render-process-gone', (_event, {reason, exitCode}) => {
+    const what    = `${name} renderer gone (${reason}, exit code ${exitCode})`;
+    const verdict = budget.onGone(reason);
+    if (verdict === 'ignore') {
+      log.info('app', what);
+    } else if (verdict === 'reload') {
+      log.warn('app', `${what} — reloading`);
+      if (!win.isDestroyed()) win.webContents.reload();
+    } else {
+      log.error('app', `${what} — crashed too often, not reloading`);
+      dialog.showErrorBox(ERROR_BOX_TITLE, errorBoxContent(
+        `The ${name} keeps crashing and was not reloaded. Please restart TLI Tracker.`, getLogFilePath()));
+    }
+  });
+}
+
+/** The page load's rejection (dev server down, missing bundle) — logged; the window stays blank. */
+function logLoadFailure(name: string, load: Promise<void>): void {
+  load.catch((err: unknown) => log.error('app', `${name} failed to load: ${describeError(err)}`));
 }
 
 // ---------------------------------------------------------------------------
@@ -130,11 +173,10 @@ function createMainWindow(tracking: TrackingService) {
 
   if (settings['main_window_maximized'] === 'true') mainWindow.maximize();
 
-  if (DEV) {
-    mainWindow.loadURL(VITE_DEV_SERVER);
-  } else {
-    mainWindow.loadFile(join(__dirname, '../dist/index.html'));
-  }
+  reloadOnCrash(mainWindow, 'main window', mainCrashBudget);
+  logLoadFailure('Main window', DEV
+    ? mainWindow.loadURL(VITE_DEV_SERVER)
+    : mainWindow.loadFile(join(__dirname, '../dist/index.html')));
 
   // Stop the engine before the window is destroyed so any active session is
   // closed — first, each step isolated, so a failing settings write can't skip
@@ -197,11 +239,10 @@ function createTrackerWindow() {
     },
   });
 
-  if (DEV) {
-    trackerWindow.loadURL(`${VITE_DEV_SERVER}?window=overlay`);
-  } else {
-    trackerWindow.loadFile(join(__dirname, '../dist/index.html'), {query: {window: 'overlay'}});
-  }
+  reloadOnCrash(trackerWindow, 'overlay', overlayCrashBudget);
+  logLoadFailure('Overlay', DEV
+    ? trackerWindow.loadURL(`${VITE_DEV_SERVER}?window=overlay`)
+    : trackerWindow.loadFile(join(__dirname, '../dist/index.html'), {query: {window: 'overlay'}}));
 
   trackerWindow.on('closed', () => {
     trackerWindow = null;
@@ -256,12 +297,20 @@ function seedItemsIfEmpty(): void {
   }
 }
 
-/** Open the app database and bring its schema up to date. */
+/**
+ * Open the app database: adopt it, start the logger on it (before the
+ * migrations, so they log to file — on a fresh DB the settings table doesn't
+ * exist yet and the logger runs on its defaults), migrate, then re-read the
+ * stored logging config.
+ */
 function openDatabase(): SqlConn {
   const userData = app.getPath('userData');
   const dbPath   = join(userData, 'tli-tracker.db');
   const conn     = openBetterSqlite3(dbPath);
-  const result   = initDb(conn, {backup: reason => backupDb(conn, userData, reason)});
+  adoptDb(conn);
+  initLogger({logFile: join(userData, LOG_FILENAME), settings: settingsGetAll});
+  const result = migrateDb({backup: reason => backupDb(conn, userData, reason)});
+  log.reloadConfig();
   log.info('database', `Database initialized at ${dbPath}`);
   // Warn and continue (user decision). No window exists yet, so the box is parentless.
   const message = newerSchemaMessage(result);
@@ -273,15 +322,14 @@ function openDatabase(): SqlConn {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
-app.whenReady().then(() => {
+/** Everything from ready to the main window. Any throw is fatal (failStartup). */
+function startApp(): void {
   Menu.setApplicationMenu(null);
   log.info('app', 'App starting');
 
   const sessions = new SqliteSessionStore(openDatabase());
   seedItemsIfEmpty();
-  initLogger({logFile: join(app.getPath('userData'), LOG_FILENAME), settings: settingsGetAll});
-  // After the logger (so its lines reach the file), before any tracking:
-  // sessions left open by a run that never reached Stop.
+  // Before any tracking: sessions left open by a run that never reached Stop.
   closeCrashedSessions(sessions, log);
   initLeaguesAndPriceHistory(broadcast);
 
@@ -330,11 +378,18 @@ app.whenReady().then(() => {
     tracking,
     log,
   }));
-  tracking.startWorker(); // tail the game log now if the torchlight path is already set
   registerUpdaterHandlers(() => mainWindow);
   registerLoggingHandlers();
 
   log.debug('app', 'IPC handlers registered');
+
+  // Tail the game log now if the torchlight path is already set. Not fatal:
+  // the next Start starts the worker again.
+  try {
+    tracking.startWorker();
+  } catch (err) {
+    log.error('worker', `Log reader start failed: ${describeError(err)}`);
+  }
 
   // A quit that doesn't start by closing the main window (app.quit() from
   // elsewhere, autoUpdater.quitAndInstall). shutdown() is idempotent, so the
@@ -342,6 +397,24 @@ app.whenReady().then(() => {
   app.on('before-quit', () => tracking.shutdown());
 
   createMainWindow(tracking);
+}
+
+/** A startup failure (DB open or migration, …) leaves no usable app: log,
+ *  say why, exit — app.exit skips before-quit / will-quit. */
+function failStartup(err: unknown): void {
+  log.error('app', `Startup failed: ${describeError(err)}`);
+  try {
+    dialog.showErrorBox('TLI Tracker failed to start', errorBoxContent(describeErrorBrief(err), getLogFilePath()));
+  } catch { /* exit regardless */ }
+  app.exit(1);
+}
+
+app.whenReady().then(() => {
+  try {
+    startApp();
+  } catch (err) {
+    failStartup(err);
+  }
 });
 
 app.on('window-all-closed', () => {

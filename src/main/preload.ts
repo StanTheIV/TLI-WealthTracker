@@ -38,7 +38,7 @@ const api = {
     stop:            ()                  => ipcRenderer.send('engine:stop'),
     pause:           ()                  => ipcRenderer.send('engine:pause'),
     resume:          ()                  => ipcRenderer.send('engine:resume'),
-    reset:           ()                  => ipcRenderer.send('engine:reset'),
+    reset:           ()                  => ipcRenderer.invoke('engine:reset'),
     dismissMaterial:   (itemId: number) => ipcRenderer.send('engine:dismiss-material', itemId),
     getState:          () => ipcRenderer.invoke('engine:get-state') as Promise<EngineSnapshot>,
     onEvent: (cb: (envelope: EngineEnvelope) => void) => {

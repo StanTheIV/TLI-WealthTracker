@@ -13,73 +13,47 @@
  */
 
 import * as fs from 'fs';
-import type {LogFeature, LogTargetConfig, LogType} from '@/shared/logging';
+import {DEFAULT_LOG_CONFIG, parseLogTargetConfig, type LogConfig, type LogFeature, type LogType} from '@/shared/logging';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface LogConfig {
-  console: LogTargetConfig;
-  file:    LogTargetConfig;
-}
-
 export interface LoggerOptions {
   /** Absolute path of the log file. Null: the file target never writes (replay CLI). */
   logFile:  string | null;
-  /** Reads the raw settings table — `settingsGetAll()` in the app. */
+  /** Reads the raw settings table — `settingsGetAll()` in the app. May throw
+   *  (no settings table before the first migration): the defaults apply then. */
   settings: () => Record<string, string>;
 }
-
-// ---------------------------------------------------------------------------
-// Defaults
-// ---------------------------------------------------------------------------
-
-const ALL_FEATURES: LogFeature[] = [
-  'engine', 'worker', 'database', 'ipc', 'overlay',
-  'session', 'price', 'wealth', 'app', 'filter', 'update',
-];
-
-const DEFAULT_TYPES: LogType[] = ['info', 'warn', 'error'];
-
-const DEFAULT_CONFIG: LogConfig = {
-  console: {enabled: true,  features: ALL_FEATURES, types: DEFAULT_TYPES},
-  file:    {enabled: false, features: ALL_FEATURES, types: DEFAULT_TYPES},
-};
 
 // ---------------------------------------------------------------------------
 // Internal state
 // ---------------------------------------------------------------------------
 
 let _configReader: (() => Record<string, string>) | null = null;
-let _config: LogConfig = DEFAULT_CONFIG;
+let _config: LogConfig = DEFAULT_LOG_CONFIG;
 /** '' before init and when initialised without a file — the file target is then off. */
 let _logFilePath = '';
 
 // ---------------------------------------------------------------------------
-// Config parsing
+// Config
 // ---------------------------------------------------------------------------
 
-function parseTargetConfig(raw: string | undefined, fallback: LogTargetConfig): LogTargetConfig {
-  if (!raw) return fallback;
-  try {
-    const parsed = JSON.parse(raw) as Partial<LogTargetConfig>;
-    return {
-      enabled:  typeof parsed.enabled === 'boolean' ? parsed.enabled : fallback.enabled,
-      features: Array.isArray(parsed.features)       ? parsed.features as LogFeature[] : fallback.features,
-      types:    Array.isArray(parsed.types)           ? parsed.types as LogType[]       : fallback.types,
-    };
-  } catch {
-    return fallback;
-  }
-}
-
+/** The stored config over the defaults. Never throws: a throwing reader (the
+ *  settings table doesn't exist before the first migration; a corrupt DB)
+ *  yields the defaults — at init and on reloadConfig() alike. */
 function loadConfig(): LogConfig {
-  if (!_configReader) return DEFAULT_CONFIG;
-  const settings = _configReader();
+  if (!_configReader) return DEFAULT_LOG_CONFIG;
+  let settings: Record<string, string>;
+  try {
+    settings = _configReader();
+  } catch {
+    return DEFAULT_LOG_CONFIG;
+  }
   return {
-    console: parseTargetConfig(settings['logging.console'], DEFAULT_CONFIG.console),
-    file:    parseTargetConfig(settings['logging.file'],    DEFAULT_CONFIG.file),
+    console: parseLogTargetConfig(settings['logging.console'], DEFAULT_LOG_CONFIG.console),
+    file:    parseLogTargetConfig(settings['logging.file'],    DEFAULT_LOG_CONFIG.file),
   };
 }
 
@@ -145,7 +119,8 @@ function write(type: LogType, feature: LogFeature, message: string): void {
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Must be called once in main.ts, immediately after initDb(). */
+/** Called once in main.ts right after adoptDb(), so the migrations' lines reach
+ *  the file; log.reloadConfig() after migrateDb() then reads the stored config. */
 export function initLogger(opts: LoggerOptions): void {
   _configReader = opts.settings;
   _logFilePath  = opts.logFile ?? '';

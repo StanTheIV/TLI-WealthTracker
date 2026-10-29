@@ -58,12 +58,27 @@ describe('logger without Electron', () => {
     expect(lines[1]).toContain('[WARN ] [app] two');
   });
 
-  it('with a file but the file target disabled (the default) it never creates the file', async () => {
+  it('with a file but the file target explicitly disabled it never creates the file', async () => {
     const {initLogger, log} = await fresh();
     const file = join(dir, 'b.log');
-    initLogger({logFile: file, settings: () => ({})});
+    const off = JSON.stringify({enabled: false, features: ['engine'], types: ['info', 'warn', 'error']});
+    initLogger({logFile: file, settings: () => ({'logging.file': off})});
     log.error('engine', 'x');
     expect(existsSync(file)).toBe(false);
+  });
+
+  it('with no stored file config the default writes warn + error, not info / debug', async () => {
+    const {initLogger, log} = await fresh();
+    const file = join(dir, 'b2.log');
+    initLogger({logFile: file, settings: () => ({})});
+    log.info('engine', 'an info');
+    log.debug('engine', 'a debug');
+    log.warn('engine', 'a warn');
+    log.error('update', 'an error');
+    const lines = readFileSync(file, 'utf8').trimEnd().split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('[WARN ] [engine] a warn');
+    expect(lines[1]).toContain('[ERROR] [update] an error');
   });
 
   it('reloadConfig picks up a settings change', async () => {
