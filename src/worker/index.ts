@@ -7,7 +7,9 @@
 
 import {Watcher} from './watcher';
 import {createDispatcher} from './create-dispatcher';
+import {dispatchLines} from './dispatch-lines';
 import type {RawEvent} from './processors/types';
+import {describeError} from '@/shared/describe-error';
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -16,14 +18,7 @@ import type {RawEvent} from './processors/types';
 const dispatcher = createDispatcher();
 
 const watcher = new Watcher(
-  (lines) => {
-    for (const line of lines) {
-      const events = dispatcher.dispatch(line);
-      for (const event of events) {
-        post(event);
-      }
-    }
-  },
+  (lines) => dispatchLines(dispatcher, lines, post, message => workerLog('error', message)),
   (message) => {
     post({type: 'reader_error', message});
   },
@@ -51,4 +46,18 @@ process.parentPort.on('message', (msg: {data: {type: string; logPath: string}}) 
       workerLog('error', 'Watcher start failed');
     }
   }
+});
+
+// Anything that still escapes (a watcher callback, the port itself): say why
+// while the port may still work, then exit — main logs the exit code. Not
+// restarted: the worker is not supervised. The exit waits a moment because
+// Electron does not document that a posted message is flushed before exit.
+const EXIT_GRACE_MS = 100;
+process.on('uncaughtException', (err) => {
+  try {
+    workerLog('error', `Uncaught exception, exiting: ${describeError(err)}`);
+  } catch {
+    // The port is what failed; the exit code is all main gets.
+  }
+  setTimeout(() => process.exit(1), EXIT_GRACE_MS);
 });

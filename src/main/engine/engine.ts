@@ -3,13 +3,27 @@ import type {EventHandler, EmitFn, EngineSink} from './types';
 import {EngineContext} from './context';
 import type {LoadedSessionData} from './context';
 import {openSessionRun} from './session-run';
-import type {EngineEvent, SessionIdentity} from '@/shared/contracts/engine';
+import type {EngineErrorSource, EngineEvent, SessionIdentity} from '@/shared/contracts/engine';
 import {ItemFilterEngine} from './item-filter';
 import type {FilterRule} from '@/shared/item-filter';
 import type {ItemType} from '@/shared/items';
 import type {Settings} from '@/shared/settings';
 import {MapMaterialHandler} from './handlers/map-material';
 import {log} from '@/main/logger';
+import {describeError, describeErrorBrief} from '@/shared/describe-error';
+
+/** Repeat errors from one (handler, hook) inside this window after the last
+ *  REPORTED one are counted, not reported. */
+const ERROR_THROTTLE_MS = 10_000;
+
+/** stop()'s own steps: a throw there must not keep the run from ending. */
+const STOP: EngineErrorSource = {handler: 'engine', hook: 'stop'};
+
+/** A registered handler's `replay`, bound, with its error source. */
+interface ReplayHook {
+  readonly source: EngineErrorSource;
+  readonly fn:     (ctx: EngineContext) => EngineEvent[];
+}
 
 /**
  * EventRouter — thin routing layer.
@@ -17,9 +31,14 @@ import {log} from '@/main/logger';
  * Owns the EngineContext and a registry of EventHandlers.
  * On each RawEvent, calls all handlers that declared interest in that event type.
  * Contains zero domain logic — all logic lives in handlers.
+ *
+ * Every handler call goes through one choke point (`_isolate`): a throwing
+ * handler is logged and reported as an `error` event, and the event, the
+ * lifecycle step or the timer carries on with the next handler. Handlers
+ * themselves are unaware of it — their timers reach it through `ctx.isolate`.
  */
 export class Engine {
-  private _ctx  = new EngineContext();
+  private readonly _ctx = new EngineContext((source, fn) => { this._isolate(source, fn); });
   private readonly _sink: EngineSink;
   /** What handlers, trackers and the registry emit through. Stamps each
    *  `unit_finished` with its checkpoint — the session state as of the unit —
@@ -50,7 +69,11 @@ export class Engine {
    *  action on its private watch state, not a setting. */
   private _mapMaterial: MapMaterialHandler | null = null;
   /** Every registered handler's `replay`, in registration order. */
-  private readonly _replayHooks: Array<(ctx: EngineContext) => EngineEvent[]> = [];
+  private readonly _replayHooks: ReplayHook[] = [];
+  /** Per `handler:hook`: when an error from it was last reported, and how
+   *  many were suppressed since. Engine state, not run state — survives
+   *  `ctx.reset()`; `start()` clears it. */
+  private readonly _errorThrottle = new Map<string, {reportedAt: number; suppressed: number}>();
 
   constructor(sink: EngineSink) {
     this._sink = sink;
@@ -63,9 +86,9 @@ export class Engine {
     }
     this._handlers.push(handler);
     const onSessionOpen = handler.onSessionOpen?.bind(handler);
-    if (onSessionOpen) this._ctx.sessionOpenHooks.push(onSessionOpen);
+    if (onSessionOpen) this._ctx.sessionOpenHooks.push({source: {handler: handler.name, hook: 'onSessionOpen'}, fn: onSessionOpen});
     const replay = handler.replay?.bind(handler);
-    if (replay) this._replayHooks.push(replay);
+    if (replay) this._replayHooks.push({source: {handler: handler.name, hook: 'replay'}, fn: replay});
     if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
     return this;
   }
@@ -74,13 +97,14 @@ export class Engine {
    *  baseline lands (BagInitHandler); a `loadSession` call before this makes
    *  it a continue. */
   start(identity: SessionIdentity): void {
+    this._errorThrottle.clear();
     const preserved = this._ctx.loadedSession;
     this._ctx.reset();
     this._ctx.loadedSession     = preserved;
     this._ctx.activeSessionId   = identity.sessionId;
     this._ctx.activeSessionName = identity.name;
     this._ctx.phase = 'initializing';
-    for (const h of this._handlers) h.onStart?.(this._ctx, this._emit);
+    for (const h of this._handlers) this._isolate({handler: h.name, hook: 'onStart'}, () => h.onStart?.(this._ctx, this._emit));
   }
 
   /** Continue: the saved run data the next `start` seeds the session with. */
@@ -94,23 +118,29 @@ export class Engine {
    * metadata for the final write); active map / seasonals are silently dropped.
    * `engine_stopped` comes last whenever a run existed — initializing included,
    * where no session has opened yet. A stop with no run emits nothing.
+   *
+   * The promotion, the session finish and each handler's onStop are isolated
+   * separately, so a throw in any of them still reaches `ctx.reset()` and
+   * the trailing `engine_stopped`.
    */
   stop(): void {
     const hadRun = this._ctx.phase !== 'idle';
-    this._ctx.registry.promoteMapChildren(this._emit);
-    if (this._ctx.registry.session) {
+    this._isolate(STOP, () => this._ctx.registry.promoteMapChildren(this._emit));
+    this._isolate(STOP, () => {
+      const session = this._ctx.registry.session;
+      if (!session) return;
       this._emit({
         type:        'tracker_finished',
-        tracker:     this._ctx.registry.session.snapshot(),
+        tracker:     session.snapshot(),
         timestamp:   Date.now(),
         sessionMeta: {
           mapTime:  this._ctx.accumulatedMapTime,
           mapCount: this._ctx.mapCount,
         },
       });
-    }
+    });
 
-    for (const h of this._handlers) h.onStop?.(this._ctx);
+    for (const h of this._handlers) this._isolate({handler: h.name, hook: 'onStop'}, () => h.onStop?.(this._ctx));
     this._ctx.reset();
     if (hadRun) this._emit({type: 'engine_stopped', timestamp: Date.now()});
   }
@@ -269,7 +299,8 @@ export class Engine {
   /**
    * The run's UI-visible state as ordinary EngineEvents: fed to a fresh
    * renderer store they rebuild what the live event stream built. Pure — emits,
-   * records and logs nothing; snapshots are taken now.
+   * records and logs nothing, but for an isolated replay throw (below);
+   * snapshots are taken now.
    *
    * Idle → []. Otherwise `init_started`, then once the session is open
    * `init_complete` and the session `tracker_started` (identity, counters,
@@ -278,6 +309,9 @@ export class Engine {
    * `owner` stamped; one `loot_window_started` per running window — a window
    * frozen by the pause has no deadline and is not shown. Never a drop, a
    * persistence or a lifecycle-end event: history is not state.
+   *
+   * A throwing replay hook is isolated: its handler's events are left out and
+   * the choke point reports it; the rest still return.
    */
   getState(): EngineEvent[] {
     const ctx = this._ctx;
@@ -299,7 +333,10 @@ export class Engine {
       });
     }
 
-    for (const replay of this._replayHooks) events.push(...replay(ctx));
+    for (const hook of this._replayHooks) {
+      const replayed = this._isolate(hook.source, () => hook.fn(ctx));
+      if (replayed) events.push(...replayed);
+    }
 
     if (!session) return events;
     const map = ctx.registry.map;
@@ -337,14 +374,15 @@ export class Engine {
   // --- Map material delegation -------------------------------------------------
 
   dismissMaterial(itemId: number): void {
-    this._mapMaterial?.dismiss(itemId);
+    const mapMaterial = this._mapMaterial;
+    if (mapMaterial) this._isolate({handler: mapMaterial.name, hook: 'dismissMaterial'}, () => mapMaterial.dismiss(itemId));
   }
 
   /** Hand the parsed settings to every handler; each reads its own fields
    *  (the windowed mechanics their `lootWindowMs` entry, MapMaterial the
    *  low-stock threshold). */
   configure(settings: Settings): void {
-    for (const h of this._handlers) h.configure?.(settings);
+    for (const h of this._handlers) this._isolate({handler: h.name, hook: 'configure'}, () => h.configure?.(settings));
   }
 
   onRawEvent(event: RawEvent): void {
@@ -352,7 +390,57 @@ export class Engine {
     if (!handlers) return;
     this._ctx.bagDeltas = [];
     for (const h of handlers) {
-      h.handle(event, this._ctx, this._emit);
+      this._isolate({handler: h.name, hook: 'handle', rawType: event.type}, () => h.handle(event, this._ctx, this._emit));
+    }
+  }
+
+  // --- Isolation -----------------------------------------------------------------
+
+  /**
+   * The one choke point every handler call (and, via `ctx.isolate`, every
+   * timer callback) runs through. A throw is reported (`_report`) and
+   * swallowed — undefined is returned and the caller goes on with its next
+   * handler or step.
+   *
+   * Not a transaction: what `fn` wrote to the context (or a handler to its
+   * own state) before the throw stays written. A handler failing mid-`handle`
+   * leaves its partial update for the handlers after it and for the next
+   * event; isolation keeps the run alive, it does not make a half-applied
+   * event whole.
+   */
+  private _isolate<T>(source: EngineErrorSource, fn: () => T): T | undefined {
+    try {
+      return fn();
+    } catch (err) {
+      this._report(source, err);
+      return undefined;
+    }
+  }
+
+  /**
+   * Log the error in full and emit it as an `error` event (its first line),
+   * throttled per `handler:hook`: the first is reported, later ones within
+   * ERROR_THROTTLE_MS of the last reported one are only counted, and the next
+   * report carries `(+N suppressed)` in both log and message. The emit is
+   * guarded — a sink that throws on it is logged, never re-isolated.
+   */
+  private _report(source: EngineErrorSource, err: unknown): void {
+    const key  = `${source.handler}:${source.hook}`;
+    const now  = Date.now();
+    const last = this._errorThrottle.get(key);
+    if (last && now - last.reportedAt < ERROR_THROTTLE_MS) {
+      last.suppressed++;
+      return;
+    }
+    this._errorThrottle.set(key, {reportedAt: now, suppressed: 0});
+
+    const suppressed = last && last.suppressed > 0 ? ` (+${last.suppressed} suppressed)` : '';
+    const where      = source.rawType === undefined ? key : `${key} (${source.rawType})`;
+    log.error('engine', `${where} threw${suppressed}: ${describeError(err)}`);
+    try {
+      this._sink({type: 'error', message: describeErrorBrief(err) + suppressed, source});
+    } catch (sinkErr) {
+      log.error('engine', `error event for ${where} not delivered: ${describeError(sinkErr)}`);
     }
   }
 }

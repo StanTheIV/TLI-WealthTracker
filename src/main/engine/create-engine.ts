@@ -16,7 +16,6 @@ import {HuntingHandler} from './handlers/hunting-handler';
 import {AfterlightHandler} from './handlers/afterlight-handler';
 import {ItemHandler} from './handlers/item';
 import {MapMaterialHandler} from './handlers/map-material';
-import {ErrorHandler} from './handlers/error';
 
 /**
  * The production handler chain. Shared by the IPC layer, the log replayer and
@@ -40,6 +39,5 @@ export function createEngine(sink: EngineSink): Engine {
     .register(new HuntingHandler())
     .register(new AfterlightHandler())  // before ItemHandler — both take bag_update; the loot timer must refresh before the drop is distributed
     .register(new ItemHandler())
-    .register(new MapMaterialHandler())
-    .register(new ErrorHandler());
+    .register(new MapMaterialHandler());
 }

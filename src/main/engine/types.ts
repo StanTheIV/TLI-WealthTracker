@@ -1,6 +1,6 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EngineContext} from './context';
-import type {EngineEvent} from '@/shared/contracts/engine';
+import type {EngineErrorSource, EngineEvent} from '@/shared/contracts/engine';
 import type {Settings} from '@/shared/settings';
 
 // ---------------------------------------------------------------------------
@@ -20,7 +20,17 @@ export type EmitFn = (event: InternalEvent) => void;
 /** The Engine's outlet: finished EngineEvents only. */
 export type EngineSink = (event: EngineEvent) => void;
 
+/** Run `fn` through the Engine's isolation choke point (Engine._isolate): a
+ *  throw is reported as coming from `source` and swallowed. What a callback
+ *  the Engine does not call itself — a timer — runs through (`ctx.isolate`). */
+export type Isolate = (source: EngineErrorSource, fn: () => void) => void;
+
+/** The Isolate of a context no Engine owns (handler / registry unit tests):
+ *  runs `fn` directly, so a throw stays loud. */
+export const runUnisolated: Isolate = (_source, fn) => fn();
+
 export interface EventHandler {
+  /** Stable identity: the error `source.handler` and `Engine.getHandler`. */
   readonly name: string;
   /** RawEvent types this handler wants to receive */
   readonly handles: ReadonlyArray<RawEvent['type']>;

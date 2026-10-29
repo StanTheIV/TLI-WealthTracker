@@ -1,8 +1,12 @@
 import {Tracker} from './tracker';
-import type {SeasonalPhase, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
-import type {EmitFn} from './types';
+import type {EngineErrorSource, SeasonalPhase, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {EmitFn, Isolate} from './types';
 import {LootCollectionTimer} from './loot-collection-timer';
 import type {TrackerRegistry} from './tracker-registry';
+
+/** The loot-window expiry runs from a timer, through the context's choke
+ *  point (the registry's `isolate`), under this source. */
+const LOOT_EXPIRE: EngineErrorSource = {handler: 'registry', hook: 'lootExpire'};
 
 /**
  * SeasonalTracker — a Tracker that owns its post-combat loot timer and
@@ -21,6 +25,7 @@ export class SeasonalTracker extends Tracker {
 
   private _registry:         TrackerRegistry;
   private _emit:              EmitFn;
+  private readonly _isolate:  Isolate;
   private _lootTimer:         LootCollectionTimer | null = null;
   private _lootDurationMs:    number;
   private _pauseOnLootExpiry: boolean;
@@ -30,6 +35,7 @@ export class SeasonalTracker extends Tracker {
   constructor(opts: {
     registry:           TrackerRegistry;
     emit:               EmitFn;
+    isolate:            Isolate;
     type:               SeasonalType;
     ownsBubble?:        boolean;
     phase?:             SeasonalPhase;
@@ -43,6 +49,7 @@ export class SeasonalTracker extends Tracker {
     this.phase              = opts.phase;
     this._registry          = opts.registry;
     this._emit              = opts.emit;
+    this._isolate           = opts.isolate;
     this._lootDurationMs    = opts.lootDurationMs ?? 5_000;
     this._pauseOnLootExpiry = opts.pauseOnLootExpiry ?? false;
     this._claimsDrops       = opts.claimsDrops ?? true;
@@ -83,7 +90,7 @@ export class SeasonalTracker extends Tracker {
   armLootTimer(): void {
     if (!this.active && !this._registry.wakeForLoot(this)) return;
     this._lootTimer?.cancel();
-    this._lootTimer = new LootCollectionTimer(this._lootDurationMs, () => this._onLootExpire());
+    this._lootTimer = new LootCollectionTimer(this._lootDurationMs, () => this._isolate(LOOT_EXPIRE, () => this._onLootExpire()));
     this._lootTimer.start();
     const deadline = this._lootTimer.deadline ?? Date.now() + this._lootDurationMs;
     this._emit({type: 'loot_window_started', seasonalType: this.seasonalType, deadline, timestamp: Date.now()});

@@ -1,7 +1,7 @@
 import {Tracker} from './tracker';
 import {SeasonalTracker} from './seasonal-tracker';
 import type {SeasonalPhase, SeasonalType, Source, TrackerSnapshot, UnitOverlap} from '@/shared/contracts/engine';
-import type {EmitFn} from './types';
+import {runUnisolated, type EmitFn, type Isolate} from './types';
 import type {ItemFilterEngine} from './item-filter';
 import type {FilterScope} from '@/shared/item-filter';
 import {log} from '@/main/logger';
@@ -51,6 +51,13 @@ export class TrackerRegistry {
   private _mapChildren: UnitOverlap[] = [];
   // False only inside discardForReset: a reset run saves nothing.
   private _emitUnits = true;
+  // The context's choke point, handed to every seasonal for its loot-window
+  // expiry (a timer callback). Wiring — reset() leaves it.
+  private readonly _isolate: Isolate;
+
+  constructor(isolate: Isolate = runUnisolated) {
+    this._isolate = isolate;
+  }
 
   // -----------------------------------------------------------------------
   // Lookup
@@ -173,6 +180,7 @@ export class TrackerRegistry {
     const tracker = new SeasonalTracker({
       registry:          this,
       emit,
+      isolate:           this._isolate,
       type,
       ownsBubble,
       phase:             opts.phase,

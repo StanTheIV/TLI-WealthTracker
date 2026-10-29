@@ -20,7 +20,9 @@ import type {EmitFn} from './types';
  * Last, the handlers' session-open hooks (EventHandler.onSessionOpen): an
  * interlude still in progress — seen by its handler, but with no session to
  * run in (pre-init) or its run just discarded (Reset) — starts fresh and
- * re-freezes the rebuilt map, which is why the hooks run after it.
+ * re-freezes the rebuilt map, which is why the hooks run after it. Each hook
+ * is isolated (ctx.isolate): a throwing one is reported, the rest still run
+ * and the session is open either way.
  */
 export function openSessionRun(
   ctx: EngineContext,
@@ -76,6 +78,6 @@ export function openSessionRun(
     }
   }
 
-  for (const hook of ctx.sessionOpenHooks) hook(ctx, emit);
+  for (const hook of ctx.sessionOpenHooks) ctx.isolate(hook.source, () => hook.fn(ctx, emit));
   return session;
 }

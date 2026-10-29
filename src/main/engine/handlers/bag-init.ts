@@ -57,11 +57,19 @@ export class BagInitHandler implements EventHandler {
     this._dump.push({pageId: event.pageId, slotId: event.slotId, itemId: event.itemId, quantity: event.quantity});
     this._clearTimer();
     const debounce = ctx.phase === 'initializing' ? INIT_DEBOUNCE_MS : RESORT_DEBOUNCE_MS;
-    this._timer = setTimeout(() => this._applyDump(ctx, emit), debounce);
+    this._timer = setTimeout(() => ctx.isolate({handler: this.name, hook: 'timer'}, () => this._applyDump(ctx, emit)), debounce);
   }
 
   /** Close the dump in progress and apply it. A boundary with nothing
-   *  collected (a Reset line no dump followed) is a no-op. */
+   *  collected (a Reset line no dump followed) is a no-op.
+   *
+   *  The dump is taken off before it is applied, so an apply that throws
+   *  (isolated by the Engine — from the debounce timer via ctx.isolate) drops
+   *  that dump only; nothing is rolled back. A throw in `bag.init`, before the
+   *  phase flip, leaves 'initializing' with an empty dump: the next dump is
+   *  the baseline again and opens the session. A throw after the flip leaves
+   *  'tracking' with what was done so far — without a session if it came
+   *  before openSessionRun created one — until the next stop/start. */
   private _applyDump(ctx: EngineContext, emit: EmitFn): void {
     this._clearTimer();
     const entries = this._dump;

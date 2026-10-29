@@ -82,6 +82,18 @@ export interface SessionStartMeta extends SessionIdentity, SessionMapMeta {
   continued: boolean;
 }
 
+/** Where an isolated engine failure came from (the `error` event's `source`):
+ *  `handler` is the throwing handler's `name`, or `engine` / `registry` for
+ *  the engine's own steps; `hook` the call that threw (`handle`, `onStart`,
+ *  `onStop`, `onSessionOpen`, `replay`, `configure`, `dismissMaterial`,
+ *  `timer`, `stop`, `lootExpire`); `rawType` the routed raw event, on
+ *  `handle` only. */
+export interface EngineErrorSource {
+  handler:  string;
+  hook:     string;
+  rawType?: string;
+}
+
 /** The session state as of a `unit_finished`: the session snapshot (drops,
  *  dropsBySource, spent, elapsed) and its map counters at that moment. */
 export interface UnitCheckpoint extends SessionMapMeta {
@@ -128,7 +140,11 @@ export type EngineEvent =
   | {type: 'map_material_warning'; items: Array<{itemId: number; quantity: number}>; timestamp: number}
   | {type: 'loot_window_started'; seasonalType: TrackerSnapshot['seasonalType']; deadline: number; timestamp: number}
   | {type: 'loot_window_ended';   seasonalType: TrackerSnapshot['seasonalType']; timestamp: number}
-  | {type: 'error';            message: string};
+  /** A handler (or an engine step) threw and the Engine isolated it — the run
+   *  goes on. `message` is the error's first line, plus `(+N suppressed)`
+   *  when repeats from the same source were throttled since the last report;
+   *  the full description is in the log. */
+  | {type: 'error';            message: string; source?: EngineErrorSource};
 
 // ---------------------------------------------------------------------------
 // Wire types — what leaves the main process. TrackingService converts at its

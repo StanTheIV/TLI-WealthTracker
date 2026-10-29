@@ -319,7 +319,7 @@ function describeEvent(e: EngineEvent, flags: Map<string, string>): string | nul
     case 'map_material_warning': return `map_material_warning items=[${e.items.map(i => `${i.itemId}x${i.quantity}`).join(',')}]`;
     case 'loot_window_started':  return `loot_window_started ${e.seasonalType ?? '?'} for=${fmtSeconds(e.deadline - e.timestamp, false)}`;
     case 'loot_window_ended':    return `loot_window_ended ${e.seasonalType ?? '?'}`;
-    case 'error':                return `error ${e.message}`;
+    case 'error':                return `error ${e.source ? `${e.source.handler}:${e.source.hook} ` : ''}${e.message}`;
     case 'init_started':         return 'init_started';
     case 'engine_stopped':       return 'engine_stopped';
   }

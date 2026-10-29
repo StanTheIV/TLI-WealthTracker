@@ -115,16 +115,23 @@ export class ItemHandler implements EventHandler {
     // events extend the buffer but do NOT restart the timer. Max wait from
     // first event = BUFFER_MS, regardless of how many events follow.
     if (this._timer === null) {
-      this._timer = setTimeout(() => this._flush(ctx, emit, /*lootContext*/ false), BUFFER_MS);
+      this._timer = setTimeout(
+        () => ctx.isolate({handler: this.name, hook: 'timer'}, () => this._flush(ctx, emit, /*lootContext*/ false)),
+        BUFFER_MS,
+      );
     }
   }
 
-  /** Publish and clear the buffer — as loot only for an immediate in-loot-context flush. */
+  /** Publish and clear the buffer — as loot only for an immediate in-loot-context
+   *  flush. The buffer is taken off before publishing, so a publish that throws
+   *  (isolated by the Engine) loses that buffer's remaining deltas instead of
+   *  re-publishing the ones already out with the next flush. */
   private _flush(ctx: EngineContext, emit: EmitFn, lootContext: boolean): void {
     this._clearTimer();
     if (this._buffer.size === 0) return;
-    publishDrops(ctx, emit, this._buffer, {lootContext});
-    this._buffer.clear();
+    const buffer = this._buffer;
+    this._buffer = new Map();
+    publishDrops(ctx, emit, buffer, {lootContext});
   }
 
   private _clearTimer(): void {

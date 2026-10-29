@@ -3,7 +3,6 @@ import {Engine} from '@/main/engine/engine';
 import {BagInitHandler} from '@/main/engine/handlers/bag-init';
 import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {ItemHandler} from '@/main/engine/handlers/item';
-import {ErrorHandler} from '@/main/engine/handlers/error';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {TEST_IDENTITY} from './seasonal-fixtures';
 
@@ -11,8 +10,7 @@ function createEngine(events: EngineEvent[]): Engine {
   return new Engine((e) => events.push(e))
     .register(new BagInitHandler())
     .register(new ZoneHandler())
-    .register(new ItemHandler())
-    .register(new ErrorHandler());
+    .register(new ItemHandler());
 }
 
 describe('Engine (integration)', () => {
@@ -47,17 +45,6 @@ describe('Engine (integration)', () => {
     // Leave map
     engine.onRawEvent({type: 'zone_transition', fromScene: '/Game/Art/Maps/S5_Boss', toScene: 'XZ_YuJinZhiXiBiNanSuo200'});
     expect(events.find(e => e.type === 'map_ended')).toBeDefined();
-  });
-
-  it('routes reader_error to ErrorHandler', () => {
-    const events: EngineEvent[] = [];
-    const engine = createEngine(events);
-    engine.start(TEST_IDENTITY);
-
-    engine.onRawEvent({type: 'reader_error', message: 'File not found'});
-
-    const err = events.find(e => e.type === 'error');
-    expect(err).toMatchObject({type: 'error', message: 'File not found'});
   });
 
   it('ignores unregistered event types', () => {

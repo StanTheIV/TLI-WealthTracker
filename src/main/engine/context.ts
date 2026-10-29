@@ -2,13 +2,17 @@ import {BagState, type SlotChange} from './bag-state';
 import {TrackerRegistry} from './tracker-registry';
 import type {ItemFilterEngine} from './item-filter';
 import type {ItemType} from '@/shared/items';
-import type {Source} from '@/shared/contracts/engine';
-import type {EmitFn} from './types';
+import type {EngineErrorSource, Source} from '@/shared/contracts/engine';
+import {runUnisolated, type EmitFn, type Isolate} from './types';
 
 export type {DistributeResult} from './tracker-registry';
 
-/** A registered handler's `onSessionOpen` (see EventHandler). */
-export type SessionOpenHook = (ctx: EngineContext, emit: EmitFn) => void;
+/** A registered handler's `onSessionOpen` (see EventHandler), bound, with the
+ *  source a throw from it is reported under. */
+export interface SessionOpenHook {
+  readonly source: EngineErrorSource;
+  readonly fn:     (ctx: EngineContext, emit: EmitFn) => void;
+}
 
 export type Phase = 'idle' | 'initializing' | 'tracking';
 
@@ -97,7 +101,7 @@ export class EngineContext {
   activeSessionId:   string | null = null;
   activeSessionName: string | null = null;
 
-  registry: TrackerRegistry = new TrackerRegistry();
+  readonly registry: TrackerRegistry;
 
   /** Active filter engine — null means no filtering (all items pass). */
   filter: ItemFilterEngine | null = null;
@@ -115,6 +119,17 @@ export class EngineContext {
    *  filled once by Engine.register and deliberately left alone by reset(),
    *  since the handlers outlive every session. */
   readonly sessionOpenHooks: SessionOpenHook[] = [];
+
+  /** The Engine's isolation choke point, for the callbacks it does not call
+   *  itself: a handler's timer runs its body through it, so a throw there is
+   *  reported like any handler throw instead of escaping into Node's timer.
+   *  Wiring like sessionOpenHooks — never reset. */
+  readonly isolate: Isolate;
+
+  constructor(isolate: Isolate = runUnisolated) {
+    this.isolate  = isolate;
+    this.registry = new TrackerRegistry(isolate);
+  }
 
   /** Bag changes here are loot (credited) rather than town activity. A pure
    *  function of where the player is: which trackers happen to exist is

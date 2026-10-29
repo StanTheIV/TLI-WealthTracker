@@ -118,6 +118,9 @@ export default function EventFeed() {
                   {eventLabel(fe.event.type, t)}
                 </span>
                 <span className={`flex-1 truncate ${eventColor(fe.event.type)}`}>
+                  {fe.event.type === 'error' && fe.event.source && (
+                    <span className="text-text-secondary mr-2">{fe.event.source.handler} · {fe.event.source.hook}</span>
+                  )}
                   {eventDescription(fe, items, t)}
                 </span>
               </div>
