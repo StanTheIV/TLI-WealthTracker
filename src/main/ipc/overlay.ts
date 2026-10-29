@@ -35,6 +35,7 @@ export function registerOverlayHandlers(
   });
 
   ipcMain.on('overlay:hide', () => {
+    pendingShow = false;
     getTrackerWindow()?.hide();
     log.debug('overlay', 'Overlay hidden');
   });

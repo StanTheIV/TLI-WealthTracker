@@ -31,8 +31,10 @@ export function installProcessErrorHandlers(deps: ProcessErrorDeps): void {
     } catch { /* the logger failing must not recurse into this handler */ }
     if (shown) return;
     shown = true;
+    let logPath = '';
+    try { logPath = deps.logPath(); } catch { /* the box still shows, without the path */ }
     try {
-      deps.showErrorBox(ERROR_BOX_TITLE, errorBoxContent(`${kind}: ${describeErrorBrief(err)}`, deps.logPath()));
+      deps.showErrorBox(ERROR_BOX_TITLE, errorBoxContent(`${kind}: ${describeErrorBrief(err)}`, logPath));
     } catch { /* nothing left to report it to */ }
   };
   deps.on('uncaughtException',  report('Uncaught exception'));
