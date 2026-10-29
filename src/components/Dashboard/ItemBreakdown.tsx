@@ -3,7 +3,7 @@ import {useTranslation} from 'react-i18next';
 import {ChevronUp, ChevronDown, ArrowUpRight} from 'lucide-react';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
-import {ITEM_TYPES} from '@/shared/items';
+import {breakdownChipTypes, keepShownChips} from './breakdownChips';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,7 +82,7 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
   const {t: tItems}       = useTranslation('items');
   const latest            = useWealthStore(s => s.latest);
   const items             = useItemsStore(s => s.items);
-  const [filters, setFilters] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<ReadonlySet<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const latestTimestamp   = latest?.ts ?? null;
@@ -98,6 +98,11 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
     };
   }), [latest, items]);
 
+  // A selected chip whose type vanished is dropped during render, never filtered on.
+  const chipTypes = useMemo(() => breakdownChipTypes(rows.map(r => r.type)), [rows]);
+  const selection = keepShownChips(filters, chipTypes);
+  if (selection !== filters) setFilters(selection);
+
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('desc'); }
@@ -111,7 +116,7 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
     });
   }
 
-  const filtered   = sortRows(filters.size > 0 ? rows.filter(r => filters.has(r.type)) : rows, sortKey, sortDir);
+  const filtered   = sortRows(selection.size > 0 ? rows.filter(r => selection.has(r.type)) : rows, sortKey, sortDir);
   const grandTotal = filtered.reduce((sum, r) => sum + r.total, 0);
 
   return (
@@ -140,14 +145,14 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
         <div className="flex flex-wrap gap-1.5">
           <FilterButton
             label={t('breakdown.filterAll')}
-            active={filters.size === 0}
+            active={selection.size === 0}
             onClick={() => setFilters(new Set())}
           />
-          {ITEM_TYPES.filter(type => type !== 'other').map(type => (
+          {chipTypes.map(type => (
             <FilterButton
               key={type}
               label={tItems(`types.${type}` as never)}
-              active={filters.has(type)}
+              active={selection.has(type)}
               onClick={() => toggleFilter(type)}
             />
           ))}
