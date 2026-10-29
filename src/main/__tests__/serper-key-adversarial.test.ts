@@ -25,9 +25,12 @@ function build(initial: Record<string, string> = {}) {
   };
   const key = new SerperKey({
     crypto: {
-      isEncryptionAvailable: () => { if (fault.availableThrows) throw new Error('probe failed'); return fault.available; },
-      encryptString: p => { if (fault.encryptThrows) throw new Error(`DPAPI failed on "${p}"`); return enc(p); },
-      decryptString: b => { if (fault.decryptThrows) throw new Error(`bad blob ${b.toString()}`); return dec(b); },
+      isAsyncEncryptionAvailable: async () => { if (fault.availableThrows) throw new Error('probe failed'); return fault.available; },
+      encryptStringAsync: async p => { if (fault.encryptThrows) throw new Error(`DPAPI failed on "${p}"`); return enc(p); },
+      decryptStringAsync: async b => {
+        if (fault.decryptThrows) throw new Error(`bad blob ${b.toString()}`);
+        return {result: dec(b), shouldReEncrypt: false};
+      },
     },
     store,
     log: {info: (_f, m) => { logs.push(`info ${m}`); }, warn: (_f, m) => { logs.push(`warn ${m}`); }},
@@ -50,61 +53,61 @@ const noSecret = (text: string, plain = KEY) => {
 const warns = (logs: string[]) => logs.filter(l => l.startsWith('warn')).length;
 
 describe('leaks', () => {
-  it('encryptString echoing the key: set throws a value-free error, logs nothing secret', () => {
+  it('encryptString echoing the key: set throws a value-free error, logs nothing secret', async () => {
     const h = build();
     h.fault.encryptThrows = true;
     let err: Error | undefined;
-    try { h.key.set(KEY); } catch (e) { err = e as Error; }
+    try { await h.key.set(KEY); } catch (e) { err = e as Error; }
     expect(err).toBeDefined();
     noSecret(err!.message);
     noSecret(h.logs.join('\n'));
     expect(h.table.size).toBe(0);
   });
 
-  it('migration failure (encrypt echoes the plaintext): warning is value-free, plaintext row kept', () => {
+  it('migration failure (encrypt echoes the plaintext): warning is value-free, plaintext row kept', async () => {
     const h = build({[LEGACY]: KEY});
     h.fault.encryptThrows = true;
-    h.key.migratePlaintext();
+    await h.key.migratePlaintext();
     noSecret(h.logs.join('\n'));
     expect(h.table.get(LEGACY)).toBe(KEY);
     expect(h.table.has(ENC)).toBe(false);
   });
 
-  it('migration with isEncryptionAvailable throwing never crashes startup and keeps the plaintext', () => {
+  it('migration with isEncryptionAvailable throwing never crashes startup and keeps the plaintext', async () => {
     const h = build({[LEGACY]: KEY});
     h.fault.availableThrows = true;
-    expect(() => h.key.migratePlaintext()).not.toThrow();
+    await expect(h.key.migratePlaintext()).resolves.toBeUndefined();
     expect(h.table.get(LEGACY)).toBe(KEY);
   });
 
-  it('decrypt failure (error echoes the ciphertext): warning is value-free', () => {
+  it('decrypt failure (error echoes the ciphertext): warning is value-free', async () => {
     const h = build();
-    h.key.set(KEY);
+    await h.key.set(KEY);
     h.fault.decryptThrows = true;
-    h.key.get();
+    await h.key.get();
     noSecret(h.logs.join('\n'));
   });
 
-  it('every success path logs without key or ciphertext (set, get, migrate, clear)', () => {
+  it('every success path logs without key or ciphertext (set, get, migrate, clear)', async () => {
     const h = build({[LEGACY]: 'legacy-secret-value'});
-    h.key.migratePlaintext();
-    h.key.set(KEY);
-    h.key.get(); h.key.has(); h.key.clear();
+    await h.key.migratePlaintext();
+    await h.key.set(KEY);
+    await h.key.get(); await h.key.has(); await h.key.clear();
     noSecret(h.logs.join('\n'));
     noSecret(h.logs.join('\n'), 'legacy-secret-value');
   });
 
-  it('SettingsService.getAll never carries either row, even with both populated', () => {
+  it('SettingsService.getAll never carries either row, even with both populated', async () => {
     const h = build({themeMode: 'dark'});
-    h.key.set(KEY);
+    await h.key.set(KEY);
     h.table.set(LEGACY, 'legacy-secret-value');
     noSecret(JSON.stringify(h.settings.getAll()));
     expect(h.settings.getAll()).toEqual({themeMode: 'dark'});
   });
 
-  it('the settings:changed broadcast payload carries neither row', () => {
+  it('the settings:changed broadcast payload carries neither row', async () => {
     const h = build();
-    h.key.set(KEY);
+    await h.key.set(KEY);
     h.table.set(LEGACY, 'legacy-secret-value');
     h.settings.set('themeMode', 'light');
     expect(h.sent.length).toBeGreaterThan(0);
@@ -115,7 +118,7 @@ describe('leaks', () => {
     }
   });
 
-  it.each([ENC, LEGACY])('settings:set(%s) is refused and the error does not echo the value', k => {
+  it.each([ENC, LEGACY])('settings:set(%s) is refused and the error does not echo the value', async k => {
     const h = build();
     let err: Error | undefined;
     try { h.settings.set(k, KEY); } catch (e) { err = e as Error; }
@@ -127,124 +130,124 @@ describe('leaks', () => {
 
   it.each([`${LEGACY} `, ` ${ENC}`, LEGACY.toUpperCase(), `${ENC}\n`])(
     'settings:set(%j) variant is a different inert row: never surfaces in get/has, never migrates',
-    k => {
+    async k => {
       const h = build();
       h.settings.set(k, KEY);
-      expect(h.key.has()).toBe(false);
-      expect(h.key.get()).toBeNull();
-      h.key.migratePlaintext();
+      expect(await h.key.has()).toBe(false);
+      expect(await h.key.get()).toBeNull();
+      await h.key.migratePlaintext();
       expect(h.table.has(ENC)).toBe(false);
     },
   );
 });
 
 describe('migratePlaintext', () => {
-  it('idempotent across restarts', () => {
+  it('idempotent across restarts', async () => {
     const h = build({[LEGACY]: KEY});
-    h.key.migratePlaintext();
+    await h.key.migratePlaintext();
     const after = Object.fromEntries(h.table);
-    h.key.migratePlaintext();
-    h.key.migratePlaintext();
+    await h.key.migratePlaintext();
+    await h.key.migratePlaintext();
     expect(Object.fromEntries(h.table)).toEqual(after);
-    expect(h.key.get()).toBe(KEY);
+    expect(await h.key.get()).toBe(KEY);
   });
 
-  it('unavailable on two starts (warned each, plaintext kept), available on the third: migrated', () => {
+  it('unavailable on two starts (warned each, plaintext kept), available on the third: migrated', async () => {
     const h = build({[LEGACY]: KEY});
     h.fault.available = false;
-    h.key.migratePlaintext();
-    h.key.migratePlaintext();
+    await h.key.migratePlaintext();
+    await h.key.migratePlaintext();
     expect(warns(h.logs)).toBe(2);
     expect(h.table.get(LEGACY)).toBe(KEY);
     h.fault.available = true;
-    h.key.migratePlaintext();
+    await h.key.migratePlaintext();
     expect(Object.fromEntries(h.table)).toEqual({[ENC]: cipherOf(KEY)});
   });
 
-  it('whitespace-only plaintext is deleted even while encryption is unavailable', () => {
+  it('whitespace-only plaintext is deleted even while encryption is unavailable', async () => {
     const h = build({[LEGACY]: ' \t\n '});
     h.fault.available = false;
-    h.key.migratePlaintext();
+    await h.key.migratePlaintext();
     expect(h.table.size).toBe(0);
     expect(h.logs).toEqual([]);
   });
 
-  it('_enc plus plaintext: plaintext wins and is deleted (set() deletes legacy, so only a downgrade-written plaintext can coexist, and that is the newer write)', () => {
+  it('_enc plus plaintext: plaintext wins and is deleted (set() deletes legacy, so only a downgrade-written plaintext can coexist, and that is the newer write)', async () => {
     const h = build({[ENC]: cipherOf('old-enc-key'), [LEGACY]: KEY});
-    h.key.migratePlaintext();
-    expect(h.key.get()).toBe(KEY);
+    await h.key.migratePlaintext();
+    expect(await h.key.get()).toBe(KEY);
     expect(h.table.has(LEGACY)).toBe(false);
   });
 
-  it('a failed migration with an existing _enc row leaves both rows untouched', () => {
+  it('a failed migration with an existing _enc row leaves both rows untouched', async () => {
     const h = build({[ENC]: cipherOf('old'), [LEGACY]: KEY});
     h.fault.encryptThrows = true;
-    h.key.migratePlaintext();
+    await h.key.migratePlaintext();
     expect(h.table.get(ENC)).toBe(cipherOf('old'));
     expect(h.table.get(LEGACY)).toBe(KEY);
   });
 });
 
 describe('get / has', () => {
-  it('corrupt base64 never throws; warned once', () => {
+  it('corrupt base64 never throws; warned once', async () => {
     const h = build({[ENC]: '@@@@%%%%'});
-    expect(h.key.get()).toBeNull();
+    expect(await h.key.get()).toBeNull();
     h.table.set(ENC, cipherOf(KEY).slice(0, 3));
-    expect(h.key.has()).toBe(false);
+    expect(await h.key.has()).toBe(false);
     expect(warns(h.logs)).toBe(1);
   });
 
-  it('decrypt throwing repeatedly warns once; a later set re-arms it', () => {
+  it('decrypt throwing repeatedly warns once; a later set re-arms it', async () => {
     const h = build();
-    h.key.set(KEY);
+    await h.key.set(KEY);
     h.fault.decryptThrows = true;
-    for (let i = 0; i < 5; i++) { h.key.get(); h.key.has(); }
+    for (let i = 0; i < 5; i++) { await h.key.get(); await h.key.has(); }
     expect(warns(h.logs)).toBe(1);
     h.fault.decryptThrows = false;
-    h.key.set(KEY);
-    expect(h.key.get()).toBe(KEY);
+    await h.key.set(KEY);
+    expect(await h.key.get()).toBe(KEY);
     h.fault.decryptThrows = true;
-    h.key.get();
+    await h.key.get();
     expect(warns(h.logs)).toBe(2);
   });
 
-  it('a failed set does not reset the warning flag or drop the old row', () => {
+  it('a failed set does not reset the warning flag or drop the old row', async () => {
     const h = build();
-    h.key.set(KEY);
+    await h.key.set(KEY);
     h.fault.decryptThrows = true;
-    h.key.get();
+    await h.key.get();
     h.fault.available = false;
-    expect(() => h.key.set('other')).toThrow('Secure storage is unavailable');
-    h.key.get();
+    await expect(h.key.set('other')).rejects.toThrow('Secure storage is unavailable');
+    await h.key.get();
     expect(warns(h.logs)).toBe(1);
     expect(h.table.get(ENC)).toBe(cipherOf(KEY));
   });
 });
 
 describe('set inputs', () => {
-  it.each([[42], [{a: 1}], [null], [undefined], [['k']], [true]])('non-string %j throws and stores nothing', v => {
+  it.each([[42], [{a: 1}], [null], [undefined], [['k']], [true]])('non-string %j throws and stores nothing', async v => {
     const h = build({[LEGACY]: 'keep'});
-    expect(() => h.key.set(v as unknown as string)).toThrow(/empty/);
+    await expect(h.key.set(v as unknown as string)).rejects.toThrow(/empty/);
     expect(Object.fromEntries(h.table)).toEqual({[LEGACY]: 'keep'});
   });
 
-  it('a 1 MB key round-trips', () => {
+  it('a 1 MB key round-trips', async () => {
     const h = build();
     const big = 'k'.repeat(1_000_000);
-    h.key.set(big);
-    expect(h.key.get()).toBe(big);
+    await h.key.set(big);
+    expect(await h.key.get()).toBe(big);
   });
 
-  it('inner whitespace preserved, outer (incl. NBSP) trimmed', () => {
+  it('inner whitespace preserved, outer (incl. NBSP) trimmed', async () => {
     const h = build();
-    h.key.set('  a b  ');
-    expect(h.key.get()).toBe('a b');
+    await h.key.set('  a b  ');
+    expect(await h.key.get()).toBe('a b');
   });
 
-  it('encryption unavailable: nothing is stored anywhere', () => {
+  it('encryption unavailable: nothing is stored anywhere', async () => {
     const h = build();
     h.fault.available = false;
-    expect(() => h.key.set(KEY)).toThrow();
+    await expect(h.key.set(KEY)).rejects.toThrow();
     expect(h.table.size).toBe(0);
   });
 });

@@ -34,9 +34,9 @@ beforeEach(() => {
     }),
     new SerperKey({
       crypto: {
-        isEncryptionAvailable: () => true,
-        encryptString: s => Buffer.from(`x${s}`),
-        decryptString: b => b.toString().slice(1),
+        isAsyncEncryptionAvailable: async () => true,
+        encryptStringAsync: async s => Buffer.from(`x${s}`),
+        decryptStringAsync: async b => ({result: b.toString().slice(1), shouldReEncrypt: false}),
       },
       store,
       log: {info: () => undefined, warn: () => undefined},

@@ -63,7 +63,7 @@ describe('ipc/db — filter writes re-apply the active filter in tracking', () =
       tracking:     {isTracking: () => false, deleteSession: () => undefined},
       wealthSeries: {series: () => [], latestBreakdown: () => null, forget: () => undefined, invalidate: () => undefined},
       onFiltersChanged: changed,
-      serperKey:    {get: () => null},
+      serperKey:    {get: async () => null},
     });
   });
 

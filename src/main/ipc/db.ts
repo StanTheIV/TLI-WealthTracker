@@ -55,7 +55,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
     broadcast('items:changed', {id, changes: {locked}});
   });
   ipcMain.handle('db:items:lookup-name',  async (_e, id: string) => {
-    const result = await lookupName(id, deps.serperKey.get());
+    const result = await lookupName(id, await deps.serperKey.get());
     if ('name' in result || 'type' in result) {
       // Persist whatever we found and broadcast the patch so all renderers
       // (including the overlay) update without an extra round-trip.

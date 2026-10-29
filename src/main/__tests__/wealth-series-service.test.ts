@@ -195,7 +195,7 @@ describe('wealth:changed — db IPC handlers', () => {
       tracking,
       wealthSeries: series,
       onFiltersChanged: () => undefined,
-      serperKey:    {get: () => 'k'},
+      serperKey:    {get: async () => 'k'},
     });
   }
   const call = async (channel: string, ...args: unknown[]) => handlers.get(channel)!({}, ...args);

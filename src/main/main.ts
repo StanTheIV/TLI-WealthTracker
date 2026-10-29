@@ -364,7 +364,11 @@ function startApp(): void {
     store:  {get: settingsGet, set: settingsSet, delete: settingsDelete},
     log,
   });
-  serperKey.migratePlaintext();
+  // Async (safeStorage); not awaited — startup doesn't wait on DPAPI. SerperKey
+  // queues later writes behind it, and it already warns on encryption failures.
+  serperKey.migratePlaintext().catch((err: unknown) => {
+    log.warn('app', `Serper API key migration failed: ${describeError(err)}`);
+  });
   seedItemsIfEmpty();
   // Before any tracking: sessions left open by a run that never reached Stop.
   closeCrashedSessions(sessions, log);
