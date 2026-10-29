@@ -1,68 +1,21 @@
 import {create} from 'zustand';
-import type {DbItem, DbWealthDatapoint} from '@/shared/contracts/db';
-import {taxedValue, type TaxConfig} from '@/domain/valuation';
+import type {WealthLatestBreakdown, WealthSeriesPoint} from '@/shared/contracts/wealth';
 
-export interface BreakdownEntry {
-  qty:   number;
-  price: number;
-  total: number;
-}
-
-export type Breakdown = Record<string, BreakdownEntry>;
-
-/** A datapoint with its breakdown parsed once at fetch. `value` stays the GROSS
- *  figure the main process stored; `taxedValueFor` derives the net one, since
- *  the stored aggregate is type-blind and can't honour the fuel exemption. */
-export interface WealthPoint extends DbWealthDatapoint {
-  parsed: Breakdown | null;
-}
-
-/**
- * Net value of one datapoint under the given tax policy.
- *
- * Rows written before the `breakdown` column exists carry '{}' and have no per
- * item detail to tax, so they fall back to the stored gross value. A history
- * spanning that migration therefore shows a step where the detail begins —
- * unavoidable, since the information to tax those rows was never recorded.
- */
-export function pointValue(
-  point: WealthPoint,
-  items: Record<string, DbItem>,
-  tax:   TaxConfig,
-): number {
-  if (!tax.enabled) return point.value;
-  const parsed = point.parsed;
-  if (!parsed || Object.keys(parsed).length === 0) return point.value;
-
-  let total = 0;
-  for (const [itemId, entry] of Object.entries(parsed)) {
-    total += taxedValue(entry.qty, entry.price, items[itemId]?.type, tax);
-  }
-  return total;
-}
-
-function toPoints(rows: DbWealthDatapoint[]): WealthPoint[] {
-  return rows.map((row) => {
-    try {
-      return {...row, parsed: JSON.parse(row.breakdown) as Breakdown};
-    } catch {
-      return {...row, parsed: null};
-    }
-  });
-}
+/** The Dashboard's wealth as main values it (filter + tax applied there): the
+ *  range's series and the latest reading's breakdown rows. */
 
 export type WealthRange = '1d' | '3d' | '7d' | '1m' | 'all';
 
 interface WealthState {
-  datapoints:      WealthPoint[];
-  latestBreakdown: Breakdown;
-  latestTimestamp: number | null;
-  range:           WealthRange;
-  isLoaded:        boolean;
+  /** The range's readings as displayed, timestamp order. */
+  points:   WealthSeriesPoint[];
+  latest:   WealthLatestBreakdown | null;
+  range:    WealthRange;
+  isLoaded: boolean;
 }
 
 interface WealthActions {
-  /** Main window: the first load, then a refresh on every `wealth_recorded`. */
+  /** Main window, once at startup: subscribes, then the first fetch. */
   load:        () => Promise<void>;
   refresh:     () => Promise<void>;
   setRange:    (range: WealthRange) => Promise<void>;
@@ -77,6 +30,11 @@ const RANGE_MS: Record<Exclude<WealthRange, 'all'>, number> = {
   '7d': 7  * DAY_MS,
   '1m': 30 * DAY_MS,
 };
+
+/** The oldest timestamp the range shows at `now`. */
+function rangeFrom(range: WealthRange, now: number): number {
+  return range === 'all' ? 0 : now - RANGE_MS[range];
+}
 
 const WEALTH_RANGE_KEY = 'wealthChartRange';
 const VALID_RANGES: readonly WealthRange[] = ['1d', '3d', '7d', '1m', 'all'];
@@ -94,83 +52,107 @@ async function loadPersistedRange(): Promise<WealthRange | null> {
   }
 }
 
-function parseBreakdown(point: DbWealthDatapoint | undefined): {breakdown: Breakdown; latestTimestamp: number | null} {
-  if (!point) return {breakdown: {}, latestTimestamp: null};
-  try {
-    return {breakdown: JSON.parse(point.breakdown) as Breakdown, latestTimestamp: point.timestamp};
-  } catch {
-    return {breakdown: {}, latestTimestamp: point.timestamp};
-  }
+/** `points` with `point` in timestamp order (replacing a reading with its id)
+ *  and without the readings older than `from`. */
+function withPoint(points: WealthSeriesPoint[], point: WealthSeriesPoint, from: number): WealthSeriesPoint[] {
+  const next = points.filter(p => p.id !== point.id && p.ts >= from);
+  if (point.ts < from) return next;
+  let at = next.length;
+  while (at > 0 && next[at - 1].ts > point.ts) at--;
+  next.splice(at, 0, point);
+  return next;
 }
 
-/** Parses each row's breakdown once here rather than per render: an 'all' range
- *  is thousands of rows, each holding an object per inventory item. */
-async function fetchPoints(range: WealthRange): Promise<WealthPoint[]> {
-  const now = Date.now();
-  const rows = range === 'all'
-    ? await window.electronAPI.db.wealth.getRange(0, now)
-    : await window.electronAPI.db.wealth.getRange(now - RANGE_MS[range], now);
-  return toPoints(rows);
-}
-
-async function fetchLatest(): Promise<DbWealthDatapoint | undefined> {
-  const points = await window.electronAPI.db.wealth.getLatest(1);
-  return points[points.length - 1];
-}
-
+// A response lands only while its request is still the newest of its kind, so
+// a slow 'all' answering after a quick '1d' never overwrites it. Sequenced
+// apart because a recording re-reads only the latest breakdown.
+let _seriesSeq = 0;
+let _latestSeq = 0;
+/** Readings appended while the newest series request is in flight; null when
+ *  none is. Its response may predate them, so they are merged into it. */
+let _appendedInFlight: WealthSeriesPoint[] | null = null;
 let _subscribed = false;
-/** A datapoint was recorded while the first load was in flight. */
-let _recordedDuringLoad = false;
 
-export const useWealthStore = create<WealthState & WealthActions>((set, get) => ({
-  datapoints:      [],
-  latestBreakdown: {},
-  latestTimestamp: null,
-  range:           '1m',
-  isLoaded:        false,
-
-  load: async () => {
-    // Main records each datapoint synchronously before announcing it, so a
-    // refetch on the announcement sees it. Until the first load lands (its
-    // range unknown) a recording is only noted, then refetched after.
-    if (!_subscribed) {
-      _subscribed = true;
-      window.electronAPI.engine.onEvent(({event}) => {
-        if (event.type !== 'wealth_recorded') return;
-        if (get().isLoaded) void get().refresh();
-        else                _recordedDuringLoad = true;
-      });
+export const useWealthStore = create<WealthState & WealthActions>((set, get) => {
+  /** Fetches the range's series and the latest breakdown; applies each part
+   *  only if no newer request for it was issued meanwhile. */
+  async function fetchAll(range: WealthRange): Promise<void> {
+    const seriesSeq = ++_seriesSeq;
+    const latestSeq = ++_latestSeq;
+    _appendedInFlight = [];
+    const now = Date.now();
+    const from = rangeFrom(range, now);
+    let series: WealthSeriesPoint[];
+    let latest: WealthLatestBreakdown | null;
+    try {
+      [series, latest] = await Promise.all([
+        window.electronAPI.db.wealth.series(from, now),
+        window.electronAPI.db.wealth.latestBreakdown(),
+      ]);
+    } catch (err) {
+      if (seriesSeq === _seriesSeq) _appendedInFlight = null;
+      throw err;
     }
-    const range = await loadPersistedRange() ?? get().range;
-    const [points, latest] = await Promise.all([fetchPoints(range), fetchLatest()]);
-    const {breakdown, latestTimestamp} = parseBreakdown(latest);
-    set({range, datapoints: points, latestBreakdown: breakdown, latestTimestamp, isLoaded: true});
-    if (_recordedDuringLoad) {
-      _recordedDuringLoad = false;
-      await get().refresh();
+    if (seriesSeq === _seriesSeq) {
+      let points = series;
+      for (const point of _appendedInFlight ?? []) points = withPoint(points, point, from);
+      _appendedInFlight = null;
+      set({points, isLoaded: true});
     }
-  },
+    if (latestSeq === _latestSeq) set({latest});
+  }
 
-  refresh: async () => {
-    const {range} = get();
-    const [points, latest] = await Promise.all([fetchPoints(range), fetchLatest()]);
-    const {breakdown, latestTimestamp} = parseBreakdown(latest);
-    set({datapoints: points, latestBreakdown: breakdown, latestTimestamp});
-  },
+  async function fetchLatest(): Promise<void> {
+    const seq = ++_latestSeq;
+    const latest = await window.electronAPI.db.wealth.latestBreakdown();
+    if (seq === _latestSeq) set({latest});
+  }
 
-  setRange: async (range) => {
-    set({range});
-    window.electronAPI.settings.set(WEALTH_RANGE_KEY, range).catch(
-      (err: unknown) => console.error('[wealth] persist range failed:', err)
-    );
-    const points = await fetchPoints(range);
-    set({datapoints: points});
-  },
+  /** A new reading: main stored it before announcing it, already valued. */
+  function append(point: WealthSeriesPoint): void {
+    _appendedInFlight?.push(point);
+    set(s => ({points: withPoint(s.points, point, rangeFrom(s.range, Date.now()))}));
+    fetchLatest().catch((err: unknown) => console.error('[wealth] latest refresh failed:', err));
+  }
 
-  // Refetch rather than splice locally: deleting the newest reading also moves
-  // latestBreakdown / latestTimestamp back to the one before it.
-  deletePoint: async (id) => {
-    await window.electronAPI.db.wealth.delete(id);
-    await get().refresh();
-  },
-}));
+  return {
+    points:   [],
+    latest:   null,
+    range:    '1m',
+    isLoaded: false,
+
+    load: async () => {
+      if (!_subscribed) {
+        _subscribed = true;
+        window.electronAPI.engine.onEvent(({event}) => {
+          if (event.type === 'wealth_recorded') append(event.point);
+        });
+        // Filter, item type, tax setting, delete or clear: every value may move.
+        window.electronAPI.db.wealth.onChanged(() => {
+          get().refresh().catch((err: unknown) => console.error('[wealth] refresh failed:', err));
+        });
+      }
+      const startSeq = _seriesSeq;
+      const persisted = await loadPersistedRange();
+      // A range picked while the setting was read wins over the stored one.
+      if (persisted && _seriesSeq === startSeq) set({range: persisted});
+      await fetchAll(get().range);
+    },
+
+    refresh: () => fetchAll(get().range),
+
+    setRange: async (range) => {
+      set({range});
+      window.electronAPI.settings.set(WEALTH_RANGE_KEY, range).catch(
+        (err: unknown) => console.error('[wealth] persist range failed:', err)
+      );
+      await fetchAll(range);
+    },
+
+    // Main announces the delete as `wealth:changed`, which refreshes — the
+    // latest breakdown moves back too when the newest reading goes.
+    deletePoint: async (id) => {
+      await window.electronAPI.db.wealth.delete(id);
+    },
+  };
+});

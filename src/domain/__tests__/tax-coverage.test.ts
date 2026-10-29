@@ -49,12 +49,23 @@ const MUST_IMPORT_TAX = VALUATION_SITES.filter(f => ![
  *  Those must be recomputed per item rather than scaled, since the stored
  *  aggregate is type-blind and cannot honour the fuel exemption. */
 const WEALTH_READERS = [
-  'components/Dashboard/ItemBreakdown.tsx',
   'domain/wealth/valuation.ts',
   // Values the displayed series and breakdown (through domain/wealth) and picks the tax config.
   'main/wealth-series.ts',
-  'state/wealthStore.ts',
 ];
+
+/** Touch the stored breakdown without showing an FE figure from it: the row
+ *  type, its SQL, the recorder writing it gross, and the price-history backfill
+ *  reading per-item prices out of it. */
+const WEALTH_STORAGE = [
+  'shared/contracts/db.ts',
+  'main/db.ts',
+  'main/wealth-recorder.ts',
+  'main/prices/history.ts',
+];
+
+/** A stored wealth row or its breakdown, by type or by field. */
+const READS_WEALTH_ROW = /\bDbWealthDatapoint\b|\bWealthBreakdown\b|\.breakdown\b|\bbreakdown\s*:/;
 
 const MULT = /\b(?:qty|quantity|amount)\b\s*\*|\*\s*\b(?:price|unitPrice|prices)\b/;
 
@@ -94,7 +105,7 @@ const rel = (f: string) => relative(SRC, f).split(sep).join('/');
 describe('auction tax coverage', () => {
   // A stale path would silently allowlist nothing and exempt nothing.
   it('lists only files that exist, and reads the tax module exports', () => {
-    for (const f of [...VALUATION_SITES, ...WEALTH_READERS]) {
+    for (const f of [...VALUATION_SITES, ...WEALTH_READERS, ...WEALTH_STORAGE]) {
       expect(existsSync(join(SRC, f)), `${f} is listed but does not exist`).toBe(true);
     }
     expect(TAX_EXPORTS).toEqual(expect.arrayContaining(['taxedValue', 'taxedUnitPrice', 'TaxConfig']));
@@ -129,6 +140,28 @@ describe('auction tax coverage', () => {
       const src = readFileSync(join(SRC, f), 'utf8');
       expect(importsTax(f, src), `${f} renders stored wealth values but never imports the tax module`)
         .toBe(true);
+    }
+  });
+
+  // Keeps the list above complete: a new reader of the stored rows (say, a
+  // renderer view summing breakdown totals again) must be listed — and taxed.
+  it('nothing outside the known wealth readers reads the stored breakdown', () => {
+    const offenders = sourceFiles(SRC)
+      .filter(f => READS_WEALTH_ROW.test(stripComments(readFileSync(f, 'utf8'))))
+      .map(rel)
+      .filter(f => !WEALTH_READERS.includes(f) && !WEALTH_STORAGE.includes(f))
+      .sort();
+
+    expect(
+      offenders,
+      'New reader(s) of stored wealth rows. Value them through @/domain/wealth in main and add '
+      + 'the file to WEALTH_READERS.',
+    ).toEqual([]);
+  });
+
+  it('every listed wealth reader actually reads the stored breakdown', () => {
+    for (const f of WEALTH_READERS) {
+      expect(READS_WEALTH_ROW.test(stripComments(readFileSync(join(SRC, f), 'utf8'))), f).toBe(true);
     }
   });
 });

@@ -1,10 +1,10 @@
 /**
  * The one write path for renderer settings: persist → side effect (engine key
  * → reconfigure, `logging.*` → reload the logger) → broadcast the parsed table
- * so both windows replace their state (then `wealth:changed` for the tax key). A failing persist throws before any of
- * it. Once persisted the write is committed: a failing side effect is logged
- * and the broadcast still goes out. Main-only keys (window geometry,
- * `last_seen_version`, …) bypass it.
+ * so both windows replace their state (then `wealth:changed` for the tax key).
+ * A failing persist throws before any of it. Once persisted the write is
+ * committed: a failing side effect is logged and the broadcast still goes out.
+ * Main-only keys (window geometry, `last_seen_version`, …) bypass it.
  */
 import type {Broadcast} from './broadcast';
 import type {Logger} from './logger';

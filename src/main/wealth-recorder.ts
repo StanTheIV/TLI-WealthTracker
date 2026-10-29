@@ -23,8 +23,9 @@ export interface WealthRecorderDeps {
  *
  * Records GROSS wealth: every bag item with a positive quantity, unfiltered
  * and untaxed. Both are applied at display (`WealthSeries`), so changing
- * either rescales the whole history instead of stepping it. The breakdown keeps each item's id, qty and price, which is all a
- * display-time filter or tax needs to re-derive the value.
+ * either rescales the whole history instead of stepping it. The breakdown
+ * keeps each item's id, qty and price, which is all a display-time filter or
+ * tax needs to re-derive the value.
  */
 export class WealthRecorder {
   private readonly _deps: WealthRecorderDeps;

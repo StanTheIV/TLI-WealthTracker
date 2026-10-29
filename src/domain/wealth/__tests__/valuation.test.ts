@@ -1,8 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import type {DbItem} from '@/shared/contracts/db';
 import type {FilterRule} from '@/shared/item-filter';
-import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/domain/valuation';
-import {pointValue, type WealthPoint} from '@/state/wealthStore';
+import {AUCTION_TAX_RATE, NO_TAX, taxedValue, type TaxConfig} from '@/domain/valuation';
 import {
   compactPointValue, compactWealthPoint, parseWealthBreakdown, rawTypeLookup, wealthBreakdownRows,
   wealthPointValue, wealthValuer, type WealthBreakdown, type WealthValuation,
@@ -231,9 +230,26 @@ describe('wealthBreakdownRows', () => {
   });
 });
 
-// Until 4.5c moves the display to main, the renderer values points through
-// `wealthStore.pointValue`; with no filter the new rule must give the same numbers.
-describe('equivalence with wealthStore.pointValue (no filter)', () => {
+// The renderer's own valuation before 4.5c moved the display to main, kept
+// literally as an oracle: tax off → the stored value; on → Σ taxedValue per
+// parsed entry, type from a plain items record; an empty or unparseable
+// breakdown → the stored value. With no filter the domain rule must give the
+// same numbers, so the move changes no figure a user had seen.
+function legacyRendererValue(
+  value: number, json: string, items: Record<string, DbItem>, tax: TaxConfig,
+): number {
+  if (!tax.enabled) return value;
+  let parsed: WealthBreakdown | null;
+  try { parsed = JSON.parse(json) as WealthBreakdown; } catch { parsed = null; }
+  if (!parsed || Object.keys(parsed).length === 0) return value;
+  let total = 0;
+  for (const [itemId, entry] of Object.entries(parsed)) {
+    total += taxedValue(entry.qty, entry.price, items[itemId]?.type, tax);
+  }
+  return total;
+}
+
+describe('equivalence with the pre-4.5c renderer rule (no filter)', () => {
   const itemsRecord = Object.fromEntries(ITEMS.filter(i => i.id !== 'constructor').map(i => [i.id, i]));
   const rows = [
     SAMPLE,
@@ -242,17 +258,12 @@ describe('equivalence with wealthStore.pointValue (no filter)', () => {
     {value: 4321, json: '{}'},
     {value: 99, json: 'not json'},
   ];
-  const asPoint = (r: {value: number; json: string}, id: number): WealthPoint => {
-    let parsed: WealthBreakdown | null;
-    try { parsed = JSON.parse(r.json) as WealthBreakdown; } catch { parsed = null; }
-    return {id, timestamp: id, value: r.value, breakdown: r.json, parsed};
-  };
   const lookup = rawTypeLookup(Object.values(itemsRecord));
 
   for (const tax of [NO_TAX, TAX_ON]) {
     it(`gives the same value with tax ${tax.enabled ? 'on' : 'off'}`, () => {
-      rows.forEach((r, i) => {
-        const expected = pointValue(asPoint(r, i), itemsRecord, tax);
+      rows.forEach((r) => {
+        const expected = legacyRendererValue(r.value, r.json, itemsRecord, tax);
         expect(wealthPointValue(r.value, parseWealthBreakdown(r.json), {tax, rawTypeOf: lookup, rules: []}), r.json)
           .toBe(expected);
       });

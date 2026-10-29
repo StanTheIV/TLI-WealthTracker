@@ -1,7 +1,6 @@
 import {useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useSettingsStore, type ThemeMode} from '@/state/settingsStore';
-import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useSessionsStore} from '@/state/sessionsStore';
 import {selectRunStatus, useEngineStore} from '@/state/engineStore';
@@ -53,9 +52,9 @@ export default function GeneralTab() {
       console.error('[wealth] clear refused:', err);
       refused = true;
     }
-    // Clears wealth + sessions + session_maps: re-read both so the UI shows
-    // what the DB holds, whether or not main accepted.
-    await useWealthStore.getState().refresh();
+    // Clears wealth + sessions + session_maps. Main announces an accepted clear
+    // as `wealth:changed`, which re-reads the wealth; the sessions are re-read
+    // here so the list shows what the DB holds, whether or not main accepted.
     await useSessionsStore.getState().refresh();
     setWealthResetState(refused ? 'idle' : 'done');
   };

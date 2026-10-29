@@ -93,8 +93,6 @@ const api = {
       getForSession: (sessionId: string) => ipcRenderer.invoke('db:session-maps:get-for-session', sessionId),
     },
     wealth: {
-      getRange:  (from: number, to: number)  => ipcRenderer.invoke('db:wealth:get-range', from, to),
-      getLatest: (limit: number)             => ipcRenderer.invoke('db:wealth:get-latest', limit),
       series:    (from: number, to: number)  => ipcRenderer.invoke('db:wealth:series', from, to),
       latestBreakdown: ()                    => ipcRenderer.invoke('db:wealth:latest-breakdown'),
       delete:    (id: number)                => ipcRenderer.invoke('db:wealth:delete', id),

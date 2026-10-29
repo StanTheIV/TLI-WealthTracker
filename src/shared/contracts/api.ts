@@ -5,7 +5,6 @@ import type {
   DbItemFilter,
   DbSession,
   DbSessionMap,
-  DbWealthDatapoint,
   ItemChangedPatch,
   PriceBucket,
   PriceExportRow,
@@ -96,8 +95,6 @@ export interface ElectronAPI {
       getForSession: (sessionId: string) => Promise<DbSessionMap[]>;
     };
     wealth: {
-      getRange:  (from: number, to: number) => Promise<DbWealthDatapoint[]>;
-      getLatest: (limit: number) => Promise<DbWealthDatapoint[]>;
       /** The readings in [from, to] as displayed (valued in main), timestamp order. */
       series:    (from: number, to: number) => Promise<WealthSeriesPoint[]>;
       /** The latest reading with its Item Breakdown rows; null with none. */

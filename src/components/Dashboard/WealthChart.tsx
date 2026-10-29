@@ -10,9 +10,7 @@ import {
   Tooltip,
   type MouseHandlerDataParam,
 } from 'recharts';
-import {pointValue, useWealthStore, type WealthRange} from '@/state/wealthStore';
-import {useItemsStore} from '@/state/itemsStore';
-import {useTaxConfig} from '@/state/settingsStore';
+import {useWealthStore, type WealthRange} from '@/state/wealthStore';
 import {activePointIndex} from '@/lib/chartPointer';
 import {useTheme} from '@/theme/ThemeContext';
 import SegmentedControl from '@/components/ui/SegmentedControl';
@@ -84,7 +82,7 @@ function CustomTooltip({active, payload}: {active?: boolean; payload?: TooltipEn
 // ---------------------------------------------------------------------------
 
 interface ChartPoint {
-  id?:   number;
+  id:    number;
   time:  number;
   value: number;
 }
@@ -92,7 +90,7 @@ interface ChartPoint {
 interface MenuState {
   x:     number;
   y:     number;
-  point: ChartPoint & {id: number};
+  point: ChartPoint;
 }
 
 /** Fixed-position menu at the cursor. Closes on outside click, Escape, scroll
@@ -163,27 +161,24 @@ function PointMenu({menu, onDelete, onClose}: {menu: MenuState; onDelete: () => 
 export default function WealthChart() {
   const {t}         = useTranslation('dashboard');
   const theme       = useTheme();
-  const datapoints  = useWealthStore(s => s.datapoints);
+  const points      = useWealthStore(s => s.points);
   const range       = useWealthStore(s => s.range);
   const setRange    = useWealthStore(s => s.setRange);
   const deletePoint = useWealthStore(s => s.deletePoint);
-  const items       = useItemsStore(s => s.items);
-  const tax         = useTaxConfig();
   const [menu, setMenu] = useState<MenuState | null>(null);
 
   const data = useMemo<ChartPoint[]>(
-    () => datapoints.map(dp => ({id: dp.id, time: dp.timestamp, value: pointValue(dp, items, tax)})),
-    [datapoints, items, tax],
+    () => points.map(p => ({id: p.id, time: p.ts, value: p.value})),
+    [points],
   );
 
-  // A right-click with no active point under the cursor (or on a row without
-  // an id) leaves the native menu alone.
+  // A right-click with no active point under the cursor leaves the native menu alone.
   const openMenu = (state: MouseHandlerDataParam, e: MouseEvent<SVGGraphicsElement>) => {
     const index = activePointIndex(state);
     const point = index === null ? undefined : data[index];
-    if (point?.id === undefined) return;
+    if (!point) return;
     e.preventDefault();
-    setMenu({x: e.clientX, y: e.clientY, point: {...point, id: point.id}});
+    setMenu({x: e.clientX, y: e.clientY, point});
   };
 
   const closeMenu = useCallback(() => setMenu(null), []);

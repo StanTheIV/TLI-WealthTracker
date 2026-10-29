@@ -3,8 +3,6 @@ import {useTranslation} from 'react-i18next';
 import {ChevronUp, ChevronDown, ArrowUpRight} from 'lucide-react';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
-import {useTaxConfig} from '@/state/settingsStore';
-import {taxedUnitPrice, taxedValue} from '@/domain/valuation';
 import {ITEM_TYPES} from '@/shared/items';
 
 // ---------------------------------------------------------------------------
@@ -82,32 +80,23 @@ interface ItemBreakdownProps {
 export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) {
   const {t}               = useTranslation('dashboard');
   const {t: tItems}       = useTranslation('items');
-  const latestBreakdown   = useWealthStore(s => s.latestBreakdown);
-  const latestTimestamp   = useWealthStore(s => s.latestTimestamp);
+  const latest            = useWealthStore(s => s.latest);
   const items             = useItemsStore(s => s.items);
-  const tax               = useTaxConfig();
   const [filters, setFilters] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const latestTimestamp   = latest?.ts ?? null;
 
-  const rows = useMemo(() => {
-    return Object.entries(latestBreakdown)
-      .map(([id, entry]) => {
-        const item = items[id];
-        return {
-          id,
-          name:      item?.name || `#${id}`,
-          type:      item?.type  ?? '',
-          qty:       entry.qty,
-          // Recomputed from qty x price rather than scaling the stored total:
-          // that total is a type-blind aggregate, so the fuel exemption cannot
-          // be applied to it after the fact.
-          unitPrice: taxedUnitPrice(entry.price, item?.type, tax),
-          total:     taxedValue(entry.qty, entry.price, item?.type, tax),
-        };
-      })
-      .filter(r => r.qty > 0);
-  }, [latestBreakdown, items, tax]);
+  // Main's rows are already filtered and taxed; only the display name and the
+  // type the chips match on come from the items table.
+  const rows = useMemo<BreakdownRow[]>(() => (latest?.rows ?? []).map(row => {
+    const item = items[row.id];
+    return {
+      ...row,
+      name: item?.name || `#${row.id}`,
+      type: item?.type ?? '',
+    };
+  }), [latest, items]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
