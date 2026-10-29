@@ -1,7 +1,8 @@
 /**
  * Adversarial TrackingService cases: re-entrancy, reset buffering, continue+reset,
- * event ordering/wealth gating, errors outside the fan-out, bad filter state,
- * price-routing propagation, worker lifecycle, stale-persistence references.
+ * event ordering/wealth gating, errors outside the fan-out, an unreadable
+ * stored filter, price-routing isolation, worker lifecycle, stale-persistence
+ * references.
  */
 import {describe, it, expect, beforeEach, afterEach, vi, type Mock} from 'vitest';
 import {TrackingService, type LogWorker, type TrackingDeps} from '@/main/tracking-service';
@@ -10,7 +11,8 @@ import {SqliteSessionStore} from '@/main/db/session-store';
 import type {Engine} from '@/main/engine/engine';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
 import type {RawEvent} from '@/worker/processors/types';
-import type {DbItemFilter, DbSession} from '@/shared/contracts/db';
+import type {DbSession} from '@/shared/contracts/db';
+import type {ItemFilter} from '@/shared/item-filter';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {engineEvents, unwrapEngineEvent, type Sent} from '@/test/broadcast';
 import {LOG_SUBPATH} from '@/shared/paths';
@@ -40,7 +42,9 @@ interface Harness {
     recordScrapedPrice: Mock<TrackingDeps['items']['recordScrapedPrice']>;
   };
   settings: Record<string, string>;
-  filters:  DbItemFilter[];
+  filters:  ItemFilter[];
+  /** When set, filters.getAll throws it — db.ts's answer to a corrupt stored filter. */
+  filtersError: Error | null;
   wealth:   ReturnType<typeof fakeWealthRecorder>;
   log:      {debug: Mock; info: Mock; warn: Mock; error: Mock};
   engines:  Engine[];
@@ -59,7 +63,7 @@ function build(opts: {broadcast?: (sent: Sent[], h: () => Harness) => Broadcast}
     recordScrapedPrice: vi.fn<TrackingDeps['items']['recordScrapedPrice']>(() => ({priceDate: NOW})),
   };
   const settings = {torchlightPath: TORCHLIGHT} as Record<string, string>;
-  const filters: DbItemFilter[] = [];
+  const filters: ItemFilter[] = [];
   const wealth  = fakeWealthRecorder();
   const log     = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
   const createWorker = vi.fn((cb: (raw: RawEvent) => void): LogWorker => { onEvent = cb; return worker; });
@@ -70,11 +74,11 @@ function build(opts: {broadcast?: (sent: Sent[], h: () => Harness) => Broadcast}
     createEngine:   emit => { const e = createProductionEngine(emit); engines.push(e); return e; },
     store, broadcast, createWorker,
     settings:       {getAll: () => settings},
-    filters:        {getAll: () => filters},
+    filters:        {getAll: () => { if (self.filtersError) throw self.filtersError; return filters; }},
     items, wealthRecorder: wealth, wealthSeries: fakeWealthSeries(), log,
   });
   const raw = (event: RawEvent) => { onEvent!(event); };
-  self = {service, store, sent, worker, createWorker, raw, items, settings, filters, wealth, log, engines};
+  self = {service, store, sent, worker, createWorker, raw, items, settings, filters, filtersError: null, wealth, log, engines};
   return self;
 }
 
@@ -362,54 +366,69 @@ describe('adversarial - errors outside the fan-out', () => {
   });
 });
 
-describe('adversarial - bad filter', () => {
-  it('invalid rules JSON: start throws after engine.start(); engine and persistence stay set (as the old code)', () => {
+describe('adversarial - unreadable stored filter', () => {
+  it('start throws before any engine is created: nothing emitted, nothing saved, idle', () => {
     const h = build();
-    h.filters.push({id: 'f', name: 'Bad', enabled: true, rules: '{not json'});
-    expect(() => h.service.start()).toThrow(SyntaxError);
+    h.filtersError = new Error('Filter f has unreadable rules');
+    expect(() => h.service.start()).toThrow('unreadable rules');
 
-    expect(types(h)).toEqual(['init_started']);
+    expect(h.engines).toHaveLength(0);
+    expect(types(h)).toEqual([]);
+    expect(h.service.isTracking()).toBe(false);
     expect(h.log.info).not.toHaveBeenCalledWith('engine', 'Engine started');
-    init(h);
-    expect(types(h)).toContain('init_complete');
-    runMap(h);
-    h.service.stop();
-    expect(savedIds(h)).toHaveLength(1);
+    expect(h.store.listSessions()).toEqual([]);
   });
 
   it('a following start() recovers once the filter is fixed', () => {
     const h = build();
-    h.filters.push({id: 'f', name: 'Bad', enabled: true, rules: 'nope'});
+    h.filtersError = new Error('Filter f has unreadable rules');
     expect(() => h.service.start()).toThrow();
-    h.filters[0].rules = '[]';
+    h.filtersError = null;
+    h.filters.push({id: 'f', name: 'Fixed', enabled: true, rules: []});
     expect(() => h.service.start()).not.toThrow();
-    expect(h.engines).toHaveLength(2);
+    expect(h.engines).toHaveLength(1);
     init(h);
     expect(types(h)).toContain('init_complete');
   });
+
+  it('applyActiveFilter on a running engine propagates the throw and keeps the engine\'s rules', () => {
+    const h = build();
+    h.filters.push({id: 'f', name: 'Mine', enabled: true, rules: []});
+    h.service.start();
+    const setFilter = vi.spyOn(h.engines[0], 'setFilterRules');
+    h.filtersError = new Error('Filter f has unreadable rules');
+    expect(() => h.service.applyActiveFilter()).toThrow('unreadable rules');
+    expect(setFilter).not.toHaveBeenCalled();
+    expect(h.service.isTracking()).toBe(true);
+  });
 });
 
-describe('adversarial - price routing errors propagate', () => {
+describe('adversarial - price routing errors are logged, never thrown', () => {
   const price: RawEvent = {type: 'price_update', itemId: 555, price: 12.5, listings: [12]};
+  const priceErrors = (h: Harness): string[] =>
+    h.log.error.mock.calls.filter(c => c[0] === 'price').map(c => String(c[1]));
 
-  it('recordScrapedPrice throwing propagates; nothing broadcast', () => {
+  it('recordScrapedPrice throwing: swallowed and logged; nothing broadcast', () => {
     const h = build();
     h.items.recordScrapedPrice.mockImplementation(() => { throw new Error('db locked'); });
-    expect(() => h.raw(price)).toThrow('db locked');
+    expect(() => h.raw(price)).not.toThrow();
     expect(h.sent).toEqual([]);
+    expect(priceErrors(h)).toEqual([expect.stringContaining('db locked')]);
   });
 
-  it('getLocked throwing propagates before any record/broadcast', () => {
+  it('getLocked throwing: swallowed before any record/broadcast', () => {
     const h = build();
     h.items.getLocked.mockImplementation(() => { throw new Error('lock boom'); });
-    expect(() => h.raw(price)).toThrow('lock boom');
+    expect(() => h.raw(price)).not.toThrow();
     expect(h.items.recordScrapedPrice).not.toHaveBeenCalled();
     expect(h.sent).toEqual([]);
+    expect(priceErrors(h)).toEqual([expect.stringContaining('lock boom')]);
   });
 
-  it('a throwing broadcast on the price path propagates (not isolated, as the old code)', () => {
+  it('a throwing broadcast on the price path: swallowed and logged', () => {
     const h = build({broadcast: () => () => { throw new Error('win gone'); }});
-    expect(() => h.raw(price)).toThrow('win gone');
+    expect(() => h.raw(price)).not.toThrow();
+    expect(priceErrors(h)).toEqual([expect.stringContaining('win gone')]);
   });
 
   it('price_update is never forwarded to the engine, even while running', () => {

@@ -11,10 +11,10 @@ import {WealthRecorder} from '@/main/wealth-recorder';
 import {SqliteSessionStore} from '@/main/db/session-store';
 import {createEngine} from '@/main/engine/create-engine';
 import type {RawEvent} from '@/worker/processors/types';
-import type {DbItem, DbItemFilter, DbWealthDatapoint} from '@/shared/contracts/db';
+import type {DbItem, DbWealthDatapoint} from '@/shared/contracts/db';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {unwrapEngineEvent} from '@/test/broadcast';
-import type {FilterRule} from '@/shared/item-filter';
+import type {FilterRule, ItemFilter} from '@/shared/item-filter';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
 import {fakeWealthSeries} from '@/test/wealth';
@@ -32,8 +32,16 @@ interface Harness {
   store:   SqliteSessionStore;
   points:  DbWealthDatapoint[];
   items:   DbItem[];
+  /** The stored filters the service reads. */
+  filters: ItemFilter[];
   sent:    EngineEvent[];
   raw:     (e: RawEvent) => void;
+}
+
+/** A filter write as the db:filters handlers do it: store, then re-apply. */
+function setFilter(h: Harness, rules: FilterRule[] | null): void {
+  h.filters.splice(0, h.filters.length, ...(rules ? [{id: 'f', name: 'f', enabled: true, rules}] : []));
+  h.service.applyActiveFilter();
 }
 
 const dbItem = (id: number, price: number, type = 'other'): DbItem =>
@@ -44,7 +52,7 @@ function build(): Harness {
   const points: DbWealthDatapoint[] = [];
   const sent: EngineEvent[] = [];
   const items: DbItem[] = [dbItem(PLAIN, 1), dbItem(GEAR, 2, 'equipment'), dbItem(COIN, 0.5)];
-  const filters: DbItemFilter[] = [];
+  const filters: ItemFilter[] = [];
   let onEvent: ((r: RawEvent) => void) | null = null;
   const worker = {start: vi.fn(), stop: vi.fn()};
   const log = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
@@ -66,7 +74,7 @@ function build(): Harness {
     wealthSeries:   fakeWealthSeries(),
     log,
   });
-  return {service, store, points, items, sent, raw: e => onEvent!(e)};
+  return {service, store, points, items, filters, sent, raw: e => onEvent!(e)};
 }
 
 const bagInit = (h: Harness) => {
@@ -109,7 +117,7 @@ describe('adversarial - gross wealth through the real service', () => {
   it('filter hiding by type and by item: wealth points stay full, session drops exclude them', () => {
     const h = build();
     h.service.start();
-    h.service.setFilterRules(hideGearAndPlain());
+    setFilter(h, hideGearAndPlain());
     h.service.setItemType(String(GEAR), 'equipment');
     bagInit(h);
     runMap(h, [[2, GEAR, 9], [1, PLAIN, 8], [3, COIN, 3]]); // +2 gear, +3 plain, +2 coin
@@ -127,14 +135,14 @@ describe('adversarial - gross wealth through the real service', () => {
   it('filter changed, cleared and item type changed mid-session: wealth ignores it, loot follows it', () => {
     const h = build();
     h.service.start();
-    h.service.setFilterRules(hideGearAndPlain());
+    setFilter(h, hideGearAndPlain());
     h.service.setItemType(String(GEAR), 'equipment');
     bagInit(h);
 
     runMap(h, [[2, GEAR, 8], [1, PLAIN, 6]]);         // map 1: both hidden
-    h.service.setFilterRules(null);
+    setFilter(h, null);
     runMap(h, [[2, GEAR, 10], [1, PLAIN, 7]]);        // map 2: filter cleared, +2 gear +1 plain credited
-    h.service.setFilterRules([hide({type: 'by-type', itemType: 'equipment'})]);
+    setFilter(h, [hide({type: 'by-type', itemType: 'equipment'})]);
     h.service.setItemType(String(COIN), 'equipment'); // COIN becomes equipment
     runMap(h, [[3, COIN, 4], [2, GEAR, 11], [1, PLAIN, 9]]); // map 3: coin+gear hidden, +2 plain credited
     h.service.setItemType(String(GEAR), 'material');  // gear stops being equipment
@@ -174,7 +182,7 @@ describe('adversarial - gross wealth through the real service', () => {
   it('every point: value = Σ breakdown totals, string keys, valid JSON; one point per trigger', () => {
     const h = build();
     h.service.start();
-    h.service.setFilterRules([hide({type: 'by-item', itemId: String(COIN)})]);
+    setFilter(h, [hide({type: 'by-item', itemId: String(COIN)})]);
     bagInit(h);
     runMap(h, [[3, COIN, 6]]);
     runMap(h, [[3, COIN, 7]]);

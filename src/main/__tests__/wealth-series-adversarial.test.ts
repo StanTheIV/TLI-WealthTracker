@@ -4,7 +4,7 @@
  * type changes and reads happens, a warm service answers exactly what a cold
  * one (empty cache) answers.
  */
-import {describe, it, expect, beforeEach, vi} from 'vitest';
+import {describe, it, expect, beforeEach} from 'vitest';
 import {
   initDb, wealthInsert, wealthGetRange, wealthGetRangeHeads, wealthGetLatest, wealthDelete, wealthClear,
   itemsImportBatch, itemsGetAll, itemsSetType, settingsGetAll, settingsSet,
@@ -35,13 +35,11 @@ function insert(ts: number, e: Record<string, Entry>): StoredWealthDatapoint {
   return {id: wealthInsert({timestamp: ts, value, breakdown}), timestamp: ts, value, breakdown};
 }
 
-const noLog = {warn: vi.fn()};
 const realDeps = (over: Partial<WealthSeriesDeps['points']> = {}): WealthSeriesDeps => ({
   points:   {heads: wealthGetRangeHeads, range: wealthGetRange, latest: wealthGetLatest, ...over},
   items:    {getAll: itemsGetAll},
   filters:  {getAll: filtersGetAll},
   settings: {getAll: settingsGetAll},
-  log:      noLog,
 });
 const build = (over: Partial<WealthSeriesDeps['points']> = {}) => new WealthSeries(realDeps(over));
 
@@ -142,8 +140,8 @@ describe('cache coherence under interleaving (property)', () => {
       } else if (op < 0.46) {
         const rules = Array.from({length: int(r, 0, 3)}, () =>
           r() < 0.5 ? hideType(pick(r, ['ember', 'fuel', 'compass', 'cube', 'other'])) : hideItem(pick(r, ['100', '200', '300'])));
-        if (filterId === 0) { filterId = 1; filtersInsert({id: 'f', name: 'f', enabled: true, rules: JSON.stringify(rules)}); }
-        else filtersUpdate({id: 'f', name: 'f', enabled: r() < 0.7, rules: JSON.stringify(rules)});
+        if (filterId === 0) { filterId = 1; filtersInsert({id: 'f', name: 'f', enabled: true, rules}); }
+        else filtersUpdate({id: 'f', name: 'f', enabled: r() < 0.7, rules});
       } else if (op < 0.50 && filterId) {
         filtersSetEnabled('f', r() < 0.5);
       } else if (op < 0.56) {
@@ -202,7 +200,7 @@ describe('policy is read per request', () => {
     insert(1000, P(2)); insert(2000, P(4));
     const ws = build();
     const gross = ws.series(0, 1e9).map(p => p.value);
-    filtersInsert({id: 'f', name: 'f', enabled: true, rules: JSON.stringify([hideType('compass')])});
+    filtersInsert({id: 'f', name: 'f', enabled: true, rules: [hideType('compass')]});
     const hidden = ws.series(0, 1e9).map(p => p.value);
     expect(hidden).toEqual(gross.map(g => g - 100));
     filtersSetEnabled('f', false);
@@ -218,7 +216,7 @@ describe('policy is read per request', () => {
     expect(ws.series(0, 1e9)[0].value).toBe(100);           // fuel: exempt
     itemsSetType('200', 'Compass');
     expect(ws.series(0, 1e9)[0].value).toBeCloseTo(85, 9);  // taxable now
-    filtersInsert({id: 'f', name: 'f', enabled: true, rules: JSON.stringify([hideType('compass')])});
+    filtersInsert({id: 'f', name: 'f', enabled: true, rules: [hideType('compass')]});
     expect(ws.series(0, 1e9)[0].value).toBe(0);
     itemsSetType('200', 'Corrosion Material');
     expect(ws.series(0, 1e9)[0].value).toBe(100);
@@ -230,7 +228,7 @@ describe('policy is read per request', () => {
     for (const tax of ['false', 'true']) for (const rules of [[], [hideType('ember')], [hideItem('300'), hideType('fuel')]]) {
       settingsSet('auctionTaxEnabled', tax);
       filtersGetAll().forEach(f => filtersSetEnabled(f.id, false));
-      if (rules.length) { filtersInsert({id: `f${Math.random()}`, name: 'x', enabled: true, rules: JSON.stringify(rules)}); }
+      if (rules.length) { filtersInsert({id: `f${Math.random()}`, name: 'x', enabled: true, rules}); }
       const lb = ws.latestBreakdown()!;
       expect(lb.rows.reduce((s, x) => s + x.total, 0)).toBeCloseTo(lb.value, 9);
       expect(lb.value).toBeCloseTo(ws.series(0, 1e9).at(-1)!.value, 9);
@@ -258,7 +256,7 @@ describe('stored value fidelity', () => {
     const empty = wealthInsert({timestamp: 1000, value: 321, breakdown: '{}'});
     const junk  = wealthInsert({timestamp: 2000, value: 654, breakdown: 'not json'});
     const arr   = wealthInsert({timestamp: 3000, value: 987, breakdown: '[]'});
-    filtersInsert({id: 'f', name: 'f', enabled: true, rules: JSON.stringify([hideType('compass'), hideType('other')])});
+    filtersInsert({id: 'f', name: 'f', enabled: true, rules: [hideType('compass'), hideType('other')]});
     settingsSet('auctionTaxEnabled', 'true');
     const got = build().series(0, 1e9);
     expect(got).toEqual([{id: empty, ts: 1000, value: 321}, {id: junk, ts: 2000, value: 654}, {id: arr, ts: 3000, value: 987}]);

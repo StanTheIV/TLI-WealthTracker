@@ -23,6 +23,7 @@ import {initLeaguesAndPriceHistory} from './leagues-sync';
 import {SettingsService} from './settings-service';
 import {TrackingService} from './tracking-service';
 import {closeCrashedSessions} from './session-recovery';
+import {runShutdownSteps, type ShutdownStep} from './shutdown';
 import {createEngine} from './engine/create-engine';
 import {WorkerProcess} from './worker-process';
 import {WealthRecorder} from './wealth-recorder';
@@ -95,6 +96,17 @@ function readSavedMainBounds(settings: Record<string, string>) {
   return {x, y, width: Math.max(width, MAIN_MIN_WIDTH), height: Math.max(height, MAIN_MIN_HEIGHT)};
 }
 
+/** Save the main window's normal (un-maximized) bounds and maximized flag. */
+function persistMainBounds(win: BrowserWindow): void {
+  if (win.isDestroyed()) return;
+  const b = win.getNormalBounds();
+  settingsSet('main_window_x',         String(b.x));
+  settingsSet('main_window_y',         String(b.y));
+  settingsSet('main_window_width',     String(b.width));
+  settingsSet('main_window_height',    String(b.height));
+  settingsSet('main_window_maximized', win.isMaximized() ? 'true' : 'false');
+}
+
 function createMainWindow(tracking: TrackingService) {
   const settings = settingsGetAll();
   const saved    = readSavedMainBounds(settings);
@@ -124,32 +136,24 @@ function createMainWindow(tracking: TrackingService) {
     mainWindow.loadFile(join(__dirname, '../dist/index.html'));
   }
 
-  // Stop the engine before the window is destroyed so any active session
-  // is closed; persist bounds so the next launch reopens in the same spot
-  // (normal bounds even when closing maximized). The overlay is still open
-  // here ('closed' closes it), so its position is saved as a safety net for a
-  // drag whose end never reached main.
-  mainWindow.on('close', () => {
-    if (mainWindow) {
-      const b = mainWindow.getNormalBounds();
-      settingsSet('main_window_x',         String(b.x));
-      settingsSet('main_window_y',         String(b.y));
-      settingsSet('main_window_width',     String(b.width));
-      settingsSet('main_window_height',    String(b.height));
-      settingsSet('main_window_maximized', mainWindow.isMaximized() ? 'true' : 'false');
-    }
-    overlayPosition.persist();
-    tracking.shutdown();
-  });
+  // Stop the engine before the window is destroyed so any active session is
+  // closed — first, each step isolated, so a failing settings write can't skip
+  // it. Then the bounds, for the next launch to reopen in the same spot, and
+  // the overlay's position: still open here ('closed' closes it), saved as a
+  // safety net for a drag whose end never reached main.
+  const win = mainWindow;
+  const shutdownSteps: ShutdownStep[] = [
+    {name: 'tracking',           run: () => tracking.shutdown()},
+    {name: 'main window bounds', run: () => persistMainBounds(win)},
+    {name: 'overlay position',   run: () => overlayPosition.persist()},
+  ];
+  mainWindow.on('close', () => runShutdownSteps(shutdownSteps, log));
 
   // Windows shutdown / restart / log-off: app 'before-quit' / 'will-quit' /
   // 'quit' are NOT emitted then, and the window's 'close' isn't documented to
   // be — this is the one hook. It can't be prevented, so the synchronous
   // (better-sqlite3) final write happens inside the listener.
-  mainWindow.on('session-end', () => {
-    overlayPosition.persist();
-    tracking.shutdown();
-  });
+  mainWindow.on('session-end', () => runShutdownSteps(shutdownSteps, log));
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -286,7 +290,6 @@ app.whenReady().then(() => {
     items:    {getAll: itemsGetAll},
     filters:  {getAll: filtersGetAll},
     settings: {getAll: settingsGetAll},
-    log,
   });
   const tracking = new TrackingService({
     createEngine,
@@ -309,6 +312,7 @@ app.whenReady().then(() => {
   registerDbHandlers({
     broadcast,
     onItemTypeChanged: (id, type) => tracking.setItemType(id, type),
+    onFiltersChanged:  () => tracking.applyActiveFilter(),
     sessions,
     tracking,
     wealthSeries,

@@ -1,15 +1,15 @@
 import type {Engine} from '@/main/engine/engine';
 import type {EngineSink} from '@/main/engine/types';
-import {configureEngine} from '@/main/engine/configure-engine';
+import {configureEngine, type EngineSettingsInput} from '@/main/engine/configure-engine';
 import type {SqliteSessionStore} from '@/main/db/session-store';
 import type {Logger} from '@/main/logger';
 import {SessionPersistence, type SessionMeta} from '@/main/session-persistence';
 import type {RawEvent} from '@/worker/processors/types';
-import type {DbItem, DbItemFilter, DbSession, ItemChangedPatch, StoredWealthDatapoint} from '@/shared/contracts/db';
+import type {DbItem, DbSession, ItemChangedPatch, StoredWealthDatapoint} from '@/shared/contracts/db';
 import type {WealthSeriesPoint} from '@/shared/contracts/wealth';
 import type {EngineEnvelope, EngineEvent, EngineSnapshot, SessionIdentity, WireEngineEvent} from '@/shared/contracts/engine';
 import {describeError} from '@/shared/describe-error';
-import type {FilterRule} from '@/shared/item-filter';
+import type {ItemFilter} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
 import {LOG_SUBPATH} from '@/shared/paths';
 import {parseSettings} from '@/shared/settings';
@@ -29,7 +29,8 @@ export interface TrackingDeps {
   createWorker:   (onEvent: (raw: RawEvent) => void) => LogWorker;
   /** The raw settings table: `torchlightPath` plus the engine's configuration. */
   settings:       {getAll(): Record<string, string>};
-  filters:        {getAll(): DbItemFilter[]};
+  /** The stored filters, rules decoded; throws for an unreadable row. */
+  filters:        {getAll(): ItemFilter[]};
   items: {
     /** Every known item — engine configuration and the session price reader. */
     getAll(): DbItem[];
@@ -145,14 +146,34 @@ export class TrackingService {
    */
   reset(): void {
     if (!this._engine?.isTracking() || !this._persistence) return;
-    const oldId = this._persistence.getSessionId();
-    this._deps.store.deleteSession(oldId);
-    this._send({type: 'session_saved', sessionId: oldId, deleted: true});
+    const engine = this._engine;
+    const oldId  = this._persistence.getSessionId();
 
     // Swapped BEFORE engine.reset: it emits the new session's tracker_started.
     const identity = newIdentity();
     this._persistence = this._newPersistence({...identity, continued: false, nextMapIndex: 1});
-    this._engine.reset(identity);
+    try {
+      engine.reset(identity);
+    } catch (err) {
+      // Back to idle. The half-reset engine's final events belong to neither
+      // session, so nothing persists them; the old session is kept, closed.
+      this._log.error('session', `Session reset failed: ${describeError(err)}`);
+      this._persistence = null;
+      this._stopAfterFailure();
+      this._closeKeptSession(oldId);
+      throw err;
+    }
+
+    // Only once the new run is live: drop the old session. A failure keeps
+    // it (closed) and the new run continues.
+    try {
+      this._deps.store.deleteSession(oldId);
+    } catch (err) {
+      this._log.error('session', `Deleting reset session ${oldId} failed: ${describeError(err)}`);
+      this._closeKeptSession(oldId);
+      return;
+    }
+    this._send({type: 'session_saved', sessionId: oldId, deleted: true});
     this._log.info('session', `Session reset: deleted id=${oldId}, new id=${identity.sessionId}`);
   }
 
@@ -217,10 +238,13 @@ export class TrackingService {
     this._engine?.configure(parseSettings(this._deps.settings.getAll()));
   }
 
-  setFilterRules(rules: FilterRule[] | null): void {
+  /** Re-apply the stored active filter to the running engine — called after
+   *  every filter write, so the engine never holds rules that aren't stored. */
+  applyActiveFilter(): void {
     if (!this._engine) return;
-    this._engine.setFilterRules(rules);
-    this._log.debug('filter', rules === null ? 'Filter cleared' : `Filter rules updated: ${rules.length} rules`);
+    const active = this._activeFilter();
+    this._engine.setFilterRules(active?.rules ?? null);
+    this._log.debug('filter', active ? `Filter rules updated: ${active.rules.length} rules` : 'Filter cleared');
   }
 
   /** An item's type changed (Items tab, name lookup): keep the engine's
@@ -231,11 +255,31 @@ export class TrackingService {
 
   // -- private: lifecycle ---------------------------------------------------
 
-  /** Stop any run, then start `identity`; `loaded` makes it a continue. */
+  /**
+   * Stop any run, then start `identity`; `loaded` makes it a continue. The
+   * configuration is read first, so a failure there throws with the run in
+   * progress untouched; a failure after stop() leaves the service idle.
+   */
   private _start(identity: SessionIdentity, loaded: DbSession | null): void {
+    const items        = this._deps.items.getAll();
+    const settings     = this._deps.settings.getAll();
+    const activeFilter = this._activeFilter();
+
     this.stop();
     this._shutDown = false;
+    try {
+      this._startRun(identity, loaded, {items, filterRules: activeFilter?.rules ?? null, settings});
+    } catch (err) {
+      this._log.error('engine', `Engine start failed: ${describeError(err)}`);
+      this._stopAfterFailure();
+      throw err;
+    }
+    if (activeFilter) this._log.info('filter', `Filter set: "${activeFilter.name}"`);
+    this._log.info('engine', 'Engine started');
+  }
 
+  /** _start after stop(): worker, engine, persistence, engine.start, configure. */
+  private _startRun(identity: SessionIdentity, loaded: DbSession | null, config: EngineSettingsInput): void {
     // Ensure the worker is running (idempotent — won't restart if already up)
     const logPath = this._resolveLogPath();
     if (logPath) this._worker.start(logPath);
@@ -265,15 +309,34 @@ export class TrackingService {
     this._engine.start(identity);
 
     // After start(): ctx.reset() inside it wipes the configuration.
-    const activeFilter = this._deps.filters.getAll().find(f => f.enabled);
-    configureEngine(this._engine, {
-      items:       this._deps.items.getAll(),
-      filterRules: activeFilter ? JSON.parse(activeFilter.rules) as FilterRule[] : null,
-      settings:    this._deps.settings.getAll(),
-    });
-    if (activeFilter) this._log.info('filter', `Filter set: "${activeFilter.name}"`);
+    configureEngine(this._engine, config);
+  }
 
-    this._log.info('engine', 'Engine started');
+  /** A failed start / reset: back to idle. A throwing engine.stop() is only
+   *  logged — the caller rethrows the original failure. */
+  private _stopAfterFailure(): void {
+    try {
+      this.stop();
+    } catch (err) {
+      this._log.error('engine', `Engine stop after a failure failed: ${describeError(err)}`);
+    }
+  }
+
+  /** End a session reset kept instead of deleting, announcing the write. A
+   *  failure is logged; closeCrashedSessions closes it on the next launch. */
+  private _closeKeptSession(sessionId: string): void {
+    try {
+      this._deps.store.closeSession(sessionId, Date.now());
+    } catch (err) {
+      this._log.error('session', `Closing session ${sessionId} failed: ${describeError(err)}`);
+      return;
+    }
+    this._send({type: 'session_saved', sessionId});
+  }
+
+  /** The enabled filter (at most one is), or null; throws for an unreadable row. */
+  private _activeFilter(): ItemFilter | null {
+    return this._deps.filters.getAll().find(f => f.enabled) ?? null;
   }
 
   /** The game log path from the torchlight path in settings; null when unset. */
@@ -300,29 +363,42 @@ export class TrackingService {
 
   /**
    * Routes a worker-emitted RawEvent. Price updates are processed even without
-   * an active engine; everything else is forwarded to the engine if it's running.
+   * an active engine; everything else is forwarded to the engine if it's
+   * running. Never throws: a failing route is logged, the next event still
+   * arrives.
    */
   private _onWorkerEvent(raw: RawEvent): void {
     if (raw.type === 'price_update') {
-      const id     = String(raw.itemId);
-      const locked = this._deps.items.getLocked(id);
-
-      // History records every scrape, locked items included: the market showed that
-      // price even if the user pinned the item's own value.
-      const {priceDate} = this._deps.items.recordScrapedPrice(id, raw.price, raw.listings, {updateItem: !locked});
-      if (locked) {
-        this._log.debug('price', `Price update skipped (locked): item=${id} -> ${raw.price} FE`);
-        return;
+      try {
+        this._routePrice(raw);
+      } catch (err) {
+        this._log.error('price', `Price update failed: item=${raw.itemId}: ${describeError(err)}`);
       }
-      this._log.info('price', `Price update: item=${id} -> ${raw.price} FE`);
-
-      // Sync renderer itemsStores via the unified items:changed broadcast — the
-      // one price signal; no engine:event (a price is not engine state).
-      this._deps.broadcast('items:changed', {id, changes: {price: raw.price, ...(priceDate !== null && {priceDate})}});
       return;
     }
+    try {
+      this._engine?.onRawEvent(raw);
+    } catch (err) {
+      this._log.error('engine', `Raw event ${raw.type} failed: ${describeError(err)}`);
+    }
+  }
 
-    this._engine?.onRawEvent(raw);
+  private _routePrice(raw: Extract<RawEvent, {type: 'price_update'}>): void {
+    const id     = String(raw.itemId);
+    const locked = this._deps.items.getLocked(id);
+
+    // History records every scrape, locked items included: the market showed that
+    // price even if the user pinned the item's own value.
+    const {priceDate} = this._deps.items.recordScrapedPrice(id, raw.price, raw.listings, {updateItem: !locked});
+    if (locked) {
+      this._log.debug('price', `Price update skipped (locked): item=${id} -> ${raw.price} FE`);
+      return;
+    }
+    this._log.info('price', `Price update: item=${id} -> ${raw.price} FE`);
+
+    // Sync renderer itemsStores via the unified items:changed broadcast — the
+    // one price signal; no engine:event (a price is not engine state).
+    this._deps.broadcast('items:changed', {id, changes: {price: raw.price, ...(priceDate !== null && {priceDate})}});
   }
 
   // -- private: emit fan-out ------------------------------------------------

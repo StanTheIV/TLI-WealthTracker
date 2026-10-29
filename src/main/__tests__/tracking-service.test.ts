@@ -11,7 +11,8 @@ import {SqliteSessionStore} from '@/main/db/session-store';
 import {Engine} from '@/main/engine/engine';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
 import type {RawEvent} from '@/worker/processors/types';
-import type {DbItemFilter, DbSession} from '@/shared/contracts/db';
+import type {DbSession} from '@/shared/contracts/db';
+import type {ItemFilter} from '@/shared/item-filter';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import {engineEvents, unwrapEngineEvent, type Sent} from '@/test/broadcast';
 import {LOG_SUBPATH} from '@/shared/paths';
@@ -46,7 +47,7 @@ interface Harness {
     recordScrapedPrice: Mock<TrackingDeps['items']['recordScrapedPrice']>;
   };
   settings: Record<string, string>;
-  filters:  DbItemFilter[];
+  filters:  ItemFilter[];
   wealth:   ReturnType<typeof fakeWealthRecorder>;
   log:      {debug: Mock; info: Mock; warn: Mock; error: Mock};
   /** Every engine the service created, in order. */
@@ -67,7 +68,7 @@ function build(opts: {settings?: Record<string, string>; broadcast?: (sent: Sent
     recordScrapedPrice: vi.fn<TrackingDeps['items']['recordScrapedPrice']>(() => ({priceDate: NOW})),
   };
   const settings = opts.settings ?? {torchlightPath: TORCHLIGHT};
-  const filters: DbItemFilter[] = [];
+  const filters: ItemFilter[] = [];
   const wealth  = fakeWealthRecorder();
   const log     = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
   const broadcast: Broadcast = opts.broadcast?.(sent) ?? ((channel, payload) => { sent.push({channel, payload}); });
@@ -206,9 +207,9 @@ describe('TrackingService — full run', () => {
     const h = build();
     // ITEM_LOOT is hidden only through its type, so both must reach the engine.
     h.items.getAll.mockReturnValue([{id: String(ITEM_LOOT), name: 'Sword', type: 'equipment', price: 0, priceDate: 0}]);
-    h.filters.push({id: 'f1', name: 'Mine', enabled: true, rules: JSON.stringify([
+    h.filters.push({id: 'f1', name: 'Mine', enabled: true, rules: [
       {id: 'r1', action: 'hide', scopes: ['session', 'map'], kind: {type: 'by-type', itemType: 'equipment'}},
-    ])});
+    ]});
     h.service.start();
     init(h);
     runMap(h, ITEM_LOOT, 3);
@@ -553,8 +554,8 @@ describe('TrackingService — reset', () => {
     expect(h.store.getRows(firstId)).toEqual([]);
     // The new session's tracker_started inserted its row already.
     expect(h.store.getSession(resetId)).toMatchObject({endedAt: null, drops: {}, mapCount: 0});
-    expect(savedEvents(h).at(-2)).toEqual({type: 'session_saved', sessionId: firstId, deleted: true});
-    expect(savedEvents(h).at(-1)).toEqual({type: 'session_saved', sessionId: resetId});
+    expect(savedEvents(h).at(-2)).toEqual({type: 'session_saved', sessionId: resetId});
+    expect(savedEvents(h).at(-1)).toEqual({type: 'session_saved', sessionId: firstId, deleted: true});
   });
 
   it('saves under the NEW id with only post-reset drops', () => {
@@ -576,7 +577,7 @@ describe('TrackingService — reset', () => {
     expect(h.store.getRows(resetId)).toMatchObject([{mapIndex: 1, drops: {[ITEM_LOOT2]: 2}}]);
   });
 
-  it('deletes the old session BEFORE engine.reset, so the new row is not hit by the old persistence', () => {
+  it('the NEW persistence inserts the new row during engine.reset; the old session is deleted only after', () => {
     const h = build();
     h.service.start();
     init(h);
@@ -589,7 +590,8 @@ describe('TrackingService — reset', () => {
 
     expect(del).toHaveBeenCalledWith(firstId);
     expect(ins).toHaveBeenCalledTimes(1);
-    expect(del.mock.invocationCallOrder[0]).toBeLessThan(ins.mock.invocationCallOrder[0]);
+    expect(ins.mock.calls[0][0].id).toBe(activeId(h));
+    expect(ins.mock.invocationCallOrder[0]).toBeLessThan(del.mock.invocationCallOrder[0]);
   });
 
   it('is a no-op without an engine', () => {
@@ -943,7 +945,7 @@ describe('TrackingService — worker and wiring', () => {
       h.service.setItemType('7', 'not-a-type');
       h.service.dismissMaterial(1);
       h.service.reconfigure();
-      h.service.setFilterRules(null);
+      h.service.applyActiveFilter();
     }).not.toThrow();
     expect(h.log.debug).not.toHaveBeenCalled();
 
@@ -953,7 +955,8 @@ describe('TrackingService — worker and wiring', () => {
     const setFilter     = vi.spyOn(engine, 'setFilterRules');
 
     h.service.setItemType('7', 'not-a-type');
-    h.service.setFilterRules([]);
+    h.filters.push({id: 'f1', name: 'Empty', enabled: true, rules: []});
+    h.service.applyActiveFilter();
 
     expect(setItemType).toHaveBeenCalledWith('7', 'other');
     expect(setFilter).toHaveBeenCalledWith([]);

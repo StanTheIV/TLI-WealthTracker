@@ -2,11 +2,10 @@ import {contextBridge, ipcRenderer} from 'electron';
 import type {ElectronAPI} from '@/shared/contracts/api';
 import type {
   DbItem,
-  DbItemFilter,
   ItemChangedPatch,
 } from '@/shared/contracts/db';
 import type {EngineEnvelope, EngineSnapshot} from '@/shared/contracts/engine';
-import type {FilterRule} from '@/shared/item-filter';
+import type {ItemFilter} from '@/shared/item-filter';
 import type {Settings} from '@/shared/settings';
 
 const api = {
@@ -34,13 +33,12 @@ const api = {
   },
 
   engine: {
-    start:           ()                  => ipcRenderer.send('engine:start'),
+    start:           ()                  => ipcRenderer.invoke('engine:start'),
     startWithSession:(sessionId: string) => ipcRenderer.invoke('engine:start-with-session', sessionId),
     stop:            ()                  => ipcRenderer.send('engine:stop'),
     pause:           ()                  => ipcRenderer.send('engine:pause'),
     resume:          ()                  => ipcRenderer.send('engine:resume'),
     reset:           ()                  => ipcRenderer.send('engine:reset'),
-    updateFilterRules: (rules: FilterRule[] | null) => ipcRenderer.send('engine:update-filter-rules', rules),
     dismissMaterial:   (itemId: number) => ipcRenderer.send('engine:dismiss-material', itemId),
     getState:          () => ipcRenderer.invoke('engine:get-state') as Promise<EngineSnapshot>,
     onEvent: (cb: (envelope: EngineEnvelope) => void) => {
@@ -106,8 +104,8 @@ const api = {
     },
     filters: {
       getAll:     ()                                  => ipcRenderer.invoke('db:filters:get-all'),
-      insert:     (filter: DbItemFilter)              => ipcRenderer.invoke('db:filters:insert', filter),
-      update:     (filter: DbItemFilter)              => ipcRenderer.invoke('db:filters:update', filter),
+      insert:     (filter: ItemFilter)                => ipcRenderer.invoke('db:filters:insert', filter),
+      update:     (filter: ItemFilter)                => ipcRenderer.invoke('db:filters:update', filter),
       delete:     (id: string)                        => ipcRenderer.invoke('db:filters:delete', id),
       setEnabled: (id: string, enabled: boolean)      => ipcRenderer.invoke('db:filters:set-enabled', id, enabled),
     },

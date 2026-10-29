@@ -311,7 +311,7 @@ export default function FiltersScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoaded) useFilterStore.getState().load();
+    if (!isLoaded) useFilterStore.getState().load().catch((err: unknown) => console.error('[filters] load failed:', err));
   }, [isLoaded]);
 
   // Auto-select first filter on load

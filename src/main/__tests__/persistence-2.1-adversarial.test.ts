@@ -493,7 +493,7 @@ describe('session_saved stream', () => {
     h.map();
     h.map();
     const a = h.service.getActiveSessionId()!;
-    h.service.reset();                                // delete a, insert b
+    h.service.reset();                                // insert b, then delete a
     const b = h.service.getActiveSessionId()!;
     h.map();
     h.service.stop();                                 // final save of b
@@ -507,8 +507,8 @@ describe('session_saved stream', () => {
       {type: 'session_saved', sessionId: a},          // insert
       {type: 'session_saved', sessionId: a},          // unit 1
       {type: 'session_saved', sessionId: a},          // unit 2
-      {type: 'session_saved', sessionId: a, deleted: true},
       {type: 'session_saved', sessionId: b},          // insert
+      {type: 'session_saved', sessionId: a, deleted: true},
       {type: 'session_saved', sessionId: b},          // unit
       {type: 'session_saved', sessionId: b},          // final
       {type: 'session_saved', sessionId: c},          // insert

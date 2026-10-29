@@ -111,7 +111,7 @@ describe('wealth_recorded carries the displayed point', () => {
     initDb(openNodeSqlite(), {backup: () => { throw new Error('no backup'); }});
     itemsImportBatch([{id: String(ITEM_BAG), name: 'Ember', type: 'Remembrance Material', price: 10, priceDate: 1}]);
     const log = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
-    const series = realSeries(log);
+    const series = realSeries();
     const recorder = new WealthRecorder({items: {getAll: itemsGetAll}, insert: wealthInsert, log});
     const h = buildTracking({wealthRecorder: recorder, wealthSeries: series, items: itemsGetAll});
     h.service.start();
@@ -127,13 +127,12 @@ describe('wealth_recorded carries the displayed point', () => {
 });
 
 /** A WealthSeries over the db.ts module connection. */
-function realSeries(log = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}): WealthSeries {
+function realSeries(): WealthSeries {
   return new WealthSeries({
     points:   {heads: wealthGetRangeHeads, range: wealthGetRange, latest: wealthGetLatest},
     items:    {getAll: itemsGetAll},
     filters:  {getAll: filtersGetAll},
     settings: {getAll: settingsGetAll},
-    log,
   });
 }
 
@@ -195,10 +194,11 @@ describe('wealth:changed — db IPC handlers', () => {
       sessions:     new SqliteSessionStore(conn),
       tracking,
       wealthSeries: series,
+      onFiltersChanged: () => undefined,
     });
   }
   const call = async (channel: string, ...args: unknown[]) => handlers.get(channel)!({}, ...args);
-  const filter = (over: object = {}) => ({id: 'f1', name: 'F', enabled: true, rules: '[]', ...over});
+  const filter = (over: object = {}) => ({id: 'f1', name: 'F', enabled: true, rules: [], ...over});
 
   beforeEach(register);
 

@@ -1,8 +1,7 @@
-import type {FilterRule} from '../item-filter';
+import type {ItemFilter} from '../item-filter';
 import type {Settings} from '../settings';
 import type {
   DbItem,
-  DbItemFilter,
   DbSession,
   DbSessionMap,
   ItemChangedPatch,
@@ -39,14 +38,14 @@ export interface ElectronAPI {
   };
 
   engine: {
-    start:           () => void;
+    /** Start a fresh session; rejects when main couldn't start it (nothing is left half-started). */
+    start:           () => Promise<void>;
     /** Continue a saved session; rejects when it can't be continued (missing, not drop-through, active). */
     startWithSession:(sessionId: string) => Promise<void>;
     stop:            () => void;
     pause:           () => void;
     resume:          () => void;
     reset:           () => void;
-    updateFilterRules: (rules: FilterRule[] | null) => void;
     dismissMaterial: (itemId: number) => void;
     /** The engine's replay as of a broadcast seq — apply it, then only `onEvent` envelopes with a later seq. */
     getState:        () => Promise<EngineSnapshot>;
@@ -109,10 +108,12 @@ export interface ElectronAPI {
        *  `wealth_recorded` instead. */
       onChanged: (cb: () => void) => () => void;
     };
+    /** Every write rejects a malformed filter (nothing stored); main applies
+     *  the stored active filter to the running engine after each write. */
     filters: {
-      getAll:     () => Promise<DbItemFilter[]>;
-      insert:     (filter: DbItemFilter) => Promise<void>;
-      update:     (filter: DbItemFilter) => Promise<void>;
+      getAll:     () => Promise<ItemFilter[]>;
+      insert:     (filter: ItemFilter) => Promise<void>;
+      update:     (filter: ItemFilter) => Promise<void>;
       delete:     (id: string) => Promise<void>;
       setEnabled: (id: string, enabled: boolean) => Promise<void>;
     };

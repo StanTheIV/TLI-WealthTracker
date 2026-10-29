@@ -9,6 +9,7 @@ import {
   filtersGetAll, filtersInsert, filtersUpdate, filtersDelete, filtersSetEnabled,
 } from '@/main/db';
 import type {DbItem} from '@/shared/contracts/db';
+import type {ItemFilter} from '@/shared/item-filter';
 import type {SqliteSessionStore} from '@/main/db/session-store';
 import type {Broadcast} from '@/main/broadcast';
 import type {TrackingService} from '@/main/tracking-service';
@@ -24,6 +25,8 @@ interface RegisterDeps {
   wealthSeries:     Pick<WealthSeries, 'series' | 'latestBreakdown' | 'forget' | 'invalidate'>;
   /** Notify the engine that an item's type changed so its filter cache stays in sync. */
   onItemTypeChanged?: (id: string, type: string) => void;
+  /** A filter write landed: the engine re-reads the stored active filter. */
+  onFiltersChanged:   () => void;
 }
 
 export function registerDbHandlers(deps: RegisterDeps): void {
@@ -125,11 +128,17 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:lookups:get-today', ()               => getLookupCountToday());
 
   ipcMain.handle('db:filters:get-all',    ()                        => filtersGetAll());
-  // Any filter write may change the active filter's wealth rules.
-  ipcMain.handle('db:filters:insert',     (_e, filter)              => { filtersInsert(filter); wealthChanged(); });
-  ipcMain.handle('db:filters:update',     (_e, filter)              => { filtersUpdate(filter); wealthChanged(); });
-  ipcMain.handle('db:filters:delete',     (_e, id: string)          => { filtersDelete(id); wealthChanged(); });
-  ipcMain.handle('db:filters:set-enabled',(_e, id: string, enabled: boolean) => { filtersSetEnabled(id, enabled); wealthChanged(); });
+  // Any filter write may change the active filter: the wealth figures and the
+  // engine both derive it from the stored rows, after the write. A rejected
+  // (malformed) write throws before either.
+  const filtersChanged = () => {
+    wealthChanged();
+    deps.onFiltersChanged();
+  };
+  ipcMain.handle('db:filters:insert',     (_e, filter: ItemFilter)  => { filtersInsert(filter); filtersChanged(); });
+  ipcMain.handle('db:filters:update',     (_e, filter: ItemFilter)  => { filtersUpdate(filter); filtersChanged(); });
+  ipcMain.handle('db:filters:delete',     (_e, id: string)          => { filtersDelete(id); filtersChanged(); });
+  ipcMain.handle('db:filters:set-enabled',(_e, id: string, enabled: boolean) => { filtersSetEnabled(id, enabled); filtersChanged(); });
 
   log.debug('ipc', 'DB handlers registered');
 }

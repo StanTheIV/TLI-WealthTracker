@@ -4,13 +4,12 @@
  * item types and the auction-tax setting. Real migrated node:sqlite DB via
  * db.ts (initDb), real wealth / items / filters / settings rows.
  */
-import {describe, it, expect, beforeEach, vi, type Mock} from 'vitest';
+import {describe, it, expect, beforeEach} from 'vitest';
 import {
-  initDb, wealthInsert, wealthGetRange, wealthGetRangeHeads, wealthGetLatest, wealthDelete, wealthClear,
+  initDb, getDb, wealthInsert, wealthGetRange, wealthGetRangeHeads, wealthGetLatest, wealthDelete, wealthClear,
   itemsImportBatch, itemsGetAll, itemsSetType, settingsGetAll, settingsSet,
-  filtersGetAll, filtersInsert, filtersSetEnabled,
+  filtersGetAll, filtersInsert, filtersUpdate, filtersSetEnabled,
 } from '@/main/db';
-import type {Logger} from '@/main/logger';
 import {WealthSeries} from '@/main/wealth-series';
 import {openNodeSqlite} from '@/test/sql/node-sqlite';
 import type {DbItem, StoredWealthDatapoint} from '@/shared/contracts/db';
@@ -55,13 +54,16 @@ const hideType = (itemType: string, scopes: string[] = ['wealth']): FilterRule =
 const hideItem = (itemId: string): FilterRule =>
   ({id: `ri-${itemId}`, action: 'hide', scopes: ['wealth'], kind: {type: 'by-item', itemId}});
 
-function addFilter(rules: FilterRule[] | string, enabled = true, id = 'f1'): void {
-  filtersInsert({id, name: id, enabled, rules: typeof rules === 'string' ? rules : JSON.stringify(rules)});
+function addFilter(rules: FilterRule[], enabled = true, id = 'f1'): void {
+  filtersInsert({id, name: id, enabled, rules});
+}
+/** An enabled filter row whose stored rules JSON is `json`, bypassing db.ts's validation. */
+function addRawFilter(json: string, id = 'f1'): void {
+  getDb().prepare('INSERT INTO item_filters (id, name, enabled, rules) VALUES (?, ?, 1, ?)').run(id, id, json);
 }
 const taxOn  = () => settingsSet('auctionTaxEnabled', 'true');
 const taxOff = () => settingsSet('auctionTaxEnabled', 'false');
 
-let log: {[K in 'debug' | 'info' | 'warn' | 'error']: Mock<Logger[K]>};
 let ws: WealthSeries;
 
 function build(): WealthSeries {
@@ -70,7 +72,6 @@ function build(): WealthSeries {
     items:    {getAll: itemsGetAll},
     filters:  {getAll: filtersGetAll},
     settings: {getAll: settingsGetAll},
-    log,
   });
 }
 
@@ -80,7 +81,6 @@ beforeEach(() => {
   initDb(openNodeSqlite(), {backup: () => { throw new Error('fresh DB must not back up'); }});
   itemsImportBatch(ITEMS);
   taxOff();
-  log = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
   ws = build();
 });
 
@@ -159,12 +159,11 @@ describe('WealthSeries.series', () => {
     expect(ws.series(0, 9999)[0].value).toBe(30);
   });
 
-  it('bad filter JSON means no filter, and logs', () => {
+  it('unreadable stored filter JSON fails the request, naming the filter (never shown unfiltered)', () => {
     addPoint(1000, P1);
-    addFilter('{not json');
-    expect(ws.series(0, 9999)[0].value).toBe(130);
-    const logged = [log.debug, log.info, log.warn, log.error].reduce((n, f) => n + f.mock.calls.length, 0);
-    expect(logged).toBeGreaterThan(0);
+    addRawFilter('{not json');
+    expect(() => ws.series(0, 9999)).toThrow(/f1/);
+    expect(() => ws.latestBreakdown()).toThrow(/f1/);
   });
 
   it('an item type change flips inclusion (types are read per request)', () => {
@@ -386,7 +385,7 @@ describe('WealthSeries cache', () => {
         range:  (from, to) => { reads.push([from, to]); return wealthGetRange(from, to); },
         latest: wealthGetLatest,
       },
-      items: {getAll: itemsGetAll}, filters: {getAll: filtersGetAll}, settings: {getAll: settingsGetAll}, log,
+      items: {getAll: itemsGetAll}, filters: {getAll: filtersGetAll}, settings: {getAll: settingsGetAll},
     });
     return {series, reads};
   }
@@ -454,16 +453,11 @@ describe('WealthSeries cache', () => {
     expect(ws.internedIdCount).toBe(4);
   });
 
-  it('bad filter JSON is logged once per rules string, not per request', () => {
+  it('valid JSON that is not a rule list fails too; rewriting the filter recovers, uncached', () => {
     addPoint(1000, P1);
-    addFilter('{not json');
-    ws.series(0, 9999);
-    ws.series(0, 9999);
-    ws.latestBreakdown();
-    expect(log.warn).toHaveBeenCalledTimes(1);
-    filtersInsert({id: 'f2', name: 'f2', enabled: false, rules: '"a string"'});
-    filtersSetEnabled('f2', true); // valid JSON, but not a rule list
-    expect(ws.series(0, 9999)[0].value).toBe(130);
-    expect(log.warn).toHaveBeenCalledTimes(2);
+    addRawFilter('"a string"', 'f2');
+    expect(() => ws.series(0, 9999)).toThrow(/f2/);
+    filtersUpdate({id: 'f2', name: 'f2', enabled: true, rules: [hideType('compass')]});
+    expect(ws.series(0, 9999)[0].value).toBe(30);
   });
 });

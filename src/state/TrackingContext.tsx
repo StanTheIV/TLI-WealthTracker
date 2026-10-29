@@ -3,7 +3,9 @@ import {type ReactNode, createContext, useContext} from 'react';
 /** The main window's run commands. The run status and elapsed live in
  *  engineStore (`selectRunStatus`), shared with the overlay. */
 interface TrackingCommands {
-  start:           () => void;
+  /** Resolves true once main started the session; false when the start
+   *  failed (logged; main is idle or still on the run in progress). */
+  start:           () => Promise<boolean>;
   /** Resolves true once main accepted the continue; false when main refused
    *  it (logged, nothing started). */
   continueSession: (sessionId: string) => Promise<boolean>;
@@ -14,9 +16,15 @@ interface TrackingCommands {
 }
 
 const commands: TrackingCommands = {
-  start: () => {
-    window.electronAPI.engine.start();
+  start: async () => {
+    try {
+      await window.electronAPI.engine.start();
+    } catch (err) {
+      console.error('[session] start refused:', err);
+      return false;
+    }
     window.electronAPI.overlay.show();
+    return true;
   },
 
   continueSession: async (sessionId) => {

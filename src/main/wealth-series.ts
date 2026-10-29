@@ -1,13 +1,12 @@
-import type {Logger} from './logger';
 import type {WealthHead} from './db';
 import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/domain/valuation';
 import {
   compactWealthPoint, parseWealthBreakdown, rawTypeLookup, wealthBreakdownRows, wealthValuer, WealthIdTable,
   type CompactWealthPoint, type WealthValuation,
 } from '@/domain/wealth';
-import type {DbItem, DbItemFilter, StoredWealthDatapoint} from '@/shared/contracts/db';
+import type {DbItem, StoredWealthDatapoint} from '@/shared/contracts/db';
 import type {WealthLatestBreakdown, WealthSeriesPoint} from '@/shared/contracts/wealth';
-import type {FilterRule} from '@/shared/item-filter';
+import type {FilterRule, ItemFilter} from '@/shared/item-filter';
 import {parseSettings} from '@/shared/settings';
 
 export interface WealthSeriesDeps {
@@ -20,9 +19,9 @@ export interface WealthSeriesDeps {
     latest(limit: number): StoredWealthDatapoint[];
   };
   items:    {getAll(): DbItem[]};
-  filters:  {getAll(): DbItemFilter[]};
+  /** The stored filters, rules decoded; throws for an unreadable row. */
+  filters:  {getAll(): ItemFilter[]};
   settings: {getAll(): Record<string, string>};
-  log:      Pick<Logger, 'warn'>;
 }
 
 const TAX_ON: TaxConfig = {enabled: true, rate: AUCTION_TAX_RATE};
@@ -38,8 +37,6 @@ const TAX_ON: TaxConfig = {enabled: true, rate: AUCTION_TAX_RATE};
 export class WealthSeries {
   private readonly _cache = new Map<number, CompactWealthPoint>();
   private _ids = new WealthIdTable();
-  /** The rules string last logged as unreadable — logged once, not per request. */
-  private _badRules: string | null = null;
 
   constructor(private readonly _deps: WealthSeriesDeps) {}
 
@@ -125,20 +122,9 @@ export class WealthSeries {
     };
   }
 
-  /** The enabled filter's rules; none (and a log line) when they don't parse. */
+  /** The enabled filter's rules; none without one. An unreadable stored
+   *  filter throws (db.ts) and fails the request. */
   private _activeRules(): FilterRule[] {
-    const active = this._deps.filters.getAll().find(f => f.enabled);
-    if (!active) return [];
-    try {
-      const rules: unknown = JSON.parse(active.rules);
-      if (Array.isArray(rules)) return rules as FilterRule[];
-    } catch {
-      // logged below
-    }
-    if (this._badRules !== active.rules) {
-      this._badRules = active.rules;
-      this._deps.log.warn('wealth', `Filter '${active.id}' has unreadable rules; wealth is shown unfiltered`);
-    }
-    return [];
+    return this._deps.filters.getAll().find(f => f.enabled)?.rules ?? [];
   }
 }

@@ -84,8 +84,8 @@ describe('db.ts on SqlConn', () => {
   });
 
   it('filtersSetEnabled leaves exactly one filter enabled', () => {
-    filtersInsert({id: 'f1', name: 'A', enabled: true,  rules: '[]'});
-    filtersInsert({id: 'f2', name: 'B', enabled: false, rules: '[]'});
+    filtersInsert({id: 'f1', name: 'A', enabled: true,  rules: []});
+    filtersInsert({id: 'f2', name: 'B', enabled: false, rules: []});
     filtersSetEnabled('f2', true);
     expect(filtersGetAll().map(f => [f.id, f.enabled])).toEqual([['f1', false], ['f2', true]]);
     filtersSetEnabled('f2', false);

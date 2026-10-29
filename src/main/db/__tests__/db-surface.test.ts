@@ -12,6 +12,7 @@ import {
   leaguesInsertUser, leaguesGetAll, leaguesSetStart,
 } from '@/main/db';
 import {openNodeSqlite} from '@/test/sql/node-sqlite';
+import type {FilterRule} from '@/shared/item-filter';
 
 beforeEach(() => {
   initDb(openNodeSqlite(), {backup: () => {}});
@@ -65,12 +66,14 @@ describe('db.ts surface', () => {
   });
 
   it('filters: insert, update, delete', () => {
-    filtersInsert({id: 'f1', name: 'A', enabled: false, rules: '[]'});
-    filtersInsert({id: 'f2', name: 'B', enabled: true,  rules: '[1]'});
-    filtersUpdate({id: 'f1', name: 'A2', enabled: true, rules: '[2]'});
+    const hide: FilterRule = {id: 'r1', action: 'hide', kind: {type: 'by-type', itemType: 'ember'}, scopes: ['session']};
+    const show: FilterRule = {id: 'r2', action: 'show', kind: {type: 'by-item', itemId: '100'}, scopes: ['map']};
+    filtersInsert({id: 'f1', name: 'A', enabled: false, rules: []});
+    filtersInsert({id: 'f2', name: 'B', enabled: true,  rules: [hide]});
+    filtersUpdate({id: 'f1', name: 'A2', enabled: true, rules: [show]});
     expect(filtersGetAll()).toEqual([
-      {id: 'f1', name: 'A2', enabled: true, rules: '[2]'},
-      {id: 'f2', name: 'B',  enabled: true, rules: '[1]'},
+      {id: 'f1', name: 'A2', enabled: true, rules: [show]},
+      {id: 'f2', name: 'B',  enabled: true, rules: [hide]},
     ]);
     filtersDelete('f1');
     expect(filtersGetAll().map(f => f.id)).toEqual(['f2']);

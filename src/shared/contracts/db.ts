@@ -104,13 +104,6 @@ export interface DbWealthDatapoint {
 /** A wealth_datapoints row as stored: read back, or just inserted. */
 export type StoredWealthDatapoint = DbWealthDatapoint & {id: number};
 
-export interface DbItemFilter {
-  id:      string;
-  name:    string;
-  enabled: boolean;
-  rules:   string; // JSON FilterRule[]
-}
-
 // ---------------------------------------------------------------------------
 // Price history
 // ---------------------------------------------------------------------------

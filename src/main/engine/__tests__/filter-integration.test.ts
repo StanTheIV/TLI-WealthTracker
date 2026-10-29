@@ -270,7 +270,7 @@ describe('filter-integration — live rule update', () => {
     expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(3);
   });
 
-  it('passing null to updateFilterRules disables all filtering', () => {
+  it('passing null to setFilterRules disables all filtering', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
 

@@ -3,9 +3,11 @@ import {MIGRATIONS, runMigrations, type MigrateOptions, type MigrationResult} fr
 import type {SqlConn} from './db/sql-conn';
 import type {League, LeagueSource} from '@/lib/leagues';
 import type {
-  DbItem, DbItemFilter, DbWealthDatapoint, StoredWealthDatapoint,
+  DbItem, DbWealthDatapoint, StoredWealthDatapoint,
   PriceBucket, PriceExportRow, PriceMover,
 } from '@/shared/contracts/db';
+import {describeErrorBrief} from '@/shared/describe-error';
+import {decodeFilterRules, type FilterRule, type ItemFilter} from '@/shared/item-filter';
 import {
   summarize, shouldSkipDuplicate, extractBackfillPoints, bucket, pickBucketMs,
   type BucketObservation,
@@ -193,19 +195,25 @@ export function wealthClear(): void {
 // Item filters
 // ---------------------------------------------------------------------------
 
-export function filtersGetAll(): DbItemFilter[] {
+// The one filter JSON site; rules cross every boundary typed. A stored row that
+// fails to decode is external corruption: reading it throws, naming the filter
+// (no silent fallback). A malformed write is rejected before anything is stored.
+
+export function filtersGetAll(): ItemFilter[] {
   const rows = db.prepare('SELECT id, name, enabled, rules FROM item_filters ORDER BY rowid').all() as {id: string; name: string; enabled: number; rules: string}[];
-  return rows.map(r => ({id: r.id, name: r.name, enabled: r.enabled === 1, rules: r.rules}));
+  return rows.map(r => ({id: r.id, name: r.name, enabled: r.enabled === 1, rules: decodeStoredRules(r.id, r.rules)}));
 }
 
-export function filtersInsert(filter: DbItemFilter): void {
+export function filtersInsert(filter: ItemFilter): void {
+  const rules = encodeRules(filter.rules);
   db.prepare('INSERT INTO item_filters (id, name, enabled, rules) VALUES (@id, @name, @enabled, @rules)')
-    .run({...filter, enabled: filter.enabled ? 1 : 0});
+    .run({id: filter.id, name: filter.name, enabled: filter.enabled ? 1 : 0, rules});
 }
 
-export function filtersUpdate(filter: DbItemFilter): void {
+export function filtersUpdate(filter: ItemFilter): void {
+  const rules = encodeRules(filter.rules);
   db.prepare('UPDATE item_filters SET name = @name, enabled = @enabled, rules = @rules WHERE id = @id')
-    .run({...filter, enabled: filter.enabled ? 1 : 0});
+    .run({id: filter.id, name: filter.name, enabled: filter.enabled ? 1 : 0, rules});
 }
 
 export function filtersDelete(id: string): void {
@@ -220,6 +228,19 @@ export function filtersSetEnabled(id: string, enabled: boolean): void {
       db.prepare('UPDATE item_filters SET enabled = 1 WHERE id = ?').run(id);
     }
   });
+}
+
+/** A rules write's JSON; throws (nothing is stored) for a malformed payload. */
+function encodeRules(rules: FilterRule[]): string {
+  return JSON.stringify(decodeFilterRules(rules));
+}
+
+function decodeStoredRules(filterId: string, json: string): FilterRule[] {
+  try {
+    return decodeFilterRules(JSON.parse(json));
+  } catch (err) {
+    throw new Error(`Filter ${filterId} has unreadable rules: ${describeErrorBrief(err)}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
