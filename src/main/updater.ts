@@ -151,12 +151,29 @@ export async function verifyInstaller(path: string, expected: ExpectedInstaller)
   }
 }
 
+/** The one download allowed at a time — every download writes the same temp file. */
+let inFlight: Promise<void> | null = null;
+
 /**
  * Streams the installer to the temp dir and verifies it. On success main
  * remembers the path for `launchInstallerAndQuit`; on any failure the file is
- * deleted and the error rethrown.
+ * deleted and the error rethrown. A call made while a download runs joins it
+ * (same promise, same outcome); its `onProgress` is ignored.
  */
-export async function downloadUpdate(
+export function downloadUpdate(
+  update: AvailableUpdate,
+  onProgress?: (pct: number) => void,
+): Promise<void> {
+  if (inFlight) {
+    log.info('update', 'Download already in progress — joining it');
+    return inFlight;
+  }
+  const run = streamAndVerify(update, onProgress).finally(() => { inFlight = null; });
+  inFlight = run;
+  return run;
+}
+
+async function streamAndVerify(
   update: AvailableUpdate,
   onProgress?: (pct: number) => void,
 ): Promise<void> {
