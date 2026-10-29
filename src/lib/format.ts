@@ -6,8 +6,10 @@
 
 const DASH = '—';
 
-const fe2 = new Intl.NumberFormat(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-const fe0 = new Intl.NumberFormat(undefined, {maximumFractionDigits: 0});
+// `signDisplay: 'negative'` (ECMA-402 NumberFormat v3): a minus sign only on a
+// value still negative after rounding — never on -0 or a rounded zero.
+const fe2 = new Intl.NumberFormat(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'negative'});
+const fe0 = new Intl.NumberFormat(undefined, {maximumFractionDigits: 0, signDisplay: 'negative'});
 const shortDateTime = new Intl.DateTimeFormat(undefined, {
   month: 'short', day: 'numeric',
   hour: '2-digit', minute: '2-digit',
@@ -24,12 +26,15 @@ export interface FormatFEOptions {
 
 /**
  * Full-precision FE amount (2 decimals, grouped): `1,234.50`. `null` → `"—"`.
- * Negative zero renders as `0.00` — a zero-priced spent row is not a loss.
+ * A value that rounds to zero (-0, float residue like -1e-13) renders as
+ * `0.00` / `+0.00`, never `-0.00` — a zero-priced spent row is not a loss.
  */
 export function formatFEFull(value: number | null, opts: FormatFEOptions = {}): string {
   if (value === null || (opts.zeroAsDash && value === 0)) return DASH;
-  const v    = value === 0 ? 0 : value; // -0 → 0
-  const text = `${opts.plus && v >= 0 ? '+' : ''}${fe2.format(v)}`;
+  const parts    = fe2.formatToParts(value);
+  const negative = parts.some((p) => p.type === 'minusSign');
+  const plus     = opts.plus && !negative && !Number.isNaN(value);
+  const text     = `${plus ? '+' : ''}${parts.map((p) => p.value).join('')}`;
   return opts.unit ? `${text} FE` : text;
 }
 
@@ -48,7 +53,8 @@ export function formatElapsed(ms: number): string {
   return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 }
 
-/** Short date + time of a timestamp (ms): `Mar 5, 02:07 PM` in en-US. */
+/** Short date + time of a timestamp (ms): `Mar 5, 02:07 PM` in en-US; an invalid timestamp → `"—"`. */
 export function formatDateTime(ts: number): string {
-  return shortDateTime.format(new Date(ts));
+  const date = new Date(ts);
+  return Number.isNaN(date.getTime()) ? DASH : shortDateTime.format(date);
 }

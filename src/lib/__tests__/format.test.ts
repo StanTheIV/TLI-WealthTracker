@@ -42,9 +42,9 @@ describe('formatFEFull', () => {
     expect(formatFEFull(1234.567)).toBe('1,234.57');
   });
 
-  it('renders negatives with a leading minus, and -0 as plain zero', () => {
+  it('renders negatives with a leading minus, and -0 or a rounded zero as plain zero', () => {
     expect(formatFEFull(-1234.5)).toBe('-1,234.50');
-    expect(formatFEFull(-0.001)).toBe('-0.00');
+    expect(formatFEFull(-0.001)).toBe('0.00');
     expect(formatFEFull(-0)).toBe('0.00');
   });
 
