@@ -15,6 +15,7 @@ import type {EngineEnvelope as Envelope, EngineEvent} from '@/shared/contracts/e
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {engineEnvelopes, type Sent} from '@/test/broadcast';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const TORCHLIGHT = 'C:/Games/Torchlight Infinite';
 const NOW        = new Date('2026-03-01T12:00:00Z').getTime();
@@ -48,7 +49,8 @@ function build(opts: {insertIfMissing?: (id: string) => boolean} = {}) {
     settings:       {getAll: () => ({torchlightPath: TORCHLIGHT})},
     filters:        {getAll: () => []},
     items,
-    wealthRecorder: {snapshot: vi.fn()},
+    wealthRecorder: fakeWealthRecorder(),
+    wealthSeries:   fakeWealthSeries(),
     log:            {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()},
   });
   return {service, sent, engines, engineEmitted, items, raw: (r: RawEvent) => onEvent!(r)};

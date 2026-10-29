@@ -13,6 +13,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {SqlConn} from '@/main/db/sql-conn';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const activeIdOf = (s: TrackingService): string => s.getActiveSessionId()!;
 
@@ -157,7 +158,8 @@ describe('closeCrashedSessions after an abandoned TrackingService run', () => {
       settings:       {getAll: () => ({torchlightPath: 'C:/Games/TLI'})},
       filters:        {getAll: () => []},
       items:          {getAll: () => [], getLocked: () => false, insertIfMissing: () => false, recordScrapedPrice: () => ({priceDate: null})},
-      wealthRecorder: {snapshot: noop},
+      wealthRecorder: fakeWealthRecorder(),
+      wealthSeries:   fakeWealthSeries(),
       log:            {debug: noop, info: noop, warn: noop, error: noop},
     });
     const raw = (e: RawEvent) => onEvent(e);

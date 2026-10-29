@@ -13,6 +13,7 @@ import type {
 } from './db';
 import type {EngineEnvelope, EngineSnapshot} from './engine';
 import type {League} from './leagues';
+import type {WealthLatestBreakdown, WealthSeriesPoint} from './wealth';
 
 export interface UpdateInfo {
   version:     string;
@@ -97,8 +98,16 @@ export interface ElectronAPI {
     wealth: {
       getRange:  (from: number, to: number) => Promise<DbWealthDatapoint[]>;
       getLatest: (limit: number) => Promise<DbWealthDatapoint[]>;
+      /** The readings in [from, to] as displayed (valued in main), timestamp order. */
+      series:    (from: number, to: number) => Promise<WealthSeriesPoint[]>;
+      /** The latest reading with its Item Breakdown rows; null with none. */
+      latestBreakdown: () => Promise<WealthLatestBreakdown | null>;
       delete:    (id: number) => Promise<void>;
       clear:     () => Promise<void>;
+      /** The displayed values changed without a new reading (filter, item
+       *  type, tax setting, delete, clear): re-fetch. A new reading arrives as
+       *  `wealth_recorded` instead. */
+      onChanged: (cb: () => void) => () => void;
     };
     filters: {
       getAll:     () => Promise<DbItemFilter[]>;

@@ -6,7 +6,7 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import {
   initDb, getDb, itemsCount, itemsGetAll, itemsImportBatch, itemsSetName, itemsSetType, itemsSetPrice,
   itemsSetLocked, itemsGetLocked, getLookupCountToday, recordLookup,
-  wealthInsert, wealthGetRange, wealthGetLatest, wealthDelete,
+  wealthInsert, wealthGetRange, wealthGetRangeHeads, wealthGetLatest, wealthDelete, wealthClear,
   filtersInsert, filtersUpdate, filtersDelete, filtersGetAll,
   priceRecord, pricesHistory, pricesMovers, pricesExport,
   leaguesInsertUser, leaguesGetAll, leaguesSetStart,
@@ -51,6 +51,17 @@ describe('db.ts surface', () => {
     expect(typeof id).toBe('number');
     wealthDelete(id);
     expect(wealthGetRange(0, 100).map(p => p.timestamp)).toEqual([10, 30, 40]);
+  });
+
+  it('wealth: insert returns the new id, never reused after a clear; heads are the range without breakdowns', () => {
+    const a = wealthInsert({timestamp: 20, value: 2, breakdown: '{"100":{}}'});
+    const b = wealthInsert({timestamp: 10, value: 1, breakdown: '{}'});
+    expect(b).toBe(a + 1);
+    expect(wealthGetRange(0, 100).map(p => p.id)).toEqual([b, a]);
+    expect(wealthGetRangeHeads(0, 100)).toEqual([{id: b, timestamp: 10, value: 1}, {id: a, timestamp: 20, value: 2}]);
+    expect(wealthGetRangeHeads(15, 20)).toEqual([{id: a, timestamp: 20, value: 2}]);
+    wealthClear();
+    expect(wealthInsert({timestamp: 5, value: 0, breakdown: '{}'})).toBe(b + 1);
   });
 
   it('filters: insert, update, delete', () => {

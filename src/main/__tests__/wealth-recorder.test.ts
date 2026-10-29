@@ -22,7 +22,7 @@ interface Harness {
 function build(items: DbItem[]): Harness {
   const inserted: DbWealthDatapoint[] = [];
   const log = {debug: vi.fn()};
-  const recorder = new WealthRecorder({items: {getAll: () => items}, insert: p => { inserted.push(p); }, log});
+  const recorder = new WealthRecorder({items: {getAll: () => items}, insert: p => inserted.push(p) + 40, log});
   return {recorder, inserted, log};
 }
 
@@ -85,6 +85,16 @@ describe('WealthRecorder', () => {
     h.recorder.snapshot(inventory([[100, 1]]));
 
     expect(h.inserted.map(p => Object.keys(p).sort())).toEqual([['breakdown', 'timestamp', 'value'], ['breakdown', 'timestamp', 'value']]);
+  });
+
+  it('returns the inserted row with the id the insert reported', () => {
+    const h = build([item('100', 2)]);
+    const first  = h.recorder.snapshot(inventory([[100, 3]]));
+    const second = h.recorder.snapshot(inventory([[100, 1]]));
+
+    expect(first).toEqual({id: 41, ...h.inserted[0]});
+    expect(second).toEqual({id: 42, ...h.inserted[1]});
+    expect(first).toMatchObject({timestamp: NOW, value: 6});
   });
 
   it('an empty bag records a zero point', () => {

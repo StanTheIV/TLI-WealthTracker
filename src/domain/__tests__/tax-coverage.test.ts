@@ -51,6 +51,8 @@ const MUST_IMPORT_TAX = VALUATION_SITES.filter(f => ![
 const WEALTH_READERS = [
   'components/Dashboard/ItemBreakdown.tsx',
   'domain/wealth/valuation.ts',
+  // Values the displayed series and breakdown (through domain/wealth) and picks the tax config.
+  'main/wealth-series.ts',
   'state/wealthStore.ts',
 ];
 

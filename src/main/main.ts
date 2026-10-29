@@ -3,7 +3,7 @@ import {join} from 'path';
 import {existsSync, readFileSync} from 'fs';
 import {
   initDb, itemsCount, itemsImportBatch, itemsGetAll, itemsGetLocked, itemsInsertIfMissing, priceRecord,
-  filtersGetAll, settingsGetAll, settingsSet, wealthInsert,
+  filtersGetAll, settingsGetAll, settingsSet, wealthInsert, wealthGetRange, wealthGetRangeHeads, wealthGetLatest,
 } from './db';
 import {backupDb} from './db/backup';
 import {openBetterSqlite3} from './db/drivers/better-sqlite3';
@@ -25,6 +25,7 @@ import {closeCrashedSessions} from './session-recovery';
 import {createEngine} from './engine/create-engine';
 import {WorkerProcess} from './worker-process';
 import {WealthRecorder} from './wealth-recorder';
+import {WealthSeries} from './wealth-series';
 import {LOG_FILENAME, LOG_SUBPATH} from '@/shared/paths';
 
 const DEV = !app.isPackaged;
@@ -259,6 +260,13 @@ app.whenReady().then(() => {
   closeCrashedSessions(sessions, log);
   initLeaguesAndPriceHistory(broadcast);
 
+  const wealthSeries = new WealthSeries({
+    points:   {heads: wealthGetRangeHeads, range: wealthGetRange, latest: wealthGetLatest},
+    items:    {getAll: itemsGetAll},
+    filters:  {getAll: filtersGetAll},
+    settings: {getAll: settingsGetAll},
+    log,
+  });
   const tracking = new TrackingService({
     createEngine,
     store:          sessions,
@@ -273,6 +281,7 @@ app.whenReady().then(() => {
       recordScrapedPrice: (id, price, listings, opts) => priceRecord(id, 'scrape', price, listings, opts),
     },
     wealthRecorder: new WealthRecorder({items: {getAll: itemsGetAll}, insert: wealthInsert, log}),
+    wealthSeries,
     log,
   });
 
@@ -281,6 +290,7 @@ app.whenReady().then(() => {
     onItemTypeChanged: (id, type) => tracking.setItemType(id, type),
     sessions,
     tracking,
+    wealthSeries,
   });
   registerOverlayHandlers(
     () => trackerWindow,

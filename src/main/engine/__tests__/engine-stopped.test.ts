@@ -19,6 +19,7 @@ import {
   ARCANA_FIGHT, MAP, TEST_IDENTITY, TOWN, boot, createDispatcher, createEngine,
 } from './seasonal-fixtures';
 import {INV, rig} from './interlude-fixtures';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const STOPPED = 'engine_stopped';
 const TORCHLIGHT = 'C:/Games/Torchlight Infinite';
@@ -197,7 +198,8 @@ function build() {
       insertIfMissing:    () => true,
       recordScrapedPrice: () => ({priceDate: NOW}),
     },
-    wealthRecorder: {snapshot: vi.fn()},
+    wealthRecorder: fakeWealthRecorder(),
+    wealthSeries:   fakeWealthSeries(),
     log:            {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()},
   });
   const raw = (event: RawEvent) => {

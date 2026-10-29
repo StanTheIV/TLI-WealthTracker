@@ -12,19 +12,24 @@ import type {DbItem} from '@/shared/contracts/db';
 import type {SqliteSessionStore} from '@/main/db/session-store';
 import type {Broadcast} from '@/main/broadcast';
 import type {TrackingService} from '@/main/tracking-service';
+import type {WealthSeries} from '@/main/wealth-series';
 
 interface RegisterDeps {
-  /** Fan-out to both renderer windows (items:changed, leagues:changed). */
+  /** Fan-out to both renderer windows (items:changed, leagues:changed, wealth:changed). */
   broadcast:        Broadcast;
   sessions:         SqliteSessionStore;
   /** The tracking run — guards writes that would pull the live session out from under it. */
   tracking:         Pick<TrackingService, 'deleteSession' | 'isTracking'>;
+  /** The displayed wealth; told when readings are deleted. */
+  wealthSeries:     Pick<WealthSeries, 'series' | 'latestBreakdown' | 'forget' | 'invalidate'>;
   /** Notify the engine that an item's type changed so its filter cache stays in sync. */
   onItemTypeChanged?: (id: string, type: string) => void;
 }
 
 export function registerDbHandlers(deps: RegisterDeps): void {
-  const {broadcast} = deps;
+  const {broadcast, wealthSeries} = deps;
+  /** The displayed wealth changed without a new reading: every window re-fetches it. */
+  const wealthChanged = () => broadcast('wealth:changed');
   ipcMain.handle('db:items:get-all',     ()               => itemsGetAll());
   ipcMain.handle('db:items:set-name',    (_e, id: string, name: string)   => {
     itemsSetName(id, name);
@@ -34,6 +39,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
     itemsSetType(id, type);
     broadcast('items:changed', {id, changes: {type}});
     deps.onItemTypeChanged?.(id, type);
+    wealthChanged();
   });
   ipcMain.handle('db:items:set-price',   (_e, id: string, price: number)  => {
     const {priceDate} = priceRecord(id, 'manual', price, undefined, {updateItem: true});
@@ -59,6 +65,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
         deps.onItemTypeChanged?.(id, result.type);
       }
       if (Object.keys(changes).length > 0) broadcast('items:changed', {id, changes});
+      if (changes.type) wealthChanged();
     }
     return result;
   });
@@ -70,6 +77,8 @@ export function registerDbHandlers(deps: RegisterDeps): void {
       if (!insertedIds.has(item.id)) continue;
       broadcast('items:changed', {id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
     }
+    // A new row gives a type to an id stored readings knew only as 'other'.
+    if (insertedIds.size > 0) wealthChanged();
     return insertedIds.size;
   });
 
@@ -100,20 +109,29 @@ export function registerDbHandlers(deps: RegisterDeps): void {
 
   ipcMain.handle('db:wealth:get-range',  (_e, from, to)   => wealthGetRange(from, to));
   ipcMain.handle('db:wealth:get-latest', (_e, limit)      => wealthGetLatest(limit));
-  ipcMain.handle('db:wealth:delete',     (_e, id)         => wealthDelete(id));
+  ipcMain.handle('db:wealth:series',     (_e, from: number, to: number) => wealthSeries.series(from, to));
+  ipcMain.handle('db:wealth:latest-breakdown', ()         => wealthSeries.latestBreakdown());
+  ipcMain.handle('db:wealth:delete',     (_e, id: number) => {
+    wealthDelete(id);
+    wealthSeries.forget(id);
+    wealthChanged();
+  });
   ipcMain.handle('db:wealth:clear',      ()               => {
     // Clearing all history would delete the live session under the run.
     if (tracking.isTracking()) throw new Error('Cannot clear all data while tracking');
     wealthClear();
+    wealthSeries.invalidate();
+    wealthChanged();
   });
 
   ipcMain.handle('db:lookups:get-today', ()               => getLookupCountToday());
 
   ipcMain.handle('db:filters:get-all',    ()                        => filtersGetAll());
-  ipcMain.handle('db:filters:insert',     (_e, filter)              => filtersInsert(filter));
-  ipcMain.handle('db:filters:update',     (_e, filter)              => filtersUpdate(filter));
-  ipcMain.handle('db:filters:delete',     (_e, id: string)          => filtersDelete(id));
-  ipcMain.handle('db:filters:set-enabled',(_e, id: string, enabled: boolean) => filtersSetEnabled(id, enabled));
+  // Any filter write may change the active filter's wealth rules.
+  ipcMain.handle('db:filters:insert',     (_e, filter)              => { filtersInsert(filter); wealthChanged(); });
+  ipcMain.handle('db:filters:update',     (_e, filter)              => { filtersUpdate(filter); wealthChanged(); });
+  ipcMain.handle('db:filters:delete',     (_e, id: string)          => { filtersDelete(id); wealthChanged(); });
+  ipcMain.handle('db:filters:set-enabled',(_e, id: string, enabled: boolean) => { filtersSetEnabled(id, enabled); wealthChanged(); });
 
   log.debug('ipc', 'DB handlers registered');
 }

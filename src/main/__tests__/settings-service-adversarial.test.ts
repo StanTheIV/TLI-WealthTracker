@@ -16,6 +16,7 @@ import {LOG_SUBPATH} from '@/shared/paths';
 import {parseSettings, type Settings} from '@/shared/settings';
 import {MAP, TOWN, createDispatcher, log} from '@/main/engine/__tests__/seasonal-fixtures';
 import type {RawEvent} from '@/worker/processors/types';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 interface Sent {channel: string; payload: unknown}
 
@@ -215,7 +216,8 @@ function e2e(initial: Record<string, string> = {torchlightPath: TORCHLIGHT}) {
       getAll: () => [], getLocked: () => false, insertIfMissing: () => true,
       recordScrapedPrice: () => ({priceDate: Date.now()}),
     } as unknown as TrackingDeps['items'],
-    wealthRecorder: {snapshot: noop},
+    wealthRecorder: fakeWealthRecorder(),
+    wealthSeries:   fakeWealthSeries(),
     log:            {debug: noop, info: noop, warn: noop, error: noop},
   });
   const reloadConfig = vi.fn();
@@ -326,7 +328,9 @@ describe('settings -> real tracking service (end to end)', () => {
     }
     expect(configure).not.toHaveBeenCalled();
     expect(r.reloadConfig).toHaveBeenCalledTimes(1);
-    expect(r.settingsBroadcasts).toHaveLength(2 + 10);
+    expect(r.settingsBroadcasts.filter(s => s.channel === 'settings:changed')).toHaveLength(2 + 10);
+    // auctionTaxEnabled also re-values the displayed wealth
+    expect(r.settingsBroadcasts.filter(s => s.channel !== 'settings:changed')).toEqual([{channel: 'wealth:changed', payload: undefined}]);
   });
 
   it('an invalid engine value written while tracking falls back to the default window, not zero', () => {

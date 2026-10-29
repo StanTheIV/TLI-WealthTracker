@@ -9,7 +9,7 @@ import type {EngineEnvelope, WireEngineEvent} from '@/shared/contracts/engine';
 import type {DbWealthDatapoint} from '@/shared/contracts/db';
 
 const row = (id: number, value: number): DbWealthDatapoint => ({id, timestamp: id, value, breakdown: '{}'});
-const recorded: WireEngineEvent = {type: 'wealth_recorded', timestamp: 1};
+const recorded: WireEngineEvent = {type: 'wealth_recorded', timestamp: 1, point: {id: 1, ts: 1, value: 0}};
 const other:    WireEngineEvent[] = [
   {type: 'init_started'},
   {type: 'drop', itemId: 1, change: 1, timestamp: 1},

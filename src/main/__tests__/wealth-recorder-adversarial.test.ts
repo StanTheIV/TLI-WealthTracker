@@ -17,6 +17,7 @@ import {unwrapEngineEvent} from '@/test/broadcast';
 import type {FilterRule} from '@/shared/item-filter';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
+import {fakeWealthSeries} from '@/test/wealth';
 
 const TORCHLIGHT = 'C:/Games/Torchlight Infinite';
 const NOW        = new Date('2026-03-01T12:00:00Z').getTime();
@@ -61,7 +62,8 @@ function build(): Harness {
     settings:       {getAll: () => ({torchlightPath: TORCHLIGHT})},
     filters:        {getAll: () => filters},
     items:          itemsDep,
-    wealthRecorder: new WealthRecorder({items: itemsDep, insert: p => { points.push(p); }, log}),
+    wealthRecorder: new WealthRecorder({items: itemsDep, insert: p => points.push(p), log}),
+    wealthSeries:   fakeWealthSeries(),
     log,
   });
   return {service, store, points, items, sent, raw: e => onEvent!(e)};

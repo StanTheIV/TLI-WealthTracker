@@ -19,6 +19,7 @@ import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {engineEnvelopes, type Sent} from '@/test/broadcast';
 import {TOWN, MAP, log} from '@/main/engine/__tests__/seasonal-fixtures';
 import {createDispatcher} from '@/worker/create-dispatcher';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const NOW  = new Date('2026-03-01T12:00:00Z').getTime();
 const BAG  = 100;
@@ -42,7 +43,8 @@ function build() {
       getAll: () => [], getLocked: () => false, insertIfMissing: () => true,
       recordScrapedPrice: () => ({priceDate: NOW}),
     } as unknown as TrackingDeps['items'],
-    wealthRecorder: {snapshot: vi.fn()},
+    wealthRecorder: fakeWealthRecorder(),
+    wealthSeries:   fakeWealthSeries(),
     log:            {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()},
   });
   return {service, sent, broadcastHooks, raw: (r: RawEvent) => onEvent!(r)};

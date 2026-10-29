@@ -101,6 +101,9 @@ export interface DbWealthDatapoint {
   breakdown: string; // JSON: Record<itemId, {qty: number; price: number; total: number}>
 }
 
+/** A wealth_datapoints row as stored: read back, or just inserted. */
+export type StoredWealthDatapoint = DbWealthDatapoint & {id: number};
+
 export interface DbItemFilter {
   id:      string;
   name:    string;

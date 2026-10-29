@@ -10,6 +10,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import {engineEvents, type Sent} from '@/test/broadcast';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const NOW = new Date('2026-03-01T12:00:00Z').getTime();
 
@@ -29,7 +30,8 @@ function build() {
       getAll: () => [], getLocked: () => false, insertIfMissing: () => true,
       recordScrapedPrice: () => ({priceDate: NOW}),
     },
-    wealthRecorder: {snapshot: noop},
+    wealthRecorder: fakeWealthRecorder(),
+    wealthSeries:   fakeWealthSeries(),
     log: {debug: noop, info: noop, warn: noop, error: noop},
   };
   const service = new TrackingService(deps);

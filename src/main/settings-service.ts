@@ -1,14 +1,14 @@
 /**
  * The one write path for renderer settings: persist → side effect (engine key
  * → reconfigure, `logging.*` → reload the logger) → broadcast the parsed table
- * so both windows replace their state. A failing persist throws before any of
+ * so both windows replace their state (then `wealth:changed` for the tax key). A failing persist throws before any of
  * it. Once persisted the write is committed: a failing side effect is logged
  * and the broadcast still goes out. Main-only keys (window geometry,
  * `last_seen_version`, …) bypass it.
  */
 import type {Broadcast} from './broadcast';
 import type {Logger} from './logger';
-import {ENGINE_SETTING_KEYS, parseSettings} from '@/shared/settings';
+import {ENGINE_SETTING_KEYS, SETTING_KEYS, parseSettings} from '@/shared/settings';
 
 export interface SettingsServiceDeps {
   /** The raw settings table. */
@@ -39,5 +39,7 @@ export class SettingsService {
       log.error('app', `Applying setting '${key}' failed: ${err}`);
     }
     broadcast('settings:changed', parseSettings(store.getAll()));
+    // Main values the displayed wealth with the tax: every window must re-fetch it.
+    if (key === SETTING_KEYS.auctionTaxEnabled) broadcast('wealth:changed');
   }
 }

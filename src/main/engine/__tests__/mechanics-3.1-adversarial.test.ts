@@ -27,6 +27,7 @@ import {
   boot, createDispatcher, createEngine, ctx, feed, log,
 } from './seasonal-fixtures';
 import {LOOT, rig, type Rig} from './interlude-fixtures';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
@@ -232,7 +233,8 @@ function service(settings: Record<string, string>) {
       getAll: () => [], getLocked: () => false, insertIfMissing: () => true,
       recordScrapedPrice: () => ({priceDate: Date.now()}),
     } as unknown as TrackingDeps['items'],
-    wealthRecorder: {snapshot: noop},
+    wealthRecorder: fakeWealthRecorder(),
+    wealthSeries:   fakeWealthSeries(),
     log:            {debug: noop, info: noop, warn: noop, error: noop},
   });
   const d = createDispatcher();

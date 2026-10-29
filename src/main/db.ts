@@ -3,7 +3,7 @@ import {MIGRATIONS, runMigrations, type MigrateOptions, type MigrationResult} fr
 import type {SqlConn} from './db/sql-conn';
 import type {League, LeagueSource} from '@/lib/leagues';
 import type {
-  DbItem, DbItemFilter, DbWealthDatapoint,
+  DbItem, DbItemFilter, DbWealthDatapoint, StoredWealthDatapoint,
   PriceBucket, PriceExportRow, PriceMover,
 } from '@/shared/contracts/db';
 import {
@@ -141,22 +141,33 @@ export function recordLookup(itemId: string): void {
 
 type WealthRow = {id: number; timestamp: number; value: number; breakdown: string};
 
-function rowToDatapoint(r: WealthRow): DbWealthDatapoint {
+/** A stored reading without its breakdown. */
+export type WealthHead = Omit<StoredWealthDatapoint, 'breakdown'>;
+
+function rowToDatapoint(r: WealthRow): StoredWealthDatapoint {
   return {id: r.id, timestamp: r.timestamp, value: r.value, breakdown: r.breakdown};
 }
 
-export function wealthInsert(point: DbWealthDatapoint): void {
-  db.prepare('INSERT INTO wealth_datapoints (timestamp, value, breakdown) VALUES (@timestamp, @value, @breakdown)')
-    .run({timestamp: point.timestamp, value: point.value, breakdown: point.breakdown});
+/** Returns the new row's id (AUTOINCREMENT: never reused, not even after a clear). */
+export function wealthInsert(point: DbWealthDatapoint): number {
+  return db.prepare('INSERT INTO wealth_datapoints (timestamp, value, breakdown) VALUES (@timestamp, @value, @breakdown)')
+    .run({timestamp: point.timestamp, value: point.value, breakdown: point.breakdown}).lastInsertRowid;
 }
 
-export function wealthGetRange(from: number, to: number): DbWealthDatapoint[] {
+export function wealthGetRange(from: number, to: number): StoredWealthDatapoint[] {
   const rows = db.prepare('SELECT id, timestamp, value, breakdown FROM wealth_datapoints WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp')
     .all(from, to) as WealthRow[];
   return rows.map(rowToDatapoint);
 }
 
-export function wealthGetLatest(limit: number): DbWealthDatapoint[] {
+/** `wealthGetRange` without the breakdown column (KBs per row). */
+export function wealthGetRangeHeads(from: number, to: number): WealthHead[] {
+  const rows = db.prepare('SELECT id, timestamp, value FROM wealth_datapoints WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp, id')
+    .all(from, to) as Omit<WealthRow, 'breakdown'>[];
+  return rows.map(r => ({id: r.id, timestamp: r.timestamp, value: r.value}));
+}
+
+export function wealthGetLatest(limit: number): StoredWealthDatapoint[] {
   const rows = db.prepare('SELECT id, timestamp, value, breakdown FROM wealth_datapoints ORDER BY timestamp DESC LIMIT ?')
     .all(limit) as WealthRow[];
   return rows.map(rowToDatapoint).reverse();

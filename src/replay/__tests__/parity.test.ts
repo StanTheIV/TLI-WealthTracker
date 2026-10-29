@@ -17,6 +17,7 @@ import {GOLDEN_ITEMS} from '@/test/golden/items';
 import {SYNTHETIC_FIXTURES} from '@/test/golden/synthetic';
 import {readFileSync} from 'fs';
 import {join} from 'path';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const T0 = Date.UTC(2026, 9, 25, 12, 0, 0, 0);
 const SETTLE = 60_000;
@@ -65,7 +66,8 @@ async function viaService(lines: LogLine[], controls: ControlOp[]): Promise<Save
       insertIfMissing: () => false,
       recordScrapedPrice: () => ({priceDate: null}),
     },
-    wealthRecorder: {snapshot: () => {}},
+    wealthRecorder: fakeWealthRecorder(),
+    wealthSeries:   fakeWealthSeries(),
     log: {debug: () => {}, info: () => {}, warn: () => {}, error: () => {}},
   });
   vi.useFakeTimers({now: lines[0].ts - 1});

@@ -16,6 +16,7 @@ import {engineEvents, unwrapEngineEvent, type Sent} from '@/test/broadcast';
 import {LOG_SUBPATH} from '@/shared/paths';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP, SANDLORD_HUB} from '@/main/engine/__tests__/seasonal-fixtures';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const TORCHLIGHT = 'C:/Games/Torchlight Infinite';
 const LOG_PATH   = `${TORCHLIGHT}/${LOG_SUBPATH}`;
@@ -40,7 +41,7 @@ interface Harness {
   };
   settings: Record<string, string>;
   filters:  DbItemFilter[];
-  wealth:   {snapshot: Mock<(engine: Engine) => void>};
+  wealth:   ReturnType<typeof fakeWealthRecorder>;
   log:      {debug: Mock; info: Mock; warn: Mock; error: Mock};
   engines:  Engine[];
 }
@@ -59,7 +60,7 @@ function build(opts: {broadcast?: (sent: Sent[], h: () => Harness) => Broadcast}
   };
   const settings = {torchlightPath: TORCHLIGHT} as Record<string, string>;
   const filters: DbItemFilter[] = [];
-  const wealth  = {snapshot: vi.fn<(engine: Engine) => void>()};
+  const wealth  = fakeWealthRecorder();
   const log     = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
   const createWorker = vi.fn((cb: (raw: RawEvent) => void): LogWorker => { onEvent = cb; return worker; });
   let self: Harness;
@@ -70,7 +71,7 @@ function build(opts: {broadcast?: (sent: Sent[], h: () => Harness) => Broadcast}
     store, broadcast, createWorker,
     settings:       {getAll: () => settings},
     filters:        {getAll: () => filters},
-    items, wealthRecorder: wealth, log,
+    items, wealthRecorder: wealth, wealthSeries: fakeWealthSeries(), log,
   });
   const raw = (event: RawEvent) => { onEvent!(event); };
   self = {service, store, sent, worker, createWorker, raw, items, settings, filters, wealth, log, engines};

@@ -16,6 +16,7 @@ import {engineEnvelopes, engineEvents, type Sent} from '@/test/broadcast';
 import {TOWN, MAP, log} from '@/main/engine/__tests__/seasonal-fixtures';
 import {createDispatcher} from '@/worker/create-dispatcher';
 import {useEngineStore} from '@/state/engineStore';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const NOW  = new Date('2026-03-01T12:00:00Z').getTime();
 const BAG  = 100;
@@ -28,7 +29,7 @@ function build(mode: Mode = 'record') {
   const sent: Sent[] = [];
   const engines: Engine[] = [];
   const emitted: EngineEvent[] = [];
-  const snapshots = vi.fn();
+  const snapshots = fakeWealthRecorder().snapshot;
   const recordScrapedPrice = vi.fn(() => ({priceDate: NOW}));
   let onEvent: ((raw: RawEvent) => void) | null = null;
   const broadcast: Broadcast = (channel, payload) => {
@@ -57,6 +58,7 @@ function build(mode: Mode = 'record') {
       getAll: () => [], getLocked: () => false, insertIfMissing: () => true, recordScrapedPrice,
     } as unknown as TrackingDeps['items'],
     wealthRecorder: {snapshot: snapshots},
+    wealthSeries:   fakeWealthSeries(),
     log: {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()},
   });
   return {service, store, sent, engines, emitted, snapshots, recordScrapedPrice, raw: (r: RawEvent) => onEvent!(r)};
@@ -186,7 +188,10 @@ describe('whole lifecycle', () => {
   it('the wealth recorder still sees the full state after each _send', () => {
     const h = build();
     const seen: boolean[] = [];
-    h.snapshots.mockImplementation((eng: Engine) => { seen.push(eng.getState().some(e => deepHas(e, 'dropsBySource'))); });
+    h.snapshots.mockImplementation((eng: Engine) => {
+      seen.push(eng.getState().some(e => deepHas(e, 'dropsBySource')));
+      return {id: seen.length, timestamp: Date.now(), value: 0, breakdown: '{}'};
+    });
     bootRun(h);
     segment(h, () => undefined);
     h.service.stop();

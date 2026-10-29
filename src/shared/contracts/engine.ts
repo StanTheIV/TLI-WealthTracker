@@ -1,4 +1,5 @@
 import type {SeasonalType} from '../mechanics';
+import type {WealthSeriesPoint} from './wealth';
 
 /** One member per MECHANICS row. */
 export type {SeasonalType};
@@ -122,7 +123,8 @@ export type EngineEvent =
   | {type: 'engine_stopped';   timestamp: number}
   /** After every session write; `deleted`: the write removed it (an empty run at Stop, or Reset). */
   | {type: 'session_saved';    sessionId: string; deleted?: true}
-  | {type: 'wealth_recorded';  timestamp: number}
+  /** A wealth reading was stored; `point` is that reading as displayed. */
+  | {type: 'wealth_recorded';  timestamp: number; point: WealthSeriesPoint}
   | {type: 'map_material_warning'; items: Array<{itemId: number; quantity: number}>; timestamp: number}
   | {type: 'loot_window_started'; seasonalType: TrackerSnapshot['seasonalType']; deadline: number; timestamp: number}
   | {type: 'loot_window_ended';   seasonalType: TrackerSnapshot['seasonalType']; timestamp: number}

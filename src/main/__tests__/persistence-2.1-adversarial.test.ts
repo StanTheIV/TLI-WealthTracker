@@ -25,6 +25,7 @@ import {
   SANDLORD_HUB, Script, TOWN, TOWN_LEVEL,
 } from '@/test/golden/synthetic';
 import {TOWN as ETOWN, MAP as EMAP} from '@/main/engine/__tests__/seasonal-fixtures';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const NOW = new Date('2026-03-01T12:00:00Z').getTime();
 const BAG = 100;            // consumed as entry cost
@@ -58,7 +59,8 @@ function build(opts: {onBroadcast?: (e: EngineEvent) => void; prices?: Record<nu
       getAll: () => Object.entries(prices).map(([id, price]): DbItem => ({id, name: id, type: 'other', price, priceDate: 0})),
       getLocked: () => false, insertIfMissing: () => true, recordScrapedPrice: () => ({priceDate: NOW}),
     },
-    wealthRecorder: {snapshot: vi.fn()},
+    wealthRecorder: fakeWealthRecorder(),
+    wealthSeries:   fakeWealthSeries(),
     log,
   });
   let bag = 5;

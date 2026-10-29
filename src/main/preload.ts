@@ -95,8 +95,15 @@ const api = {
     wealth: {
       getRange:  (from: number, to: number)  => ipcRenderer.invoke('db:wealth:get-range', from, to),
       getLatest: (limit: number)             => ipcRenderer.invoke('db:wealth:get-latest', limit),
+      series:    (from: number, to: number)  => ipcRenderer.invoke('db:wealth:series', from, to),
+      latestBreakdown: ()                    => ipcRenderer.invoke('db:wealth:latest-breakdown'),
       delete:    (id: number)                => ipcRenderer.invoke('db:wealth:delete', id),
       clear:     ()                          => ipcRenderer.invoke('db:wealth:clear'),
+      onChanged: (cb: () => void) => {
+        const wrapped = () => cb();
+        ipcRenderer.on('wealth:changed', wrapped);
+        return () => ipcRenderer.removeListener('wealth:changed', wrapped);
+      },
     },
     filters: {
       getAll:     ()                                  => ipcRenderer.invoke('db:filters:get-all'),

@@ -19,6 +19,7 @@ import {parseSettings} from '@/shared/settings';
 import type {SqlConn} from '@/main/db/sql-conn';
 import {openMigratedNodeSqlite} from '@/test/sql/fresh-db';
 import {TOWN, MAP} from '@/main/engine/__tests__/seasonal-fixtures';
+import {fakeWealthRecorder, fakeWealthSeries} from '@/test/wealth';
 
 const TORCHLIGHT = 'C:/Games/Torchlight Infinite';
 const LOG_PATH   = `${TORCHLIGHT}/${LOG_SUBPATH}`;
@@ -46,7 +47,7 @@ interface Harness {
   };
   settings: Record<string, string>;
   filters:  DbItemFilter[];
-  wealth:   {snapshot: Mock<(engine: Engine) => void>};
+  wealth:   ReturnType<typeof fakeWealthRecorder>;
   log:      {debug: Mock; info: Mock; warn: Mock; error: Mock};
   /** Every engine the service created, in order. */
   engines:  Engine[];
@@ -67,7 +68,7 @@ function build(opts: {settings?: Record<string, string>; broadcast?: (sent: Sent
   };
   const settings = opts.settings ?? {torchlightPath: TORCHLIGHT};
   const filters: DbItemFilter[] = [];
-  const wealth  = {snapshot: vi.fn<(engine: Engine) => void>()};
+  const wealth  = fakeWealthRecorder();
   const log     = {debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()};
   const broadcast: Broadcast = opts.broadcast?.(sent) ?? ((channel, payload) => { sent.push({channel, payload}); });
 
@@ -80,6 +81,7 @@ function build(opts: {settings?: Record<string, string>; broadcast?: (sent: Sent
     filters:        {getAll: () => filters},
     items,
     wealthRecorder: wealth,
+    wealthSeries:   fakeWealthSeries(),
     log,
   });
 

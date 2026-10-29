@@ -5,7 +5,7 @@ import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/domain/valuation';
 import {pointValue, type WealthPoint} from '@/state/wealthStore';
 import {
   compactPointValue, compactWealthPoint, parseWealthBreakdown, rawTypeLookup, wealthBreakdownRows,
-  wealthPointValue, type WealthBreakdown, type WealthValuation,
+  wealthPointValue, wealthValuer, type WealthBreakdown, type WealthValuation,
 } from '..';
 
 const TAX_ON: TaxConfig = {enabled: true, rate: AUCTION_TAX_RATE};
@@ -121,6 +121,48 @@ describe('compact form', () => {
     expect(c.ids).toEqual(['7', '8']);
     expect([...c.gross]).toEqual([6, 30]);
     expect(c.storedValue).toBe(36);
+    expect(c.detailed).toBe(true);
+  });
+
+  it('drops qty <= 0 entries, the same rule as the rows, and ignores the stored totals', () => {
+    const b: WealthBreakdown = {
+      '100': {qty: 0,  price: 10, total: 999},
+      '300': {qty: -3, price: 10, total: -30},
+      '400': {qty: 2,  price: 10, total: 999},
+      '200': {qty: 5,  price: 2,  total: 999},
+    };
+    const c = compactWealthPoint(-1, b);
+    expect(c.ids).toEqual(['200', '400']); // integer keys enumerate ascending
+    expect([...c.gross]).toEqual([10, 20]);
+    expect(c.detailed).toBe(true);
+    for (const v of [valuation(NO_TAX), valuation(TAX_ON), valuation(TAX_ON, [hide({type: 'by-type', itemType: 'card'})])]) {
+      const rows = wealthBreakdownRows(b, v);
+      expect(compactPointValue(c, v)).toBe(rows.reduce((s, r) => s + r.total, 0));
+      expect(wealthPointValue(-1, b, v)).toBe(compactPointValue(c, v));
+    }
+    expect(compactPointValue(c, valuation(NO_TAX))).toBe(30);
+    expect(compactPointValue(c, valuation(TAX_ON))).toBeCloseTo(17 + 10, 9); // card taxed, fuel exempt
+  });
+
+  it('a breakdown whose every entry has qty <= 0 is worth 0 (it has detail), not its stored value', () => {
+    const b: WealthBreakdown = {'100': {qty: 0, price: 10, total: 0}, '300': {qty: -1, price: 5, total: -5}};
+    const c = compactWealthPoint(-5, b);
+    expect(c.ids).toEqual([]);
+    expect(c.detailed).toBe(true);
+    expect(compactPointValue(c, valuation(TAX_ON))).toBe(0);
+    expect(wealthBreakdownRows(b, valuation(TAX_ON))).toEqual([]);
+  });
+
+  it('one valuer over many points equals valuing each point alone', () => {
+    const points = [
+      compactWealthPoint(SAMPLE.value, parseWealthBreakdown(SAMPLE.json)),
+      compactWealthPoint(30, parseWealthBreakdown(recorded([['200', 1, 10], ['201', 1, 10], ['999', 1, 10]]).json)),
+      compactWealthPoint(77, null),
+    ];
+    const v = valuation(TAX_ON, [hide({type: 'by-type', itemType: 'fuel'}), hide({type: 'by-item', itemId: '400'})]);
+    const value = wealthValuer(v);
+    expect(points.map(value)).toEqual(points.map(p => compactPointValue(p, v)));
+    expect(points.map(value)).toEqual(points.map(value)); // memo stable across reuse
   });
 
   it('values identically to the parsed breakdown under every policy', () => {
@@ -136,10 +178,13 @@ describe('compact form', () => {
   });
 
   it('an empty breakdown compacts to no items and shows its stored value', () => {
-    const c = compactWealthPoint(77, null);
-    expect(c.ids).toEqual([]);
-    expect(c.gross.length).toBe(0);
-    expect(compactPointValue(c, valuation(TAX_ON))).toBe(77);
+    for (const b of [null, parseWealthBreakdown('{}')]) {
+      const c = compactWealthPoint(77, b);
+      expect(c.ids).toEqual([]);
+      expect(c.gross.length).toBe(0);
+      expect(c.detailed).toBe(false);
+      expect(compactPointValue(c, valuation(TAX_ON, [hide({type: 'by-type', itemType: 'other'})]))).toBe(77);
+    }
   });
 });
 

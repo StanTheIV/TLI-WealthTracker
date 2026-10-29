@@ -5,7 +5,8 @@ import type {SqliteSessionStore} from '@/main/db/session-store';
 import type {Logger} from '@/main/logger';
 import {SessionPersistence, type SessionMeta} from '@/main/session-persistence';
 import type {RawEvent} from '@/worker/processors/types';
-import type {DbItem, DbItemFilter, DbSession, ItemChangedPatch} from '@/shared/contracts/db';
+import type {DbItem, DbItemFilter, DbSession, ItemChangedPatch, StoredWealthDatapoint} from '@/shared/contracts/db';
+import type {WealthSeriesPoint} from '@/shared/contracts/wealth';
 import type {EngineEnvelope, EngineEvent, EngineSnapshot, SessionIdentity, WireEngineEvent} from '@/shared/contracts/engine';
 import type {FilterRule} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
@@ -37,7 +38,10 @@ export interface TrackingDeps {
     /** Record a scraped price; `priceDate` is null when the item row wasn't updated. */
     recordScrapedPrice(id: string, price: number, listings: number[], opts: {updateItem: boolean}): {priceDate: number | null};
   };
-  wealthRecorder: {snapshot(engine: Engine): void};
+  /** Stores a wealth reading of the engine's bag; returns the inserted row. */
+  wealthRecorder: {snapshot(engine: Engine): StoredWealthDatapoint};
+  /** Values a stored reading as displayed, for `wealth_recorded`. */
+  wealthSeries:   {pointOf(row: StoredWealthDatapoint): WealthSeriesPoint};
   log:            Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
 }
 
@@ -357,9 +361,9 @@ export class TrackingService {
   }
 
   private _recordWealth(event: EngineEvent): void {
-    if (!this._isWealthPoint(event)) return;
-    if (this._engine) this._deps.wealthRecorder.snapshot(this._engine);
-    this._send({type: 'wealth_recorded', timestamp: Date.now()});
+    if (!this._engine || !this._isWealthPoint(event)) return;
+    const row = this._deps.wealthRecorder.snapshot(this._engine);
+    this._send({type: 'wealth_recorded', timestamp: Date.now(), point: this._deps.wealthSeries.pointOf(row)});
   }
 
   /**

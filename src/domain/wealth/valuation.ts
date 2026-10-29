@@ -1,3 +1,4 @@
+import type {WealthBreakdownRow} from '@/shared/contracts/wealth';
 import type {FilterRule} from '@/shared/item-filter';
 import {mapRawType} from '@/shared/items';
 import {includesItem} from '@/domain/item-filter';
@@ -24,19 +25,16 @@ export interface WealthValuation {
   rules:     readonly FilterRule[];
 }
 
-/** One displayed Item Breakdown row: the stored qty, valued under the policy. */
-export interface WealthBreakdownRow {
-  id:        string;
-  qty:       number;
-  unitPrice: number;
-  total:     number;
-}
+export type {WealthBreakdownRow};
 
-/** A point's breakdown reduced to what re-valuing it needs: ids and per-item
- *  gross, parallel. Immutable — a stored row never changes. */
+/** A point's breakdown reduced to what re-valuing it needs: the ids and
+ *  per-item gross of its positive-qty items (the Item Breakdown's rows),
+ *  parallel. Immutable — a stored row never changes. */
 export interface CompactWealthPoint {
   /** The stored gross value: what a point without per-item detail displays. */
   readonly storedValue: number;
+  /** False for an empty or unparseable breakdown: the point shows `storedValue`. */
+  readonly detailed:    boolean;
   readonly ids:         readonly string[];
   readonly gross:       Float64Array;
 }
@@ -66,11 +64,13 @@ function wealthInclusion(v: WealthValuation): (itemId: string) => boolean {
   return itemId => includesItem(v.rules, typeOf, itemId, 'wealth');
 }
 
+/** Same rule as the rows: a qty ≤ 0 entry counts for nothing. */
 export function compactWealthPoint(storedValue: number, breakdown: WealthBreakdown | null): CompactWealthPoint {
-  const entries = breakdown ? Object.entries(breakdown) : [];
-  const ids     = entries.map(([id]) => id);
-  const gross   = Float64Array.from(entries, ([, e]) => taxedValue(e.qty, e.price, undefined, NO_TAX));
-  return {storedValue, ids, gross};
+  const entries  = breakdown ? Object.entries(breakdown) : [];
+  const positive = entries.filter(([, e]) => e.qty > 0);
+  const ids      = positive.map(([id]) => id);
+  const gross    = Float64Array.from(positive, ([, e]) => taxedValue(e.qty, e.price, undefined, NO_TAX));
+  return {storedValue, detailed: entries.length > 0, ids, gross};
 }
 
 /**
@@ -82,14 +82,32 @@ export function compactWealthPoint(storedValue: number, breakdown: WealthBreakdo
  * A point whose items are all filtered out is worth 0, not its stored value.
  */
 export function compactPointValue(point: CompactWealthPoint, v: WealthValuation): number {
-  if (point.ids.length === 0) return point.storedValue;
+  return wealthValuer(v)(point);
+}
+
+/** `compactPointValue` for many points under one policy: each item's
+ *  inclusion and type are resolved once, not once per point. */
+export function wealthValuer(v: WealthValuation): (point: CompactWealthPoint) => number {
   const included = wealthInclusion(v);
-  let total = 0;
-  for (let i = 0; i < point.ids.length; i++) {
-    const id = point.ids[i];
-    if (included(id)) total += taxedGross(point.gross[i], v.rawTypeOf(id), v.tax);
-  }
-  return total;
+  // id → its raw type when included, null when hidden.
+  const resolved = new Map<string, {rawType: string | undefined} | null>();
+  const resolve = (id: string) => {
+    let r = resolved.get(id);
+    if (r === undefined) {
+      r = included(id) ? {rawType: v.rawTypeOf(id)} : null;
+      resolved.set(id, r);
+    }
+    return r;
+  };
+  return point => {
+    if (!point.detailed) return point.storedValue;
+    let total = 0;
+    for (let i = 0; i < point.ids.length; i++) {
+      const r = resolve(point.ids[i]);
+      if (r) total += taxedGross(point.gross[i], r.rawType, v.tax);
+    }
+    return total;
+  };
 }
 
 /** `compactPointValue` straight from a parsed breakdown. */
@@ -98,8 +116,8 @@ export function wealthPointValue(storedValue: number, breakdown: WealthBreakdown
 }
 
 /** The Item Breakdown rows of a reading: included items with a positive qty,
- *  in breakdown order. With no qty ≤ 0 entries (the recorder stores none) their
- *  totals sum to `wealthPointValue` of the same breakdown. */
+ *  in breakdown order. Their totals sum to `wealthPointValue` of the same
+ *  breakdown, unless it has no detail (no rows; the stored value). */
 export function wealthBreakdownRows(breakdown: WealthBreakdown | null, v: WealthValuation): WealthBreakdownRow[] {
   if (!breakdown) return [];
   const included = wealthInclusion(v);
