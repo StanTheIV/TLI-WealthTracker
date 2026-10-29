@@ -31,6 +31,7 @@ import {WorkerProcess} from './worker-process';
 import {WealthRecorder} from './wealth-recorder';
 import {WealthSeries} from './wealth-series';
 import {OverlayPosition, readSavedOverlayPosition} from './overlay-position';
+import {lockDownWebContents} from './window-guards';
 import {LOG_FILENAME, LOG_SUBPATH} from '@/shared/paths';
 
 // First, before anything can fail: until initLogger() runs, `log` writes to
@@ -45,10 +46,14 @@ installProcessErrorHandlers({
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER = 'http://localhost:5173';
 
+// A second launch quits here and runs nothing else; the running app focuses its window ('second-instance').
+const PRIMARY_INSTANCE = app.requestSingleInstanceLock();
+if (!PRIMARY_INSTANCE) app.quit();
+
 // Dev-only: expose Chrome DevTools Protocol so tooling (e.g. the Electron MCP
 // server) can attach to inspect the DOM, run renderer JS, and take screenshots.
 // Gated to DEV so a debugging port never ships in packaged builds.
-if (DEV) {
+if (DEV && PRIMARY_INSTANCE) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222');
 }
 
@@ -182,6 +187,7 @@ function createMainWindow(tracking: TrackingService) {
 
   if (settings['main_window_maximized'] === 'true') mainWindow.maximize();
 
+  lockDownWebContents(mainWindow.webContents, 'main window', log);
   reloadOnCrash(mainWindow, 'main window', mainCrashBudget);
   logLoadFailure('Main window', DEV
     ? mainWindow.loadURL(VITE_DEV_SERVER)
@@ -249,6 +255,7 @@ function createTrackerWindow() {
   });
 
   const overlay = trackerWindow;
+  lockDownWebContents(overlay.webContents, 'overlay', log);
   reloadOnCrash(overlay, 'overlay', overlayCrashBudget, () => { if (!overlay.isDestroyed()) overlay.destroy(); });
   logLoadFailure('Overlay', DEV
     ? trackerWindow.loadURL(`${VITE_DEV_SERVER}?window=overlay`)
@@ -424,15 +431,24 @@ function failStartup(err: unknown): void {
   app.exit(1);
 }
 
-app.whenReady().then(() => {
-  try {
-    startApp();
-  } catch (err) {
-    failStartup(err);
-  }
-});
+if (PRIMARY_INSTANCE) {
+  // Emitted after ready; no main window yet (startup) or anymore (quitting) → nothing to focus.
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
 
-app.on('window-all-closed', () => {
-  log.info('app', 'App quitting');
-  app.quit();
-});
+  app.whenReady().then(() => {
+    try {
+      startApp();
+    } catch (err) {
+      failStartup(err);
+    }
+  });
+
+  app.on('window-all-closed', () => {
+    log.info('app', 'App quitting');
+    app.quit();
+  });
+}
