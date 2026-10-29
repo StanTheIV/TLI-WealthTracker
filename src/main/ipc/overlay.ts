@@ -1,11 +1,12 @@
 import {ipcMain, BrowserWindow} from 'electron';
-import {settingsSet} from '@/main/db';
+import type {OverlayPosition} from '@/main/overlay-position';
 import {log} from '@/main/logger';
 
 export function registerOverlayHandlers(
   getTrackerWindow: () => BrowserWindow | null,
   setTrackerWindow: (w: BrowserWindow | null) => void,
   createTrackerWindow: () => void,
+  position: Pick<OverlayPosition, 'moveBy' | 'persist'>,
 ): void {
   let pendingShow = false;
   let sizedOnce   = false;
@@ -38,16 +39,12 @@ export function registerOverlayHandlers(
     log.debug('overlay', `Overlay click-through: ${enabled}`);
   });
 
-  ipcMain.on('overlay:move-by', (_e, dx: number, dy: number) => {
-    const win = getTrackerWindow();
-    if (!win) return;
-    const [x, y] = win.getPosition();
-    const nx = Math.round(x + dx);
-    const ny = Math.round(y + dy);
-    win.setPosition(nx, ny);
-    settingsSet('tracker_window_x', String(nx));
-    settingsSet('tracker_window_y', String(ny));
-    log.debug('overlay', `Overlay position: (${nx}, ${ny})`);
+  // Per mousemove of a drag — only repositions; the drag's end persists once.
+  ipcMain.on('overlay:move-by', (_e, dx: number, dy: number) => position.moveBy(dx, dy));
+
+  ipcMain.on('overlay:drag-end', () => {
+    position.persist();
+    log.debug('overlay', 'Overlay position saved');
   });
 
   ipcMain.on('overlay:set-size', (_e, w: number, h: number) => {

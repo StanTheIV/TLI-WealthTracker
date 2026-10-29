@@ -20,6 +20,7 @@ const api = {
     setSize:        (w: number, h: number)   => ipcRenderer.send('overlay:set-size', w, h),
     notifyReady:    ()                       => ipcRenderer.send('overlay:notify-ready'),
     moveBy:         (dx: number, dy: number) => ipcRenderer.send('overlay:move-by', dx, dy),
+    dragEnd:        ()                       => ipcRenderer.send('overlay:drag-end'),
   },
 
   settings: {

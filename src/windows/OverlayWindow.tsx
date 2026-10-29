@@ -2,11 +2,14 @@ import {useEffect, useRef, useState} from 'react';
 import {selectRunStatus, useEngineStore} from '@/state/engineStore';
 import {useSettingsStore} from '@/state/settingsStore';
 import TrackerPanel from '@/components/Dashboard/TrackerPanel';
+import {createOverlayDrag, type OverlayDrag} from '@/lib/overlayDrag';
 
 export default function OverlayWindow() {
   const contentRef = useRef<HTMLDivElement>(null);
-  const dragState  = useRef<{startX: number; startY: number} | null>(null);
-  const [handleHovered, setHandleHovered] = useState(false);
+  const [drag] = useState(() => createOverlayDrag({
+    moveBy:  (dx, dy) => window.electronAPI.overlay.moveBy(dx, dy),
+    dragEnd: () => window.electronAPI.overlay.dragEnd(),
+  }));
 
   const opacity                  = useSettingsStore(s => s.overlayOpacity);
   const clickThroughWhileRunning = useSettingsStore(s => s.clickThroughWhileRunning);
@@ -22,24 +25,22 @@ export default function OverlayWindow() {
     void useSettingsStore.getState().init();
   }, []);
 
+  // A release the document never sees (outside the window, focus lost) must
+  // still end the drag, or the overlay keeps following the cursor.
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (dragState.current) {
-        const dx = e.screenX - dragState.current.startX;
-        const dy = e.screenY - dragState.current.startY;
-        dragState.current = {startX: e.screenX, startY: e.screenY};
-        window.electronAPI.overlay.moveBy(dx, dy);
-      }
-    };
-    const onMouseUp = () => { dragState.current = null; };
+    const onMove = (e: MouseEvent) => drag.move(e.screenX, e.screenY, e.buttons);
+    const onEnd  = () => drag.end();
 
     document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('mouseup', onEnd);
+    window.addEventListener('blur', onEnd);
     return () => {
       document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('blur', onEnd);
+      drag.end();
     };
-  }, []);
+  }, [drag]);
 
   // Resize window to match content height
   useEffect(() => {
@@ -81,25 +82,36 @@ export default function OverlayWindow() {
       {/* Drag handle strip — hidden while tracking, along with the pane it sits on */}
       {chromeVisible && (
         <>
-          <div
-            className="flex items-center justify-center h-6 cursor-move transition-colors hover:bg-white/6"
-            onMouseDown={e => { dragState.current = {startX: e.screenX, startY: e.screenY}; }}
-            onMouseEnter={() => setHandleHovered(true)}
-            onMouseLeave={() => setHandleHovered(false)}
-          >
-            <div className={`flex gap-1 transition-opacity duration-200 ${handleHovered ? 'opacity-60' : 'opacity-20'}`}>
-              <span className="w-1 h-1 rounded-full bg-text-secondary" />
-              <span className="w-1 h-1 rounded-full bg-text-secondary" />
-              <span className="w-1 h-1 rounded-full bg-text-secondary" />
-              <span className="w-1 h-1 rounded-full bg-text-secondary" />
-              <span className="w-1 h-1 rounded-full bg-text-secondary" />
-            </div>
-          </div>
+          <DragHandle drag={drag} />
           <div className="h-px bg-white/5 mx-2" />
         </>
       )}
 
       <TrackerPanel />
+    </div>
+  );
+}
+
+function DragHandle({drag}: {drag: OverlayDrag}) {
+  const [hovered, setHovered] = useState(false);
+
+  // Starting a session hides the handle mid-drag: end it with the handle.
+  useEffect(() => () => drag.end(), [drag]);
+
+  return (
+    <div
+      className="flex items-center justify-center h-6 cursor-move transition-colors hover:bg-white/6"
+      onMouseDown={e => drag.start(e.screenX, e.screenY)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div className={`flex gap-1 transition-opacity duration-200 ${hovered ? 'opacity-60' : 'opacity-20'}`}>
+        <span className="w-1 h-1 rounded-full bg-text-secondary" />
+        <span className="w-1 h-1 rounded-full bg-text-secondary" />
+        <span className="w-1 h-1 rounded-full bg-text-secondary" />
+        <span className="w-1 h-1 rounded-full bg-text-secondary" />
+        <span className="w-1 h-1 rounded-full bg-text-secondary" />
+      </div>
     </div>
   );
 }

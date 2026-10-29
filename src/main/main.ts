@@ -26,6 +26,7 @@ import {createEngine} from './engine/create-engine';
 import {WorkerProcess} from './worker-process';
 import {WealthRecorder} from './wealth-recorder';
 import {WealthSeries} from './wealth-series';
+import {OverlayPosition, readSavedOverlayPosition} from './overlay-position';
 import {LOG_FILENAME, LOG_SUBPATH} from '@/shared/paths';
 
 const DEV = !app.isPackaged;
@@ -40,6 +41,22 @@ if (DEV) {
 
 let mainWindow: BrowserWindow | null = null;
 let trackerWindow: BrowserWindow | null = null;
+
+/** The overlay's live window — null before its first show and once closed. */
+function liveTrackerWindow(): BrowserWindow | null {
+  return trackerWindow && !trackerWindow.isDestroyed() ? trackerWindow : null;
+}
+
+const overlayPosition = new OverlayPosition({
+  getPosition: () => {
+    const win = liveTrackerWindow();
+    if (!win) return null;
+    const [x, y] = win.getPosition();
+    return [x, y];
+  },
+  setPosition: (x, y) => liveTrackerWindow()?.setPosition(x, y),
+  settingsSet,
+});
 
 /** Send to both renderer windows; a closed or destroyed window is skipped. */
 function broadcast(channel: string, payload?: unknown): void {
@@ -108,7 +125,9 @@ function createMainWindow(tracking: TrackingService) {
 
   // Stop the engine before the window is destroyed so any active session
   // is closed; persist bounds so the next launch reopens in the same spot
-  // (normal bounds even when closing maximized).
+  // (normal bounds even when closing maximized). The overlay is still open
+  // here ('closed' closes it), so its position is saved as a safety net for a
+  // drag whose end never reached main.
   mainWindow.on('close', () => {
     if (mainWindow) {
       const b = mainWindow.getNormalBounds();
@@ -118,6 +137,7 @@ function createMainWindow(tracking: TrackingService) {
       settingsSet('main_window_height',    String(b.height));
       settingsSet('main_window_maximized', mainWindow.isMaximized() ? 'true' : 'false');
     }
+    overlayPosition.persist();
     tracking.shutdown();
   });
 
@@ -125,7 +145,10 @@ function createMainWindow(tracking: TrackingService) {
   // 'quit' are NOT emitted then, and the window's 'close' isn't documented to
   // be — this is the one hook. It can't be prevented, so the synchronous
   // (better-sqlite3) final write happens inside the listener.
-  mainWindow.on('session-end', () => tracking.shutdown());
+  mainWindow.on('session-end', () => {
+    overlayPosition.persist();
+    tracking.shutdown();
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -145,20 +168,17 @@ const TRACKER_MIN_WIDTH  = 260;
 const TRACKER_MIN_HEIGHT = 60;
 
 function createTrackerWindow() {
-  const settings = settingsGetAll();
-  const x = parseInt(settings['tracker_window_x'] ?? '', 10);
-  const y = parseInt(settings['tracker_window_y'] ?? '', 10);
   // Same monitor-gone fallback as the main window: a saved overlay position on
   // a disconnected display reverts to the default corner.
-  const savedPosValid = !isNaN(x) && !isNaN(y) && boundsVisibleOnSomeDisplay(x, y, 360, 200);
+  const saved = readSavedOverlayPosition(settingsGetAll(), (x, y) => boundsVisibleOnSomeDisplay(x, y, 360, 200));
 
   trackerWindow = new BrowserWindow({
     width:     360,
     height:    200,
     minWidth:  TRACKER_MIN_WIDTH,
     minHeight: TRACKER_MIN_HEIGHT,
-    x: savedPosValid ? x : TRACKER_DEFAULT_X,
-    y: savedPosValid ? y : TRACKER_DEFAULT_Y,
+    x: saved?.x ?? TRACKER_DEFAULT_X,
+    y: saved?.y ?? TRACKER_DEFAULT_Y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -296,6 +316,7 @@ app.whenReady().then(() => {
     () => trackerWindow,
     (w) => { trackerWindow = w; },
     createTrackerWindow,
+    overlayPosition,
   );
   registerEngineHandlers(tracking);
   registerSettingsHandlers(new SettingsService({

@@ -59,7 +59,10 @@ export interface ElectronAPI {
     setClickThrough:(enabled: boolean) => void;
     setSize:        (w: number, h: number) => void;
     notifyReady:    () => void;
+    /** Shifts the overlay during a drag; nothing is persisted. */
     moveBy:         (dx: number, dy: number) => void;
+    /** Ends a drag that moved: main persists the overlay's current position. */
+    dragEnd:        () => void;
   };
 
   /** Every renderer settings write goes through `set` (main persists, applies
