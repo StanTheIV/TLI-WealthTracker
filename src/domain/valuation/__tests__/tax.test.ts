@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
 import {ITEM_TYPE_CONFIG, ITEM_TYPES} from '@/shared/items';
-import {AUCTION_TAX_RATE, NO_TAX, isTaxable, taxedUnitPrice, taxedValue, type TaxConfig} from '../tax';
+import {AUCTION_TAX_RATE, NO_TAX, isTaxable, taxedGross, taxedUnitPrice, taxedValue, type TaxConfig} from '../tax';
 
 const TAX_ON: TaxConfig = {enabled: true, rate: AUCTION_TAX_RATE};
 
@@ -47,6 +47,21 @@ describe('taxedValue', () => {
   it('handles a zero price and a zero quantity', () => {
     expect(taxedValue(5, 0, 'card', TAX_ON)).toBe(0);
     expect(taxedValue(0, 500, 'card', TAX_ON)).toBe(0);
+  });
+});
+
+describe('taxedGross', () => {
+  it('applies the same policy to an already-multiplied amount', () => {
+    expect(taxedGross(1000, 'card', TAX_ON)).toBe(850);
+    expect(taxedGross(1000, 'fuel', TAX_ON)).toBe(1000);
+    expect(taxedGross(1000, 'Corrosion Material', TAX_ON)).toBe(1000);
+    expect(taxedGross(1000, 'card', NO_TAX)).toBe(1000);
+  });
+
+  it('is what taxedValue applies to qty * price', () => {
+    for (const [qty, price, type] of [[7, 13.37, 'card'], [3, 0.1, 'ember'], [-4, 22.5, 'fuel']] as const) {
+      expect(taxedGross(qty * price, type, TAX_ON)).toBe(taxedValue(qty, price, type, TAX_ON));
+    }
   });
 });
 

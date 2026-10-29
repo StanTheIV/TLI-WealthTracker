@@ -63,7 +63,12 @@ export function taxedValue(
   rawType: string | undefined,
   cfg:     TaxConfig,
 ): number {
-  const gross = qty * price;
+  return taxedGross(qty * price, rawType, cfg);
+}
+
+/** The cut on an already-multiplied gross amount (one item's qty x price), for
+ *  callers that keep gross per item and re-apply the policy per request. */
+export function taxedGross(gross: number, rawType: string | undefined, cfg: TaxConfig): number {
   if (!cfg.enabled || !isTaxable(rawType)) return gross;
   return gross * (1 - cfg.rate);
 }

@@ -50,6 +50,7 @@ const MUST_IMPORT_TAX = VALUATION_SITES.filter(f => ![
  *  aggregate is type-blind and cannot honour the fuel exemption. */
 const WEALTH_READERS = [
   'components/Dashboard/ItemBreakdown.tsx',
+  'domain/wealth/valuation.ts',
   'state/wealthStore.ts',
 ];
 
