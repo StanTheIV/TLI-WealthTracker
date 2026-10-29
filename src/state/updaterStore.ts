@@ -5,7 +5,7 @@ interface UpdaterState {
   updateInfo:       UpdateInfo | null;
   downloadProgress: number | null;
   downloading:      boolean;
-  downloadedPath:   string | null;
+  downloaded:       boolean;
   changelog:        {version: string; changelog: string} | null;
   showChangelog:     boolean;
   dismissed:         boolean;
@@ -26,7 +26,7 @@ export const useUpdaterStore = create<Store>((set, get) => ({
   updateInfo:       null,
   downloadProgress: null,
   downloading:      false,
-  downloadedPath:   null,
+  downloaded:       false,
   changelog:        null,
   showChangelog:     false,
   dismissed:         false,
@@ -50,7 +50,7 @@ export const useUpdaterStore = create<Store>((set, get) => ({
     try {
       const result = await window.electronAPI.updater.download();
       if (result.success) {
-        set({downloadedPath: result.path});
+        set({downloaded: true});
       } else {
         console.error('[updater] download failed:', result.error);
       }
@@ -63,10 +63,7 @@ export const useUpdaterStore = create<Store>((set, get) => ({
   },
 
   installUpdate: () => {
-    const {downloadedPath} = get();
-    if (downloadedPath) {
-      window.electronAPI.updater.install(downloadedPath);
-    }
+    if (get().downloaded) window.electronAPI.updater.install();
   },
 
   loadChangelog: async () => {

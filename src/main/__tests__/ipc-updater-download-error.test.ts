@@ -19,6 +19,7 @@ vi.mock('@/main/updater', () => ({
   downloadUpdate:         h.download,
   launchInstallerAndQuit: () => undefined,
   fetchChangelog:         async () => null,
+  isNewer:                () => false,
 }));
 vi.mock('@/main/db', () => ({settingsGet: () => undefined, settingsSet: () => undefined}));
 vi.mock('@/main/logger', () => ({log: {error: h.error, warn: () => undefined, info: () => undefined, debug: () => undefined}}));

@@ -61,7 +61,7 @@ const api = {
   updater: {
     check:            () => ipcRenderer.invoke('updater:check'),
     download:         () => ipcRenderer.invoke('updater:download'),
-    install:          (path: string) => ipcRenderer.send('updater:install', path),
+    install:          () => ipcRenderer.send('updater:install'),
     getChangelog:     () => ipcRenderer.invoke('updater:get-changelog'),
     dismissChangelog: () => ipcRenderer.invoke('updater:dismiss-changelog'),
     onProgress: (cb: (pct: number) => void) => {

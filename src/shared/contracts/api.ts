@@ -32,8 +32,9 @@ export interface ElectronAPI {
 
   updater: {
     check:            () => Promise<UpdateInfo | null>;
-    download:         () => Promise<{success: boolean; path?: string; error?: string}>;
-    install:          (path: string) => void;
+    download:         () => Promise<{success: boolean; error?: string}>;
+    /** Opens the installer main downloaded and verified; there is no path to pass. */
+    install:          () => void;
     getChangelog:     () => Promise<{version: string; changelog: string} | null>;
     dismissChangelog: () => Promise<void>;
     onProgress:       (cb: (pct: number) => void) => () => void;
