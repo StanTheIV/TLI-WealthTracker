@@ -1,8 +1,9 @@
-/** 5.2: lockDownWebContents — every page-initiated navigation prevented, every window.open denied, each logged. */
+/** 5.2: lockDownWebContents — every page-initiated navigation prevented (except a reload of the current URL), every
+ *  window.open denied, each logged. */
 import {describe, it, expect, vi} from 'vitest';
 import {lockDownWebContents, type GuardableWebContents} from '@/main/window-guards';
 
-function setup() {
+function setup(getURL: () => string = () => 'http://localhost:5173/') {
   let navigate: ((event: {url: string; preventDefault(): void}) => void) | undefined;
   let openHandler: ((details: {url: string}) => {action: 'deny'}) | undefined;
   const on = vi.fn((event: string, listener: typeof navigate) => {
@@ -10,6 +11,7 @@ function setup() {
   });
   const wc: GuardableWebContents = {
     on,
+    getURL,
     setWindowOpenHandler: (h) => { openHandler = h; },
   };
   const warn = vi.fn();
@@ -79,6 +81,51 @@ describe('lockDownWebContents', () => {
       const {open} = setup();
       expect(open(details)).toEqual({action: 'deny'});
     });
+
+  describe('a reload of the current URL (location.reload, Vite full-reload) is let through', () => {
+    it.each<[string, string, string]>([
+      ['dev main', 'http://localhost:5173/', 'http://localhost:5173/'],
+      ['dev main, no trailing slash', 'http://localhost:5173', 'http://localhost:5173/'],
+      ['dev overlay', 'http://localhost:5173/?window=overlay', 'http://localhost:5173/?window=overlay'],
+      ['packaged overlay', 'file:///C:/app/dist/index.html?window=overlay', 'file:///C:/app/dist/index.html?window=overlay'],
+      ['differing hash', 'http://localhost:5173/?window=overlay#a', 'http://localhost:5173/?window=overlay#b'],
+      ['hash only on target', 'file:///C:/app/dist/index.html', 'file:///C:/app/dist/index.html#x'],
+    ])('%s: current %j → %j is not prevented and not logged', (_n, current, target) => {
+      const {navigateTo, warn} = setup(() => current);
+      expect(navigateTo(target)).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    });
+  });
+
+  it.each<[string, string, string]>([
+    ['different path', 'http://localhost:5173/', 'http://localhost:5173/other'],
+    ['different query', 'http://localhost:5173/', 'http://localhost:5173/?window=overlay'],
+    ['query dropped', 'http://localhost:5173/?window=overlay', 'http://localhost:5173/'],
+    ['different origin', 'http://localhost:5173/', 'http://localhost:5174/'],
+    ['external origin', 'file:///C:/app/dist/index.html', 'https://example.com/'],
+    ['different file', 'file:///C:/app/dist/index.html', 'file:///C:/Users/me/Desktop/dropped.png'],
+    ['unparsable target', 'http://localhost:5173/', 'not a url'],
+    ['empty target', 'http://localhost:5173/', ''],
+    ['unparsable current URL', 'not a url', 'not a url'],
+    ['empty current URL', '', ''],
+  ])('%s: current %j → %j is prevented and logged', (_n, current, target) => {
+    const {navigateTo, warn} = setup(() => current);
+    expect(navigateTo(target)).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('a getURL that throws blocks the navigation instead of throwing', () => {
+    const {navigateTo, warn} = setup(() => { throw new Error('destroyed'); });
+    let prevent: ReturnType<typeof vi.fn> | undefined;
+    expect(() => { prevent = navigateTo('http://localhost:5173/'); }).not.toThrow();
+    expect(prevent).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('a non-string getURL result blocks the navigation', () => {
+    const {navigateTo} = setup(() => undefined as unknown as string);
+    expect(navigateTo('http://localhost:5173/')).toHaveBeenCalledTimes(1);
+  });
 
   it('every navigation is prevented, not just the first', () => {
     const {navigateTo, warn} = setup();
