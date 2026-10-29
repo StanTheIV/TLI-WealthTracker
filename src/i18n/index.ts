@@ -12,6 +12,7 @@ import itemsEN     from './locales/en/items.json';
 import sessionsEN  from './locales/en/sessions.json';
 import filtersEN   from './locales/en/filters.json';
 import updaterEN   from './locales/en/updater.json';
+import setupEN     from './locales/en/setup.json';
 
 import commonDE    from './locales/de/common.json';
 import sidebarDE   from './locales/de/sidebar.json';
@@ -24,6 +25,7 @@ import itemsDE     from './locales/de/items.json';
 import sessionsDE  from './locales/de/sessions.json';
 import filtersDE   from './locales/de/filters.json';
 import updaterDE   from './locales/de/updater.json';
+import setupDE     from './locales/de/setup.json';
 
 export const SUPPORTED_LANGUAGES: Record<string, string> = {
   en: 'English',
@@ -45,6 +47,7 @@ declare module 'i18next' {
       sessions:  typeof sessionsEN;
       filters:   typeof filtersEN;
       updater:   typeof updaterEN;
+      setup:     typeof setupEN;
     };
   }
 }
@@ -52,7 +55,7 @@ declare module 'i18next' {
 i18n.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
-  ns: ['common', 'sidebar', 'dashboard', 'settings', 'playbar', 'overlay', 'tracker', 'items', 'sessions', 'filters', 'updater'],
+  ns: ['common', 'sidebar', 'dashboard', 'settings', 'playbar', 'overlay', 'tracker', 'items', 'sessions', 'filters', 'updater', 'setup'],
   defaultNS: 'common',
   resources: {
     en: {
@@ -67,6 +70,7 @@ i18n.use(initReactI18next).init({
       sessions:  sessionsEN,
       filters:   filtersEN,
       updater:   updaterEN,
+      setup:     setupEN,
     },
     de: {
       common:    commonDE,
@@ -80,6 +84,7 @@ i18n.use(initReactI18next).init({
       sessions:  sessionsDE,
       filters:   filtersDE,
       updater:   updaterDE,
+      setup:     setupDE,
     },
   },
   interpolation: {escapeValue: false},

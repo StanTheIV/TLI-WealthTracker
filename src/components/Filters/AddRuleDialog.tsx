@@ -5,6 +5,7 @@ import {ITEM_TYPES} from '@/shared/items';
 import {FILTER_SCOPES} from '@/shared/item-filter';
 import type {FilterRule, FilterScope, RuleAction, RuleKind} from '@/shared/item-filter';
 import {useItemsStore} from '@/state/itemsStore';
+import Modal, {ModalTitle} from '@/components/ui/Modal';
 
 interface Props {
   onConfirm: (rule: FilterRule) => void;
@@ -104,144 +105,142 @@ export default function AddRuleDialog({onConfirm, onClose}: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-surface border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-base font-bold text-text-primary">{t('addRule.title')}</h2>
-          <button onClick={onClose} className="text-text-disabled hover:text-text-primary transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+    <Modal onClose={onClose} className="w-full max-w-md mx-4 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <ModalTitle className="text-base font-bold text-text-primary">{t('addRule.title')}</ModalTitle>
+        <button onClick={onClose} className="text-text-disabled hover:text-text-primary transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="p-5 flex flex-col gap-5">
+        {/* Step 1: Action */}
+        <div>
+          <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-2">
+            {t('addRule.action')}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(['show', 'hide'] as RuleAction[]).map(a => (
+              <button
+                key={a}
+                onClick={() => setAction(a)}
+                className={[
+                  'flex flex-col items-start px-4 py-3 rounded-lg border text-sm transition-colors',
+                  action === a
+                    ? a === 'show'
+                      ? 'bg-green-500/10 border-green-500/50 text-green-400'
+                      : 'bg-red-500/10 border-red-500/50 text-red-400'
+                    : 'bg-surface-elevated border-border text-text-secondary hover:border-accent/50',
+                ].join(' ')}
+              >
+                <span className="font-semibold">{t(`action.${a}`)}</span>
+                <span className="text-xs opacity-70 mt-0.5">{t(`action.${a}Desc`)}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="p-5 flex flex-col gap-5">
-          {/* Step 1: Action */}
-          <div>
-            <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-2">
-              {t('addRule.action')}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {(['show', 'hide'] as RuleAction[]).map(a => (
-                <button
-                  key={a}
-                  onClick={() => setAction(a)}
-                  className={[
-                    'flex flex-col items-start px-4 py-3 rounded-lg border text-sm transition-colors',
-                    action === a
-                      ? a === 'show'
-                        ? 'bg-green-500/10 border-green-500/50 text-green-400'
-                        : 'bg-red-500/10 border-red-500/50 text-red-400'
-                      : 'bg-surface-elevated border-border text-text-secondary hover:border-accent/50',
-                  ].join(' ')}
-                >
-                  <span className="font-semibold">{t(`action.${a}`)}</span>
-                  <span className="text-xs opacity-70 mt-0.5">{t(`action.${a}Desc`)}</span>
-                </button>
-              ))}
-            </div>
+        {/* Step 2: Match by */}
+        <div>
+          <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-2">
+            {t('addRule.matchBy')}
+          </p>
+          <div className="flex gap-2 mb-3">
+            {(['by-type', 'by-item'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => setMatchType(m)}
+                className={[
+                  'px-3 py-1.5 rounded-lg border text-sm transition-colors',
+                  matchType === m
+                    ? 'bg-accent/15 border-accent text-accent font-semibold'
+                    : 'bg-surface-elevated border-border text-text-secondary hover:border-accent/50',
+                ].join(' ')}
+              >
+                {t(`matchBy.${m === 'by-type' ? 'byType' : 'byItem'}`)}
+              </button>
+            ))}
           </div>
 
-          {/* Step 2: Match by */}
-          <div>
-            <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-2">
-              {t('addRule.matchBy')}
-            </p>
-            <div className="flex gap-2 mb-3">
-              {(['by-type', 'by-item'] as const).map(m => (
+          {matchType === 'by-type' ? (
+            <div className="grid grid-cols-3 gap-1.5">
+              {ITEM_TYPES.map(type => (
                 <button
-                  key={m}
-                  onClick={() => setMatchType(m)}
+                  key={type}
+                  onClick={() => setItemType(type)}
                   className={[
-                    'px-3 py-1.5 rounded-lg border text-sm transition-colors',
-                    matchType === m
+                    'px-2 py-1.5 rounded-md border text-xs transition-colors',
+                    itemType === type
                       ? 'bg-accent/15 border-accent text-accent font-semibold'
                       : 'bg-surface-elevated border-border text-text-secondary hover:border-accent/50',
                   ].join(' ')}
                 >
-                  {t(`matchBy.${m === 'by-type' ? 'byType' : 'byItem'}`)}
+                  {tItems(`types.${type}` as never)}
                 </button>
               ))}
             </div>
+          ) : (
+            <ItemSearch
+              onSelect={(id, name) => { setItemId(id); setItemName(name); }}
+            />
+          )}
+        </div>
 
-            {matchType === 'by-type' ? (
-              <div className="grid grid-cols-3 gap-1.5">
-                {ITEM_TYPES.map(type => (
-                  <button
-                    key={type}
-                    onClick={() => setItemType(type)}
-                    className={[
-                      'px-2 py-1.5 rounded-md border text-xs transition-colors',
-                      itemType === type
-                        ? 'bg-accent/15 border-accent text-accent font-semibold'
-                        : 'bg-surface-elevated border-border text-text-secondary hover:border-accent/50',
-                    ].join(' ')}
-                  >
-                    {tItems(`types.${type}` as never)}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <ItemSearch
-                onSelect={(id, name) => { setItemId(id); setItemName(name); }}
-              />
-            )}
-          </div>
+        {/* Step 3: Scopes */}
+        <div>
+          <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-2">
+            {t('addRule.scopes')}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={toggleAllScopes}
+              className={[
+                'px-2.5 py-1 rounded-full border text-xs font-semibold transition-colors',
+                allScopesSelected
+                  ? 'bg-accent/15 border-accent text-accent'
+                  : 'bg-surface-elevated border-border text-text-secondary hover:border-accent/50',
+              ].join(' ')}
+            >
+              {t('scopes.all')}
+            </button>
 
-          {/* Step 3: Scopes */}
-          <div>
-            <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-widest mb-2">
-              {t('addRule.scopes')}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
+            <span className="w-px self-stretch bg-border mx-0.5" />
+
+            {FILTER_SCOPES.map(s => (
               <button
-                onClick={toggleAllScopes}
+                key={s}
+                onClick={() => toggleScope(s)}
                 className={[
-                  'px-2.5 py-1 rounded-full border text-xs font-semibold transition-colors',
-                  allScopesSelected
+                  'px-2.5 py-1 rounded-full border text-xs font-medium transition-colors',
+                  scopes.includes(s)
                     ? 'bg-accent/15 border-accent text-accent'
                     : 'bg-surface-elevated border-border text-text-secondary hover:border-accent/50',
                 ].join(' ')}
               >
-                {t('scopes.all')}
+                {t(`scopes.${s}`)}
               </button>
-
-              <span className="w-px self-stretch bg-border mx-0.5" />
-
-              {FILTER_SCOPES.map(s => (
-                <button
-                  key={s}
-                  onClick={() => toggleScope(s)}
-                  className={[
-                    'px-2.5 py-1 rounded-full border text-xs font-medium transition-colors',
-                    scopes.includes(s)
-                      ? 'bg-accent/15 border-accent text-accent'
-                      : 'bg-surface-elevated border-border text-text-secondary hover:border-accent/50',
-                  ].join(' ')}
-                >
-                  {t(`scopes.${s}`)}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="flex gap-2 px-5 py-4 border-t border-border">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg border border-border text-sm text-text-secondary hover:bg-white/5 transition-colors"
-          >
-            {t('addRule.cancel')}
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-            className="flex-1 px-4 py-2 rounded-lg bg-accent text-bg text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {t('addRule.confirm')}
-          </button>
-        </div>
       </div>
-    </div>
+
+      {/* Footer */}
+      <div className="flex gap-2 px-5 py-4 border-t border-border">
+        <button
+          onClick={onClose}
+          className="flex-1 px-4 py-2 rounded-lg border border-border text-sm text-text-secondary hover:bg-white/5 transition-colors"
+        >
+          {t('addRule.cancel')}
+        </button>
+        <button
+          onClick={handleConfirm}
+          disabled={!canConfirm}
+          className="flex-1 px-4 py-2 rounded-lg bg-accent text-bg text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {t('addRule.confirm')}
+        </button>
+      </div>
+    </Modal>
   );
 }
