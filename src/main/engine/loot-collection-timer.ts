@@ -66,9 +66,11 @@ export class LootCollectionTimer {
    * remaining time has dropped below 80% of it. Returns true when the timer
    * was actually re-armed (so callers can publish a new deadline), false
    * when the pickup didn't trigger a reset (still plenty of time left).
+   * A no-op (false) while frozen: the paused window keeps its remaining time
+   * until unfreeze() — re-arming would leave a live countdown under a pause.
    */
   refresh(): boolean {
-    if (!this.active) return false;
+    if (!this.active || this.frozen) return false;
 
     const remaining = this._currentDurationMs - (Date.now() - this._startedAt);
     const next      = Math.max(this._currentDurationMs * 0.8, MIN_REFRESH_MS);
@@ -89,8 +91,10 @@ export class LootCollectionTimer {
   /**
    * Strum / re-engagement reset — unconditionally re-arms to the full configured
    * window, undoing any decay accumulated by previous pickup-refreshes.
+   * A no-op while frozen, for the same reason as refresh().
    */
   reset(): void {
+    if (this.frozen) return;
     this._arm(this.durationMs);
   }
 

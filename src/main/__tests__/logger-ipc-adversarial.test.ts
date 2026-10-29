@@ -138,7 +138,7 @@ describe('overlay show races', () => {
     const {registerOverlayHandlers} = await import('@/main/ipc/overlay');
     let win: {show: ReturnType<typeof vi.fn>; hide: ReturnType<typeof vi.fn>} | null = null;
     const create = vi.fn(() => { win = {show: vi.fn(), hide: vi.fn()}; });
-    registerOverlayHandlers(() => win as unknown as BrowserWindow | null, () => undefined, create, {moveBy: vi.fn(), persist: vi.fn()});
+    registerOverlayHandlers(() => win as unknown as BrowserWindow | null, create, {moveBy: vi.fn(), persist: vi.fn()});
     const send = (c: string) => h.on.get(c)!({});
     for (let i = 0; i < 5; i++) send('overlay:show');
     expect(create).toHaveBeenCalledTimes(1);

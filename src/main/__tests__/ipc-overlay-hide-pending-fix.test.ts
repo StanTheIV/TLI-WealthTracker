@@ -19,7 +19,6 @@ describe('ipc/overlay — hide cancels a pending show', () => {
     let win: FakeWindow | null = null;
     registerOverlayHandlers(
       () => win as unknown as BrowserWindow | null,
-      w => { win = w as unknown as FakeWindow | null; },
       () => { win = {show: vi.fn(), hide: vi.fn()}; },
       {moveBy: vi.fn(), persist: vi.fn()},
     );

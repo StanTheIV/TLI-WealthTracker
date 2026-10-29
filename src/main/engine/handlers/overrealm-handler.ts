@@ -14,24 +14,20 @@ const MECHANIC = mechanic('overrealm');
  *   s12_exit        : arm post-exit loot timer
  *   bag_update      : pickup-decay refresh of the loot timer
  *   zone_transition : town entry handled centrally by ZoneHandler.finishAll
+ *
+ * Pause: every event above is ignored while the session is paused. An
+ * in-flight loot timer freezes with the pause and resumes with its remaining
+ * time (TrackerRegistry.freezeAllForSessionPause / thawSessionPause); town
+ * entry still finishes the tracker while paused.
  */
 export class OverrealmHandler implements EventHandler {
   readonly name    = 'overrealm';
   readonly handles = ['s12_entry', 's12_exit', 'bag_update'] as const;
 
   private _lootMs: number = MECHANIC.window.defaultMs;
-  private _ctx: EngineContext | null = null;
 
   configure(settings: Settings): void {
     this._lootMs = settings.lootWindowMs[MECHANIC.key];
-  }
-
-  onStart(ctx: EngineContext): void { this._ctx = ctx; }
-  onStop(): void { this._ctx = null; }
-
-  /** Test affordance — delegates to the registry. */
-  isLootCollecting(): boolean {
-    return this._ctx?.registry.seasonal('overrealm')?.isLootCollecting() ?? false;
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {

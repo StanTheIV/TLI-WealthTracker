@@ -26,11 +26,18 @@ interface ReplayHook {
 }
 
 /**
- * EventRouter — thin routing layer.
- *
- * Owns the EngineContext and a registry of EventHandlers.
- * On each RawEvent, calls all handlers that declared interest in that event type.
- * Contains zero domain logic — all logic lives in handlers.
+ * Engine — the boundary the rest of the main process talks to. Owns the
+ * EngineContext and the registered EventHandlers, plus what belongs to no
+ * single handler:
+ *   - routing: each RawEvent goes to every handler that declared its type, in
+ *     registration order;
+ *   - the run lifecycle: start / stop / reset, and session open — it collects
+ *     each handler's `onSessionOpen` for `openSessionRun`, and `loadSession`
+ *     seeds a continue; the session pause (pause / resume);
+ *   - unit checkpoints: stamps each `unit_finished` with the session state;
+ *   - replay: `getState()` rebuilds a joining window from the replay hooks;
+ *   - isolation (below).
+ * Mechanic logic lives in the handlers and the TrackerRegistry.
  *
  * Every handler call goes through one choke point (`_isolate`): a throwing
  * handler is logged and reported as an `error` event, and the event, the

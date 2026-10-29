@@ -17,10 +17,10 @@ export interface TrackerSeed {
  *   map      — created on map entry, destroyed on town entry
  *   seasonal — created by seasonal trigger, destroyed by corresponding exit
  *
- * All three instances receive the same drops via EngineContext.distributeDrop().
+ * All three instances receive the same drops via TrackerRegistry.distributeDrop().
  *
  * `ownsBubble` is set on seasonals (e.g. Sandlord) whose bubble subsumes regular
- * map zones — ZoneHandler consults it to skip creating a per-map tracker inside.
+ * map zones — TrackerRegistry.startMap refuses a per-map tracker while one is up.
  */
 export class Tracker {
   readonly kind:          TrackerKind;
@@ -40,7 +40,7 @@ export class Tracker {
   private _accumulated: number = 0;
   private _pausedAt:    number | null = null;
   // Per-source breakdown for the session tracker only. Each drop is attributed
-  // to exactly one source via the writer rule in EngineContext. Other
+  // to exactly one source via TrackerRegistry.writer(). Other
   // trackers (map, seasonal) leave this empty — their `_drops` plays the
   // analogous role for "what fell while this tracker was running."
   private _dropsBySource: Map<Source, Map<number, number>> = new Map();

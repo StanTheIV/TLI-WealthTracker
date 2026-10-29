@@ -409,7 +409,6 @@ function startApp(): void {
   });
   registerOverlayHandlers(
     () => trackerWindow,
-    (w) => { trackerWindow = w; },
     createTrackerWindow,
     overlayPosition,
   );

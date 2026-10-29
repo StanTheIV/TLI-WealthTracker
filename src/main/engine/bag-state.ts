@@ -10,8 +10,8 @@
  * so it never depends on iterating `_slots`. This means a stale `_slots` entry
  * cannot corrupt delta computation.
  *
- * Dual-baseline:
- *   _initialBaselines — frozen at init(), never changes
+ * Baselines:
+ *   _initialItemCount — distinct items at init(), frozen (reported as itemCount)
  *   _baseline         — updated after each emitted delta, avoids double-counting
  */
 
@@ -32,13 +32,13 @@ type Slot = {itemId: number; quantity: number};
 export class BagState {
   private _slots   = new Map<string, Slot>();
   private _totals  = new Map<number, number>();
-  private _initialBaselines = new Map<number, number>();
+  private _initialItemCount = 0;
   private _baseline = new Map<number, number>();
   private _initialized = false;
 
   get initialized(): boolean { return this._initialized; }
   get slotCount():   number  { return this._slots.size; }
-  get itemCount():   number  { return this._initialBaselines.size; }
+  get itemCount():   number  { return this._initialItemCount; }
 
   // ---------------------------------------------------------------------
   // Initialization
@@ -47,7 +47,7 @@ export class BagState {
   /** Take a full bag dump as the starting inventory and freeze the baselines. */
   init(entries: Iterable<SlotSnapshotEntry>): void {
     this._load(entries);
-    this._initialBaselines = new Map(this._totals);
+    this._initialItemCount = this._totals.size;
     this._baseline         = new Map(this._totals);
     this._initialized      = true;
   }
@@ -123,7 +123,7 @@ export class BagState {
   reset(): void {
     this._slots.clear();
     this._totals.clear();
-    this._initialBaselines.clear();
+    this._initialItemCount = 0;
     this._baseline.clear();
     this._initialized = false;
   }

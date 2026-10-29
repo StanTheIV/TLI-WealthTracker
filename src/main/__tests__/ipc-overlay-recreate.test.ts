@@ -24,7 +24,6 @@ describe('ipc/overlay — show after the window was destroyed', () => {
     const created: FakeWindow[] = [];
     registerOverlayHandlers(
       () => win as unknown as BrowserWindow | null,
-      w => { win = w as unknown as FakeWindow | null; },
       () => { win = {show: vi.fn(), hide: vi.fn()}; created.push(win); },
       {moveBy: vi.fn(), persist: vi.fn()},
     );

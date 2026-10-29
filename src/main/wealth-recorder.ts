@@ -18,8 +18,11 @@ export interface WealthRecorderDeps {
 
 /**
  * Snapshots the engine's current inventory into a wealth_datapoints row.
- * Called on init_complete (initial reading after bag init) and on map_ended
- * (post-map sort settled), so the wealth chart has a datapoint per map.
+ * Called on init_complete (initial reading after bag init), on map_ended
+ * (post-map sort settled), and on the tracker_finished that ends a standalone
+ * seasonal run (last seasonal done, no map alive — it emits no map_ended), so
+ * the wealth chart has a datapoint per map or per standalone run. The trigger
+ * rule lives in TrackingService._isWealthPoint.
  *
  * Records GROSS wealth: every bag item with a positive quantity, unfiltered
  * and untaxed. Both are applied at display (`WealthSeries`), so changing

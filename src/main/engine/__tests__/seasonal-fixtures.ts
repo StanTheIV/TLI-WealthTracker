@@ -13,7 +13,6 @@ import type {Dispatcher} from '@/worker/dispatcher';
 import {createDispatcher as createProductionDispatcher} from '@/worker/create-dispatcher';
 import type {Engine} from '@/main/engine/engine';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
-import type {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
 import type {EngineEvent} from '@/shared/contracts/engine';
 import type {EmitFn, EngineSink} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
@@ -179,11 +178,6 @@ export function feed(dispatcher: Dispatcher, engine: Engine, line: string): void
 /** Reach into the engine's private context (test-only). */
 export function ctx(engine: Engine): EngineContext {
   return (engine as unknown as {_ctx: EngineContext})._ctx;
-}
-
-/** Test-only handler accessor for asserting handler-local state. */
-export function overrealm(engine: Engine): OverrealmHandler {
-  return engine.getHandler('overrealm') as OverrealmHandler;
 }
 
 /** Boot engine and complete bag init with a given inventory. */

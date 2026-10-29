@@ -25,7 +25,7 @@ import {MapMaterialHandler} from './handlers/map-material';
 export function createEngine(sink: EngineSink): Engine {
   return new Engine(sink)
     .register(new BagInitHandler())
-    .register(new SandlordHandler())  // before ZoneHandler — sets ctx.seasonal.ownsBubble
+    .register(new SandlordHandler())  // before ZoneHandler — registry.startSeasonal({ownsBubble}) raises the bubble Zone checks
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())

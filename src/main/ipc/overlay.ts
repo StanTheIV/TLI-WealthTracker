@@ -4,7 +4,6 @@ import {log} from '@/main/logger';
 
 export function registerOverlayHandlers(
   getTrackerWindow: () => BrowserWindow | null,
-  setTrackerWindow: (w: BrowserWindow | null) => void,
   createTrackerWindow: () => void,
   position: Pick<OverlayPosition, 'moveBy' | 'persist'>,
 ): void {

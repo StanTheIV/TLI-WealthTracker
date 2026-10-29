@@ -24,6 +24,9 @@ export interface Scrubber {
   readonly stats: ScrubStats;
 }
 
+/** Raw events the engine receives: see `replay()` and TrackingService._onWorkerEvent. */
+const reachesEngine = (e: RawEvent): boolean => e.type !== 'price_update';
+
 /**
  * Reduces a log slice to the lines the tracker reads: a line is kept when the
  * production processor chain yields at least one event for it that reaches the
@@ -40,9 +43,6 @@ export interface Scrubber {
  * or last line is replaced by its bare timestamp — matched by no processor —
  * and the scrubbed slice replays on the raw slice's clock.
  */
-/** Raw events the engine receives: see `replay()` and TrackingService._onWorkerEvent. */
-const reachesEngine = (e: RawEvent): boolean => e.type !== 'price_update';
-
 export function createScrubber(): Scrubber {
   const dispatcher = createDispatcher();
   const stats: ScrubStats = {kept: 0, dropped: 0, unstamped: 0, anchors: 0};
