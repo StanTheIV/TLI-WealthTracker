@@ -212,6 +212,25 @@ describe('WealthSeries.series', () => {
     ]);
   });
 
+  it('a breakdown with a malformed entry shows its stored value and does not break the other points', () => {
+    addPoint(1000, P1);
+    const nul = addRaw(2000, 66, '{"1":null}');
+    const str = addRaw(3000, 77, `{"${EMBER}":{"qty":"2","price":10,"total":20}}`);
+    addPoint(4000, P2);
+    taxOn();
+    expect(ws.series(0, 9999).map(p => p.value)).toEqual([
+      130 - 0.15 * (20 + 100), 66, 77, 70 - 0.15 * 50,
+    ].map(x => expect.closeTo(x, 9)));
+    expect(ws.series(0, 9999).map(p => p.id).slice(1, 3)).toEqual([nul.id, str.id]);
+  });
+
+  it('a malformed latest point has no rows and shows its stored value', () => {
+    addPoint(1000, P1);
+    const row = addRaw(2000, 66, `{"${EMBER}":{"qty":1,"price":1,"total":1},"x":[1]}`);
+    expect(ws.latestBreakdown()).toEqual({id: row.id, ts: 2000, value: 66, rows: []});
+    expect(ws.pointOf(row)).toEqual({id: row.id, ts: 2000, value: 66});
+  });
+
   it('a point with qty <= 0 items: value equals the sum of its rows (compact form drops them like rows do)', () => {
     const entries = {
       [EMBER]:   {qty: 3,  price: 10},
@@ -418,6 +437,21 @@ describe('WealthSeries cache', () => {
     expect(ws.cachedCount).toBe(1);
     ws.invalidate();
     expect(ws.cachedCount).toBe(0);
+  });
+
+  it('cached points share one interned id per distinct item; invalidate drops the table', () => {
+    for (let i = 0; i < 50; i++) addPoint(1000 + i, i % 2 ? P1 : P2);
+    addPoint(2000, {'999': {qty: 1, price: 1}});
+    const cold = ws.series(0, 9999);
+    expect(ws.cachedCount).toBe(51);
+    expect(ws.internedIdCount).toBe(4); // EMBER, FUEL, COMPASS, '999'
+    ws.latestBreakdown();
+    ws.series(0, 9999);
+    expect(ws.internedIdCount).toBe(4);
+    ws.invalidate();
+    expect(ws.internedIdCount).toBe(0);
+    expect(ws.series(0, 9999)).toEqual(cold);
+    expect(ws.internedIdCount).toBe(4);
   });
 
   it('bad filter JSON is logged once per rules string, not per request', () => {

@@ -4,7 +4,7 @@ import type {FilterRule} from '@/shared/item-filter';
 import {AUCTION_TAX_RATE, NO_TAX, taxedValue, type TaxConfig} from '@/domain/valuation';
 import {
   compactPointValue, compactWealthPoint, parseWealthBreakdown, rawTypeLookup, wealthBreakdownRows,
-  wealthPointValue, wealthValuer, type WealthBreakdown, type WealthValuation,
+  wealthPointValue, wealthValuer, WealthIdTable, type CompactWealthPoint, type WealthBreakdown, type WealthValuation,
 } from '..';
 
 const TAX_ON: TaxConfig = {enabled: true, rate: AUCTION_TAX_RATE};
@@ -29,7 +29,7 @@ function recorded(entries: [id: string, qty: number, price: number][]): {value: 
   const breakdown: WealthBreakdown = {};
   for (const [id, qty, price] of entries) breakdown[id] = {qty, price, total: qty * price};
   const json  = JSON.stringify(breakdown);
-  const value = Object.values(JSON.parse(json) as WealthBreakdown).reduce((s, e) => s + e.total, 0);
+  const value = Object.values(JSON.parse(json) as WealthBreakdown).reduce((s, e) => s + (e.total as number), 0);
   return {value, json};
 }
 
@@ -117,7 +117,7 @@ describe('wealthPointValue', () => {
 describe('compact form', () => {
   it('keeps ids and per-item gross, parallel', () => {
     const c = compactWealthPoint(36, parseWealthBreakdown('{"7":{"qty":3,"price":2,"total":6},"8":{"qty":5,"price":6,"total":30}}'));
-    expect(c.ids).toEqual(['7', '8']);
+    expect(idsOf(c)).toEqual(['7', '8']);
     expect([...c.gross]).toEqual([6, 30]);
     expect(c.storedValue).toBe(36);
     expect(c.detailed).toBe(true);
@@ -131,7 +131,7 @@ describe('compact form', () => {
       '200': {qty: 5,  price: 2,  total: 999},
     };
     const c = compactWealthPoint(-1, b);
-    expect(c.ids).toEqual(['200', '400']); // integer keys enumerate ascending
+    expect(idsOf(c)).toEqual(['200', '400']); // integer keys enumerate ascending
     expect([...c.gross]).toEqual([10, 20]);
     expect(c.detailed).toBe(true);
     for (const v of [valuation(NO_TAX), valuation(TAX_ON), valuation(TAX_ON, [hide({type: 'by-type', itemType: 'card'})])]) {
@@ -146,7 +146,7 @@ describe('compact form', () => {
   it('a breakdown whose every entry has qty <= 0 is worth 0 (it has detail), not its stored value', () => {
     const b: WealthBreakdown = {'100': {qty: 0, price: 10, total: 0}, '300': {qty: -1, price: 5, total: -5}};
     const c = compactWealthPoint(-5, b);
-    expect(c.ids).toEqual([]);
+    expect(idsOf(c)).toEqual([]);
     expect(c.detailed).toBe(true);
     expect(compactPointValue(c, valuation(TAX_ON))).toBe(0);
     expect(wealthBreakdownRows(b, valuation(TAX_ON))).toEqual([]);
@@ -179,13 +179,54 @@ describe('compact form', () => {
   it('an empty breakdown compacts to no items and shows its stored value', () => {
     for (const b of [null, parseWealthBreakdown('{}')]) {
       const c = compactWealthPoint(77, b);
-      expect(c.ids).toEqual([]);
+      expect(idsOf(c)).toEqual([]);
       expect(c.gross.length).toBe(0);
       expect(c.detailed).toBe(false);
       expect(compactPointValue(c, valuation(TAX_ON, [hide({type: 'by-type', itemType: 'other'})]))).toBe(77);
     }
   });
+
+  it('points compacted against one table share its ids: one entry per distinct id', () => {
+    const table = new WealthIdTable();
+    const a = compactWealthPoint(SAMPLE.value, parseWealthBreakdown(SAMPLE.json), table);
+    const b = compactWealthPoint(30, parseWealthBreakdown(recorded([['200', 1, 10], ['999', 1, 10], ['555', 1, 10]]).json), table);
+    expect(table.size).toBe(8); // SAMPLE's 7 + '555'
+    expect(a.idTable).toBe(table);
+    expect(b.idTable).toBe(table);
+    expect(idsOf(b)).toEqual(['200', '555', '999']);
+    expect(b.items[0]).toBe(a.items[idsOf(a).indexOf('200')]);
+    expect(b.items[2]).toBe(a.items[idsOf(a).indexOf('999')]);
+  });
+
+  it('one valuer over points of different tables values each by its own table', () => {
+    const t1 = new WealthIdTable();
+    const t2 = new WealthIdTable();
+    t2.intern('400'); // shifts t2's indices: a mix-up would mis-type
+    const p1 = compactWealthPoint(0, parseWealthBreakdown(recorded([['200', 1, 10], ['400', 1, 10]]).json), t1);
+    const p2 = compactWealthPoint(0, parseWealthBreakdown(recorded([['200', 1, 10], ['300', 1, 10]]).json), t2);
+    const v = valuation(TAX_ON, [hide({type: 'by-type', itemType: 'card'})]);
+    const value = wealthValuer(v);
+    for (const p of [p1, p2, p1, p2]) expect(value(p)).toBe(compactPointValue(p, v));
+    expect(value(p1)).toBe(10);             // fuel exempt, card hidden
+    expect(value(p2)).toBeCloseTo(18.5, 9); // fuel exempt + taxed equipment
+  });
 });
+
+describe('WealthIdTable', () => {
+  it('interns each id once and maps indices back', () => {
+    const t = new WealthIdTable();
+    expect(t.size).toBe(0);
+    const ids = ['7', 'constructor', '__proto__', 'toString', '7', '__proto__'];
+    const at  = ids.map(id => t.intern(id));
+    expect(at).toEqual([0, 1, 2, 3, 0, 2]);
+    expect(t.size).toBe(4);
+    expect(at.map(i => t.idAt(i))).toEqual(ids);
+  });
+});
+
+function idsOf(c: CompactWealthPoint): string[] {
+  return Array.from(c.items, i => c.idTable.idAt(i));
+}
 
 describe('wealthBreakdownRows', () => {
   it('values each row with the taxed unit price and taxed total', () => {

@@ -57,7 +57,7 @@ describe('compactPointValue vs breakdown rows (property)', () => {
     for (let i = 0; i < 1500; i++) {
       const bd = randomBreakdown(r);
       const v  = randomValuation(r);
-      const stored = Object.values(bd).reduce((s, e) => s + e.total, 0);
+      const stored = Object.values(bd).reduce((s, e) => s + e.qty * e.price, 0);
       const compact = compactWealthPoint(stored, bd);
       const rows  = wealthBreakdownRows(bd, v);
       const total = rows.reduce((s, x) => s + x.total, 0);

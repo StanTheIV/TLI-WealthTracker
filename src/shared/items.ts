@@ -23,8 +23,12 @@ const RAW_TYPE_MAP: Record<string, ItemType> = Object.entries(ITEM_TYPE_CONFIG).
   {} as Record<string, ItemType>,
 );
 
+const hasOwn = (o: object, key: string) => Object.prototype.hasOwnProperty.call(o, key);
+
+/** Own keys only: a raw type is arbitrary text, and 'constructor' or
+ *  'toString' must not resolve through the prototype. */
 export function mapRawType(raw: string | undefined): ItemType {
   if (!raw) return 'other';
-  if (raw in ITEM_TYPE_CONFIG) return raw as ItemType;
-  return RAW_TYPE_MAP[raw] ?? 'other';
+  if (hasOwn(ITEM_TYPE_CONFIG, raw)) return raw as ItemType;
+  return hasOwn(RAW_TYPE_MAP, raw) ? RAW_TYPE_MAP[raw] : 'other';
 }

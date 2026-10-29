@@ -2,7 +2,7 @@ import type {Logger} from './logger';
 import type {WealthHead} from './db';
 import {AUCTION_TAX_RATE, NO_TAX, type TaxConfig} from '@/domain/valuation';
 import {
-  compactWealthPoint, parseWealthBreakdown, rawTypeLookup, wealthBreakdownRows, wealthValuer,
+  compactWealthPoint, parseWealthBreakdown, rawTypeLookup, wealthBreakdownRows, wealthValuer, WealthIdTable,
   type CompactWealthPoint, type WealthValuation,
 } from '@/domain/wealth';
 import type {DbItem, DbItemFilter, StoredWealthDatapoint} from '@/shared/contracts/db';
@@ -33,9 +33,11 @@ const TAX_ON: TaxConfig = {enabled: true, rate: AUCTION_TAX_RATE};
  * Parsing the breakdown JSON dominates, so each reading's compact form is
  * cached by id, filled lazily by range. Rows are immutable and ids never
  * reused: an entry goes stale only by deletion — `forget` / `invalidate`.
+ * Cached points index one shared id table, not a copy of each id per point.
  */
 export class WealthSeries {
   private readonly _cache = new Map<number, CompactWealthPoint>();
+  private _ids = new WealthIdTable();
   /** The rules string last logged as unreadable — logged once, not per request. */
   private _badRules: string | null = null;
 
@@ -54,7 +56,7 @@ export class WealthSeries {
     const [row] = this._deps.points.latest(1);
     if (!row) return null;
     const breakdown = parseWealthBreakdown(row.breakdown);
-    const point     = this._cache.get(row.id) ?? this._remember(row.id, compactWealthPoint(row.value, breakdown));
+    const point     = this._cache.get(row.id) ?? this._remember(row.id, compactWealthPoint(row.value, breakdown, this._ids));
     const v         = this._valuation();
     return {id: row.id, ts: row.timestamp, value: wealthValuer(v)(point), rows: wealthBreakdownRows(breakdown, v)};
   }
@@ -62,7 +64,7 @@ export class WealthSeries {
   /** One row as displayed — for a reading just recorded (cached for the next `series`). */
   pointOf(row: StoredWealthDatapoint): WealthSeriesPoint {
     const point = this._cache.get(row.id)
-      ?? this._remember(row.id, compactWealthPoint(row.value, parseWealthBreakdown(row.breakdown)));
+      ?? this._remember(row.id, compactWealthPoint(row.value, parseWealthBreakdown(row.breakdown), this._ids));
     return {id: row.id, ts: row.timestamp, value: wealthValuer(this._valuation())(point)};
   }
 
@@ -74,11 +76,17 @@ export class WealthSeries {
   /** Every reading was deleted. */
   invalidate(): void {
     this._cache.clear();
+    this._ids = new WealthIdTable();
   }
 
   /** Cached readings — for tests of the cache's coherence. */
   get cachedCount(): number {
     return this._cache.size;
+  }
+
+  /** Distinct item ids the cached readings share — for tests of the interning. */
+  get internedIdCount(): number {
+    return this._ids.size;
   }
 
   /** Caches every head not yet cached, reading each run of consecutive
@@ -91,7 +99,7 @@ export class WealthSeries {
       while (j + 1 < heads.length && !this._cache.has(heads[j + 1].id)) j++;
       // Timestamp bounds can take in cached neighbours sharing a boundary ts; they are skipped.
       for (const row of this._deps.points.range(heads[i].timestamp, heads[j].timestamp)) {
-        if (!this._cache.has(row.id)) this._remember(row.id, compactWealthPoint(row.value, parseWealthBreakdown(row.breakdown)));
+        if (!this._cache.has(row.id)) this._remember(row.id, compactWealthPoint(row.value, parseWealthBreakdown(row.breakdown), this._ids));
       }
       i = j + 1;
     }
