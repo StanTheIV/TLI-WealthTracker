@@ -36,7 +36,17 @@ const RULE_ACTIONS: readonly string[] = ['show', 'hide'] satisfies readonly Rule
  */
 export function decodeFilterRules(value: unknown): FilterRule[] {
   if (!Array.isArray(value)) throw new Error(`Filter rules must be an array, got ${typeName(value)}`);
-  return value.map((rule: unknown, i) => decodeRule(rule, i));
+  return decodeDense(value, i => `Filter rule #${i} is missing (sparse rules array)`, decodeRule);
+}
+
+/** Rejects holes: `map`/`every` skip them (IPC keeps holes) and JSON would store them as null. */
+function decodeDense<T>(arr: readonly unknown[], hole: (i: number) => string, decode: (item: unknown, i: number) => T): T[] {
+  const out: T[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (!(i in arr)) throw new Error(hole(i));
+    out.push(decode(arr[i], i));
+  }
+  return out;
 }
 
 function decodeRule(rule: unknown, i: number): FilterRule {
@@ -46,10 +56,12 @@ function decodeRule(rule: unknown, i: number): FilterRule {
   if (typeof action !== 'string' || !RULE_ACTIONS.includes(action)) {
     throw new Error(`Filter rule ${id}: action must be show or hide`);
   }
-  if (!Array.isArray(scopes) || !scopes.every(s => typeof s === 'string')) {
-    throw new Error(`Filter rule ${id}: scopes must be an array of strings`);
-  }
-  return {id, action: action as RuleAction, kind: decodeKind(kind, id), scopes: [...scopes] as FilterScope[]};
+  if (!Array.isArray(scopes)) throw new Error(`Filter rule ${id}: scopes must be an array of strings`);
+  const decodedScopes = decodeDense(scopes, j => `Filter rule ${id}: scope #${j} is missing (sparse scopes array)`, scope => {
+    if (typeof scope !== 'string') throw new Error(`Filter rule ${id}: scopes must be an array of strings`);
+    return scope as FilterScope;
+  });
+  return {id, action: action as RuleAction, kind: decodeKind(kind, id), scopes: decodedScopes};
 }
 
 function decodeKind(kind: unknown, ruleId: string): RuleKind {

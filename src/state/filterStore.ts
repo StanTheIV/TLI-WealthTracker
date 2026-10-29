@@ -29,6 +29,16 @@ interface FilterActions {
  * after each write, so nothing here talks to the engine.
  */
 export const useFilterStore = create<FilterState & FilterActions>((set, get) => {
+  /** Bumped by every optimistic change: a getAll answered after one was made
+   *  may predate its write, so load() discards it and asks again. */
+  let mutations = 0;
+
+  /** A local change, counted for load(). */
+  const mutate = (fn: (s: FilterState) => Partial<FilterState>): void => {
+    mutations++;
+    set(fn);
+  };
+
   /** A rejected write re-syncs the store from main, so the UI never keeps a
    *  filter the DB doesn't have. */
   const persist = (write: Promise<void>): void => {
@@ -45,7 +55,7 @@ export const useFilterStore = create<FilterState & FilterActions>((set, get) => 
     const target = get().filters.find(f => f.id === id);
     if (!target) return;
     const updated = fn(target);
-    set(s => ({filters: s.filters.map(f => f.id === id ? updated : f)}));
+    mutate(s => ({filters: s.filters.map(f => f.id === id ? updated : f)}));
     persist(window.electronAPI.db.filters.update(updated));
   };
 
@@ -53,9 +63,16 @@ export const useFilterStore = create<FilterState & FilterActions>((set, get) => 
     filters:  [],
     isLoaded: false,
 
+    /** Main answers invokes in order, so a getAll issued after the last
+     *  change's write reflects it; an older snapshot is never applied. */
     load: async () => {
-      const filters = await window.electronAPI.db.filters.getAll();
-      set({filters, isLoaded: true});
+      for (;;) {
+        const issuedAt = mutations;
+        const filters = await window.electronAPI.db.filters.getAll();
+        if (mutations !== issuedAt) continue;
+        set({filters, isLoaded: true});
+        return;
+      }
     },
 
     createFilter: (name) => {
@@ -65,12 +82,12 @@ export const useFilterStore = create<FilterState & FilterActions>((set, get) => 
         rules:   [],
         enabled: false,
       };
-      set(s => ({filters: [...s.filters, filter]}));
+      mutate(s => ({filters: [...s.filters, filter]}));
       persist(window.electronAPI.db.filters.insert(filter));
     },
 
     deleteFilter: (id) => {
-      set(s => ({filters: s.filters.filter(f => f.id !== id)}));
+      mutate(s => ({filters: s.filters.filter(f => f.id !== id)}));
       persist(window.electronAPI.db.filters.delete(id));
     },
 
@@ -79,12 +96,12 @@ export const useFilterStore = create<FilterState & FilterActions>((set, get) => 
     },
 
     enableFilter: (id) => {
-      set(s => ({filters: s.filters.map(f => ({...f, enabled: f.id === id}))}));
+      mutate(s => ({filters: s.filters.map(f => ({...f, enabled: f.id === id}))}));
       persist(window.electronAPI.db.filters.setEnabled(id, true));
     },
 
     disableFilter: (id) => {
-      set(s => ({filters: s.filters.map(f => f.id === id ? {...f, enabled: false} : f)}));
+      mutate(s => ({filters: s.filters.map(f => f.id === id ? {...f, enabled: false} : f)}));
       persist(window.electronAPI.db.filters.setEnabled(id, false));
     },
 

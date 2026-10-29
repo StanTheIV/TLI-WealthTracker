@@ -204,16 +204,24 @@ export function filtersGetAll(): ItemFilter[] {
   return rows.map(r => ({id: r.id, name: r.name, enabled: r.enabled === 1, rules: decodeStoredRules(r.id, r.rules)}));
 }
 
+/** An enabled filter disables every other row (at most one enabled filter). */
 export function filtersInsert(filter: ItemFilter): void {
   const rules = encodeRules(filter.rules);
-  db.prepare('INSERT INTO item_filters (id, name, enabled, rules) VALUES (@id, @name, @enabled, @rules)')
-    .run({id: filter.id, name: filter.name, enabled: filter.enabled ? 1 : 0, rules});
+  db.transaction(() => {
+    db.prepare('INSERT INTO item_filters (id, name, enabled, rules) VALUES (@id, @name, @enabled, @rules)')
+      .run({id: filter.id, name: filter.name, enabled: filter.enabled ? 1 : 0, rules});
+    if (filter.enabled) disableAllBut(filter.id);
+  });
 }
 
+/** An enabled filter disables every other row; an unknown id changes nothing. */
 export function filtersUpdate(filter: ItemFilter): void {
   const rules = encodeRules(filter.rules);
-  db.prepare('UPDATE item_filters SET name = @name, enabled = @enabled, rules = @rules WHERE id = @id')
-    .run({id: filter.id, name: filter.name, enabled: filter.enabled ? 1 : 0, rules});
+  db.transaction(() => {
+    const {changes} = db.prepare('UPDATE item_filters SET name = @name, enabled = @enabled, rules = @rules WHERE id = @id')
+      .run({id: filter.id, name: filter.name, enabled: filter.enabled ? 1 : 0, rules});
+    if (filter.enabled && changes > 0) disableAllBut(filter.id);
+  });
 }
 
 export function filtersDelete(id: string): void {
@@ -228,6 +236,10 @@ export function filtersSetEnabled(id: string, enabled: boolean): void {
       db.prepare('UPDATE item_filters SET enabled = 1 WHERE id = ?').run(id);
     }
   });
+}
+
+function disableAllBut(id: string): void {
+  db.prepare('UPDATE item_filters SET enabled = 0 WHERE id != ? AND enabled = 1').run(id);
 }
 
 /** A rules write's JSON; throws (nothing is stored) for a malformed payload. */

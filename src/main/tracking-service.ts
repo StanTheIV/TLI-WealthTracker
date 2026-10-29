@@ -187,15 +187,20 @@ export class TrackingService {
     return this._engine !== null;
   }
 
-  /** The engine's replay, in wire form, and the seq of the last broadcast,
-   *  read together: a window applies it, then only envelopes with a later seq.
+  /** The engine's replay, in wire form, and the seq of the last broadcast
+   *  BEFORE the replay: a window applies it, then only envelopes with a later
+   *  seq. Read first because the replay itself may broadcast (an isolated
+   *  replay throw emits `error`) — that envelope is not in `events`, so it
+   *  must get a seq above the snapshot's to reach the window (buffered by
+   *  `engineStore.init` while this invoke is in flight).
    *  (The replay holds no `unit_finished`; the filter only narrows the type.) */
   getState(): EngineSnapshot {
+    const seq = this._seq;
     const events: WireEngineEvent[] = [];
     for (const event of this._engine?.getState() ?? []) {
       if (event.type !== 'unit_finished') events.push(this._toWire(event));
     }
-    return {seq: this._seq, events};
+    return {seq, events};
   }
 
   /** Delete a saved session and its rows. Refuses (throws) the active one. */

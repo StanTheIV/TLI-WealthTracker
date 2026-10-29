@@ -2,6 +2,7 @@ import {utilityProcess} from 'electron';
 import type {UtilityProcess} from 'electron';
 import {join} from 'path';
 import type {RawEvent} from '@/worker/processors/types';
+import {describeError} from '@/shared/describe-error';
 import {log} from './logger';
 import {parseWorkerMessage} from './worker-message';
 
@@ -29,12 +30,13 @@ export class WorkerProcess {
     this._onEvent = onEvent;
   }
 
-  /** Idempotent — a second call while running is a no-op. */
+  /** Idempotent — a second call while running is a no-op. Atomic: when the
+   *  start message can't be sent, the child is killed, nothing is kept (the
+   *  next call forks afresh) and the error is rethrown. */
   start(logPath: string): void {
     if (this._process) return;
 
     const child = utilityProcess.fork(join(__dirname, 'index.js'));
-    this._process = child;
     child.on('message', (raw: unknown) => this._handleMessage(raw));
     child.on('exit', (code) => this._handleExit(child, code));
     // V8 fatal error: the child terminates, `exit` follows.
@@ -43,7 +45,18 @@ export class WorkerProcess {
       log.error('worker', `Worker fatal error ${type} at ${location}\n${head}`);
     });
 
-    child.postMessage({type: 'start', logPath});
+    try {
+      child.postMessage({type: 'start', logPath});
+    } catch (err) {
+      log.error('worker', `Worker start failed: ${describeError(err)}`);
+      try {
+        child.kill();
+      } catch (killErr) {
+        log.error('worker', `Killing the failed worker failed: ${describeError(killErr)}`);
+      }
+      throw err;
+    }
+    this._process = child;
     log.info('worker', `Worker started, tailing: ${logPath}`);
   }
 
@@ -56,9 +69,9 @@ export class WorkerProcess {
     }
   }
 
-  /** `_process` changes only here and in stop(), so an exiting child that is
-   *  no longer `_process` is one stop() killed: expected, and it must not
-   *  clear a newer child started since. */
+  /** `_process` changes only here, in stop() and on a successful start(), so
+   *  an exiting child that is not `_process` is one stop() or a failed start()
+   *  killed: expected, and it must not clear a newer child started since. */
   private _handleExit(child: UtilityProcess, code: number): void {
     if (child !== this._process) {
       log.info('worker', `Worker exited after stop (code ${code})`);

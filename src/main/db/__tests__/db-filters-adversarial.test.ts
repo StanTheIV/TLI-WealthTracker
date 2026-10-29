@@ -131,11 +131,10 @@ describe('corrupt and duplicate rows', () => {
     expect(all.find(f => f.enabled)?.id).toBe('first');
   });
 
-  it('insert/update with enabled:true does not demote an already-enabled row (only setEnabled keeps the invariant)', () => {
-    filtersInsert(filter({id: 'a', enabled: true}));
-    filtersInsert(filter({id: 'b', enabled: true}));
+  it('two enabled rows written by raw SQL: setEnabled repairs them (db-filters-fix covers insert/update)', () => {
+    raw('a', '[]', 1);
+    raw('b', '[]', 1);
     expect(filtersGetAll().filter(f => f.enabled).map(f => f.id)).toEqual(['a', 'b']);
-    // setEnabled repairs it
     filtersSetEnabled('b', true);
     expect(filtersGetAll().filter(f => f.enabled).map(f => f.id)).toEqual(['b']);
   });

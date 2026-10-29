@@ -72,13 +72,13 @@ describe('filter write handlers', () => {
     expect(filtersGetAll().every(f => !f.enabled)).toBe(true);
   });
 
-  it('inserting a second enabled filter leaves two enabled rows; both consumers pick the first, as the callback sees', async () => {
+  it('inserting a second enabled filter disables the first (one enabled row), as the callback sees', async () => {
     await call('db:filters:insert', filter({id: 'a'}));
     let active: string | undefined;
     changed.mockImplementation(() => { active = filtersGetAll().find(f => f.enabled)?.id; });
     await call('db:filters:insert', filter({id: 'b'}));
-    expect(filtersGetAll().filter(f => f.enabled)).toHaveLength(2);
-    expect(active).toBe('a');
+    expect(filtersGetAll().filter(f => f.enabled).map(f => f.id)).toEqual(['b']);
+    expect(active).toBe('b');
   });
 
   it('payload objects with extra properties (renderer-side junk) store only the known fields', async () => {

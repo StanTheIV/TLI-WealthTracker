@@ -73,7 +73,7 @@ describe('db.ts surface', () => {
     filtersUpdate({id: 'f1', name: 'A2', enabled: true, rules: [show]});
     expect(filtersGetAll()).toEqual([
       {id: 'f1', name: 'A2', enabled: true, rules: [show]},
-      {id: 'f2', name: 'B',  enabled: true, rules: [hide]},
+      {id: 'f2', name: 'B',  enabled: false, rules: [hide]}, // at most one enabled filter
     ]);
     filtersDelete('f1');
     expect(filtersGetAll().map(f => f.id)).toEqual(['f2']);
