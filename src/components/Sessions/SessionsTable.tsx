@@ -1,8 +1,8 @@
 import {useMemo} from 'react';
 import {useTranslation} from 'react-i18next';
-import type {DbItem, DbSession} from '@/types/electron';
-import type {TaxConfig} from '@/lib/tax';
-import {makePriceLookup, makeValuator} from './analytics/valuation';
+import type {DbItem, DbSession} from '@/shared/contracts/db';
+import {makePriceLookup, valueQty, type TaxConfig} from '@/domain/valuation';
+import {formatFEFull} from '@/lib/format';
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -22,10 +22,6 @@ function formatDuration(totalSeconds: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function formatIncome(fe: number): string {
-  return fe > 0 ? `${fe.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE` : '—';
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -41,15 +37,17 @@ interface Props {
 export default function SessionsTable({sessions, selectedId, items, tax, onSelect}: Props) {
   const {t} = useTranslation('sessions');
 
-  /** Valued on the SNAPSHOT leg, the same default SessionDetail opens on, so a
-   *  row and the page it opens can't disagree. (They used to: this column read
-   *  live prices while the detail page read the frozen ones.) Priced per row —
-   *  each session carries its own price snapshot. */
-  const incomes = useMemo(() => {
+  /** Net (loot − spent) on the SNAPSHOT leg: the same rule and default leg
+   *  SessionDetail opens on, so a row and the page it opens can't disagree.
+   *  Priced per row — each session carries its own price snapshot. */
+  const nets = useMemo(() => {
     return new Map(sessions.map((session) => {
       const drops  = session.drops ?? {};
-      const prices = makePriceLookup(items, session.priceSnapshot, tax, Object.keys(drops));
-      return [session.id, makeValuator(prices, {clampNegative: true})(drops).snapshot];
+      const spent  = session.spent ?? {};
+      const prices = makePriceLookup(
+        items, session.priceSnapshot, tax, new Set([...Object.keys(drops), ...Object.keys(spent)]),
+      );
+      return [session.id, valueQty(drops, prices).snapshot - valueQty(spent, prices).snapshot];
     }));
   }, [sessions, items, tax]);
 
@@ -70,12 +68,12 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
             <th className="px-4 py-2 font-semibold">{t('columns.date')}</th>
             <th className="px-4 py-2 font-semibold text-right">{t('columns.duration')}</th>
             <th className="px-4 py-2 font-semibold text-right">{t('columns.maps')}</th>
-            <th className="px-4 py-2 font-semibold text-right">{t('columns.income')}</th>
+            <th className="px-4 py-2 font-semibold text-right">{t('columns.net')}</th>
           </tr>
         </thead>
         <tbody>
           {sessions.map(session => {
-            const income     = incomes.get(session.id) ?? 0;
+            const net        = nets.get(session.id) ?? 0;
             const isSelected = session.id === selectedId;
 
             return (
@@ -89,11 +87,24 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
                     : 'hover:bg-white/5 text-text-primary',
                 ].join(' ')}
               >
-                <td className="px-4 py-2.5 font-medium truncate max-w-[200px]">
-                  {isSelected && (
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent mr-2 align-middle" />
-                  )}
-                  {session.name}
+                <td className="px-4 py-2.5 font-medium max-w-[200px]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isSelected && (
+                      <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
+                    )}
+                    <span className="truncate">{session.name}</span>
+                    {/* endedAt null = the run is still open (being tracked):
+                        it is persisted from the start and refreshes per map. */}
+                    {session.endedAt === null && (
+                      <span
+                        className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-success/15 text-success"
+                        title={t('live.title')}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                        {t('live.badge')}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-2.5 text-text-secondary text-xs">
                   {formatDate(session.savedAt)}
@@ -104,8 +115,8 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
                 <td className="px-4 py-2.5 text-right tabular-nums text-text-secondary">
                   {session.mapCount}
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums font-medium text-accent">
-                  {formatIncome(income)}
+                <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${net < 0 ? 'text-danger' : 'text-accent'}`}>
+                  {formatFEFull(net, {unit: true, zeroAsDash: true})}
                 </td>
               </tr>
             );
@@ -116,4 +127,4 @@ export default function SessionsTable({sessions, selectedId, items, tax, onSelec
   );
 }
 
-export {formatDate, formatDuration, formatIncome};
+export {formatDate, formatDuration};

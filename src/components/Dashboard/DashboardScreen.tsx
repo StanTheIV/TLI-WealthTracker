@@ -1,4 +1,3 @@
-import {useWealthRefresh} from '@/hooks/useWealthRefresh';
 import {useSettingsStore} from '@/state/settingsStore';
 import WealthChart from './WealthChart';
 import ItemBreakdown from './ItemBreakdown';
@@ -10,7 +9,6 @@ interface Props {
 
 export default function DashboardScreen({onRequestItemFocus}: Props) {
   const showEventFeed = useSettingsStore(s => s.showEventFeed);
-  useWealthRefresh();
 
   return (
     <div className="flex flex-col h-full p-6 overflow-hidden">

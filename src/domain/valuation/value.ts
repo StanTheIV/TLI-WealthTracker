@@ -1,0 +1,140 @@
+import type {DbItem} from '@/shared/contracts/db';
+import {taxedUnitPrice, type TaxConfig} from './tax';
+import type {PriceLookup, Valuation} from './types';
+
+export const ZERO_VAL: Valuation = {snapshot: 0, live: 0};
+
+export function addVal(a: Valuation, b: Valuation): Valuation {
+  return {snapshot: a.snapshot + b.snapshot, live: a.live + b.live};
+}
+
+export function subVal(a: Valuation, b: Valuation): Valuation {
+  return {snapshot: a.snapshot - b.snapshot, live: a.live - b.live};
+}
+
+export function scaleVal(v: Valuation, k: number): Valuation {
+  if (!Number.isFinite(k)) return ZERO_VAL;
+  return {snapshot: v.snapshot * k, live: v.live * k};
+}
+
+/** Clamp both legs at zero. For share DENOMINATORS only — a pct column is a
+ *  share of the positive parts. No aggregate value is ever clamped: a negative
+ *  one is real and is shown as such. */
+export function clampVal(v: Valuation): Valuation {
+  return {snapshot: Math.max(0, v.snapshot), live: Math.max(0, v.live)};
+}
+
+export function isZeroVal(v: Valuation): boolean {
+  return v.snapshot === 0 && v.live === 0;
+}
+
+/** Percentage change from snapshot to live. Null when the snapshot leg is zero
+ *  — the change is undefined, not infinite, and must not render as a number. */
+export function driftPct(v: Valuation): number | null {
+  if (v.snapshot === 0) return null;
+  return ((v.live - v.snapshot) / v.snapshot) * 100;
+}
+
+/** Value per hour. Returns zero rather than Infinity when no time elapsed. */
+export function perHour(v: Valuation, seconds: number): Valuation {
+  if (seconds <= 0) return ZERO_VAL;
+  return scaleVal(v, 3600 / seconds);
+}
+
+/** Percentage share of a total, per leg. Zero where that leg's total is zero,
+ *  so a share never renders as NaN beside a real value. */
+export function sharePct(part: Valuation, total: Valuation): Valuation {
+  return {
+    snapshot: total.snapshot === 0 ? 0 : (part.snapshot / total.snapshot) * 100,
+    live:     total.live === 0 ? 0 : (part.live / total.live) * 100,
+  };
+}
+
+/** Safe ratio for both legs. Null per-leg when the divisor is zero. */
+export function ratio(a: Valuation, b: Valuation): {snapshot: number | null; live: number | null} {
+  return {
+    snapshot: b.snapshot === 0 ? null : a.snapshot / b.snapshot,
+    live:     b.live === 0 ? null : a.live / b.live,
+  };
+}
+
+/** An empty snapshot is indistinguishable from a pre-column session, so both
+ *  degrade identically: `snapshot` aliases `live` and `hasSnapshot` tells the UI
+ *  to hide the comparison. Per-item misses fall back the same way, so one
+ *  unpriced item can't make a whole session look like it lost value.
+ *
+ *  Both legs come out taxed, which is what makes this the seam for the whole
+ *  analytics module: `valueQty`, `valueItem` and every aggregate built on
+ *  them inherit the auction-house cut without knowing it exists. The snapshot
+ *  leg is taxed too — the cut is a property of realising the value, not of when
+ *  the haul happened, so a saved session must not read as gross. */
+export function makePriceLookup(
+  items: Record<string, DbItem>,
+  snapshot: Record<string, number> | null | undefined,
+  /** Required (and positional, ahead of the optional `coveredIds`) so adding it
+   *  breaks every existing caller rather than silently valuing at gross. */
+  tax: TaxConfig,
+  /** Ids the page actually values. A snapshot covering none of them (only
+   *  consumed materials, say) can't support a comparison, so it counts as
+   *  absent rather than as "nothing moved". */
+  coveredIds?: Iterable<string>,
+): PriceLookup {
+  const snap = snapshot ?? {};
+  // Own keys only: item ids are arbitrary strings, and a plain lookup of an id
+  // like 'constructor' would read an inherited function as a price.
+  const snapPrice = (itemId: string): number | undefined => (
+    Object.prototype.hasOwnProperty.call(snap, itemId) ? snap[itemId] : undefined
+  );
+  const item = (itemId: string): DbItem | undefined => (
+    Object.prototype.hasOwnProperty.call(items, itemId) ? items[itemId] : undefined
+  );
+  const anySnapshot = Object.keys(snap).length > 0;
+  const hasSnapshot = anySnapshot && (
+    coveredIds === undefined || [...coveredIds].some(id => snapPrice(id) !== undefined)
+  );
+  const taxed = (itemId: string, price: number) => taxedUnitPrice(price, item(itemId)?.type, tax);
+  const live  = (itemId: string) => taxed(itemId, item(itemId)?.price ?? 0);
+
+  return {
+    live,
+    hasSnapshot,
+    snapshot: (itemId: string) => {
+      const price = hasSnapshot ? snapPrice(itemId) : undefined;
+      return price !== undefined ? taxed(itemId, price) : live(itemId);
+    },
+    isMissing: (itemId: string) => hasSnapshot && snapPrice(itemId) === undefined,
+  };
+}
+
+/** THE valuation rule, for loot and spent alike: signed Σ qty × taxed price on
+ *  both legs. Nothing is clamped — a negative quantity (in-map consumption, an
+ *  auction-house conversion, legacy entry cost netted into drops) really did
+ *  reduce what the run is worth. Accepts numeric keys (TrackerSnapshot). */
+export function valueQty(quantities: Record<string | number, number>, prices: PriceLookup): Valuation {
+  let snapshot = 0;
+  let live     = 0;
+  for (const [id, qty] of Object.entries(quantities)) {
+    snapshot += qty * prices.snapshot(id);
+    live     += qty * prices.live(id);
+  }
+  return {snapshot, live};
+}
+
+/** The single-item case of `valueQty`, for item tables. */
+export function valueItem(prices: PriceLookup, id: string, qty: number): Valuation {
+  return {snapshot: qty * prices.snapshot(id), live: qty * prices.live(id)};
+}
+
+/** A live tracker's value in FE: the `live` leg of `valueQty` over an
+ *  unsnapshotted lookup — the same code path a saved session is valued
+ *  through, so the overlay and the session page can't disagree on the rule. */
+export function liveValue(
+  tracker: {drops: Record<string | number, number>; spent?: Record<string | number, number>},
+  items: Record<string, DbItem>,
+  tax: TaxConfig,
+): {loot: number; cost: number; net: number} {
+  const prices = makePriceLookup(items, null, tax);
+  const loot   = valueQty(tracker.drops, prices).live;
+  const cost   = valueQty(tracker.spent ?? {}, prices).live;
+  return {loot, cost, net: loot - cost};
+}

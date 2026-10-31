@@ -28,7 +28,8 @@
       "price": "Preise",
       "wealth": "Vermögen",
       "app": "App",
-      "filter": "Filter"
+      "filter": "Filter",
+      "update": "Updater"
     },
     "typeNames": {
       "info": "Info",
@@ -152,14 +153,21 @@
     "label": "Wohlstandsdiagramm, gespeicherte Sitzungen und Map-Aufschlüsselungen löschen. Dies kann nicht rückgängig gemacht werden.",
     "button": "Farm-Verlauf zurücksetzen",
     "confirm": "Bist du sicher? Wohlstandsdiagramm, gespeicherte Sitzungen und Map-Aufschlüsselungen werden dauerhaft gelöscht.",
-    "done": "Farm-Verlauf wurde gelöscht."
+    "done": "Farm-Verlauf wurde gelöscht.",
+    "blockedTracking": "Beende zuerst das Tracking — der Farm-Verlauf kann während einer laufenden Sitzung nicht gelöscht werden"
   },
   "apiKeys": {
     "heading": "API-Schlüssel",
     "serperApiKey": {
       "label": "Serper API-Schlüssel",
       "hint": "Für die Item-Namenssuche über serper.dev (max. 10/Tag, 2500 kostenlos/Monat). Kostenlosen Schlüssel unter serper.dev erstellen.",
-      "placeholder": "Serper API-Schlüssel eingeben…"
+      "placeholder": "Serper API-Schlüssel eingeben…",
+      "replacePlaceholder": "Neuen Schlüssel eingeben, um den gespeicherten zu ersetzen…",
+      "save": "Speichern",
+      "remove": "Entfernen",
+      "saved": "Schlüssel gespeichert",
+      "saveFailed": "Der Schlüssel konnte nicht sicher gespeichert werden und wurde daher nicht abgelegt. Möglicherweise ist der sichere Speicher auf diesem System nicht verfügbar.",
+      "removeFailed": "Der Schlüssel konnte nicht entfernt werden."
     }
   }
 }

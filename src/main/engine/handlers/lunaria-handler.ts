@@ -1,27 +1,29 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
+import {mechanic} from '@/shared/mechanics';
+import type {Settings} from '@/shared/settings';
 
-const DEFAULT_LOOT_COLLECTION_MS = 5_000;
+const MECHANIC = mechanic('lunaria');
 
 /**
  * LunariaHandler — Lunaria (S14 "MingYue") translator.
  *
  * Multiple strums in one map fold into the same tracker; the loot timer pauses
  * the tracker on expiry instead of finishing it (`pauseOnLootExpiry: true`).
- *   s14_strum (first)        : start tracker + arm loot timer
- *   s14_strum (paused tracker): resume + arm fresh loot timer
- *   s14_strum (active)       : reset loot timer (full window, undoes decay)
- *   bag_update               : decaying refresh of the loot timer
+ *   s14_strum (first) : start tracker + arm loot timer
+ *   s14_strum (later) : reset loot timer (full window, undoes decay; wakes a
+ *                       paused tracker — TrackerRegistry.wakeForLoot)
+ *   bag_update        : decaying refresh of the loot timer (never wakes)
  */
 export class LunariaHandler implements EventHandler {
   readonly name    = 'lunaria';
   readonly handles = ['s14_strum', 'bag_update'] as const;
 
-  private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
+  private _lootMs: number = MECHANIC.window.defaultMs;
 
-  setLootDurationMs(ms: number): void {
-    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+  configure(settings: Settings): void {
+    this._lootMs = settings.lootWindowMs[MECHANIC.key];
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -50,14 +52,8 @@ export class LunariaHandler implements EventHandler {
       return;
     }
 
-    if (!existing.active) {
-      existing.resumeTracker();
-      existing.armLootTimer();
-      return;
-    }
-
-    // Active tracker, in-flight timer — strum is re-engagement; full reset
-    // undoes any pickup-decay so the player gets a fresh full window.
+    // Strum is re-engagement: full reset undoes any pickup-decay so the player
+    // gets a fresh full window, and wakes a tracker parked between strums.
     existing.resetLootTimer();
   }
 }

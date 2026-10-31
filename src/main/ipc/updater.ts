@@ -1,55 +1,49 @@
 import {ipcMain, type BrowserWindow} from 'electron';
 import {app} from 'electron';
-import {checkForUpdate, downloadUpdate, launchInstallerAndQuit, fetchChangelog} from '../updater';
+import {checkForUpdate, downloadUpdate, launchInstallerAndQuit, fetchChangelog, isNewer} from '../updater';
 import {settingsGet, settingsSet} from '../db';
 import {log} from '../logger';
-
-function isNewer(current: string, last: string): boolean {
-  const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number);
-  const c = parse(current);
-  const l = parse(last);
-  for (let i = 0; i < 3; i++) {
-    if ((c[i] ?? 0) > (l[i] ?? 0)) return true;
-    if ((c[i] ?? 0) < (l[i] ?? 0)) return false;
-  }
-  return false;
-}
+import {describeError, describeErrorBrief} from '@/shared/describe-error';
+import type {UpdateInfo} from '@/shared/contracts/api';
 
 export function registerUpdaterHandlers(getMainWindow: () => BrowserWindow | null): void {
-  ipcMain.handle('updater:check', async () => {
+  ipcMain.handle('updater:check', async (): Promise<UpdateInfo | null> => {
     // Skip auto-update for portable builds
     if (process.env.PORTABLE_EXECUTABLE_DIR) return null;
-    return checkForUpdate();
+    const update = await checkForUpdate();
+    if (!update) return null;
+    return {version: update.version, changelog: update.changelog, downloadUrl: update.downloadUrl};
   });
 
   ipcMain.handle('updater:download', async () => {
     try {
-      const info = await checkForUpdate();
-      if (!info) return {success: false, error: 'No update available'};
+      const update = await checkForUpdate();
+      if (!update) return {success: false, error: 'No update available'};
 
-      const dest = await downloadUpdate(info.downloadUrl, (pct) => {
+      await downloadUpdate(update, (pct) => {
         const win = getMainWindow();
         if (win && !win.isDestroyed()) {
           win.webContents.send('updater:progress', pct);
         }
       });
 
-      return {success: true, path: dest};
+      return {success: true};
     } catch (err) {
-      log.error('update', `Download failed: ${err}`);
-      return {success: false, error: String(err)};
+      log.error('update', `Download failed: ${describeError(err)}`);
+      return {success: false, error: describeErrorBrief(err)};
     }
   });
 
-  ipcMain.on('updater:install', (_e, installerPath: string) => {
-    launchInstallerAndQuit(installerPath);
+  // Takes no argument: main opens only the installer it downloaded and verified.
+  ipcMain.on('updater:install', () => {
+    void launchInstallerAndQuit();
   });
 
   ipcMain.handle('updater:get-changelog', async () => {
     const current = app.getVersion();
     const lastSeen = settingsGet('last_seen_version') ?? '0.0.0';
 
-    if (!isNewer(current, lastSeen)) return null;
+    if (!isNewer(lastSeen, current)) return null;
 
     const changelog = await fetchChangelog(current);
     if (!changelog) return null;

@@ -6,7 +6,7 @@
  * Mirrors the real save→quit→reopen→continue flow:
  *   1. Run a session, accumulate drops + elapsed, hit stop.
  *   2. Capture the tracker_finished snapshot (what autoSaveSession persists).
- *   3. Build a LoadedSessionData from that snapshot (what startEngine does).
+ *   3. Build a LoadedSessionData from that snapshot (what TrackingService does).
  *   4. Boot a fresh engine with that loaded data.
  *   5. Inspect the tracker_started event fired on init.
  */
@@ -15,7 +15,8 @@ import {Engine}          from '@/main/engine/engine';
 import {BagInitHandler}  from '@/main/engine/handlers/bag-init';
 import {ZoneHandler}     from '@/main/engine/handlers/zone';
 import {ItemHandler}     from '@/main/engine/handlers/item';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
+import {TEST_IDENTITY} from './seasonal-fixtures';
 
 const TOWN_SCENE = 'XZ_YuJinZhiXiBiNanSuo200';
 const MAP_SCENE  = '/Game/Art/Maps/S5_Boss';
@@ -36,7 +37,7 @@ describe('session-continue — save → restart → restore', () => {
     // ---------- Run 1: fresh session, accumulate drops + time ----------
     const run1Events: EngineEvent[] = [];
     const engine1 = createEngine(run1Events);
-    engine1.start();
+    engine1.start(TEST_IDENTITY);
 
     // Initial bag: item 100 x 2
     engine1.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 100, quantity: 2});
@@ -82,15 +83,16 @@ describe('session-continue — save → restart → restore', () => {
     // ---------- Run 2: fresh engine, continue saved session ----------
     const run2Events: EngineEvent[] = [];
     const engine2 = createEngine(run2Events);
-    engine2.loadSession({
-      id:        'session-1',
-      name:      'Saved',
-      drops:     dbDrops,
-      totalTime: dbTotalTime, // seconds — engine converts to ms
-      mapTime:   dbMapTime,
-      mapCount:  dbMapCount,
-    });
-    engine2.start();
+    const loaded = {
+      drops:         dbDrops,
+      dropsBySource: finished.tracker.dropsBySource ?? {},
+      spent:         finished.tracker.spent ?? {},
+      totalTime:     dbTotalTime, // seconds — engine converts to ms
+      mapTime:       dbMapTime,
+      mapCount:      dbMapCount,
+    };
+    engine2.loadSession(loaded);
+    engine2.start({sessionId: 'session-1', name: 'Saved'});
 
     engine2.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
     engine2.onRawEvent({type: 'bag_init', pageId: 0, slotId: 2, itemId: 200, quantity: 10});
@@ -105,6 +107,15 @@ describe('session-continue — save → restart → restore', () => {
     expect(started.tracker.drops[100]).toBe(3);
     expect(started.tracker.drops[200]).toBe(10);
     expect(started.tracker.elapsed).toBeGreaterThanOrEqual(priorElapsed);
-    expect(started.sessionMeta?.mapCount).toBe(priorMeta?.mapCount);
+    expect(started.sessionMeta).toEqual({
+      mapTime:   priorMeta?.mapTime,
+      mapCount:  priorMeta?.mapCount,
+      sessionId: 'session-1',
+      name:      'Saved',
+      continued: true,
+    });
+    // The per-source breakdown is restored too, not just the drops.
+    expect(started.tracker.dropsBySource).toBeDefined();
+    expect(started.tracker.dropsBySource).toEqual(finished.tracker.dropsBySource);
   });
 });

@@ -1,11 +1,12 @@
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useSettingsStore, type ThemeMode} from '@/state/settingsStore';
-import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
 import {useSessionsStore} from '@/state/sessionsStore';
+import {selectRunStatus, useEngineStore} from '@/state/engineStore';
 import {SUPPORTED_LANGUAGES} from '@/i18n';
-import type {DbItem} from '@/types/electron';
+import type {DbItem} from '@/shared/contracts/db';
+import {WINDOWED_MECHANICS} from '@/shared/mechanics';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import LeagueSection from './LeagueSection';
 
@@ -16,11 +17,9 @@ export default function GeneralTab() {
   const clickThroughWhileRunning    = useSettingsStore(s => s.clickThroughWhileRunning);
   const setClickThroughWhileRunning = useSettingsStore(s => s.setClickThroughWhileRunning);
   const language        = useSettingsStore(s => s.language);
-  const serperApiKey    = useSettingsStore(s => s.serperApiKey);
   const setTorchlightPath = useSettingsStore(s => s.setTorchlightPath);
   const setOverlayOpacity = useSettingsStore(s => s.setOverlayOpacity);
   const setLanguage       = useSettingsStore(s => s.setLanguage);
-  const setSerperApiKey   = useSettingsStore(s => s.setSerperApiKey);
   const rateTimeframe     = useSettingsStore(s => s.rateTimeframe);
   const setRateTimeframe  = useSettingsStore(s => s.setRateTimeframe);
   const themeMode         = useSettingsStore(s => s.themeMode);
@@ -33,24 +32,30 @@ export default function GeneralTab() {
   const setShowEventFeed         = useSettingsStore(s => s.setShowEventFeed);
   const auctionTaxEnabled        = useSettingsStore(s => s.auctionTaxEnabled);
   const setAuctionTaxEnabled     = useSettingsStore(s => s.setAuctionTaxEnabled);
-  const overrealmLootSec    = useSettingsStore(s => s.overrealmLootSec);
-  const setOverrealmLootSec = useSettingsStore(s => s.setOverrealmLootSec);
-  const carjackLootSec      = useSettingsStore(s => s.carjackLootSec);
-  const setCarjackLootSec   = useSettingsStore(s => s.setCarjackLootSec);
-  const clockworkLootSec    = useSettingsStore(s => s.clockworkLootSec);
-  const setClockworkLootSec = useSettingsStore(s => s.setClockworkLootSec);
-  const lunariaLootSec      = useSettingsStore(s => s.lunariaLootSec);
-  const setLunariaLootSec   = useSettingsStore(s => s.setLunariaLootSec);
-  const sandlordWaveSec     = useSettingsStore(s => s.sandlordWaveSec);
-  const setSandlordWaveSec  = useSettingsStore(s => s.setSandlordWaveSec);
-  const huntingLootSec      = useSettingsStore(s => s.huntingLootSec);
-  const setHuntingLootSec   = useSettingsStore(s => s.setHuntingLootSec);
-  const afterlightLootSec    = useSettingsStore(s => s.afterlightLootSec);
-  const setAfterlightLootSec = useSettingsStore(s => s.setAfterlightLootSec);
+  const lootWindowMs             = useSettingsStore(s => s.lootWindowMs);
+  const setLootWindowMs          = useSettingsStore(s => s.setLootWindowMs);
 
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus]   = useState<string | null>(null);
   const [wealthResetState, setWealthResetState] = useState<'idle' | 'confirm' | 'done'>('idle');
+  // Main refuses the clear while a run exists, bag init included.
+  const runActive  = useEngineStore(s => selectRunStatus(s) !== 'idle');
+  const clearBlock = runActive ? t('wealthReset.blockedTracking') : undefined;
+
+  const clearFarmingHistory = async () => {
+    let refused = false;
+    try {
+      await window.electronAPI.db.wealth.clear();
+    } catch (err) {
+      console.error('[wealth] clear refused:', err);
+      refused = true;
+    }
+    // Clears wealth + sessions + session_maps. Main announces an accepted clear
+    // as `wealth:changed`, which re-reads the wealth; the sessions are re-read
+    // here so the list shows what the DB holds, whether or not main accepted.
+    await useSessionsStore.getState().refresh();
+    setWealthResetState(refused ? 'idle' : 'done');
+  };
 
   const browse = async () => {
     const folder = await window.electronAPI.pickFolder();
@@ -219,15 +224,8 @@ export default function GeneralTab() {
           {t('lootTimers.heading')}
         </h2>
         <p className="text-xs text-text-secondary mb-3">{t('lootTimers.hint')}</p>
-        {([
-          {key: 'overrealm', value: overrealmLootSec, set: setOverrealmLootSec},
-          {key: 'carjack',   value: carjackLootSec,   set: setCarjackLootSec},
-          {key: 'clockwork', value: clockworkLootSec, set: setClockworkLootSec},
-          {key: 'lunaria',   value: lunariaLootSec,   set: setLunariaLootSec},
-          {key: 'sandlord',  value: sandlordWaveSec,  set: setSandlordWaveSec},
-          {key: 'hunting',   value: huntingLootSec,   set: setHuntingLootSec},
-          {key: 'afterlight', value: afterlightLootSec, set: setAfterlightLootSec},
-        ] as const).map(row => (
+        {/* Stored in ms; the inputs are seconds. */}
+        {WINDOWED_MECHANICS.map(row => (
           <div key={row.key} className="bg-surface rounded-lg p-4 border border-border mb-3">
             <div className="flex items-center justify-between mb-2 gap-3">
               <p className="text-sm text-text-primary">{t(`lootTimers.${row.key}.label`)}</p>
@@ -236,8 +234,8 @@ export default function GeneralTab() {
                   type="number"
                   min={1}
                   step={1}
-                  value={row.value}
-                  onChange={e => row.set(Number(e.target.value))}
+                  value={lootWindowMs[row.key] / 1000}
+                  onChange={e => setLootWindowMs(row.key, Math.round(Number(e.target.value) * 1000))}
                   className="w-20 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm font-mono tabular-nums text-text-primary text-right outline-none focus:border-accent/50 transition-colors"
                 />
                 <span className="text-xs text-text-secondary">{t('lootTimers.unit')}</span>
@@ -324,7 +322,9 @@ export default function GeneralTab() {
           {wealthResetState === 'idle' && (
             <button
               onClick={() => setWealthResetState('confirm')}
-              className="px-4 py-2 rounded-lg bg-surface-elevated border border-danger/40 text-sm text-danger hover:bg-danger/10 hover:border-danger transition-colors"
+              disabled={runActive}
+              title={clearBlock}
+              className="px-4 py-2 rounded-lg bg-surface-elevated border border-danger/40 text-sm text-danger hover:bg-danger/10 hover:border-danger transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface-elevated disabled:hover:border-danger/40"
             >
               {t('wealthReset.button')}
             </button>
@@ -334,15 +334,10 @@ export default function GeneralTab() {
               <p className="text-sm text-danger">{t('wealthReset.confirm')}</p>
               <div className="flex gap-2">
                 <button
-                  onClick={async () => {
-                    await window.electronAPI.db.wealth.clear();
-                    // wealth.clear() now also wipes sessions + session_maps,
-                    // so refresh both stores so the UI matches.
-                    await useWealthStore.getState().refresh();
-                    await useSessionsStore.getState().refresh();
-                    setWealthResetState('done');
-                  }}
-                  className="px-4 py-2 rounded-lg bg-danger/15 border border-danger text-sm text-danger hover:bg-danger/25 transition-colors font-medium"
+                  onClick={clearFarmingHistory}
+                  disabled={runActive}
+                  title={clearBlock}
+                  className="px-4 py-2 rounded-lg bg-danger/15 border border-danger text-sm text-danger hover:bg-danger/25 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-danger/15"
                 >
                   {t('wealthReset.button')}
                 </button>
@@ -366,17 +361,82 @@ export default function GeneralTab() {
           {t('apiKeys.heading')}
         </h2>
         <div className="bg-surface rounded-lg p-4 border border-border">
-          <p className="text-sm text-text-primary mb-3">{t('apiKeys.serperApiKey.label')}</p>
-          <input
-            type="password"
-            value={serperApiKey}
-            onChange={e => setSerperApiKey(e.target.value)}
-            placeholder={t('apiKeys.serperApiKey.placeholder')}
-            className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-secondary outline-none focus:border-accent/50 transition-colors placeholder:text-text-disabled"
-          />
-          <p className="text-xs text-text-secondary mt-2">{t('apiKeys.serperApiKey.hint')}</p>
+          <SerperKeyField />
         </div>
       </section>
+    </>
+  );
+}
+
+const SECONDARY_BUTTON = 'px-4 py-2 rounded-lg bg-surface-elevated border border-border text-sm text-text-primary hover:bg-accent/10 hover:border-accent transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface-elevated disabled:hover:border-border';
+
+type SerperKeyError = 'saveFailed' | 'removeFailed';
+
+/** The Serper key stays in main: this field saves, removes, and shows whether one is saved — never the value. */
+function SerperKeyField() {
+  const {t} = useTranslation('settings');
+  const serper = window.electronAPI.settings.serper;
+  const [saved, setSaved] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy,  setBusy]  = useState(false);
+  const [error, setError] = useState<SerperKeyError | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    serper.has()
+      .then(has => { if (live) setSaved(has); })
+      .catch((err: unknown) => console.error('[settings] serper key check failed:', err));
+    return () => { live = false; };
+  }, [serper]);
+
+  /** Run a write, then re-read whether a key is saved (after a failure too). */
+  const run = async (write: () => Promise<void>, failure: SerperKeyError) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await write();
+      setDraft('');
+    } catch (err) {
+      console.error(`[settings] serper key ${failure}:`, err);
+      setError(failure);
+    }
+    try {
+      setSaved(await serper.has());
+    } catch (err) {
+      console.error('[settings] serper key check failed:', err);
+    }
+    setBusy(false);
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-sm text-text-primary">{t('apiKeys.serperApiKey.label')}</p>
+        {saved && <span className="text-xs text-success">{t('apiKeys.serperApiKey.saved')}</span>}
+      </div>
+      <form
+        className="flex gap-2"
+        onSubmit={e => { e.preventDefault(); void run(() => serper.set(draft), 'saveFailed'); }}
+      >
+        <input
+          type="password"
+          autoComplete="off"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          placeholder={t(saved ? 'apiKeys.serperApiKey.replacePlaceholder' : 'apiKeys.serperApiKey.placeholder')}
+          className="flex-1 min-w-0 bg-bg border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-secondary outline-none focus:border-accent/50 transition-colors placeholder:text-text-disabled"
+        />
+        <button type="submit" disabled={busy || draft.trim() === ''} className={SECONDARY_BUTTON}>
+          {t('apiKeys.serperApiKey.save')}
+        </button>
+        {saved && (
+          <button type="button" disabled={busy} onClick={() => void run(serper.clear, 'removeFailed')} className={SECONDARY_BUTTON}>
+            {t('apiKeys.serperApiKey.remove')}
+          </button>
+        )}
+      </form>
+      {error && <p className="text-xs text-danger mt-2">{t(`apiKeys.serperApiKey.${error}`)}</p>}
+      <p className="text-xs text-text-secondary mt-2">{t('apiKeys.serperApiKey.hint')}</p>
     </>
   );
 }

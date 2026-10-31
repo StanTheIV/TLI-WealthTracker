@@ -4,6 +4,9 @@ import 'intl-pluralrules';
 import './i18n';
 import './styles/global.css';
 import App from './App';
+import {installWindowErrorReporting} from './lib/reportError';
+
+installWindowErrorReporting();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

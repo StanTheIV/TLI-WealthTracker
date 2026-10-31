@@ -1,7 +1,7 @@
 import {useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {AlertTriangle, X} from 'lucide-react';
-import type {AnalyticsWarning} from '../analytics';
+import type {AnalyticsWarning} from '@/domain/session-analytics';
 
 /** Turn a warning's payload into i18n interpolation values, rounding the
  *  numeric fields so the message doesn't render raw floats. */

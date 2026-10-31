@@ -7,8 +7,9 @@ import {Engine}             from '@/main/engine/engine';
 import {BagInitHandler}     from '@/main/engine/handlers/bag-init';
 import {ZoneHandler}        from '@/main/engine/handlers/zone';
 import {ItemHandler}        from '@/main/engine/handlers/item';
-import type {EngineEvent}   from '@/main/engine/types';
+import type {EngineEvent}   from '@/shared/contracts/engine';
 import type {EngineContext} from '@/main/engine/context';
+import {TEST_IDENTITY} from './seasonal-fixtures';
 
 const TOWN_SCENE = 'XZ_YuJinZhiXiBiNanSuo200';
 const MAP_SCENE  = '/Game/Art/Maps/S5_Boss';
@@ -25,7 +26,7 @@ function ctx(engine: Engine): EngineContext {
 }
 
 function boot(engine: Engine, items: Array<{slotId: number; itemId: number; quantity: number}>): void {
-  engine.start();
+  engine.start(TEST_IDENTITY);
   for (const i of items) engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: i.slotId, itemId: i.itemId, quantity: i.quantity});
   vi.advanceTimersByTime(600);
 }
@@ -51,7 +52,7 @@ describe('Engine.reset() — in-town', () => {
 
     // Now reset.
     const eventsBefore = events.length;
-    engine.reset();
+    engine.reset(TEST_IDENTITY);
 
     // Session tracker exists, totally empty.
     expect(ctx(engine).registry.session).not.toBeNull();
@@ -94,7 +95,7 @@ describe('Engine.reset() — in-map', () => {
     expect(ctx(engine).registry.map?.snapshot().drops).toEqual({100: 2});
 
     const eventsBefore = events.length;
-    engine.reset();
+    engine.reset(TEST_IDENTITY);
 
     // We were in a map → mapCount becomes 1, fresh map tracker exists.
     expect(ctx(engine).mapCount).toBe(1);
@@ -121,7 +122,7 @@ describe('Engine.reset() — paused', () => {
     engine.pause();
     expect(ctx(engine).paused).toBe(true);
 
-    engine.reset();
+    engine.reset(TEST_IDENTITY);
 
     expect(ctx(engine).paused).toBe(true);
     expect(ctx(engine).registry.session?.active).toBe(false); // tracker is paused
@@ -137,7 +138,7 @@ describe('Engine.reset() — no-op when not tracking', () => {
     // No start() — phase stays 'idle'.
 
     const eventsBefore = events.length;
-    engine.reset();
+    engine.reset(TEST_IDENTITY);
     expect(events.length).toBe(eventsBefore);
   });
 });

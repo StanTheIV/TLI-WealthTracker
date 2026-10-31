@@ -3,24 +3,8 @@ import {useTranslation} from 'react-i18next';
 import {ChevronUp, ChevronDown, ArrowUpRight} from 'lucide-react';
 import {useWealthStore} from '@/state/wealthStore';
 import {useItemsStore} from '@/state/itemsStore';
-import {useTaxConfig} from '@/state/settingsStore';
-import {taxedUnitPrice, taxedValue} from '@/lib/tax';
-import {ITEM_TYPES} from '@/types/itemType';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatFE(value: number): string {
-  return value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-}
-
-function formatDate(ts: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }).format(new Date(ts));
-}
+import {formatDateTime, formatFEFull} from '@/lib/format';
+import {breakdownChipTypes, keepShownChips} from './breakdownChips';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,32 +66,28 @@ interface ItemBreakdownProps {
 export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) {
   const {t}               = useTranslation('dashboard');
   const {t: tItems}       = useTranslation('items');
-  const latestBreakdown   = useWealthStore(s => s.latestBreakdown);
-  const latestTimestamp   = useWealthStore(s => s.latestTimestamp);
+  const latest            = useWealthStore(s => s.latest);
   const items             = useItemsStore(s => s.items);
-  const tax               = useTaxConfig();
-  const [filters, setFilters] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<ReadonlySet<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('total');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const latestTimestamp   = latest?.ts ?? null;
 
-  const rows = useMemo(() => {
-    return Object.entries(latestBreakdown)
-      .map(([id, entry]) => {
-        const item = items[id];
-        return {
-          id,
-          name:      item?.name || `#${id}`,
-          type:      item?.type  ?? '',
-          qty:       entry.qty,
-          // Recomputed from qty x price rather than scaling the stored total:
-          // that total is a type-blind aggregate, so the fuel exemption cannot
-          // be applied to it after the fact.
-          unitPrice: taxedUnitPrice(entry.price, item?.type, tax),
-          total:     taxedValue(entry.qty, entry.price, item?.type, tax),
-        };
-      })
-      .filter(r => r.qty > 0);
-  }, [latestBreakdown, items, tax]);
+  // Main's rows are already filtered and taxed; only the display name and the
+  // type the chips match on come from the items table.
+  const rows = useMemo<BreakdownRow[]>(() => (latest?.rows ?? []).map(row => {
+    const item = items[row.id];
+    return {
+      ...row,
+      name: item?.name || `#${row.id}`,
+      type: item?.type ?? '',
+    };
+  }), [latest, items]);
+
+  // A selected chip whose type vanished is dropped during render, never filtered on.
+  const chipTypes = useMemo(() => breakdownChipTypes(rows.map(r => r.type)), [rows]);
+  const selection = keepShownChips(filters, chipTypes);
+  if (selection !== filters) setFilters(selection);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -122,7 +102,7 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
     });
   }
 
-  const filtered   = sortRows(filters.size > 0 ? rows.filter(r => filters.has(r.type)) : rows, sortKey, sortDir);
+  const filtered   = sortRows(selection.size > 0 ? rows.filter(r => selection.has(r.type)) : rows, sortKey, sortDir);
   const grandTotal = filtered.reduce((sum, r) => sum + r.total, 0);
 
   return (
@@ -135,12 +115,12 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
         <div className="flex items-center gap-3">
           {rows.length > 0 && (
             <span className="font-mono text-sm font-bold text-gold tabular-nums">
-              {formatFE(grandTotal)} FE
+              {formatFEFull(grandTotal, {unit: true})}
             </span>
           )}
           {latestTimestamp !== null && (
             <span className="text-[11px] text-text-disabled">
-              {t('breakdown.lastUpdated')}: {formatDate(latestTimestamp)}
+              {t('breakdown.lastUpdated')}: {formatDateTime(latestTimestamp)}
             </span>
           )}
         </div>
@@ -151,14 +131,14 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
         <div className="flex flex-wrap gap-1.5">
           <FilterButton
             label={t('breakdown.filterAll')}
-            active={filters.size === 0}
+            active={selection.size === 0}
             onClick={() => setFilters(new Set())}
           />
-          {ITEM_TYPES.filter(type => type !== 'other').map(type => (
+          {chipTypes.map(type => (
             <FilterButton
               key={type}
               label={tItems(`types.${type}` as never)}
-              active={filters.has(type)}
+              active={selection.has(type)}
               onClick={() => toggleFilter(type)}
             />
           ))}
@@ -211,10 +191,10 @@ export default function ItemBreakdown({onRequestItemFocus}: ItemBreakdownProps) 
                   {row.qty.toLocaleString()}
                 </span>
                 <span className="font-mono text-xs text-text-secondary w-20 text-right shrink-0 tabular-nums">
-                  {formatFE(row.unitPrice)}
+                  {formatFEFull(row.unitPrice)}
                 </span>
                 <span className="font-mono text-xs text-gold w-24 text-right shrink-0 tabular-nums">
-                  {formatFE(row.total)}
+                  {formatFEFull(row.total)}
                 </span>
               </div>
             ))}

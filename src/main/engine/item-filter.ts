@@ -1,17 +1,16 @@
-import type {FilterRule, FilterScope} from '@/types/itemFilter';
-import type {ItemType} from '@/types/itemType';
+import type {FilterRule, FilterScope} from '@/shared/item-filter';
+import type {ItemType} from '@/shared/items';
+import {includesItem, type ItemTypeOf} from '@/domain/item-filter';
 
 /**
- * ItemFilterEngine — evaluates ordered filter rules against (itemId, scope) pairs.
- *
- * Rules are checked top-to-bottom; the first matching rule's action wins.
- * If no rule matches, the item is included (default: show).
- *
+ * ItemFilterEngine — the engine's active filter: its rule list plus the shared,
+ * mutable item-type map, evaluated by the pure `includesItem`.
  * Lives in the main process only — the renderer pushes updated rule lists via IPC.
  */
 export class ItemFilterEngine {
   private _rules:     FilterRule[];
   private _itemTypes: Map<string, ItemType>;
+  private readonly _typeOf: ItemTypeOf = id => this._itemTypes.get(id);
 
   constructor(rules: FilterRule[], itemTypes: Map<string, ItemType>) {
     this._rules     = rules;
@@ -33,22 +32,6 @@ export class ItemFilterEngine {
    * Walks rules in order; first match wins. Default: true (show).
    */
   shouldInclude(itemId: number, scope: FilterScope): boolean {
-    const idStr = String(itemId);
-    for (const rule of this._rules) {
-      if (!rule.scopes.includes(scope)) continue;
-      if (this._matches(rule, idStr)) return rule.action === 'show';
-    }
-    return true;
-  }
-
-  private _matches(rule: FilterRule, idStr: string): boolean {
-    if (rule.kind.type === 'by-item') {
-      return rule.kind.itemId === idStr;
-    }
-    if (rule.kind.type === 'by-type') {
-      const type = this._itemTypes.get(idStr) ?? 'other';
-      return type === rule.kind.itemType;
-    }
-    return false;
+    return includesItem(this._rules, this._typeOf, String(itemId), scope);
   }
 }

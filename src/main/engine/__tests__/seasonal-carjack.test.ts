@@ -2,7 +2,7 @@
  * Carjack (S11) — music play/stop triggers with loot collection timer.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
 import {boot, createDispatcher, createEngine, ctx, feed, log, MAP, TOWN} from './seasonal-fixtures';
 
 beforeEach(() => {

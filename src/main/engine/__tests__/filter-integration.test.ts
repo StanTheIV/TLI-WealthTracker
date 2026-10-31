@@ -26,9 +26,10 @@ import {VorexHandler}      from '@/main/engine/handlers/vorex-handler';
 import {OverrealmHandler}  from '@/main/engine/handlers/overrealm-handler';
 import {LunariaHandler}    from '@/main/engine/handlers/lunaria-handler';
 import {ItemHandler}       from '@/main/engine/handlers/item';
-import type {EngineEvent}  from '@/main/engine/types';
-import type {FilterRule}   from '@/types/itemFilter';
+import type {EngineEvent}  from '@/shared/contracts/engine';
+import type {FilterRule}   from '@/shared/item-filter';
 import type {EngineContext} from '@/main/engine/context';
+import {TEST_IDENTITY} from './seasonal-fixtures';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -69,7 +70,7 @@ function boot(
   engine:    Engine,
   inventory: Array<{slotId: number; itemId: number; quantity: number}>,
 ): void {
-  engine.start();
+  engine.start(TEST_IDENTITY);
   for (const {slotId, itemId, quantity} of inventory) {
     engine.onRawEvent({type: 'bag_init', pageId: 0, slotId, itemId, quantity});
   }
@@ -269,7 +270,7 @@ describe('filter-integration — live rule update', () => {
     expect(ctx(engine).registry.session?.snapshot().drops[100]).toBe(3);
   });
 
-  it('passing null to updateFilterRules disables all filtering', () => {
+  it('passing null to setFilterRules disables all filtering', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
 

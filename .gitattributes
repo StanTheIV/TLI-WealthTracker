@@ -1,0 +1,3 @@
+# Golden-master inputs and outputs are compared byte for byte: keep LF on every checkout.
+src/test/golden/fixtures/*.log text eol=lf
+src/test/golden/__snapshots__/*.golden.json text eol=lf

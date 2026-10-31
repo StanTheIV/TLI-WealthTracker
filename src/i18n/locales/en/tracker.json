@@ -20,7 +20,8 @@
     "name": "Name",
     "price": "Price",
     "amount": "Amount",
-    "total": "Total"
+    "total": "Total",
+    "spent": "Spent"
   },
   "noDrops": "No drops yet",
   "initializing": "Sort your bag in-game to initialize",

@@ -1,17 +1,22 @@
 import {ipcMain, BrowserWindow} from 'electron';
-import {settingsSet} from '@/main/db';
+import type {OverlayPosition} from '@/main/overlay-position';
 import {log} from '@/main/logger';
 
 export function registerOverlayHandlers(
   getTrackerWindow: () => BrowserWindow | null,
-  setTrackerWindow: (w: BrowserWindow | null) => void,
   createTrackerWindow: () => void,
+  position: Pick<OverlayPosition, 'moveBy' | 'persist'>,
 ): void {
   let pendingShow = false;
   let sizedOnce   = false;
 
   ipcMain.on('overlay:show', () => {
-    if (!getTrackerWindow()) { createTrackerWindow(); }
+    // A new window (first show, or after a crash give-up destroyed the last
+    // one) shows once its renderer has sized it.
+    if (!getTrackerWindow()) {
+      createTrackerWindow();
+      sizedOnce = false;
+    }
     if (sizedOnce) {
       getTrackerWindow()?.show();
     } else {
@@ -29,6 +34,7 @@ export function registerOverlayHandlers(
   });
 
   ipcMain.on('overlay:hide', () => {
+    pendingShow = false;
     getTrackerWindow()?.hide();
     log.debug('overlay', 'Overlay hidden');
   });
@@ -38,36 +44,12 @@ export function registerOverlayHandlers(
     log.debug('overlay', `Overlay click-through: ${enabled}`);
   });
 
-  ipcMain.on('overlay:set-position', (_e, x: number, y: number) => {
-    getTrackerWindow()?.setPosition(Math.round(x), Math.round(y));
-  });
+  // Per mousemove of a drag — only repositions; the drag's end persists once.
+  ipcMain.on('overlay:move-by', (_e, dx: number, dy: number) => position.moveBy(dx, dy));
 
-  ipcMain.on('overlay:set-opacity', (_e, v: number) => {
-    getTrackerWindow()?.webContents.send('overlay:opacity-changed', v);
-    log.debug('overlay', `Overlay opacity: ${v}`);
-  });
-
-  ipcMain.on('settings:broadcast', (_e, key: string, value: string) => {
-    getTrackerWindow()?.webContents.send('settings:changed', key, value);
-  });
-
-  ipcMain.on('overlay:move-by', (_e, dx: number, dy: number) => {
-    const win = getTrackerWindow();
-    if (!win) return;
-    const [x, y] = win.getPosition();
-    const nx = Math.round(x + dx);
-    const ny = Math.round(y + dy);
-    win.setPosition(nx, ny);
-    settingsSet('tracker_window_x', String(nx));
-    settingsSet('tracker_window_y', String(ny));
-    log.debug('overlay', `Overlay position: (${nx}, ${ny})`);
-  });
-
-  ipcMain.handle('overlay:get-position', () => {
-    const win = getTrackerWindow();
-    if (!win) return {x: 0, y: 0};
-    const [x, y] = win.getPosition();
-    return {x, y};
+  ipcMain.on('overlay:drag-end', () => {
+    position.persist();
+    log.debug('overlay', 'Overlay position saved');
   });
 
   ipcMain.on('overlay:set-size', (_e, w: number, h: number) => {

@@ -1,8 +1,12 @@
 import {Tracker} from './tracker';
-import type {SeasonalPhase, SeasonalType, TrackerSnapshot} from './tracker';
-import type {EmitFn} from './types';
+import type {EngineErrorSource, SeasonalPhase, SeasonalType, TrackerSnapshot} from '@/shared/contracts/engine';
+import type {EmitFn, Isolate} from './types';
 import {LootCollectionTimer} from './loot-collection-timer';
 import type {TrackerRegistry} from './tracker-registry';
+
+/** The loot-window expiry runs from a timer, through the context's choke
+ *  point (the registry's `isolate`), under this source. */
+const LOOT_EXPIRE: EngineErrorSource = {handler: 'registry', hook: 'lootExpire'};
 
 /**
  * SeasonalTracker — a Tracker that owns its post-combat loot timer and
@@ -15,9 +19,13 @@ export class SeasonalTracker extends Tracker {
   readonly ownsBubble:   boolean;
   /** Sandlord only — 'map' coin tile vs 'hub' bubble. See SeasonalPhase. */
   readonly phase?:       SeasonalPhase;
+  /** `seq` of the map this run was created or active under; null when it
+   *  never was (a standalone run). Written only by the registry. */
+  parentMapSeq: number | null = null;
 
-  private _registry:          TrackerRegistry;
+  private _registry:         TrackerRegistry;
   private _emit:              EmitFn;
+  private readonly _isolate:  Isolate;
   private _lootTimer:         LootCollectionTimer | null = null;
   private _lootDurationMs:    number;
   private _pauseOnLootExpiry: boolean;
@@ -27,6 +35,7 @@ export class SeasonalTracker extends Tracker {
   constructor(opts: {
     registry:           TrackerRegistry;
     emit:               EmitFn;
+    isolate:            Isolate;
     type:               SeasonalType;
     ownsBubble?:        boolean;
     phase?:             SeasonalPhase;
@@ -40,6 +49,7 @@ export class SeasonalTracker extends Tracker {
     this.phase              = opts.phase;
     this._registry          = opts.registry;
     this._emit              = opts.emit;
+    this._isolate           = opts.isolate;
     this._lootDurationMs    = opts.lootDurationMs ?? 5_000;
     this._pauseOnLootExpiry = opts.pauseOnLootExpiry ?? false;
     this._claimsDrops       = opts.claimsDrops ?? true;
@@ -73,18 +83,22 @@ export class SeasonalTracker extends Tracker {
   // -------------------------------------------------------------------------
 
   /** Arm a fresh post-mechanic loot window. Cancels any in-flight timer.
-   *  Arming is gameplay engagement, so it also takes ownership — see
-   *  `_takeOwnership`. */
+   *  Arming is gameplay engagement, so it wakes a dormant tracker first and
+   *  takes ownership — see `TrackerRegistry.wakeForLoot` and `_takeOwnership`.
+   *  When the wake is blocked (session paused, run already finished) this is a
+   *  no-op: no timer, no emit. */
   armLootTimer(): void {
+    if (!this.active && !this._registry.wakeForLoot(this)) return;
     this._lootTimer?.cancel();
-    this._lootTimer = new LootCollectionTimer(this._lootDurationMs, () => this._onLootExpire());
+    this._lootTimer = new LootCollectionTimer(this._lootDurationMs, () => this._isolate(LOOT_EXPIRE, () => this._onLootExpire()));
     this._lootTimer.start();
     const deadline = this._lootTimer.deadline ?? Date.now() + this._lootDurationMs;
     this._emit({type: 'loot_window_started', seasonalType: this.seasonalType, deadline, timestamp: Date.now()});
     this._takeOwnership();
   }
 
-  /** Pickup-driven refresh — decaying 80% rule with 1s floor. */
+  /** Pickup-driven refresh — decaying 80% rule with 1s floor. Never wakes a
+   *  dormant tracker: a pickup is not evidence the mechanic is being played. */
   refreshLootTimer(): void {
     if (!this._lootTimer) return;
     if (this._lootTimer.refresh()) {
@@ -93,9 +107,10 @@ export class SeasonalTracker extends Tracker {
     }
   }
 
-  /** Strum/wave-driven reset — full re-arm, undoes any decay. Also takes
-   *  ownership: see `_takeOwnership`. */
+  /** Strum/wave-driven reset — full re-arm, undoes any decay. Wakes a dormant
+   *  tracker and takes ownership, under the same rule as `armLootTimer`. */
   resetLootTimer(): void {
+    if (!this.active && !this._registry.wakeForLoot(this)) return;
     if (!this._lootTimer) {
       this.armLootTimer();
       return;
@@ -107,15 +122,21 @@ export class SeasonalTracker extends Tracker {
   }
 
   /** Wave-driven reset, rate-limited: spawn bursts fire 30+ markers/sec and each
-   *  reset publishes a new deadline to the overlay. Only for the ACTIVE branch —
-   *  a dormant tracker has no timer to keep alive, so waking it must arm
-   *  unthrottled or it resumes with no window at all.
+   *  reset publishes a new deadline to the overlay. The throttle only applies to
+   *  an ACTIVE tracker — a dormant one has no window to keep alive, so its wake
+   *  arms unthrottled or it would resume with no window at all. A blocked wake
+   *  (see `TrackerRegistry.wakeForLoot`) arms nothing and leaves the throttle
+   *  unstamped.
    *
-   *  Returns true when it actually re-armed, so callers can keep state that
-   *  must move with the window (e.g. the expiry mode) in step with it. */
+   *  Returns true only when it actually re-armed, so callers can keep state
+   *  that must move with the window (e.g. the expiry mode) in step with it. */
   resetLootTimerThrottled(minIntervalMs: number = 1_000): boolean {
     const now = Date.now();
-    if (now - this._lastWaveResetAt < minIntervalMs) return false;
+    if (this.active) {
+      if (now - this._lastWaveResetAt < minIntervalMs) return false;
+    } else if (!this._registry.wakeForLoot(this)) {
+      return false;
+    }
     this._lastWaveResetAt = now;
     this.resetLootTimer();
     return true;
@@ -127,7 +148,8 @@ export class SeasonalTracker extends Tracker {
    *  writer, not creation order and not merely waking from dormancy. Without
    *  this a mechanic started later keeps owning loot from a fight the player has
    *  since gone back to. Skipped while inactive: a dormant tracker rejects drops
-   *  anyway, and its resume path bumps the order itself. */
+   *  anyway, and its resume path bumps the order itself — so after a wake this
+   *  bump is a no-op, and re-arming the current owner publishes nothing. */
   private _takeOwnership(): void {
     if (!this.active || !this._claimsDrops) return;
     this._registry._onSeasonalReactivated(this, this._emit);
@@ -153,6 +175,13 @@ export class SeasonalTracker extends Tracker {
     if (!this._lootTimer?.active) return;
     this._lootTimer.cancel();
     this._emit({type: 'loot_window_ended', seasonalType: this.seasonalType, timestamp: Date.now()});
+  }
+
+  /** When the in-flight loot window closes (ms epoch) — the deadline its last
+   *  `loot_window_started` published. Null with no window, or while frozen by
+   *  the session pause (the renderer hides a frozen countdown). */
+  get lootDeadline(): number | null {
+    return this._lootTimer?.deadline ?? null;
   }
 
   isLootCollecting(): boolean {

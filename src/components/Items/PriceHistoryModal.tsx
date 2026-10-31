@@ -12,11 +12,12 @@ import {
   Tooltip,
   ReferenceLine,
 } from 'recharts';
-import type {PriceBucket} from '@/main/prices/history';
+import type {PriceBucket} from '@/shared/contracts/db';
 import {useLeaguesStore} from '@/state/leaguesStore';
 import {useTheme} from '@/theme/ThemeContext';
 import {defaultPreset, resolvePriceRange, type PricePreset} from '@/lib/priceRange';
 import {buildChartRows, formatPrice, type ChartRow} from '@/lib/priceChart';
+import Modal, {ModalTitle} from '@/components/ui/Modal';
 import PriceRangeControl from './PriceRangeControl';
 
 const DAY_MS = 24 * 3_600_000;
@@ -99,12 +100,6 @@ export default function PriceHistoryModal({itemId, name, onClose}: Props) {
   );
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  useEffect(() => {
     let cancelled = false;
     setBuckets(null);
     void window.electronAPI.db.prices.history(itemId, range.from, range.to).then(b => {
@@ -130,119 +125,114 @@ export default function PriceHistoryModal({itemId, name, onClose}: Props) {
   const axisTick = {fill: theme.textDisabled, fontSize: 11};
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="bg-surface border border-border rounded-xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="min-w-0">
-            <h2 className="text-base font-bold text-text-primary truncate">
-              {t('history.title', {name: name || `#${itemId}`})}
-            </h2>
-            <p className="text-xs text-text-disabled font-mono">#{itemId}</p>
-          </div>
-          <button onClick={onClose} className="text-text-disabled hover:text-text-primary transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+    <Modal onClose={onClose} closeOnBackdrop className="w-full max-w-4xl mx-4 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <div className="min-w-0">
+          <ModalTitle className="text-base font-bold text-text-primary truncate">
+            {t('history.title', {name: name || `#${itemId}`})}
+          </ModalTitle>
+          <p className="text-xs text-text-disabled font-mono">#{itemId}</p>
         </div>
-
-        <div className="px-5 py-4 flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <PriceRangeControl value={preset} onChange={setPreset} />
-            <div className="flex items-center gap-4 text-xs text-text-secondary">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" checked={log} onChange={e => setLog(e.target.checked)} className="accent-accent" />
-                {t('history.logScale')}
-              </label>
-            </div>
-          </div>
-
-          {buckets === null ? (
-            <div className="flex items-center justify-center h-80 text-xs text-text-disabled">{t('history.loading')}</div>
-          ) : !hasData ? (
-            <div className="flex items-center justify-center h-80 rounded-lg border border-border text-xs text-text-disabled">
-              {t('history.empty')}
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={320}>
-              <ComposedChart data={rows} margin={{top: 8, right: 8, bottom: 0, left: 0}}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme.border} vertical={false} />
-                <XAxis
-                  dataKey="t"
-                  type="number"
-                  scale="time"
-                  domain={domain}
-                  tickFormatter={tick}
-                  tick={axisTick}
-                  axisLine={{stroke: theme.border}}
-                  tickLine={false}
-                  minTickGap={60}
-                />
-                <YAxis
-                  scale={log ? 'log' : 'linear'}
-                  domain={log ? ['auto', 'auto'] : [0, 'auto']}
-                  allowDataOverflow={log}
-                  tickFormatter={formatPrice}
-                  tick={axisTick}
-                  axisLine={false}
-                  tickLine={false}
-                  width={56}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                {leagueStarts.map(r => (
-                  <ReferenceLine
-                    key={r.id}
-                    x={r.from}
-                    stroke={theme.textDisabled}
-                    strokeDasharray="4 4"
-                    label={{value: r.name, position: 'insideTopLeft', fill: theme.textSecondary, fontSize: 10}}
-                  />
-                ))}
-                <Area
-                  dataKey="iqr"
-                  type="monotone"
-                  stroke="none"
-                  fill={theme.accent}
-                  fillOpacity={0.25}
-                  isAnimationActive={false}
-                  activeDot={false}
-                  legendType="none"
-                />
-                <Area
-                  dataKey="medianBand"
-                  type="monotone"
-                  stroke="none"
-                  fill={theme.gold}
-                  fillOpacity={0.3}
-                  isAnimationActive={false}
-                  activeDot={false}
-                  legendType="none"
-                />
-                <Line
-                  dataKey="median"
-                  type="monotone"
-                  stroke={theme.gold}
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls={false}
-                  isAnimationActive={false}
-                  activeDot={{r: 4, fill: theme.gold, stroke: theme.surface, strokeWidth: 2}}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          )}
-
-          {/* Swatches mirror the chart: accent band 0.25, gold band 0.3, gold line. */}
-          {hasData && (
-            <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-text-secondary">
-              <LegendItem swatch="w-4 h-0.5 rounded-full bg-gold" label={t('history.legend.median')} />
-              <LegendItem swatch="w-4 h-2.5 rounded-sm bg-gold/30" label={t('history.legend.medianRange')} />
-              <LegendItem swatch="w-4 h-2.5 rounded-sm bg-accent/25" label={t('history.legend.orderBook')} />
-            </div>
-          )}
-        </div>
+        <button onClick={onClose} className="text-text-disabled hover:text-text-primary transition-colors">
+          <X className="w-4 h-4" />
+        </button>
       </div>
-    </div>
+
+      <div className="px-5 py-4 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <PriceRangeControl value={preset} onChange={setPreset} />
+          <div className="flex items-center gap-4 text-xs text-text-secondary">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={log} onChange={e => setLog(e.target.checked)} className="accent-accent" />
+              {t('history.logScale')}
+            </label>
+          </div>
+        </div>
+
+        {buckets === null ? (
+          <div className="flex items-center justify-center h-80 text-xs text-text-disabled">{t('history.loading')}</div>
+        ) : !hasData ? (
+          <div className="flex items-center justify-center h-80 rounded-lg border border-border text-xs text-text-disabled">
+            {t('history.empty')}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={320}>
+            <ComposedChart data={rows} margin={{top: 8, right: 8, bottom: 0, left: 0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke={theme.border} vertical={false} />
+              <XAxis
+                dataKey="t"
+                type="number"
+                scale="time"
+                domain={domain}
+                tickFormatter={tick}
+                tick={axisTick}
+                axisLine={{stroke: theme.border}}
+                tickLine={false}
+                minTickGap={60}
+              />
+              <YAxis
+                scale={log ? 'log' : 'linear'}
+                domain={log ? ['auto', 'auto'] : [0, 'auto']}
+                allowDataOverflow={log}
+                tickFormatter={formatPrice}
+                tick={axisTick}
+                axisLine={false}
+                tickLine={false}
+                width={56}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              {leagueStarts.map(r => (
+                <ReferenceLine
+                  key={r.id}
+                  x={r.from}
+                  stroke={theme.textDisabled}
+                  strokeDasharray="4 4"
+                  label={{value: r.name, position: 'insideTopLeft', fill: theme.textSecondary, fontSize: 10}}
+                />
+              ))}
+              <Area
+                dataKey="iqr"
+                type="monotone"
+                stroke="none"
+                fill={theme.accent}
+                fillOpacity={0.25}
+                isAnimationActive={false}
+                activeDot={false}
+                legendType="none"
+              />
+              <Area
+                dataKey="medianBand"
+                type="monotone"
+                stroke="none"
+                fill={theme.gold}
+                fillOpacity={0.3}
+                isAnimationActive={false}
+                activeDot={false}
+                legendType="none"
+              />
+              <Line
+                dataKey="median"
+                type="monotone"
+                stroke={theme.gold}
+                strokeWidth={2}
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={false}
+                activeDot={{r: 4, fill: theme.gold, stroke: theme.surface, strokeWidth: 2}}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
+
+        {/* Swatches mirror the chart: accent band 0.25, gold band 0.3, gold line. */}
+        {hasData && (
+          <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-text-secondary">
+            <LegendItem swatch="w-4 h-0.5 rounded-full bg-gold" label={t('history.legend.median')} />
+            <LegendItem swatch="w-4 h-2.5 rounded-sm bg-gold/30" label={t('history.legend.medianRange')} />
+            <LegendItem swatch="w-4 h-2.5 rounded-sm bg-accent/25" label={t('history.legend.orderBook')} />
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }

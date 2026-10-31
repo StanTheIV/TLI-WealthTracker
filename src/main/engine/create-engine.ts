@@ -1,5 +1,5 @@
 import {Engine} from './engine';
-import type {EmitFn} from './types';
+import type {EngineSink} from './types';
 import {BagInitHandler} from './handlers/bag-init';
 import {ZoneHandler} from './handlers/zone';
 import {DreamHandler} from './handlers/dream-handler';
@@ -16,17 +16,16 @@ import {HuntingHandler} from './handlers/hunting-handler';
 import {AfterlightHandler} from './handlers/afterlight-handler';
 import {ItemHandler} from './handlers/item';
 import {MapMaterialHandler} from './handlers/map-material';
-import {ErrorHandler} from './handlers/error';
 
 /**
  * The production handler chain. Shared by the IPC layer, the log replayer and
  * the test fixtures so they can never drift apart. Registration order is
  * routing order — the comments below mark the order-sensitive pairs.
  */
-export function createEngine(emit: EmitFn): Engine {
-  return new Engine(emit)
+export function createEngine(sink: EngineSink): Engine {
+  return new Engine(sink)
     .register(new BagInitHandler())
-    .register(new SandlordHandler())  // before ZoneHandler — sets ctx.seasonal.ownsBubble
+    .register(new SandlordHandler())  // before ZoneHandler — registry.startSeasonal({ownsBubble}) raises the bubble Zone checks
     .register(new ZoneHandler())
     .register(new DreamHandler())
     .register(new VorexHandler())
@@ -40,6 +39,5 @@ export function createEngine(emit: EmitFn): Engine {
     .register(new HuntingHandler())
     .register(new AfterlightHandler())  // before ItemHandler — both take bag_update; the loot timer must refresh before the drop is distributed
     .register(new ItemHandler())
-    .register(new MapMaterialHandler())
-    .register(new ErrorHandler());
+    .register(new MapMaterialHandler());
 }

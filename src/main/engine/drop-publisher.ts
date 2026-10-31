@@ -1,6 +1,6 @@
 import type {EngineContext} from './context';
 import type {EmitFn} from './types';
-import type {SeasonalType} from './tracker';
+import type {SeasonalType} from '@/shared/contracts/engine';
 
 /**
  * Publishes a batch of item deltas through the standard drop pipeline.
@@ -12,7 +12,8 @@ import type {SeasonalType} from './tracker';
  *
  * When `lootContext` is true, the change is fanned out via the registry
  * (which applies per-scope filter rules), and `tracker_update` is emitted only
- * for trackers that actually accumulated the drop. When false, fan-out is
+ * for trackers that actually accumulated the drop — a seasonal's through
+ * `TrackerRegistry.emitUpdate`, which stamps `owner`. When false, fan-out is
  * skipped entirely (town activity).
  */
 export function publishDrops(
@@ -53,7 +54,7 @@ export function publishDrops(
   }
   for (const type of seasonalsChanged) {
     const t = ctx.registry.seasonal(type);
-    if (t) emit({type: 'tracker_update', tracker: t.snapshot(), timestamp: now});
+    if (t) ctx.registry.emitUpdate(t, emit);
   }
   if (sessionChanged && ctx.registry.session) {
     emit({type: 'tracker_update', tracker: ctx.registry.session.snapshot(), timestamp: now});

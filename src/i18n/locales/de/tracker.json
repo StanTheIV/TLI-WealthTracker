@@ -20,7 +20,8 @@
     "name": "Name",
     "price": "Preis",
     "amount": "Menge",
-    "total": "Gesamt"
+    "total": "Gesamt",
+    "spent": "Verbraucht"
   },
   "noDrops": "Noch keine Drops",
   "initializing": "Sortiere dein Inventar im Spiel zur Initialisierung",

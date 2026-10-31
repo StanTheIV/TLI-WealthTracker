@@ -28,7 +28,8 @@
       "price": "Price",
       "wealth": "Wealth",
       "app": "App",
-      "filter": "Filter"
+      "filter": "Filter",
+      "update": "Updater"
     },
     "typeNames": {
       "info": "Info",
@@ -152,14 +153,21 @@
     "label": "Clear all wealth chart data, saved sessions, and per-map breakdowns. This cannot be undone.",
     "button": "Reset Farming History",
     "confirm": "Are you sure? This will permanently delete all wealth chart data, saved sessions, and per-map breakdowns.",
-    "done": "Farming history cleared."
+    "done": "Farming history cleared.",
+    "blockedTracking": "Stop tracking first — the farming history can't be cleared while a session is running"
   },
   "apiKeys": {
     "heading": "API Keys",
     "serperApiKey": {
       "label": "Serper API Key",
       "hint": "Used for item name lookup via serper.dev (max 10/day, 2500 free/month). Get a free key at serper.dev.",
-      "placeholder": "Enter your Serper API key…"
+      "placeholder": "Enter your Serper API key…",
+      "replacePlaceholder": "Enter a new key to replace the saved one…",
+      "save": "Save",
+      "remove": "Remove",
+      "saved": "Key saved",
+      "saveFailed": "The key could not be saved securely, so it was not stored. Secure storage may be unavailable on this system.",
+      "removeFailed": "The key could not be removed."
     }
   }
 }

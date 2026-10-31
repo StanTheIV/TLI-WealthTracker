@@ -1,56 +1,89 @@
 import type {RawEvent} from '@/worker/processors/types';
-import type {EventHandler, EmitFn} from './types';
+import type {EventHandler, EmitFn, EngineSink} from './types';
 import {EngineContext} from './context';
 import type {LoadedSessionData} from './context';
+import {openSessionRun} from './session-run';
+import type {EngineErrorSource, EngineEvent, SessionIdentity} from '@/shared/contracts/engine';
 import {ItemFilterEngine} from './item-filter';
-import type {FilterRule} from '@/types/itemFilter';
-import type {ItemType} from '@/types/itemType';
-import {ItemHandler} from './handlers/item';
+import type {FilterRule} from '@/shared/item-filter';
+import type {ItemType} from '@/shared/items';
+import type {Settings} from '@/shared/settings';
 import {MapMaterialHandler} from './handlers/map-material';
-import {OverrealmHandler} from './handlers/overrealm-handler';
-import {CarjackHandler} from './handlers/carjack-handler';
-import {ClockworkHandler} from './handlers/clockwork-handler';
-import {LunariaHandler} from './handlers/lunaria-handler';
-import {SandlordMapHandler} from './handlers/sandlord-map-handler';
-import {HuntingHandler} from './handlers/hunting-handler';
-import {AfterlightHandler} from './handlers/afterlight-handler';
 import {log} from '@/main/logger';
+import {describeError, describeErrorBrief} from '@/shared/describe-error';
+
+/** Repeat errors from one (handler, hook) inside this window after the last
+ *  REPORTED one are counted, not reported. */
+const ERROR_THROTTLE_MS = 10_000;
+
+/** stop()'s own steps: a throw there must not keep the run from ending. */
+const STOP: EngineErrorSource = {handler: 'engine', hook: 'stop'};
+
+/** A registered handler's `replay`, bound, with its error source. */
+interface ReplayHook {
+  readonly source: EngineErrorSource;
+  readonly fn:     (ctx: EngineContext) => EngineEvent[];
+}
 
 /**
- * EventRouter — thin routing layer.
+ * Engine — the boundary the rest of the main process talks to. Owns the
+ * EngineContext and the registered EventHandlers, plus what belongs to no
+ * single handler:
+ *   - routing: each RawEvent goes to every handler that declared its type, in
+ *     registration order;
+ *   - the run lifecycle: start / stop / reset, and session open — it collects
+ *     each handler's `onSessionOpen` for `openSessionRun`, and `loadSession`
+ *     seeds a continue; the session pause (pause / resume);
+ *   - unit checkpoints: stamps each `unit_finished` with the session state;
+ *   - replay: `getState()` rebuilds a joining window from the replay hooks;
+ *   - isolation (below).
+ * Mechanic logic lives in the handlers and the TrackerRegistry.
  *
- * Owns the EngineContext and a registry of EventHandlers.
- * On each RawEvent, calls all handlers that declared interest in that event type.
- * Contains zero domain logic — all logic lives in handlers.
+ * Every handler call goes through one choke point (`_isolate`): a throwing
+ * handler is logged and reported as an `error` event, and the event, the
+ * lifecycle step or the timer carries on with the next handler. Handlers
+ * themselves are unaware of it — their timers reach it through `ctx.isolate`.
  */
 export class Engine {
-  private _ctx  = new EngineContext();
-  private _emit: EmitFn;
+  private readonly _ctx = new EngineContext((source, fn) => { this._isolate(source, fn); });
+  private readonly _sink: EngineSink;
+  /** What handlers, trackers and the registry emit through. Stamps each
+   *  `unit_finished` with its checkpoint — the session state as of the unit —
+   *  which only the context holds (the registry has no counters). */
+  private readonly _emit: EmitFn = (event) => {
+    if (event.type !== 'unit_finished') {
+      this._sink(event);
+      return;
+    }
+    const session = this._ctx.registry.session;
+    if (!session) throw new Error('unit_finished without a session'); // the registry emits units only while one exists
+    this._sink({
+      ...event,
+      checkpoint: {
+        session:  session.snapshot(),
+        mapTime:  this._ctx.accumulatedMapTime,
+        mapCount: this._ctx.mapCount,
+      },
+    });
+  };
   // Map from event type → ordered list of handlers (a handler appears in
   // multiple buckets if it registered for multiple event types).
   private _routes = new Map<string, EventHandler[]>();
   // Deduplicated registry — used for cross-cutting iteration that should
   // visit each handler exactly once (onStop).
   private _handlers: EventHandler[] = [];
+  /** The one handler the Engine addresses directly: a dismiss is a user
+   *  action on its private watch state, not a setting. */
   private _mapMaterial: MapMaterialHandler | null = null;
-  private _item:        ItemHandler        | null = null;
-  private _overrealm:   OverrealmHandler   | null = null;
-  private _carjack:     CarjackHandler     | null = null;
-  private _clockwork:   ClockworkHandler   | null = null;
-  private _lunaria:     LunariaHandler     | null = null;
-  private _sandlordMap: SandlordMapHandler | null = null;
-  private _hunting:     HuntingHandler     | null = null;
-  private _afterlight:  AfterlightHandler  | null = null;
+  /** Every registered handler's `replay`, in registration order. */
+  private readonly _replayHooks: ReplayHook[] = [];
+  /** Per `handler:hook`: when an error from it was last reported, and how
+   *  many were suppressed since. Engine state, not run state — survives
+   *  `ctx.reset()`; `start()` clears it. */
+  private readonly _errorThrottle = new Map<string, {reportedAt: number; suppressed: number}>();
 
-  // Seasonals paused BY the session pause (not those already self-paused for
-  // their own reason — Lunaria between strums, Arcana backed-out minigame).
-  // Only these are resumed on session resume; a self-paused seasonal stays
-  // paused. Maps need no equivalent set — the sole "stay paused" reason is an
-  // ongoing seasonal interlude, captured by ctx.mapPausedForInterludeAt.
-  private _pausedSeasonals = new Set<import('./tracker').SeasonalType>();
-
-  constructor(emit: EmitFn) {
-    this._emit = emit;
+  constructor(sink: EngineSink) {
+    this._sink = sink;
   }
 
   register(handler: EventHandler): this {
@@ -59,103 +92,95 @@ export class Engine {
       this._routes.get(type)!.push(handler);
     }
     this._handlers.push(handler);
-    if (handler instanceof ItemHandler)        this._item        = handler;
+    const onSessionOpen = handler.onSessionOpen?.bind(handler);
+    if (onSessionOpen) this._ctx.sessionOpenHooks.push({source: {handler: handler.name, hook: 'onSessionOpen'}, fn: onSessionOpen});
+    const replay = handler.replay?.bind(handler);
+    if (replay) this._replayHooks.push({source: {handler: handler.name, hook: 'replay'}, fn: replay});
     if (handler instanceof MapMaterialHandler) this._mapMaterial = handler;
-    if (handler instanceof OverrealmHandler)   this._overrealm   = handler;
-    if (handler instanceof CarjackHandler)     this._carjack     = handler;
-    if (handler instanceof ClockworkHandler)   this._clockwork   = handler;
-    if (handler instanceof LunariaHandler)     this._lunaria     = handler;
-    if (handler instanceof SandlordMapHandler) this._sandlordMap = handler;
-    if (handler instanceof HuntingHandler)     this._hunting     = handler;
-    if (handler instanceof AfterlightHandler)  this._afterlight  = handler;
     return this;
   }
 
-  start(): void {
+  /** Start a run as `identity`. The session itself opens once the bag
+   *  baseline lands (BagInitHandler); a `loadSession` call before this makes
+   *  it a continue. */
+  start(identity: SessionIdentity): void {
+    this._errorThrottle.clear();
     const preserved = this._ctx.loadedSession;
     this._ctx.reset();
-    this._ctx.loadedSession = preserved;
+    this._ctx.loadedSession     = preserved;
+    this._ctx.activeSessionId   = identity.sessionId;
+    this._ctx.activeSessionName = identity.name;
     this._ctx.phase = 'initializing';
-    for (const h of this._handlers) h.onStart?.(this._ctx, this._emit);
+    for (const h of this._handlers) this._isolate({handler: h.name, hook: 'onStart'}, () => h.onStart?.(this._ctx, this._emit));
   }
 
+  /** Continue: the saved run data the next `start` seeds the session with. */
   loadSession(data: LoadedSessionData): void {
     this._ctx.loadedSession = data;
   }
 
+  /**
+   * End the run. The live map's already-finished children go out first as
+   * standalone units, then the final session snapshot (with the map/session
+   * metadata for the final write); active map / seasonals are silently dropped.
+   * `engine_stopped` comes last whenever a run existed — initializing included,
+   * where no session has opened yet. A stop with no run emits nothing.
+   *
+   * The promotion, the session finish and each handler's onStop are isolated
+   * separately, so a throw in any of them still reaches `ctx.reset()` and
+   * the trailing `engine_stopped`.
+   */
   stop(): void {
-    // Emit final session snapshot before tearing down, including map/session
-    // metadata for auto-save. Active map / seasonals are silently dropped —
-    // session-level finish is the renderer's signal that the run is over.
-    if (this._ctx.registry.session) {
+    const hadRun = this._ctx.phase !== 'idle';
+    this._isolate(STOP, () => this._ctx.registry.promoteMapChildren(this._emit));
+    this._isolate(STOP, () => {
+      const session = this._ctx.registry.session;
+      if (!session) return;
       this._emit({
         type:        'tracker_finished',
-        tracker:     this._ctx.registry.session.snapshot(),
+        tracker:     session.snapshot(),
         timestamp:   Date.now(),
         sessionMeta: {
           mapTime:  this._ctx.accumulatedMapTime,
           mapCount: this._ctx.mapCount,
         },
       });
-    }
+    });
 
-    for (const h of this._handlers) h.onStop?.(this._ctx);
+    for (const h of this._handlers) this._isolate({handler: h.name, hook: 'onStop'}, () => h.onStop?.(this._ctx));
     this._ctx.reset();
-    this._pausedSeasonals.clear();
+    if (hadRun) this._emit({type: 'engine_stopped', timestamp: Date.now()});
   }
 
   /**
-   * Reset the in-flight session WITHOUT touching bag state, filters, or known
-   * items. Drops and elapsed for session/map/seasonal go to zero. Map count
-   * resets to 0 (or 1 if currently in a map — that map becomes "map #1" of the
-   * new run). Pause/run state preserved.
+   * Replace the in-flight session with a fresh one as `identity`, WITHOUT
+   * touching bag state, filters, or known items. Drops and elapsed for
+   * session/map/seasonal go to zero. Map count resets to 0 (or 1 if currently
+   * in a map — that map becomes "map #1" of the new run) and keeps that map's
+   * entry cost. Pause/run state preserved. An interlude (or Dream) still in
+   * progress starts a fresh run and re-freezes that map (onSessionOpen, run by
+   * openSessionRun). A no-op unless tracking.
    */
-  reset(): void {
+  reset(identity: SessionIdentity): void {
     if (this._ctx.phase !== 'tracking') return;
 
     const now = Date.now();
     const wasPaused = this._ctx.paused;
 
-    // Fresh trackers below — clear pause bookkeeping tied to the torn-down ones.
-    this._pausedSeasonals.clear();
-    this._ctx.mapPausedForInterludeAt = null;
-
-    // Tear down map/seasonal trackers so the renderer drops their UI state.
-    // Deliberately do NOT emit tracker_finished for the session — that would
-    // flip the renderer's phase to 'idle'. Each seasonal's finish() emits
-    // its own tracker_finished; the registry handles map separately below.
-    this._ctx.registry.finishAllSeasonals();
-    if (this._ctx.registry.map) {
-      this._emit({type: 'tracker_finished', tracker: this._ctx.registry.map.snapshot(), timestamp: now});
-      this._ctx.registry.map = null;
-    }
-    this._ctx.registry.invalidateWriter();
+    // The materials were consumed to open the map the player is still in, so
+    // its rebuilt tracker (and the new session) keep the entry cost.
+    const carriedCost: ReadonlyMap<number, number> = new Map(this._ctx.registry.map?.entryCost ?? []);
+    // Tear down map/seasonal trackers so the renderer drops their UI state,
+    // emitting no unit (the reset run is never saved). Deliberately do NOT
+    // emit tracker_finished for the session — that would flip the renderer's
+    // phase to 'idle'.
+    this._ctx.registry.discardForReset(this._emit, now);
     this._ctx.registry.session = null;
 
-    this._ctx.mapCount           = 0;
-    this._ctx.accumulatedMapTime = 0;
-    this._ctx.activeSessionId    = null;
-    this._ctx.activeSessionName  = null;
-    this._ctx.loadedSession      = null;
-
-    const session = this._ctx.registry.startSession();
-    if (wasPaused) session.pause();
-    this._emit({
-      type:        'tracker_started',
-      tracker:     session.snapshot(),
-      timestamp:   now,
-      sessionMeta: {mapTime: 0, mapCount: 0},
-    });
-
-    if (this._ctx.inMap) {
-      this._ctx.mapCount     = 1;
-      const map = this._ctx.registry.startMap();
-      if (map) {
-        if (wasPaused) map.pause();
-        this._emit({type: 'map_started', mapCount: 1, timestamp: now});
-        this._emit({type: 'tracker_started', tracker: map.snapshot(), timestamp: now});
-      }
-    }
+    this._ctx.activeSessionId   = identity.sessionId;
+    this._ctx.activeSessionName = identity.name;
+    this._ctx.loadedSession     = null;
+    openSessionRun(this._ctx, this._emit, now, carriedCost);
 
     this._emit({
       type:      'session_status',
@@ -170,13 +195,20 @@ export class Engine {
   /**
    * Pause the whole run. Freezes ALL live trackers — session, map, and every
    * active seasonal — plus every in-flight loot window (remaining time kept).
-   * Records exactly which trackers WE paused so resume() only unfreezes those:
-   * a seasonal already self-paused (Lunaria between strums, Arcana backed-out
-   * minigame) or a map paused for a seasonal interlude must NOT be resumed by
-   * a session resume — whoever paused a thing resumes it.
+   * The registry records exactly which seasonals the session pause froze so
+   * resume() only unfreezes those: a seasonal already self-paused (Lunaria
+   * between strums, Arcana backed-out minigame) or a map paused for a seasonal
+   * interlude must NOT be resumed by a session resume — whoever paused a thing
+   * resumes it. A tracker that starts while paused is frozen at start (Zone for
+   * a map, Sandlord for a hub run) and resumes here the same way.
+   *
+   * A tracking-only command: outside 'tracking' there is no session to freeze,
+   * so the pause is dropped, not deferred — latching ctx.paused during
+   * 'initializing' would start a running session whose every drop is ignored.
+   * That makes paused ⇒ tracking, which resume() relies on.
    */
   pause(): void {
-    if (this._ctx.paused) return;
+    if (this._ctx.phase !== 'tracking' || this._ctx.paused) return;
     const now = Date.now();
     this._ctx.paused = true;
 
@@ -188,18 +220,10 @@ export class Engine {
       this._ctx.registry.pauseMap(this._emit);
     }
 
-    // Pause every currently-active seasonal; remember which so resume() only
-    // resumes these. Self-paused seasonals are skipped (active === false).
-    // Freeze every in-flight loot window regardless — a pause must not eat
-    // the player's collection time.
-    this._pausedSeasonals.clear();
-    for (const t of this._ctx.registry.seasonals()) {
-      if (t.active) {
-        t.pauseTracker();
-        this._pausedSeasonals.add(t.seasonalType);
-      }
-      t.freezeLootTimer();
-    }
+    // Pause every currently-active seasonal (self-paused ones are skipped) and
+    // freeze every in-flight loot window — a pause must not eat the player's
+    // collection time.
+    this._ctx.registry.freezeAllForSessionPause();
 
     if (this._ctx.registry.session) {
       this._emit({type: 'session_status', status: 'paused', elapsed: this._ctx.registry.session.elapsed(), timestamp: now});
@@ -222,7 +246,8 @@ export class Engine {
     this._ctx.registry.session?.resume();
 
     // Map resume policy. A map is left paused across resume ONLY if it's paused
-    // for an ONGOING seasonal interlude (ctx.mapPausedForInterludeAt !== null) —
+    // for an ONGOING seasonal interlude (ctx.mapPausedForInterludeAt !== null —
+    // a claim on THIS map: the registry drops it with the map that ended) —
     // the interlude owns that pause and resolves it itself. Any other paused map
     // (paused by us at pause() time, started during the pause, or handed over by
     // an interlude that ENDED during the pause) is resumed here.
@@ -236,26 +261,12 @@ export class Engine {
     }
 
     // Unfreeze every frozen loot window (remaining time continues), then
-    // resume only the seasonals we paused. Frozen windows can't expire during
-    // a pause, so a self-paused seasonal at pause time is still self-paused
-    // here and correctly stays out of _pausedSeasonals.
-    for (const t of this._ctx.registry.seasonals()) {
-      t.unfreezeLootTimer();
-    }
-    for (const type of this._pausedSeasonals) {
-      // Mechanical resume — restores the pre-pause state without bumping the
-      // seasonal in the activation (ownership) order.
-      this._ctx.registry.seasonal(type)?.resumeTracker({reactivate: false});
-    }
-    this._pausedSeasonals.clear();
+    // resume only the seasonals the session pause froze.
+    this._ctx.registry.thawSessionPause();
 
     if (this._ctx.registry.session) {
       this._emit({type: 'session_status', status: 'running', elapsed: this._ctx.registry.session.elapsed(), timestamp: now});
     }
-  }
-
-  getFilter(): ItemFilterEngine | null {
-    return this._ctx.filter;
   }
 
   /** The one way to change filtering: null clears it, a rule list builds the
@@ -292,6 +303,65 @@ export class Engine {
     return {initialized: bag.initialized, slots: bag.getSlots(), totals: bag.getInventory()};
   }
 
+  /**
+   * The run's UI-visible state as ordinary EngineEvents: fed to a fresh
+   * renderer store they rebuild what the live event stream built. Pure — emits,
+   * records and logs nothing, but for an isolated replay throw (below);
+   * snapshots are taken now.
+   *
+   * Idle → []. Otherwise `init_started`, then once the session is open
+   * `init_complete` and the session `tracker_started` (identity, counters,
+   * `active` false while paused); the handlers' own UI state (the current
+   * zone, low-stock warnings); the map; every live seasonal in start order,
+   * `owner` stamped; one `loot_window_started` per running window — a window
+   * frozen by the pause has no deadline and is not shown. Never a drop, a
+   * persistence or a lifecycle-end event: history is not state.
+   *
+   * A throwing replay hook is isolated: its handler's events are left out and
+   * the choke point reports it; the rest still return.
+   */
+  getState(): EngineEvent[] {
+    const ctx = this._ctx;
+    if (ctx.phase === 'idle') return [];
+    const now = Date.now();
+    const events: EngineEvent[] = [{type: 'init_started'}];
+
+    // Pre-init trackers are never announced, so only an open session's count.
+    const session = ctx.phase === 'tracking' ? ctx.registry.session : null;
+    if (session) {
+      const {activeSessionId: sessionId, activeSessionName: name} = ctx;
+      if (sessionId === null || name === null) throw new Error('getState: an open session without identity');
+      events.push({type: 'init_complete', itemCount: ctx.bag.itemCount});
+      events.push({
+        type:        'tracker_started',
+        tracker:     session.snapshot(),
+        timestamp:   now,
+        sessionMeta: {sessionId, name, continued: ctx.sessionContinued, mapTime: ctx.accumulatedMapTime, mapCount: ctx.mapCount},
+      });
+    }
+
+    for (const hook of this._replayHooks) {
+      const replayed = this._isolate(hook.source, () => hook.fn(ctx));
+      if (replayed) events.push(...replayed);
+    }
+
+    if (!session) return events;
+    const map = ctx.registry.map;
+    if (map) events.push({type: 'tracker_started', tracker: map.snapshot(), timestamp: now});
+    const seasonals = ctx.registry.replaySeasonals();
+    for (const {snapshot} of seasonals) events.push({type: 'tracker_started', tracker: snapshot, timestamp: now});
+    for (const {tracker} of seasonals) {
+      const deadline = tracker.lootDeadline;
+      if (deadline !== null) events.push({type: 'loot_window_started', seasonalType: tracker.seasonalType, deadline, timestamp: now});
+    }
+    return events;
+  }
+
+  /** True once the session is open (bag baseline landed) until stop — paused included. */
+  isTracking(): boolean {
+    return this._ctx.phase === 'tracking';
+  }
+
   /** True iff a map tracker is currently active. */
   hasActiveMapTracker(): boolean {
     return this._ctx.registry.map !== null;
@@ -311,56 +381,15 @@ export class Engine {
   // --- Map material delegation -------------------------------------------------
 
   dismissMaterial(itemId: number): void {
-    this._mapMaterial?.dismiss(itemId);
+    const mapMaterial = this._mapMaterial;
+    if (mapMaterial) this._isolate({handler: mapMaterial.name, hook: 'dismissMaterial'}, () => mapMaterial.dismiss(itemId));
   }
 
-  setLowStockThreshold(n: number): void {
-    this._mapMaterial?.setThreshold(n);
-  }
-
-  // --- Seasonal loot timer durations (ms) ----------------------------------
-
-  setOverrealmLootDurationMs(ms: number): void {
-    this._overrealm?.setLootDurationMs(ms);
-  }
-
-  setCarjackLootDurationMs(ms: number): void {
-    this._carjack?.setLootDurationMs(ms);
-  }
-
-  setClockworkLootDurationMs(ms: number): void {
-    this._clockwork?.setLootDurationMs(ms);
-  }
-
-  setLunariaLootDurationMs(ms: number): void {
-    this._lunaria?.setLootDurationMs(ms);
-  }
-
-  /** In-map Sandlord wave-activity window (not a loot window — see the handler). */
-  setSandlordWaveDurationMs(ms: number): void {
-    this._sandlordMap?.setWaveDurationMs(ms);
-  }
-
-  setHuntingLootDurationMs(ms: number): void {
-    this._hunting?.setLootDurationMs(ms);
-  }
-
-  setAfterlightLootDurationMs(ms: number): void {
-    this._afterlight?.setLootDurationMs(ms);
-  }
-
-  /**
-   * Per-map spend record for the most recently entered map. Sourced from
-   * ItemHandler's pre-map buffer flush.
-   */
-  getLastMapSpends(): Record<string, number> {
-    const out: Record<string, number> = {};
-    const flush = this._item?.getLastPreMapFlush();
-    if (!flush) return out;
-    for (const [id, change] of flush) {
-      if (change < 0) out[String(id)] = -change;
-    }
-    return out;
+  /** Hand the parsed settings to every handler; each reads its own fields
+   *  (the windowed mechanics their `lootWindowMs` entry, MapMaterial the
+   *  low-stock threshold). */
+  configure(settings: Settings): void {
+    for (const h of this._handlers) this._isolate({handler: h.name, hook: 'configure'}, () => h.configure?.(settings));
   }
 
   onRawEvent(event: RawEvent): void {
@@ -368,7 +397,57 @@ export class Engine {
     if (!handlers) return;
     this._ctx.bagDeltas = [];
     for (const h of handlers) {
-      h.handle(event, this._ctx, this._emit);
+      this._isolate({handler: h.name, hook: 'handle', rawType: event.type}, () => h.handle(event, this._ctx, this._emit));
+    }
+  }
+
+  // --- Isolation -----------------------------------------------------------------
+
+  /**
+   * The one choke point every handler call (and, via `ctx.isolate`, every
+   * timer callback) runs through. A throw is reported (`_report`) and
+   * swallowed — undefined is returned and the caller goes on with its next
+   * handler or step.
+   *
+   * Not a transaction: what `fn` wrote to the context (or a handler to its
+   * own state) before the throw stays written. A handler failing mid-`handle`
+   * leaves its partial update for the handlers after it and for the next
+   * event; isolation keeps the run alive, it does not make a half-applied
+   * event whole.
+   */
+  private _isolate<T>(source: EngineErrorSource, fn: () => T): T | undefined {
+    try {
+      return fn();
+    } catch (err) {
+      this._report(source, err);
+      return undefined;
+    }
+  }
+
+  /**
+   * Log the error in full and emit it as an `error` event (its first line),
+   * throttled per `handler:hook`: the first is reported, later ones within
+   * ERROR_THROTTLE_MS of the last reported one are only counted, and the next
+   * report carries `(+N suppressed)` in both log and message. The emit is
+   * guarded — a sink that throws on it is logged, never re-isolated.
+   */
+  private _report(source: EngineErrorSource, err: unknown): void {
+    const key  = `${source.handler}:${source.hook}`;
+    const now  = Date.now();
+    const last = this._errorThrottle.get(key);
+    if (last && now - last.reportedAt < ERROR_THROTTLE_MS) {
+      last.suppressed++;
+      return;
+    }
+    this._errorThrottle.set(key, {reportedAt: now, suppressed: 0});
+
+    const suppressed = last && last.suppressed > 0 ? ` (+${last.suppressed} suppressed)` : '';
+    const where      = source.rawType === undefined ? key : `${key} (${source.rawType})`;
+    log.error('engine', `${where} threw${suppressed}: ${describeError(err)}`);
+    try {
+      this._sink({type: 'error', message: describeErrorBrief(err) + suppressed, source});
+    } catch (sinkErr) {
+      log.error('engine', `error event for ${where} not delivered: ${describeError(sinkErr)}`);
     }
   }
 }

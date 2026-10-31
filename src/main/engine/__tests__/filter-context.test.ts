@@ -6,7 +6,7 @@
 import {describe, it, expect} from 'vitest';
 import {TrackerRegistry}      from '@/main/engine/tracker-registry';
 import {ItemFilterEngine}     from '@/main/engine/item-filter';
-import type {FilterRule}      from '@/types/itemFilter';
+import type {FilterRule}      from '@/shared/item-filter';
 
 function makeRule(
   action: FilterRule['action'],

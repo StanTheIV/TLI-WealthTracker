@@ -1,8 +1,10 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
+import {mechanic} from '@/shared/mechanics';
+import type {Settings} from '@/shared/settings';
 
-const DEFAULT_LOOT_COLLECTION_MS = 5_000;
+const MECHANIC = mechanic('afterlight');
 
 /**
  * AfterlightHandler — Afterlight (S15 "ShouYe") translator.
@@ -11,14 +13,15 @@ const DEFAULT_LOOT_COLLECTION_MS = 5_000;
  * plus scripted mob waves, and the boss dying (or killing you) ends it.
  *   afterlight_start   : start the tracker (or fold into the running one)
  *   afterlight_special : a Special/Bride/Goblin variant is running — re-arm
- *   afterlight_wave    : keep the run alive — resume if dormant, else reset
+ *   afterlight_wave    : keep the run alive — reset the window (rate-limited)
  *   afterlight_end     : make the window terminal, then arm it
  *
  * The window is a WAVE window until the boss resolves, so expiry parks the
  * tracker dormant (pauseOnLootExpiry) rather than ending the run: real
  * encounters contain spawn lulls of 12-99s, and destroying the tracker there
- * would split one fight into several. A later wave resumes the same run.
- * _Win/_Lose flips expiry to finish so the post-kill window closes it for good.
+ * would split one fight into several. Any later arm — wave, Special or end —
+ * wakes the same run (TrackerRegistry.wakeForLoot). _Win/_Lose flips expiry to
+ * finish so the post-kill window closes it for good.
  *
  * Only waves move the window — pickups never do, so `bag_update` is absent from
  * `handles` (same rule as the Sandlord tile). Special usually logs no boss death
@@ -30,7 +33,7 @@ export class AfterlightHandler implements EventHandler {
   readonly name    = 'afterlight';
   readonly handles = ['afterlight_start', 'afterlight_special', 'afterlight_wave', 'afterlight_end'] as const;
 
-  private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
+  private _lootMs: number = MECHANIC.window.defaultMs;
   /** True once the boss has resolved, so a repeated end marker can't re-arm. */
   private _terminal: boolean = false;
 
@@ -38,8 +41,8 @@ export class AfterlightHandler implements EventHandler {
     this._terminal = false;
   }
 
-  setLootDurationMs(ms: number): void {
-    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+  configure(settings: Settings): void {
+    this._lootMs = settings.lootWindowMs[MECHANIC.key];
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -76,16 +79,9 @@ export class AfterlightHandler implements EventHandler {
       }
 
       case 'afterlight_wave': {
-        const t = ctx.registry.seasonal('afterlight');
-        if (!t) return; // never start from a wave — a missed _App ends at town entry
-        // Waking a dormant tracker must arm unthrottled: expiry already nulled
-        // the timer, so a throttled call would leave it active with no window.
-        if (!t.active) {
-          t.resumeTracker();
-          t.armLootTimer();
-        } else {
-          t.resetLootTimerThrottled();
-        }
+        // Never start from a wave — a missed _App ends at town entry. A dormant
+        // tracker wakes and re-arms unthrottled (see resetLootTimerThrottled).
+        ctx.registry.seasonal('afterlight')?.resetLootTimerThrottled();
         break;
       }
 

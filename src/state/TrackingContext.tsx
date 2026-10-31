@@ -1,141 +1,72 @@
-import {type ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState} from 'react';
-import {useSettingsStore} from './settingsStore';
-import {useEngineStore} from './engineStore';
-import {useSessionsStore} from './sessionsStore';
+import {type ReactNode, createContext, useContext} from 'react';
 
-export type TrackingStatus = 'idle' | 'running' | 'paused';
-
-interface TrackingState {
-  status:    TrackingStatus;
-  elapsedMs: number;
-  sessionId: string | null;
-}
-
-interface TrackingContextValue extends TrackingState {
-  start:           () => void;
-  continueSession: (sessionId: string) => void;
+/** The main window's run commands. The run status and elapsed live in
+ *  engineStore (`selectRunStatus`), shared with the overlay. */
+interface TrackingCommands {
+  /** Resolves true once main started the session; false when the start
+   *  failed (logged; main is idle or still on the run in progress). */
+  start:           () => Promise<boolean>;
+  /** Resolves true once main accepted the continue; false when main refused
+   *  it (logged, nothing started). */
+  continueSession: (sessionId: string) => Promise<boolean>;
   pause:           () => void;
   resume:          () => void;
   stop:            () => void;
-  reset:           () => void;
+  /** Resolves once main reset the run; a failed reset is logged (main is
+   *  then idle — the old session kept, closed). */
+  reset:           () => Promise<void>;
 }
 
-const TrackingContext = createContext<TrackingContextValue | null>(null);
+/** Exported for tests; components use `useTracking()`. */
+export const commands: TrackingCommands = {
+  start: async () => {
+    try {
+      await window.electronAPI.engine.start();
+    } catch (err) {
+      console.error('[session] start refused:', err);
+      return false;
+    }
+    window.electronAPI.overlay.show();
+    return true;
+  },
 
-function getLogPath(): string {
-  const {torchlightPath} = useSettingsStore.getState();
-  return `${torchlightPath}/TorchLight/Saved/Logs/UE_game.log`;
-}
+  continueSession: async (sessionId) => {
+    // Main refuses a missing, non-drop-through or active session. The Playbar
+    // badge name arrives with the session tracker_started (engineStore).
+    try {
+      await window.electronAPI.engine.startWithSession(sessionId);
+    } catch (err) {
+      console.error('[session] continue refused:', err);
+      return false;
+    }
+    window.electronAPI.overlay.show();
+    return true;
+  },
+
+  pause:  () => window.electronAPI.engine.pause(),
+  resume: () => window.electronAPI.engine.resume(),
+
+  stop: () => {
+    window.electronAPI.engine.stop();
+    window.electronAPI.overlay.hide();
+  },
+
+  reset: async () => {
+    try {
+      await window.electronAPI.engine.reset();
+    } catch (err) {
+      console.error('[session] reset failed:', err);
+    }
+  },
+};
+
+const TrackingContext = createContext<TrackingCommands | null>(null);
 
 export function TrackingProvider({children}: {children: ReactNode}) {
-  const [state, setState] = useState<TrackingState>({status: 'idle', elapsedMs: 0, sessionId: null});
-  const intervalRef    = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startedAtRef   = useRef<number>(0);
-  const accumulatedRef = useRef<number>(0);
-  const statusRef      = useRef<TrackingStatus>('idle');
-
-  const clearTick = useCallback(() => {
-    if (intervalRef.current !== null) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  const startTick = useCallback(() => {
-    clearTick();
-    startedAtRef.current = Date.now();
-    intervalRef.current = setInterval(() => {
-      const elapsed = accumulatedRef.current + (Date.now() - startedAtRef.current);
-      setState(prev => ({...prev, elapsedMs: elapsed}));
-    }, 100);
-  }, [clearTick]);
-
-  const start = useCallback(() => {
-    window.electronAPI.engine.start(getLogPath());
-    accumulatedRef.current = 0;
-    statusRef.current = 'running';
-    setState({status: 'running', elapsedMs: 0, sessionId: crypto.randomUUID()});
-    // tick starts only after init_complete — see engineStore phase subscription below
-    window.electronAPI.overlay.show();
-  }, []);
-
-  const continueSession = useCallback((sessionId: string) => {
-    window.electronAPI.engine.startWithSession(getLogPath(), sessionId);
-    accumulatedRef.current = 0;
-    statusRef.current = 'running';
-    setState({status: 'running', elapsedMs: 0, sessionId});
-    window.electronAPI.overlay.show();
-    // Surface the continued session name in the Playbar
-    const session = useSessionsStore.getState().sessions.find(s => s.id === sessionId);
-    useEngineStore.getState().setActiveSessionName(session?.name ?? null);
-  }, []);
-
-  const pause = useCallback(() => {
-    if (intervalRef.current !== null) {
-      accumulatedRef.current += Date.now() - startedAtRef.current;
-    }
-    window.electronAPI.engine.pause();
-    clearTick();
-    statusRef.current = 'paused';
-    setState(prev => ({...prev, status: 'paused'}));
-  }, [clearTick]);
-
-  const resume = useCallback(() => {
-    window.electronAPI.engine.resume();
-    statusRef.current = 'running';
-    setState(prev => ({...prev, status: 'running'}));
-    startTick();
-  }, [startTick]);
-
-  const stop = useCallback(() => {
-    window.electronAPI.engine.stop();
-    clearTick();
-    accumulatedRef.current = 0;
-    statusRef.current = 'idle';
-    setState({status: 'idle', elapsedMs: 0, sessionId: null});
-    window.electronAPI.overlay.hide();
-  }, [clearTick]);
-
-  const reset = useCallback(() => {
-    window.electronAPI.engine.reset();
-    accumulatedRef.current = 0;
-    // Drop the continued-session label so the new run shows as fresh.
-    useEngineStore.getState().setActiveSessionName(null);
-    if (statusRef.current === 'running') {
-      // Restart the local tick so elapsedMs counts from 0.
-      setState(prev => ({...prev, elapsedMs: 0, sessionId: crypto.randomUUID()}));
-      startTick();
-    } else {
-      // Paused: just zero the displayed elapsed; tick stays stopped.
-      setState(prev => ({...prev, elapsedMs: 0, sessionId: crypto.randomUUID()}));
-    }
-  }, [startTick]);
-
-  // Start the tick only once the engine finishes bag init.
-  // For continued sessions the engine's session tracker already has the loaded
-  // elapsed baked in — pick it up from engineStore so the timer reads correctly.
-  useEffect(() => {
-    return useEngineStore.subscribe((engineState, prev) => {
-      if (engineState.phase === 'tracking' && prev.phase !== 'tracking' && statusRef.current === 'running') {
-        // If continuing a session, initialise accumulated with the engine's reported elapsed
-        if (engineState.sessionElapsed > 0) {
-          accumulatedRef.current = engineState.sessionElapsed;
-        }
-        startTick();
-      }
-    });
-  }, [startTick]);
-
-  useEffect(() => () => clearTick(), [clearTick]);
-
-  return (
-    <TrackingContext.Provider value={{...state, start, continueSession, pause, resume, stop, reset}}>
-      {children}
-    </TrackingContext.Provider>
-  );
+  return <TrackingContext.Provider value={commands}>{children}</TrackingContext.Provider>;
 }
 
-export function useTracking(): TrackingContextValue {
+export function useTracking(): TrackingCommands {
   const ctx = useContext(TrackingContext);
   if (!ctx) throw new Error('useTracking must be used within TrackingProvider');
   return ctx;

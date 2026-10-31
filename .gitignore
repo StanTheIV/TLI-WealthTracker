@@ -18,6 +18,8 @@ bun.lockb
 logs/
 *.log
 npm-debug.log*
+# Scrubbed game-log slices — golden-master inputs, tracked
+!src/test/golden/fixtures/*.log
 
 # Editor
 .vscode/

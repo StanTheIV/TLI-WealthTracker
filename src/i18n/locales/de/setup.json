@@ -1,0 +1,15 @@
+{
+  "title": "Willkommen bei TLI Tracker",
+  "intro": "Wähle zum Start deinen Torchlight Infinite Installationsordner.",
+  "expectedLocation": "Erwarteter Speicherort der Log-Datei",
+  "yourFolder": "<dein Ordner>",
+  "steamHint": "Meist in deiner Steam-Bibliothek, z. B.:",
+  "noFolder": "Kein Ordner ausgewählt",
+  "browse": "Durchsuchen…",
+  "confirm": "Bestätigen",
+  "checking": "Wird geprüft…",
+  "error": {
+    "noFolder": "Bitte wähle zuerst einen Ordner aus.",
+    "logNotFound": "Im ausgewählten Ordner wurde keine Log-Datei gefunden. Stelle sicher, dass du den richtigen Torchlight Infinite Installationsordner ausgewählt hast."
+  }
+}

@@ -1,6 +1,6 @@
 import {useTranslation} from 'react-i18next';
 import {GripVertical, Trash2} from 'lucide-react';
-import {FILTER_SCOPES, type FilterRule} from '@/types/itemFilter';
+import {FILTER_SCOPES, type FilterRule} from '@/shared/item-filter';
 import {useItemsStore} from '@/state/itemsStore';
 
 interface Props {

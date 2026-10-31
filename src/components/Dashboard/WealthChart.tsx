@@ -10,10 +10,9 @@ import {
   Tooltip,
   type MouseHandlerDataParam,
 } from 'recharts';
-import {pointValue, useWealthStore, type WealthRange} from '@/state/wealthStore';
-import {useItemsStore} from '@/state/itemsStore';
-import {useTaxConfig} from '@/state/settingsStore';
+import {useWealthStore, type WealthRange} from '@/state/wealthStore';
 import {activePointIndex} from '@/lib/chartPointer';
+import {formatDateTime, formatFECompact, formatFEFull} from '@/lib/format';
 import {useTheme} from '@/theme/ThemeContext';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 
@@ -41,19 +40,6 @@ function tickFormatterFor(range: WealthRange): (ts: number) => string {
   return formatDate;
 }
 
-function formatDateFull(ts: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }).format(new Date(ts));
-}
-
-function formatFE(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
-  if (value >= 1_000)     return `${(value / 1_000).toFixed(1)}k`;
-  return value.toLocaleString();
-}
-
 // ---------------------------------------------------------------------------
 // Custom tooltip
 // ---------------------------------------------------------------------------
@@ -63,18 +49,14 @@ interface TooltipEntry {
   payload?: {time: number; value: number};
 }
 
-function formatValue(value: number): string {
-  return `${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} FE`;
-}
-
 function CustomTooltip({active, payload}: {active?: boolean; payload?: TooltipEntry[]}) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   if (!entry.payload) return null;
   return (
     <div className="bg-surface border border-border rounded px-3 py-2 text-xs shadow-lg">
-      <p className="text-text-secondary mb-1">{formatDateFull(entry.payload.time)}</p>
-      <p className="font-mono font-semibold text-gold">{formatValue(entry.value ?? 0)}</p>
+      <p className="text-text-secondary mb-1">{formatDateTime(entry.payload.time)}</p>
+      <p className="font-mono font-semibold text-gold">{formatFEFull(entry.value ?? 0, {unit: true})}</p>
     </div>
   );
 }
@@ -84,7 +66,7 @@ function CustomTooltip({active, payload}: {active?: boolean; payload?: TooltipEn
 // ---------------------------------------------------------------------------
 
 interface ChartPoint {
-  id?:   number;
+  id:    number;
   time:  number;
   value: number;
 }
@@ -92,7 +74,7 @@ interface ChartPoint {
 interface MenuState {
   x:     number;
   y:     number;
-  point: ChartPoint & {id: number};
+  point: ChartPoint;
 }
 
 /** Fixed-position menu at the cursor. Closes on outside click, Escape, scroll
@@ -142,8 +124,8 @@ function PointMenu({menu, onDelete, onClose}: {menu: MenuState; onDelete: () => 
       style={{left: pos.left, top: pos.top}}
     >
       <div className="px-3 py-1.5 border-b border-border">
-        <p className="text-text-secondary">{formatDateFull(menu.point.time)}</p>
-        <p className="font-mono font-semibold text-gold">{formatValue(menu.point.value)}</p>
+        <p className="text-text-secondary">{formatDateTime(menu.point.time)}</p>
+        <p className="font-mono font-semibold text-gold">{formatFEFull(menu.point.value, {unit: true})}</p>
       </div>
       <button
         role="menuitem"
@@ -163,27 +145,24 @@ function PointMenu({menu, onDelete, onClose}: {menu: MenuState; onDelete: () => 
 export default function WealthChart() {
   const {t}         = useTranslation('dashboard');
   const theme       = useTheme();
-  const datapoints  = useWealthStore(s => s.datapoints);
+  const points      = useWealthStore(s => s.points);
   const range       = useWealthStore(s => s.range);
   const setRange    = useWealthStore(s => s.setRange);
   const deletePoint = useWealthStore(s => s.deletePoint);
-  const items       = useItemsStore(s => s.items);
-  const tax         = useTaxConfig();
   const [menu, setMenu] = useState<MenuState | null>(null);
 
   const data = useMemo<ChartPoint[]>(
-    () => datapoints.map(dp => ({id: dp.id, time: dp.timestamp, value: pointValue(dp, items, tax)})),
-    [datapoints, items, tax],
+    () => points.map(p => ({id: p.id, time: p.ts, value: p.value})),
+    [points],
   );
 
-  // A right-click with no active point under the cursor (or on a row without
-  // an id) leaves the native menu alone.
+  // A right-click with no active point under the cursor leaves the native menu alone.
   const openMenu = (state: MouseHandlerDataParam, e: MouseEvent<SVGGraphicsElement>) => {
     const index = activePointIndex(state);
     const point = index === null ? undefined : data[index];
-    if (point?.id === undefined) return;
+    if (!point) return;
     e.preventDefault();
-    setMenu({x: e.clientX, y: e.clientY, point: {...point, id: point.id}});
+    setMenu({x: e.clientX, y: e.clientY, point});
   };
 
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -192,7 +171,7 @@ export default function WealthChart() {
     if (!menu) return;
     const {point} = menu;
     setMenu(null);
-    if (window.confirm(t('chart.contextMenu.confirm', {time: formatDateFull(point.time), value: formatValue(point.value)}))) {
+    if (window.confirm(t('chart.contextMenu.confirm', {time: formatDateTime(point.time), value: formatFEFull(point.value, {unit: true})}))) {
       deletePoint(point.id).catch((err: unknown) => console.error('[wealth] delete failed:', err));
     }
   };
@@ -244,7 +223,7 @@ export default function WealthChart() {
             minTickGap={60}
           />
           <YAxis
-            tickFormatter={formatFE}
+            tickFormatter={formatFECompact}
             tick={{fill: theme.textDisabled, fontSize: 11}}
             axisLine={false}
             tickLine={false}

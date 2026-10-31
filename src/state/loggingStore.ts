@@ -1,34 +1,5 @@
 import {create} from 'zustand';
-
-// ---------------------------------------------------------------------------
-// Types (mirrored from main/logger.ts — renderer can't import main-process code)
-// ---------------------------------------------------------------------------
-
-export type LogFeature =
-  | 'engine' | 'worker' | 'database' | 'ipc' | 'overlay'
-  | 'session' | 'price' | 'wealth' | 'app' | 'filter' | 'update';
-
-export type LogType = 'info' | 'warn' | 'error' | 'debug';
-
-export interface LogTargetConfig {
-  enabled:  boolean;
-  features: LogFeature[];
-  types:    LogType[];
-}
-
-// ---------------------------------------------------------------------------
-// Defaults
-// ---------------------------------------------------------------------------
-
-const ALL_FEATURES: LogFeature[] = [
-  'engine', 'worker', 'database', 'ipc', 'overlay',
-  'session', 'price', 'wealth', 'app', 'filter', 'update',
-];
-
-const DEFAULT_TYPES: LogType[] = ['info', 'warn', 'error'];
-
-const DEFAULT_CONSOLE: LogTargetConfig = {enabled: true,  features: ALL_FEATURES, types: DEFAULT_TYPES};
-const DEFAULT_FILE:    LogTargetConfig = {enabled: false, features: ALL_FEATURES, types: DEFAULT_TYPES};
+import {DEFAULT_LOG_CONFIG, parseLogTargetConfig, type LogFeature, type LogTargetConfig, type LogType} from '@/shared/logging';
 
 // ---------------------------------------------------------------------------
 // Store
@@ -57,29 +28,15 @@ type Store = LoggingState & LoggingActions;
 // Helpers
 // ---------------------------------------------------------------------------
 
-function parseConfig(raw: string | undefined, fallback: LogTargetConfig): LogTargetConfig {
-  if (!raw) return fallback;
-  try {
-    const parsed = JSON.parse(raw) as Partial<LogTargetConfig>;
-    return {
-      enabled:  typeof parsed.enabled === 'boolean' ? parsed.enabled : fallback.enabled,
-      features: Array.isArray(parsed.features) ? parsed.features as LogFeature[] : fallback.features,
-      types:    Array.isArray(parsed.types)    ? parsed.types    as LogType[]    : fallback.types,
-    };
-  } catch {
-    return fallback;
-  }
-}
-
 function toggle<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
 }
 
-async function persist(key: string, config: LogTargetConfig): Promise<void> {
-  await window.electronAPI.db.settings.set(key, JSON.stringify(config)).catch(
+/** Main reloads the logger config itself after a `logging.*` write. */
+function persist(key: string, config: LogTargetConfig): void {
+  window.electronAPI.settings.set(key, JSON.stringify(config)).catch(
     (err: unknown) => console.error('[loggingStore] persist failed:', err),
   );
-  await window.electronAPI.logging.reloadConfig();
 }
 
 // ---------------------------------------------------------------------------
@@ -87,19 +44,19 @@ async function persist(key: string, config: LogTargetConfig): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export const useLoggingStore = create<Store>((set, get) => ({
-  console:     DEFAULT_CONSOLE,
-  file:        DEFAULT_FILE,
+  console:     DEFAULT_LOG_CONFIG.console,
+  file:        DEFAULT_LOG_CONFIG.file,
   logFilePath: '',
   isLoaded:    false,
 
   load: async () => {
     const [raw, logFilePath] = await Promise.all([
-      window.electronAPI.db.settings.getAll(),
+      window.electronAPI.settings.getAll(),
       window.electronAPI.logging.getLogPath(),
     ]);
     set({
-      console:     parseConfig(raw['logging.console'], DEFAULT_CONSOLE),
-      file:        parseConfig(raw['logging.file'],    DEFAULT_FILE),
+      console:     parseLogTargetConfig(raw['logging.console'], DEFAULT_LOG_CONFIG.console),
+      file:        parseLogTargetConfig(raw['logging.file'],    DEFAULT_LOG_CONFIG.file),
       logFilePath,
       isLoaded: true,
     });

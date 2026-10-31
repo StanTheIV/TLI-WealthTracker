@@ -26,6 +26,14 @@ export function parseLogTimestamp(line: string): number | null {
   return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], +m[7]);
 }
 
+/** The inverse of `parseLogTimestamp`: the `[YYYY.MM.DD-HH.mm.ss:mmm]` prefix for an epoch-ms UTC time. */
+export function formatLogTimestamp(ts: number): string {
+  const d = new Date(ts);
+  const p = (n: number, w = 2) => String(n).padStart(w, '0');
+  return `[${d.getUTCFullYear()}.${p(d.getUTCMonth() + 1)}.${p(d.getUTCDate())}-` +
+    `${p(d.getUTCHours())}.${p(d.getUTCMinutes())}.${p(d.getUTCSeconds())}:${p(d.getUTCMilliseconds(), 3)}]`;
+}
+
 /**
  * Turns raw numbered lines into timestamped LogLines, mirroring what the
  * watcher hands the dispatcher: `\r` stripped, blank lines dropped. A line

@@ -1,55 +1,61 @@
-import {ipcMain, BrowserWindow} from 'electron';
+import {ipcMain} from 'electron';
 import {log} from '@/main/logger';
 import {
-  settingsGetAll, settingsSet,
-  itemsGetAll, itemsUpsert, itemsSetName, itemsSetType, priceRecord, itemsSetLocked, itemsImportBatch,
+  itemsGetAll, itemsSetName, itemsSetType, priceRecord, itemsSetLocked, itemsImportBatch,
   leaguesGetAll, leaguesInsertUser, leaguesSetStart, pricesHistory, pricesMovers, pricesExport,
-  sessionsGetAll, sessionsInsert, sessionsUpdate, sessionsDelete, sessionsRename, sessionsGetOne,
-  sessionMapsGetForSession,
-  seasonalStatsGetAll, seasonalStatsUpsert,
-  wealthInsert, wealthGetRange, wealthGetLatest, wealthDelete, wealthClear,
+  wealthDelete, wealthClear,
   getLookupCountToday, recordLookup,
   filtersGetAll, filtersInsert, filtersUpdate, filtersDelete, filtersSetEnabled,
-  type DbItem,
 } from '@/main/db';
-import {broadcastItemsChanged, broadcastLeaguesChanged, setItemBroadcastWindows} from '@/main/items-broadcast';
+import type {DbItem} from '@/shared/contracts/db';
+import type {ItemFilter} from '@/shared/item-filter';
+import type {SqliteSessionStore} from '@/main/db/session-store';
+import type {Broadcast} from '@/main/broadcast';
+import type {SerperKey} from '@/main/serper-key';
+import type {TrackingService} from '@/main/tracking-service';
+import type {WealthSeries} from '@/main/wealth-series';
 
 interface RegisterDeps {
-  getMainWindow:    () => BrowserWindow | null;
-  getTrackerWindow: () => BrowserWindow | null;
+  /** Fan-out to both renderer windows (items:changed, leagues:changed, wealth:changed). */
+  broadcast:        Broadcast;
+  sessions:         SqliteSessionStore;
+  /** The tracking run — guards writes that would pull the live session out from under it. */
+  tracking:         Pick<TrackingService, 'deleteSession' | 'isTracking'>;
+  /** The displayed wealth; told when readings are deleted. */
+  wealthSeries:     Pick<WealthSeries, 'series' | 'latestBreakdown' | 'forget' | 'invalidate'>;
   /** Notify the engine that an item's type changed so its filter cache stays in sync. */
   onItemTypeChanged?: (id: string, type: string) => void;
+  /** A filter write landed: the engine re-reads the stored active filter. */
+  onFiltersChanged:   () => void;
+  /** The decrypted Serper key for the name lookup — never sent to a renderer. */
+  serperKey:          Pick<SerperKey, 'get'>;
 }
 
 export function registerDbHandlers(deps: RegisterDeps): void {
-  setItemBroadcastWindows(deps.getMainWindow, deps.getTrackerWindow);
-  ipcMain.handle('db:settings:get-all',  ()               => settingsGetAll());
-  ipcMain.handle('db:settings:set',      (_e, k, v)       => settingsSet(k, v));
-
+  const {broadcast, wealthSeries} = deps;
+  /** The displayed wealth changed without a new reading: every window re-fetches it. */
+  const wealthChanged = () => broadcast('wealth:changed');
   ipcMain.handle('db:items:get-all',     ()               => itemsGetAll());
-  ipcMain.handle('db:items:upsert',      (_e, item: DbItem) => {
-    itemsUpsert(item);
-    broadcastItemsChanged({id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
-  });
   ipcMain.handle('db:items:set-name',    (_e, id: string, name: string)   => {
     itemsSetName(id, name);
-    broadcastItemsChanged({id, changes: {name}});
+    broadcast('items:changed', {id, changes: {name}});
   });
   ipcMain.handle('db:items:set-type',    (_e, id: string, type: string)   => {
     itemsSetType(id, type);
-    broadcastItemsChanged({id, changes: {type}});
+    broadcast('items:changed', {id, changes: {type}});
     deps.onItemTypeChanged?.(id, type);
+    wealthChanged();
   });
   ipcMain.handle('db:items:set-price',   (_e, id: string, price: number)  => {
     const {priceDate} = priceRecord(id, 'manual', price, undefined, {updateItem: true});
-    broadcastItemsChanged({id, changes: {price, ...(priceDate !== null && {priceDate})}});
+    broadcast('items:changed', {id, changes: {price, ...(priceDate !== null && {priceDate})}});
   });
   ipcMain.handle('db:items:set-locked',  (_e, id: string, locked: boolean) => {
     itemsSetLocked(id, locked);
-    broadcastItemsChanged({id, changes: {locked}});
+    broadcast('items:changed', {id, changes: {locked}});
   });
   ipcMain.handle('db:items:lookup-name',  async (_e, id: string) => {
-    const result = await lookupName(id);
+    const result = await lookupName(id, await deps.serperKey.get());
     if ('name' in result || 'type' in result) {
       // Persist whatever we found and broadcast the patch so all renderers
       // (including the overlay) update without an extra round-trip.
@@ -63,7 +69,8 @@ export function registerDbHandlers(deps: RegisterDeps): void {
         changes.type = result.type;
         deps.onItemTypeChanged?.(id, result.type);
       }
-      if (Object.keys(changes).length > 0) broadcastItemsChanged({id, changes});
+      if (Object.keys(changes).length > 0) broadcast('items:changed', {id, changes});
+      if (changes.type) wealthChanged();
     }
     return result;
   });
@@ -73,8 +80,10 @@ export function registerDbHandlers(deps: RegisterDeps): void {
     // Rows skipped by INSERT OR IGNORE keep their DB values, so they're not broadcast.
     for (const item of items) {
       if (!insertedIds.has(item.id)) continue;
-      broadcastItemsChanged({id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
+      broadcast('items:changed', {id: item.id, changes: {name: item.name, type: item.type, price: item.price, priceDate: item.priceDate}});
     }
+    // A new row gives a type to an id stored readings knew only as 'other'.
+    if (insertedIds.size > 0) wealthChanged();
     return insertedIds.size;
   });
 
@@ -82,13 +91,13 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:leagues:start-now', (_e, name?: string) => {
     const trimmed = typeof name === 'string' ? name.trim().slice(0, 100) : '';
     const league = leaguesInsertUser(trimmed || 'New league', Date.now());
-    broadcastLeaguesChanged();
+    broadcast('leagues:changed');
     return league;
   });
   ipcMain.handle('db:leagues:set-start', (_e, id: string, ts: number) => {
     if (typeof id !== 'string' || !Number.isFinite(ts)) return false;
     const changed = leaguesSetStart(id, ts);
-    if (changed) broadcastLeaguesChanged();
+    if (changed) broadcast('leagues:changed');
     return changed;
   });
 
@@ -96,30 +105,42 @@ export function registerDbHandlers(deps: RegisterDeps): void {
   ipcMain.handle('db:prices:movers',  (_e, from: number, to: number)                  => pricesMovers(from, to));
   ipcMain.handle('db:prices:export',  (_e, from: number, to: number)                  => pricesExport(from, to));
 
-  ipcMain.handle('db:sessions:get-all',  ()                      => sessionsGetAll());
-  ipcMain.handle('db:sessions:insert',   (_e, session)           => sessionsInsert(session));
-  ipcMain.handle('db:sessions:update',   (_e, session)           => sessionsUpdate(session));
-  ipcMain.handle('db:sessions:delete',   (_e, id: string)        => sessionsDelete(id));
-  ipcMain.handle('db:sessions:rename',   (_e, id: string, name: string) => sessionsRename(id, name));
-  ipcMain.handle('db:sessions:get-one',  (_e, id: string)        => sessionsGetOne(id));
-  ipcMain.handle('db:session-maps:get-for-session', (_e, sessionId: string) => sessionMapsGetForSession(sessionId));
+  const {sessions, tracking} = deps;
+  ipcMain.handle('db:sessions:get-all',  ()                      => sessions.listSessions());
+  // Through the service: it refuses (rejects the invoke for) the active session.
+  ipcMain.handle('db:sessions:delete',   (_e, id: string)        => tracking.deleteSession(id));
+  ipcMain.handle('db:sessions:rename',   (_e, id: string, name: string) => sessions.renameSession(id, name));
+  ipcMain.handle('db:session-maps:get-for-session', (_e, sessionId: string) => sessions.getRows(sessionId));
 
-  ipcMain.handle('db:seasonal:get-all',  ()               => seasonalStatsGetAll());
-  ipcMain.handle('db:seasonal:upsert',   (_e, stat)       => seasonalStatsUpsert(stat));
-
-  ipcMain.handle('db:wealth:insert',     (_e, point)      => wealthInsert(point));
-  ipcMain.handle('db:wealth:get-range',  (_e, from, to)   => wealthGetRange(from, to));
-  ipcMain.handle('db:wealth:get-latest', (_e, limit)      => wealthGetLatest(limit));
-  ipcMain.handle('db:wealth:delete',     (_e, id)         => wealthDelete(id));
-  ipcMain.handle('db:wealth:clear',      ()               => wealthClear());
+  ipcMain.handle('db:wealth:series',     (_e, from: number, to: number) => wealthSeries.series(from, to));
+  ipcMain.handle('db:wealth:latest-breakdown', ()         => wealthSeries.latestBreakdown());
+  ipcMain.handle('db:wealth:delete',     (_e, id: number) => {
+    wealthDelete(id);
+    wealthSeries.forget(id);
+    wealthChanged();
+  });
+  ipcMain.handle('db:wealth:clear',      ()               => {
+    // Clearing all history would delete the live session under the run.
+    if (tracking.isTracking()) throw new Error('Cannot clear all data while tracking');
+    wealthClear();
+    wealthSeries.invalidate();
+    wealthChanged();
+  });
 
   ipcMain.handle('db:lookups:get-today', ()               => getLookupCountToday());
 
   ipcMain.handle('db:filters:get-all',    ()                        => filtersGetAll());
-  ipcMain.handle('db:filters:insert',     (_e, filter)              => filtersInsert(filter));
-  ipcMain.handle('db:filters:update',     (_e, filter)              => filtersUpdate(filter));
-  ipcMain.handle('db:filters:delete',     (_e, id: string)          => filtersDelete(id));
-  ipcMain.handle('db:filters:set-enabled',(_e, id: string, enabled: boolean) => filtersSetEnabled(id, enabled));
+  // Any filter write may change the active filter: the wealth figures and the
+  // engine both derive it from the stored rows, after the write. A rejected
+  // (malformed) write throws before either.
+  const filtersChanged = () => {
+    wealthChanged();
+    deps.onFiltersChanged();
+  };
+  ipcMain.handle('db:filters:insert',     (_e, filter: ItemFilter)  => { filtersInsert(filter); filtersChanged(); });
+  ipcMain.handle('db:filters:update',     (_e, filter: ItemFilter)  => { filtersUpdate(filter); filtersChanged(); });
+  ipcMain.handle('db:filters:delete',     (_e, id: string)          => { filtersDelete(id); filtersChanged(); });
+  ipcMain.handle('db:filters:set-enabled',(_e, id: string, enabled: boolean) => { filtersSetEnabled(id, enabled); filtersChanged(); });
 
   log.debug('ipc', 'DB handlers registered');
 }
@@ -128,8 +149,7 @@ export function registerDbHandlers(deps: RegisterDeps): void {
 // Item name lookup via Serper (Google Search)
 // ---------------------------------------------------------------------------
 
-async function lookupName(id: string): Promise<{name?: string | null; type?: string | null; error?: string; lookupsToday: number}> {
-  const apiKey = settingsGetAll()['serper_api_key'];
+async function lookupName(id: string, apiKey: string | null): Promise<{name?: string | null; type?: string | null; error?: string; lookupsToday: number}> {
   if (!apiKey) return {error: 'no_api_key', lookupsToday: getLookupCountToday()};
 
   const count = getLookupCountToday();

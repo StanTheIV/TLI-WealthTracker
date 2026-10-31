@@ -1,5 +1,6 @@
 /** Pure price-history helpers (no DB / electron imports). */
 import {median, percentile} from '@/lib/percentiles';
+import type {PriceBucket} from '@/shared/contracts/db';
 
 export type PriceSummary = {n: number; p10: number; p25: number; p75: number; p90: number; min: number};
 
@@ -60,29 +61,6 @@ export type BucketObservation = {
   price: number;
   source: string;
   n?: number | null;
-};
-
-/**
- * One time bucket of an item's history.
- * - `timestamp`: bucket start (ms).
- * - `median`/`p10..p90`/`n`: computed from the MERGED raw listings of every scrape
- *   observation in the bucket (percentiles are never averaged). If the bucket has no
- *   listings, `median` is the median of manual/backfill prices, percentiles are null, `n` is 0.
- * - `medianLo`/`medianHi`: lowest/highest per-observation median in the bucket (how far
- *   the price moved within it); null with fewer than two observations.
- * - `searches`: number of observations with listings merged into the bucket.
- */
-export type PriceBucket = {
-  timestamp: number;
-  median: number;
-  p10: number | null;
-  p25: number | null;
-  p75: number | null;
-  p90: number | null;
-  medianLo: number | null;
-  medianHi: number | null;
-  n: number;
-  searches: number;
 };
 
 const HOUR_MS = 3_600_000;

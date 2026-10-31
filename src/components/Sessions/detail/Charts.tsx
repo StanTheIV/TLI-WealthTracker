@@ -5,9 +5,10 @@ import {
   ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {useTheme} from '@/theme/ThemeContext';
-import type {MechanicKey, SessionAnalytics} from '../analytics';
+import type {MechanicKey, SessionAnalytics} from '@/domain/session-analytics';
 import {mechanicColors, typeColors} from './colors';
-import {formatFE, formatFEFull, pick, type ValueMode} from './format';
+import {formatFECompact, formatFEFull} from '@/lib/format';
+import {pick, type ValueMode} from './format';
 
 /** Beyond this, adjacent runs are bucketed so bars stay readable. */
 const MAX_BARS = 50;
@@ -27,7 +28,8 @@ function PerMapTooltip({active, payload}: {active?: boolean; payload?: {payload:
   const {t} = useTranslation('sessions');
   if (!active || !payload?.length) return null;
   const d   = payload[0].payload;
-  const net = d.mapIncome + d.seasonalIncome - Math.abs(d.cost);
+  // `cost` is already negated for the bar stack.
+  const net = d.mapIncome + d.seasonalIncome + d.cost;
   return (
     <div className="bg-surface border border-border rounded px-3 py-2 text-xs shadow-lg space-y-1">
       <p className="text-text-secondary">
@@ -35,22 +37,22 @@ function PerMapTooltip({active, payload}: {active?: boolean; payload?: {payload:
           ? t('details.tooltipMap', {n: d.firstIndex})
           : t('details.tooltipMapRange', {from: d.firstIndex, to: d.lastIndex})}
       </p>
-      {d.mapIncome > 0 && (
-        <p className="font-mono text-success">{t('details.tooltipIncome')}: +{formatFEFull(d.mapIncome)}</p>
+      {d.mapIncome !== 0 && (
+        <p className={`font-mono ${d.mapIncome > 0 ? 'text-success' : 'text-danger'}`}>{t('details.tooltipIncome')}: {formatFEFull(d.mapIncome, {plus: true})}</p>
       )}
       {Object.entries(d.bySeasonal)
         .sort((a, b) => b[1] - a[1])
         .map(([key, value]) => (
-          <p key={key} className="font-mono text-gold">
-            {t(`details.source.${key}` as never)}: +{formatFEFull(value)}
+          <p key={key} className={`font-mono ${value >= 0 ? 'text-gold' : 'text-danger'}`}>
+            {t(`details.source.${key}` as never)}: {formatFEFull(value, {plus: true})}
           </p>
         ))}
       <p className="font-mono text-danger">{t('details.tooltipCost')}: {formatFEFull(d.cost)}</p>
       <p className={`font-mono font-semibold ${net >= 0 ? 'text-gold' : 'text-danger'}`}>
-        {t('details.tooltipNet')}: {net >= 0 ? '+' : ''}{formatFEFull(net)}
+        {t('details.tooltipNet')}: {formatFEFull(net, {plus: true})}
       </p>
       <p className="font-mono text-text-secondary text-[10px]">
-        {t('details.tooltipCumulative')}: {d.cumulative >= 0 ? '+' : ''}{formatFEFull(d.cumulative)}
+        {t('details.tooltipCumulative')}: {formatFEFull(d.cumulative, {plus: true})}
       </p>
     </div>
   );
@@ -112,7 +114,7 @@ export function PerMapChart({analytics, mode}: {analytics: SessionAnalytics; mod
           axisLine={{stroke: theme.border}} tickLine={false} interval="preserveStartEnd"
         />
         <YAxis
-          tickFormatter={formatFE} tick={{fill: theme.textDisabled, fontSize: 11}}
+          tickFormatter={formatFECompact} tick={{fill: theme.textDisabled, fontSize: 11}}
           axisLine={false} tickLine={false} width={56}
         />
         <ReferenceLine y={0} stroke={theme.border} strokeWidth={1.5} />
@@ -137,13 +139,19 @@ interface Slice {
   color: string;
 }
 
+/** Slices carry signed values; a donut can only draw the positive ones, which
+ *  are also exactly what the analytics shares are computed against. */
+function positiveSlices(slices: Slice[]): Slice[] {
+  return slices.filter(s => s.value > 0);
+}
+
 function SliceTooltip({active, payload}: {active?: boolean; payload?: {payload: Slice}[]}) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
     <div className="bg-surface border border-border rounded px-3 py-2 text-xs shadow-lg">
       <p className="text-text-primary font-semibold mb-1">{d.label}</p>
-      <p className="font-mono text-gold">{formatFEFull(d.value)} FE</p>
+      <p className="font-mono text-gold">{formatFEFull(d.value, {unit: true})}</p>
       <p className="text-text-secondary">{d.pct.toFixed(1)}%</p>
     </div>
   );
@@ -181,12 +189,12 @@ export function ByTypeDonut({analytics, mode}: {analytics: SessionAnalytics; mod
   const theme       = useTheme();
   const colors      = typeColors(theme);
 
-  const data = analytics.byType.map(s => ({
+  const data = positiveSlices(analytics.byType.map(s => ({
     label: tItems(`types.${s.type}` as never),
     value: pick(s.value, mode),
     pct:   pick(s.pct, mode),
     color: colors[s.type],
-  }));
+  })));
 
   return <Donut data={data} empty={t('details.byTypeEmpty')} />;
 }
@@ -196,12 +204,12 @@ export function BySourceDonut({analytics, mode}: {analytics: SessionAnalytics; m
   const theme = useTheme();
   const colors = mechanicColors(theme);
 
-  const data = analytics.bySource.map(s => ({
+  const data = positiveSlices(analytics.bySource.map(s => ({
     label: t(`details.source.${s.source}` as never),
     value: pick(s.value, mode),
     pct:   pick(s.pct, mode),
     color: colors[s.source as MechanicKey] ?? theme.textDisabled,
-  }));
+  })));
 
   return <Donut data={data} empty={t('details.bySourceEmpty')} />;
 }

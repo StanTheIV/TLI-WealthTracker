@@ -36,6 +36,7 @@
     "label": {
       "init_started": "INIT",
       "init_complete": "READY",
+      "engine_stopped": "STOP",
       "drop": "DROP",
       "new_item": "NEW",
       "zone_change": "ZONE",
@@ -51,6 +52,7 @@
     "desc": {
       "initStarted": "Bag initialization started…",
       "initComplete": "Bag ready — {{count}} item types tracked",
+      "engineStopped": "Tracking stopped",
       "newItem": "New item — {{label}}",
       "mapStarted": "Map #{{count}} started",
       "mapEnded": "Map ended — {{seconds}}s",

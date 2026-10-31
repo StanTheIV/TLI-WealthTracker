@@ -1,12 +1,7 @@
 import {useEffect} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useLoggingStore} from '@/state/loggingStore';
-import type {LogFeature, LogType} from '@/main/logger';
-
-const ALL_FEATURES: LogFeature[] = [
-  'engine', 'worker', 'database', 'ipc', 'overlay',
-  'session', 'price', 'wealth', 'app', 'filter',
-];
+import {ALL_LOG_FEATURES, type LogFeature, type LogType} from '@/shared/logging';
 
 const ALL_TYPES: LogType[] = ['info', 'warn', 'error', 'debug'];
 
@@ -88,7 +83,7 @@ function TargetCard({
           {t('logging.features')}
         </p>
         <div className="flex flex-wrap gap-1.5">
-          {ALL_FEATURES.map(f => (
+          {ALL_LOG_FEATURES.map(f => (
             <Pill
               key={f}
               active={features.includes(f)}

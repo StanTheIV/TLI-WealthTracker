@@ -1,7 +1,6 @@
 /** Pure helpers for the price history chart, formatters and CSV export. */
-import type {PriceBucket} from '@/main/prices/history';
+import type {PriceBucket, PriceExportRow} from '@/shared/contracts/db';
 import type {LeagueRange} from './leagues';
-import type {PriceExportRow} from '@/types/electron';
 
 export type ChartRow = {
   t: number;

@@ -1,32 +1,12 @@
-export type SeasonalType = 'vorex' | 'dream' | 'overrealm' | 'carjack' | 'clockwork' | 'sandlord' | 'lunaria' | 'arcana' | 'hunting' | 'afterlight' | 'tartarus';
-/** A drop's attribution source — 'map' or one of the seasonal types. */
-export type Source = 'map' | SeasonalType;
-export type TrackerKind = 'session' | 'map' | 'seasonal';
-/** Sandlord runs in two phases sharing one seasonal type: 'map' — the in-map
- *  coin tile (in-map category, drop-through), 'hub' — the own-area hub bubble.
- *  Other seasonals leave this unset. */
-export type SeasonalPhase = 'map' | 'hub';
+import type {SeasonalType, Source, TrackerKind, TrackerSnapshot} from '@/shared/contracts/engine';
 
-export interface TrackerSnapshot {
-  kind:          TrackerKind;
-  drops:         Record<number, number>;
-  elapsed:       number;
-  seasonalType?: SeasonalType;
-  /** Which Sandlord phase this tracker covers — see SeasonalPhase. */
-  phase?:        SeasonalPhase;
-  /** False while the tracker is paused (e.g. Lunaria between strum episodes —
-   *  drops won't accrue but the tracker isn't finished). True for normal
-   *  active seasonals. */
-  active:        boolean;
-  /** True on the seasonal that currently owns incoming drops — the one whose
-   *  window was armed or re-armed most recently. Set by the registry at emit
-   *  time, since ownership is registry state rather than tracker state. */
-  owner?:        boolean;
-  /** Per-source breakdown — populated only on the session tracker's snapshot.
-   *  Each drop is attributed to exactly one source (newest active tracker at
-   *  the moment the drop fired) so summing per-source totals reproduces
-   *  session FE. Omitted on map and seasonal snapshots. */
-  dropsBySource?: Record<Source, Record<number, number>>;
+/** A saved session's totals, for `Tracker.seed`: item-id keyed records as the
+ *  DB stores them, and the active time in ms. */
+export interface TrackerSeed {
+  drops:         Record<string, number>;
+  dropsBySource: Partial<Record<Source, Record<string, number>>>;
+  spent:         Record<string, number>;
+  timeOffsetMs:  number;
 }
 
 /**
@@ -37,31 +17,43 @@ export interface TrackerSnapshot {
  *   map      — created on map entry, destroyed on town entry
  *   seasonal — created by seasonal trigger, destroyed by corresponding exit
  *
- * All three instances receive the same drops via EngineContext.distributeDrop().
+ * All three instances receive the same drops via TrackerRegistry.distributeDrop().
  *
  * `ownsBubble` is set on seasonals (e.g. Sandlord) whose bubble subsumes regular
- * map zones — ZoneHandler consults it to skip creating a per-map tracker inside.
+ * map zones — TrackerRegistry.startMap refuses a per-map tracker while one is up.
  */
 export class Tracker {
   readonly kind:          TrackerKind;
   readonly seasonalType?: SeasonalType;
   readonly ownsBubble:    boolean;
+  /** Map trackers: the run's map ordinal, stamped by TrackerRegistry.startMap
+   *  (from 1). Internal identity for parenting seasonals — never persisted,
+   *  never on a snapshot. 0 on session/seasonal trackers. */
+  seq: number = 0;
+  /** Wall-clock creation time (ms epoch): when the run really began. Fixed for
+   *  the tracker's life — unlike `_startTime` it never moves on resume, so a
+   *  run that froze or went dormant still reports its real start. */
+  readonly startedAt: number;
 
-  private _drops:       Map<number, number> = new Map();
+  private _drops:     Map<number, number> = new Map();
   private _startTime:   number;
   private _accumulated: number = 0;
   private _pausedAt:    number | null = null;
   // Per-source breakdown for the session tracker only. Each drop is attributed
-  // to exactly one source via the writer rule in EngineContext. Other
+  // to exactly one source via TrackerRegistry.writer(). Other
   // trackers (map, seasonal) leave this empty — their `_drops` plays the
   // analogous role for "what fell while this tracker was running."
   private _dropsBySource: Map<Source, Map<number, number>> = new Map();
+  // Entry cost (positive magnitudes): the map's own, or the session's running
+  // total. Kept apart from _drops — a consumed material is not negative loot.
+  private _spent: Map<number, number> = new Map();
 
   constructor(kind: TrackerKind, seasonalType?: SeasonalType, ownsBubble: boolean = false) {
     this.kind         = kind;
     this.seasonalType = seasonalType;
     this.ownsBubble   = ownsBubble;
-    this._startTime   = Date.now();
+    this.startedAt    = Date.now();
+    this._startTime   = this.startedAt;
   }
 
   get active(): boolean {
@@ -90,12 +82,44 @@ export class Tracker {
     bucket.set(itemId, (bucket.get(itemId) ?? 0) + change);
   }
 
+  /** Add to the entry cost. No `active` guard: cost is structural (crediting
+   *  while paused is already prevented upstream — a paused entry has no buffer). */
+  addCost(itemId: number, qty: number): void {
+    if (qty === 0) return;
+    this._spent.set(itemId, (this._spent.get(itemId) ?? 0) + qty);
+  }
+
+  /** Replace the entry cost with a copy of `cost`. */
+  setEntryCost(cost: ReadonlyMap<number, number>): void {
+    this._spent = new Map(cost);
+  }
+
+  get entryCost(): ReadonlyMap<number, number> {
+    return this._spent;
+  }
+
   /**
-   * Add a time offset to the accumulated elapsed — used when continuing a saved session.
-   * @param ms Milliseconds to add (e.g. totalTime * 1000 from DB where DB stores seconds).
+   * Continue a saved session: add its drops, per-source drops and entry cost
+   * (item-id keyed, as stored) and its active time. The input is copied.
+   * `startedAt` is untouched — a continued run starts when it is continued.
    */
-  addTimeOffset(ms: number): void {
-    this._accumulated += ms;
+  seed(data: TrackerSeed): void {
+    for (const [id, qty] of Object.entries(data.drops)) {
+      this._drops.set(Number(id), (this._drops.get(Number(id)) ?? 0) + qty);
+    }
+    for (const [source, bucket] of Object.entries(data.dropsBySource) as Array<[Source, Record<string, number> | undefined]>) {
+      if (!bucket) continue;
+      for (const [id, qty] of Object.entries(bucket)) {
+        let target = this._dropsBySource.get(source);
+        if (!target) {
+          target = new Map();
+          this._dropsBySource.set(source, target);
+        }
+        target.set(Number(id), (target.get(Number(id)) ?? 0) + qty);
+      }
+    }
+    for (const [id, qty] of Object.entries(data.spent)) this.addCost(Number(id), qty);
+    this._accumulated += data.timeOffsetMs;
   }
 
   pause(): void {
@@ -119,10 +143,11 @@ export class Tracker {
     const drops: Record<number, number> = {};
     for (const [k, v] of this._drops) drops[k] = v;
     const snap: TrackerSnapshot = {
-      kind:    this.kind,
+      kind:      this.kind,
       drops,
-      elapsed: this.elapsed(),
-      active:  this.active,
+      elapsed:   this.elapsed(),
+      startedAt: this.startedAt,
+      active:    this.active,
       ...(this.seasonalType ? {seasonalType: this.seasonalType} : {}),
     };
     if (this._dropsBySource.size > 0) {
@@ -133,6 +158,11 @@ export class Tracker {
         dbs[source] = entry;
       }
       snap.dropsBySource = dbs;
+    }
+    if (this._spent.size > 0) {
+      const spent: Record<number, number> = {};
+      for (const [id, qty] of this._spent) spent[id] = qty;
+      snap.spent = spent;
     }
     return snap;
   }

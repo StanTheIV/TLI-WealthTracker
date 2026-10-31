@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Plus, ToggleLeft, ToggleRight, Pencil, Trash2, Info} from 'lucide-react';
 import {useFilterStore} from '@/state/filterStore';
-import type {ItemFilter, FilterRule} from '@/types/itemFilter';
+import type {ItemFilter, FilterRule} from '@/shared/item-filter';
 import RuleCard from './RuleCard';
 import AddRuleDialog from './AddRuleDialog';
 
@@ -311,7 +311,7 @@ export default function FiltersScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoaded) useFilterStore.getState().load();
+    if (!isLoaded) useFilterStore.getState().load().catch((err: unknown) => console.error('[filters] load failed:', err));
   }, [isLoaded]);
 
   // Auto-select first filter on load

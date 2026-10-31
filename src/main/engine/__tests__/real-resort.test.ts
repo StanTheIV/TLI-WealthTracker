@@ -5,7 +5,8 @@ import {Engine} from '@/main/engine/engine';
 import {BagInitHandler} from '@/main/engine/handlers/bag-init';
 import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {ItemHandler} from '@/main/engine/handlers/item';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
+import {TEST_IDENTITY} from './seasonal-fixtures';
 
 interface Entry {pageId: number; slotId: number; itemId: number; quantity: number}
 
@@ -32,7 +33,7 @@ describe('real-resort: replays the user-reported bursts', () => {
       .register(new ZoneHandler())
       .register(new ItemHandler());
 
-    engine.start();
+    engine.start(TEST_IDENTITY);
     // Init phase: feed pre-burst as initial bag dump
     for (const e of pre) {
       engine.onRawEvent({type: 'bag_init', ...e});

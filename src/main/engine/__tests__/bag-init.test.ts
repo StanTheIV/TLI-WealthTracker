@@ -2,10 +2,14 @@ import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {BagInitHandler} from '@/main/engine/handlers/bag-init';
 import {EngineContext} from '@/main/engine/context';
 import type {EmitFn} from '@/main/engine/types';
+import {TEST_IDENTITY} from './seasonal-fixtures';
 
+/** A context as Engine.start leaves it: initializing, with the session identity. */
 function makeCtx(): EngineContext {
   const ctx = new EngineContext();
   ctx.phase = 'initializing';
+  ctx.activeSessionId   = TEST_IDENTITY.sessionId;
+  ctx.activeSessionName = TEST_IDENTITY.name;
   return ctx;
 }
 
@@ -179,13 +183,15 @@ describe('BagInitHandler', () => {
     it('replays loaded drops and time offset into ctx.session', () => {
       const handler = new BagInitHandler();
       const ctx = makeCtx();
+      ctx.activeSessionId   = 'abc';
+      ctx.activeSessionName = 'Prior run';
       ctx.loadedSession = {
-        id:        'abc',
-        name:      'Prior run',
-        drops:     {'100': 3, '200': 7},
-        totalTime: 120,  // seconds
-        mapTime:   30,
-        mapCount:  4,
+        drops:         {'100': 3, '200': 7},
+        dropsBySource: {},
+        spent:         {},
+        totalTime:     120,  // seconds
+        mapTime:       30,
+        mapCount:      4,
       };
 
       handler.onStart(ctx, () => {});
@@ -206,13 +212,15 @@ describe('BagInitHandler', () => {
     it('emits tracker_started with sessionMeta reflecting loaded mapCount/mapTime', () => {
       const handler = new BagInitHandler();
       const ctx = makeCtx();
+      ctx.activeSessionId   = 'abc';
+      ctx.activeSessionName = 'Prior';
       ctx.loadedSession = {
-        id:        'abc',
-        name:      'Prior',
-        drops:     {},
-        totalTime: 60,
-        mapTime:   15,
-        mapCount:  2,
+        drops:         {},
+        dropsBySource: {},
+        spent:         {},
+        totalTime:     60,
+        mapTime:       15,
+        mapCount:      2,
       };
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
@@ -225,13 +233,17 @@ describe('BagInitHandler', () => {
       expect(started).toBeDefined();
       if (started?.type === 'tracker_started') {
         expect(started.tracker.kind).toBe('session');
-        expect(started.sessionMeta).toEqual({mapTime: 15_000, mapCount: 2});
+        expect(started.sessionMeta).toEqual({
+          mapTime: 15_000, mapCount: 2, sessionId: 'abc', name: 'Prior', continued: true,
+        });
       }
     });
 
-    it('emits zero-value sessionMeta for fresh (non-continued) runs', () => {
+    it('emits zero-value sessionMeta carrying the identity for fresh (non-continued) runs', () => {
       const handler = new BagInitHandler();
       const ctx = makeCtx();
+      ctx.activeSessionId   = 'fresh-1';
+      ctx.activeSessionName = 'Fresh run';
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -241,7 +253,9 @@ describe('BagInitHandler', () => {
 
       const started = events.find(e => e.type === 'tracker_started');
       if (started?.type === 'tracker_started') {
-        expect(started.sessionMeta).toEqual({mapTime: 0, mapCount: 0});
+        expect(started.sessionMeta).toEqual({
+          mapTime: 0, mapCount: 0, sessionId: 'fresh-1', name: 'Fresh run', continued: false,
+        });
       }
     });
   });
@@ -281,6 +295,7 @@ describe('BagInitHandler', () => {
       ]);
       ctx.registry.startSession();
       ctx.registry.startMap();
+      ctx.location = 'map';
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -301,6 +316,7 @@ describe('BagInitHandler', () => {
       ]);
       ctx.registry.startSession();
       ctx.registry.startMap();
+      ctx.location = 'map';
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 
@@ -355,6 +371,7 @@ describe('BagInitHandler', () => {
       ]);
       ctx.registry.startSession();
       ctx.registry.startMap();
+      ctx.location = 'map';
       const events: Parameters<EmitFn>[0][] = [];
       const emit: EmitFn = (e) => events.push(e);
 

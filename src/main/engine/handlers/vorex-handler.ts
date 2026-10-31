@@ -2,8 +2,7 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {pauseMapForInterlude, resolveMapInterlude} from '@/main/engine/map-interlude';
-
-const VOREX_REWARD_ZONE = 'DiXiaZhenSuo';
+import {VOREX_REWARD_SCENE} from '@/shared/scenes';
 
 /**
  * VorexHandler — Vorex (S13) translator.
@@ -17,14 +16,34 @@ export class VorexHandler implements EventHandler {
   readonly name    = 'vorex';
   readonly handles = ['s13_start', 's13_window_close', 's13_abandon', 'zone_transition'] as const;
 
+  // The Vorex window is up: s13_start seen, no close/abandon/scene change since.
+  private _windowOpen = false;
   // s13_abandon seen; waiting for zone_transition to resolve.
   private _abandoning = false;
 
-  onStop(): void {
+  onStart(): void {
+    this._windowOpen = false;
     this._abandoning = false;
   }
 
+  onStop(): void {
+    this._windowOpen = false;
+    this._abandoning = false;
+  }
+
+  /** The session opened mid-interlude (window up, or in the fight/loot zone):
+   *  the rebuilt map freezes again and the run starts fresh, as on s13_start —
+   *  frozen with the session if it is paused. */
+  onSessionOpen(ctx: EngineContext, emit: EmitFn): void {
+    if (!this._windowOpen && !ctx.currentScene.includes(VOREX_REWARD_SCENE)) return;
+    pauseMapForInterlude(ctx, emit);
+    const run = ctx.registry.activateSeasonal({type: 'vorex'}, emit);
+    if (run && ctx.paused) ctx.registry.freezeForSessionPause(run);
+  }
+
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
+    const abandoning = this._abandoning;   // what this event found; _observe consumes it on a zone change
+    this._observe(event);
     if (ctx.phase !== 'tracking') return;
 
     switch (event.type) {
@@ -43,10 +62,9 @@ export class VorexHandler implements EventHandler {
         if (ctx.paused) break;
         ctx.registry.seasonal('vorex')?.pauseTracker();
         break;
-      // Flag flip (safe while paused) + structural map bookkeeping: the vorex
+      // Structural map bookkeeping (the flag flip is _observe's): the vorex
       // UI is fully gone until the follow-up zone_transition resolves it.
       case 's13_abandon':
-        this._abandoning = true;
         resolveMapInterlude(ctx, emit);
         break;
       case 'zone_transition': {
@@ -54,9 +72,10 @@ export class VorexHandler implements EventHandler {
         // entering it from a map re-freezes the map (the commit sequence fires
         // window_close + abandon just before zoning, briefly resuming it);
         // the exit always goes to town, where ZoneHandler has already finished
-        // the map off its frozen elapsed — resolve just clears the marker.
-        const enteringFight = !event.fromScene.includes(VOREX_REWARD_ZONE) && event.toScene.includes(VOREX_REWARD_ZONE);
-        const leavingFight  = event.fromScene.includes(VOREX_REWARD_ZONE) && !event.toScene.includes(VOREX_REWARD_ZONE);
+        // the map off its frozen elapsed (and its interlude claim with it) —
+        // resolve is a no-op there.
+        const enteringFight = !event.fromScene.includes(VOREX_REWARD_SCENE) && event.toScene.includes(VOREX_REWARD_SCENE);
+        const leavingFight  = event.fromScene.includes(VOREX_REWARD_SCENE) && !event.toScene.includes(VOREX_REWARD_SCENE);
         if (enteringFight)     pauseMapForInterlude(ctx, emit);
         else if (leavingFight) resolveMapInterlude(ctx, emit);
 
@@ -64,9 +83,8 @@ export class VorexHandler implements EventHandler {
         // while paused so an abandoned run doesn't hang. The reward-zone branch
         // is a crediting resume/start, so it's suppressed while paused (the flag
         // is consumed either way — on resume a fresh s13_start re-enters).
-        if (this._abandoning) {
-          this._abandoning = false;
-          if (event.toScene.includes(VOREX_REWARD_ZONE)) {
+        if (abandoning) {
+          if (event.toScene.includes(VOREX_REWARD_SCENE)) {
             if (ctx.paused) break;
             ctx.registry.activateSeasonal({type: 'vorex'}, emit);
           } else {
@@ -75,6 +93,29 @@ export class VorexHandler implements EventHandler {
         }
         break;
       }
+    }
+  }
+
+  /** Interlude STATE, in every phase, so an interlude already in progress
+   *  when the session opens is known — and an abandon committed before it
+   *  still starts the run in the reward zone. Only handle()'s effects wait
+   *  for tracking. The fight half is `ctx.currentScene`. */
+  private _observe(event: RawEvent): void {
+    switch (event.type) {
+      case 's13_start':
+        this._windowOpen = true;
+        break;
+      case 's13_window_close':
+        this._windowOpen = false;
+        break;
+      case 's13_abandon':
+        this._windowOpen = false;
+        this._abandoning = true;
+        break;
+      case 'zone_transition':
+        this._windowOpen = false;
+        this._abandoning = false;
+        break;
     }
   }
 }

@@ -1,14 +1,16 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
+import {mechanic} from '@/shared/mechanics';
+import type {Settings} from '@/shared/settings';
 
-const DEFAULT_LOOT_COLLECTION_MS = 5_000;
+const MECHANIC = mechanic('carjack');
 
 /**
  * CarjackHandler — Carjack (S11) translator.
  *
  *   s11_start  : start tracker (idempotent), arm the activity window
- *   s11_wave   : keep the run alive — resume if dormant, else reset
+ *   s11_wave   : keep the run alive — reset the window (rate-limited)
  *   s11_end    : make the window terminal, then arm it
  *   bag_update : decaying refresh, but only once terminal
  *   zone_transition (town): handled centrally by ZoneHandler.finishAll.
@@ -17,13 +19,14 @@ const DEFAULT_LOOT_COLLECTION_MS = 5_000;
  * signal — one measured encounter ran 24s past its last mob marker. So the
  * window tracks combat instead: expiry parks the tracker dormant (a real fight
  * contained a 7.89s lull, so ending there would drop the last kill's loot) and
- * a later mob marker resumes the same run. Stop flips expiry to finish.
+ * a later arm — mob marker or Stop — wakes the same run
+ * (TrackerRegistry.wakeForLoot). Stop flips expiry to finish.
  */
 export class CarjackHandler implements EventHandler {
   readonly name    = 'carjack';
   readonly handles = ['s11_start', 's11_wave', 's11_end', 'bag_update'] as const;
 
-  private _lootMs: number = DEFAULT_LOOT_COLLECTION_MS;
+  private _lootMs: number = MECHANIC.window.defaultMs;
   /** True once the encounter has resolved: only then may pickups refresh. */
   private _terminal: boolean = false;
 
@@ -31,8 +34,8 @@ export class CarjackHandler implements EventHandler {
     this._terminal = false;
   }
 
-  setLootDurationMs(ms: number): void {
-    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+  configure(settings: Settings): void {
+    this._lootMs = settings.lootWindowMs[MECHANIC.key];
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -42,33 +45,23 @@ export class CarjackHandler implements EventHandler {
 
     switch (event.type) {
       case 's11_start': {
-        // startSeasonal returns a lingering tracker WITHOUT resuming it, so a
-        // fresh Play line landing on a dormant one has to wake it explicitly.
+        // startSeasonal returns a lingering tracker untouched; the reset below
+        // wakes it if a fresh Play line lands on a dormant one.
         const t = ctx.registry.startSeasonal({
           type:              'carjack',
           lootDurationMs:    this._lootMs,
           pauseOnLootExpiry: true,
         }, emit);
         this._terminal = false;
-        if (t && !t.active) t.resumeTracker();
         t?.setPauseOnLootExpiry(true);
         t?.resetLootTimer();
         break;
       }
 
-      case 's11_wave': {
-        const t = ctx.registry.seasonal('carjack');
-        if (!t) return;
-        // Waking a dormant tracker must arm unthrottled: expiry already nulled
-        // the timer, so a throttled call would leave it active with no window.
-        if (!t.active) {
-          t.resumeTracker();
-          t.armLootTimer();
-        } else {
-          t.resetLootTimerThrottled();
-        }
+      case 's11_wave':
+        // A dormant tracker wakes and re-arms unthrottled (see resetLootTimerThrottled).
+        ctx.registry.seasonal('carjack')?.resetLootTimerThrottled();
         break;
-      }
 
       case 's11_end': {
         // De-dupe on _terminal: Stop fires twice per encounter (6-34s apart) and

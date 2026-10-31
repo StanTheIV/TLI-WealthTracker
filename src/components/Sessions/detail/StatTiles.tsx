@@ -1,9 +1,10 @@
 import type {ReactNode} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useTheme} from '@/theme/ThemeContext';
-import type {SessionAnalytics} from '../analytics';
+import type {SessionAnalytics} from '@/domain/session-analytics';
 import {mechanicColors} from './colors';
-import {formatFEFull, formatSeconds, pick, type ValueMode} from './format';
+import {formatFEFull} from '@/lib/format';
+import {formatSeconds, pick, type ValueMode} from './format';
 
 function Tile({label, value, sub, tone, hero, meter}: {
   label: string;

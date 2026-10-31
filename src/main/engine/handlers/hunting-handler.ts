@@ -1,8 +1,10 @@
 import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
+import {mechanic} from '@/shared/mechanics';
+import type {Settings} from '@/shared/settings';
 
-const DEFAULT_LOOT_COLLECTION_MS = 5_000;
+const MECHANIC = mechanic('hunting');
 
 /**
  * HuntingHandler — Hunting ("SixGod") translator.
@@ -24,10 +26,10 @@ export class HuntingHandler implements EventHandler {
   readonly handles = ['hunting_statue', 'hunting_boss_start', 'hunting_boss_end', 'bag_update', 'zone_transition'] as const;
 
   private _armed:   boolean = false;
-  private _lootMs:  number  = DEFAULT_LOOT_COLLECTION_MS;
+  private _lootMs:  number  = MECHANIC.window.defaultMs;
 
-  setLootDurationMs(ms: number): void {
-    this._lootMs = Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : DEFAULT_LOOT_COLLECTION_MS;
+  configure(settings: Settings): void {
+    this._lootMs = settings.lootWindowMs[MECHANIC.key];
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {

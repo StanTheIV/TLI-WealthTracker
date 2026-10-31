@@ -3,15 +3,14 @@ import {Engine} from '@/main/engine/engine';
 import {BagInitHandler} from '@/main/engine/handlers/bag-init';
 import {ZoneHandler} from '@/main/engine/handlers/zone';
 import {ItemHandler} from '@/main/engine/handlers/item';
-import {ErrorHandler} from '@/main/engine/handlers/error';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
+import {TEST_IDENTITY} from './seasonal-fixtures';
 
 function createEngine(events: EngineEvent[]): Engine {
   return new Engine((e) => events.push(e))
     .register(new BagInitHandler())
     .register(new ZoneHandler())
-    .register(new ItemHandler())
-    .register(new ErrorHandler());
+    .register(new ItemHandler());
 }
 
 describe('Engine (integration)', () => {
@@ -23,7 +22,7 @@ describe('Engine (integration)', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
 
-    engine.start();
+    engine.start(TEST_IDENTITY);
     expect(events.find(e => e.type === 'init_started')).toBeDefined();
 
     // Bag initialisation
@@ -48,21 +47,10 @@ describe('Engine (integration)', () => {
     expect(events.find(e => e.type === 'map_ended')).toBeDefined();
   });
 
-  it('routes reader_error to ErrorHandler', () => {
-    const events: EngineEvent[] = [];
-    const engine = createEngine(events);
-    engine.start();
-
-    engine.onRawEvent({type: 'reader_error', message: 'File not found'});
-
-    const err = events.find(e => e.type === 'error');
-    expect(err).toMatchObject({type: 'error', message: 'File not found'});
-  });
-
   it('ignores unregistered event types', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
-    engine.start();
+    engine.start(TEST_IDENTITY);
 
     // reader_ready is not handled — should not throw
     expect(() => engine.onRawEvent({type: 'reader_ready'})).not.toThrow();
@@ -71,7 +59,7 @@ describe('Engine (integration)', () => {
   it('stop clears all state and timers', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
-    engine.start();
+    engine.start(TEST_IDENTITY);
 
     engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 1, quantity: 1});
     engine.stop();
@@ -85,11 +73,11 @@ describe('Engine (integration)', () => {
     const events: EngineEvent[] = [];
     const engine = createEngine(events);
 
-    engine.start();
+    engine.start(TEST_IDENTITY);
     engine.stop();
 
     events.length = 0;
-    engine.start();
+    engine.start(TEST_IDENTITY);
     expect(events.find(e => e.type === 'init_started')).toBeDefined();
   });
 
@@ -97,7 +85,7 @@ describe('Engine (integration)', () => {
     it('seeds the known item set so seeded items do not trigger new_item', () => {
       const events: EngineEvent[] = [];
       const engine = createEngine(events);
-      engine.start();
+      engine.start(TEST_IDENTITY);
       engine.setKnownItems(['100']);
 
       engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 100, quantity: 5});
@@ -113,7 +101,7 @@ describe('Engine (integration)', () => {
     it('emits new_item for items not in the seeded set', () => {
       const events: EngineEvent[] = [];
       const engine = createEngine(events);
-      engine.start();
+      engine.start(TEST_IDENTITY);
       engine.setKnownItems(['100']);
 
       engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 100, quantity: 0});
@@ -132,12 +120,12 @@ describe('Engine (integration)', () => {
       const events: EngineEvent[] = [];
       const engine = createEngine(events);
 
-      engine.start();
+      engine.start(TEST_IDENTITY);
       engine.setKnownItems(['999']);
       engine.stop();
 
       events.length = 0;
-      engine.start();
+      engine.start(TEST_IDENTITY);
       // After restart, known set is empty again — 999 should now trigger new_item
       engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 999, quantity: 0});
       vi.advanceTimersByTime(600);
@@ -152,6 +140,7 @@ describe('Engine (integration)', () => {
     it('reaches an existing filter live', () => {
       const events: EngineEvent[] = [];
       const engine = createEngine(events);
+      engine.start(TEST_IDENTITY);
       engine.setItemTypes([['42', 'other']]);
       engine.setFilterRules([{
         id: 'r1',
@@ -159,16 +148,22 @@ describe('Engine (integration)', () => {
         scopes: ['session'],
         kind: {type: 'by-type', itemType: 'equipment'},
       }]);
-      expect(engine.getFilter()!.shouldInclude(42, 'session')).toBe(true);
+      engine.onRawEvent({type: 'bag_init', pageId: 0, slotId: 1, itemId: 100, quantity: 1});
+      vi.advanceTimersByTime(600);
+      engine.onRawEvent({type: 'zone_transition', fromScene: 'XZ_YuJinZhiXiBiNanSuo200', toScene: '/Game/Art/Maps/S5_Boss'});
 
+      engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: 42, quantity: 1}); // +1, shown
       engine.setItemType('42', 'equipment');
-      expect(engine.getFilter()!.shouldInclude(42, 'session')).toBe(false);
+      engine.onRawEvent({type: 'bag_update', pageId: 0, slotId: 2, itemId: 42, quantity: 3}); // +2, hidden
+
+      const drops = events.flatMap(e => (e.type === 'drop' ? [{itemId: e.itemId, change: e.change}] : []));
+      expect(drops).toEqual([{itemId: 42, change: 1}]);
     });
 
     it('is a no-op when no filter is set', () => {
       const events: EngineEvent[] = [];
       const engine = createEngine(events);
-      engine.start();
+      engine.start(TEST_IDENTITY);
 
       expect(() => engine.setItemType('42', 'equipment')).not.toThrow();
     });

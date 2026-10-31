@@ -1,0 +1,247 @@
+import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
+import type {SeasonalPhase, SeasonalType, Source} from '@/shared/contracts/engine';
+import type {ItemType} from '@/shared/items';
+import type {Valuation} from '@/domain/valuation';
+
+export type {PriceLookup, Valuation} from '@/domain/valuation';
+
+// ---------------------------------------------------------------------------
+// Row classification
+// ---------------------------------------------------------------------------
+
+export type RowKind = 'map' | 'standalone-seasonal' | 'overlap-seasonal';
+
+/** A mechanic bucket. `unknown` catches overlap rows with a null seasonalType —
+ *  guessing a real mechanic would silently misattribute time and value. */
+export type MechanicKey = 'map' | 'town' | 'unknown' | SeasonalType;
+
+export interface ClassifiedRow {
+  row:      DbSessionMap;
+  kind:     RowKind;
+  /** Bucket this row's time and value land in. 'map' for plain map rows. */
+  mechanic: MechanicKey;
+  /** Whether this row's clock ran concurrently with a live map clock. Decides
+   *  whether its time is carved out of plain-map time or out of town time.
+   *  Only meaningful for overlap rows. See MAP_FREEZING_SEASONALS. */
+  concurrentWithMap: boolean;
+  /** Resolved parent row; null when unresolvable (row is then reclassified as
+   *  standalone so its time and value never vanish from the aggregates).
+   *  Group overlaps by this row's identity, never by its mapIndex: duplicate
+   *  primaries share an index, but an overlap has exactly one parent. */
+  parent:   DbSessionMap | null;
+  /** Signed drop value (`valueQty`): a negative quantity reduces it. */
+  income:   Valuation;
+  /** Entry materials consumed, valued by the same rule. */
+  cost:     Valuation;
+  /** Active seconds. Excludes paused time — see docs/GAMEPLAY.md. */
+  seconds:  number;
+}
+
+/** One primary or standalone row after THE fold (`foldMapRows`) — the only
+ *  place a parent's overlaps are taken back out of it. Every aggregate that
+ *  needs a map's own income reads it from here. */
+export interface FoldedRow {
+  row:            ClassifiedRow;
+  /** The map's own loot: its income less its concurrent overlaps' when the era
+   *  wrote them into it. Unclamped — negative when the overlaps exceed it.
+   *  Zero for a standalone seasonal, whose income is all `bySeasonal`. */
+  ownIncome:      Valuation;
+  /** Every overlap's income (concurrent and interlude), plus a standalone's own. */
+  seasonalIncome: Valuation;
+  bySeasonal:     Partial<Record<MechanicKey, Valuation>>;
+  /** What was subtracted from the row's income to get `ownIncome`. */
+  foldedOut:      Valuation;
+  /** The primary row's own entry cost. */
+  cost:           Valuation;
+  /** ownIncome + seasonalIncome − cost. */
+  net:            Valuation;
+}
+
+// ---------------------------------------------------------------------------
+// Aggregates
+// ---------------------------------------------------------------------------
+
+export interface MechanicStats {
+  key:         MechanicKey;
+  runs:        number;
+  seconds:     number;
+  /** Share of the session's accounted time. Sums to 100 across all buckets. */
+  timePct:     number;
+  income:      Valuation;
+  cost:        Valuation;
+  net:         Valuation;
+  valuePct:    Valuation;
+  fePerHour:   Valuation;
+  avgPerRun:   Valuation;
+  avgSeconds:  number;
+  /** True when this bucket's time is carved out of plain-map time rather than
+   *  town time. Drives the "nested" hint in the UI. */
+  nestedInMap: boolean;
+}
+
+/** Shares are per-leg: switching the page to snapshot values must switch the
+ *  percentages with them, or they describe a total that is no longer on screen.
+ *  `value` is signed; `pct` is a share of the positive slices (zero for a
+ *  negative one), so proportional visuals draw positive slices only. */
+export interface SourceSlice {
+  source: Source;
+  value:  Valuation;
+  pct:    Valuation;
+}
+
+export interface TypeSlice {
+  type:  ItemType;
+  value: Valuation;
+  pct:   Valuation;
+}
+
+export interface DroppedItemRow {
+  itemId:    string;
+  name:      string;
+  type:      ItemType;
+  /** False when the id isn't in the items table — rendered as `#id`. */
+  known:     boolean;
+  /** May be negative (auction-house conversion). Shown verbatim. */
+  qty:       number;
+  unitPrice: Valuation;
+  total:     Valuation;
+  /** Share of the positive item totals, per leg. Negative for conversion rows. */
+  pct:       Valuation;
+  perHour:   Valuation;
+  /** Maps run per unit dropped. Null when qty <= 0 or no maps were run. */
+  mapsPerDrop:     number | null;
+  topSource:       Source | null;
+  /** True when this item had no snapshot price and fell back to live. */
+  snapshotMissing: boolean;
+}
+
+export interface ConsumedItemRow {
+  itemId:    string;
+  name:      string;
+  type:      ItemType;
+  known:     boolean;
+  qty:       number;
+  unitPrice: Valuation;
+  total:     Valuation;
+  pct:       Valuation;
+  /** Units consumed per map run. Null when no maps were run. */
+  perMap:    number | null;
+  /** How many distinct runs consumed this item. */
+  runsUsing: number;
+  snapshotMissing: boolean;
+}
+
+export interface PerMapPoint {
+  mapIndex:  number;
+  /** Bucket of the primary row itself — 'map', or the type for a standalone. */
+  mechanic:  MechanicKey;
+  seconds:   number;
+  /** The fold's `ownIncome`: the primary row with nested overlap income
+   *  removed, so the segments of a stacked bar sum to the row total exactly
+   *  once. Signed — negative when its overlaps recorded more than it. */
+  mapIncome:      Valuation;
+  seasonalIncome: Valuation;
+  bySeasonal:     Partial<Record<MechanicKey, Valuation>>;
+  cost:      Valuation;
+  net:       Valuation;
+  cumulative: Valuation;
+}
+
+export interface HistogramBucket {
+  from:  number;
+  to:    number;
+  count: number;
+}
+
+export interface TimelineSegment {
+  key:      string;
+  mapIndex: number;
+  mechanic: MechanicKey;
+  /** Sandlord's phase, so a row can be labelled "Sandlord (Map)" while both
+   *  phases still sum into the one 'sandlord' bucket. Null everywhere else. */
+  phase:    SeasonalPhase | null;
+  kind:     RowKind;
+  seconds:  number;
+  income:   Valuation;
+  cost:     Valuation;
+  children: TimelineSegment[];
+}
+
+// ---------------------------------------------------------------------------
+// Warnings — non-fatal data-integrity notes, surfaced in the UI
+// ---------------------------------------------------------------------------
+
+export type AnalyticsWarning =
+  | {code: 'time-reconciliation';    residualSeconds: number}
+  | {code: 'map-count-mismatch';     mapCount: number; rows: number}
+  | {code: 'orphan-overlap-row';     mapIndex: number}
+  | {code: 'overlap-exceeds-parent'; mapIndex: number}
+  | {code: 'nested-exceeds-map-time'; nestedSeconds: number; mapSeconds: number}
+  | {code: 'unknown-seasonal-type';  mapIndex: number};
+
+// ---------------------------------------------------------------------------
+// Result
+// ---------------------------------------------------------------------------
+
+export interface SessionTotals {
+  totalSeconds:    number;
+  mapSeconds:      number;
+  /** Time in seasonals that ran OUTSIDE the map clock (arcana, vorex,
+   *  sandlord) — the portion that must be carved out of town time. */
+  exclusiveSeasonalSeconds: number;
+  townSeconds:     number;
+  /** Plain-map time: map clock minus concurrently-nested seasonal time. */
+  plainMapSeconds: number;
+  mapCount:        number;
+  income:          Valuation;
+  cost:            Valuation;
+  net:             Valuation;
+  netPerHour:      Valuation;
+  incomePerHour:   Valuation;
+  /** Share of session time spent in content rather than town. */
+  efficiencyPct:   number;
+  /** Null when no maps were run — 0.00 would claim materials were free. */
+  costPerMap:      Valuation | null;
+  /** Income divided by cost. Null when nothing was spent. */
+  roiMultiple:     {snapshot: number | null; live: number | null};
+  /** FE a map must yield to cover its own materials. Null when no maps ran. */
+  breakEvenYield:  Valuation | null;
+  mapsUnprofitable: number;
+  uniqueItems:     number;
+  totalQty:        number;
+  /** Percentage change from snapshot to live value. Null when there is no
+   *  snapshot or the snapshot value is zero. */
+  driftPct:        number | null;
+}
+
+export interface MapNetStats {
+  mean:      Valuation;
+  median:    Valuation;
+  best:      {mapIndex: number; net: Valuation} | null;
+  worst:     {mapIndex: number; net: Valuation} | null;
+  histogram: HistogramBucket[];
+}
+
+export interface SessionAnalytics {
+  meta: {
+    sessionId:   string;
+    attribution: DbSession['attribution'];
+    hasSnapshot: boolean;
+    /** True when the session has no per-run rows — per-map sections hide
+     *  entirely rather than rendering empty charts. */
+    noMapRows:   boolean;
+    /** True when dropsBySource is empty (legacy) and the by-source breakdown
+     *  falls back to per-row aggregation. */
+    legacyBySource: boolean;
+    warnings:    AnalyticsWarning[];
+  };
+  totals:      SessionTotals;
+  mechanics:   MechanicStats[];
+  bySource:    SourceSlice[];
+  byType:      TypeSlice[];
+  perMap:      PerMapPoint[];
+  mapNetStats: MapNetStats;
+  dropped:     DroppedItemRow[];
+  consumed:    ConsumedItemRow[];
+  timeline:    TimelineSegment[];
+}

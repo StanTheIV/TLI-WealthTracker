@@ -1,6 +1,8 @@
 import type {Engine} from '@/main/engine/engine';
 import {createEngine} from '@/main/engine/create-engine';
-import type {EngineEvent, TrackerSnapshot} from '@/main/engine/types';
+import {SessionPersistence, type SessionPersistenceDeps} from '@/main/session-persistence';
+import type {DbSession, DbSessionMap} from '@/shared/contracts/db';
+import type {EngineEvent} from '@/shared/contracts/engine';
 import {createDispatcher} from '@/worker/create-dispatcher';
 import type {LogLine} from './log-source';
 import {installReplayClock, type ReplayClock} from './clock';
@@ -21,11 +23,16 @@ export interface ControlOp {
 
 export interface ReplayOptions {
   source:    AsyncIterable<LogLine> | Iterable<LogLine>;
+  /** Where each run is saved — production's SessionPersistence over any
+   *  store (in-memory bun:sqlite in the CLI, node:sqlite in tests). */
+  persistence: SessionPersistenceDeps;
+  /** Id — and name — of the n-th started session (1-based). Default `replay-<n>`. */
+  sessionIds?: (n: number) => string;
   mode?:     ReplayMode;
   pollMs?:   number;
   /** Defaults to a single `start` just before the first line. */
   controls?: ControlOp[];
-  /** Runs after every `start()`, as production's startEngine configures settings. */
+  /** Runs after every `start()`, as production's TrackingService configures settings. */
   configure?: (engine: Engine) => void;
   /** Log time to run on after the last line so pending windows close. Default 60 s. */
   settleMs?: number;
@@ -41,30 +48,20 @@ export interface ReplayEvent {
   lineNo: number | null;
 }
 
-/** A finished map / seasonal tracker, shaped like a `session_maps` row. */
-export interface ReplayRow {
-  kind:         'map' | 'seasonal';
-  seasonalType: TrackerSnapshot['seasonalType'] | null;
-  phase:        TrackerSnapshot['phase'] | null;
-  /** Seasonal that ran while a map was live — persisted with `parent_map_index`. */
-  overlap:      boolean;
-  /** Same derivation as SessionPersistence: finish time minus tracked elapsed. */
-  startedAt:    number;
-  endedAt:      number;
-  drops:        Record<string, number>;
-}
-
-export interface ReplaySession {
-  endedAt:       number;
-  elapsed:       number;
-  drops:         Record<string, number>;
-  dropsBySource: TrackerSnapshot['dropsBySource'];
+/** One started run, read back from the store after the replay. */
+export interface ReplayedSession {
+  id:      string;
+  /** Null when nothing was saved: the session never opened (no bag baseline)
+   *  or was deleted at Stop (an empty run). An unfinished run (`stopAtEnd:
+   *  false`) is a live row (`endedAt` null) with the units it completed. */
+  session: DbSession | null;
+  rows:    DbSessionMap[];
 }
 
 export interface ReplayResult {
   events:         ReplayEvent[];
-  rows:           ReplayRow[];
-  sessions:       ReplaySession[];
+  /** Every started run, in start order. */
+  sessions:       ReplayedSession[];
   anomalies:      Anomaly[];
   finalInventory: Map<number, number>;
   linesDelivered: number;
@@ -76,23 +73,25 @@ const DEFAULT_POLL_MS   = 250;
 const DEFAULT_SETTLE_MS = 60_000;
 
 /**
- * Feed a recorded game log through the real dispatcher → engine pipeline
- * under virtual time. Production code paths only: the processor chain and
- * handler chain are the shared factories, and every debounce or loot window
- * fires in log time.
+ * Feed a recorded game log through the real dispatcher → engine →
+ * SessionPersistence pipeline under virtual time. Production code paths only:
+ * the processor chain and handler chain are the shared factories, every
+ * debounce or loot window fires in log time, and a run saves exactly what the
+ * app would have written to its DB.
  */
 export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
   const mode     = opts.mode ?? 'poll';
   const pollMs   = opts.pollMs ?? DEFAULT_POLL_MS;
+  const idOf     = opts.sessionIds ?? ((n: number) => `replay-${n}`);
   const dispatcher = createDispatcher();
 
-  const events:   ReplayEvent[]   = [];
-  const rows:     ReplayRow[]     = [];
-  const sessions: ReplaySession[] = [];
+  const events:     ReplayEvent[] = [];
+  const sessionIds: string[]      = [];
 
-  // Cast, not annotation: closures below reassign it, and TS would otherwise
-  // narrow it to `null` for the rest of the function.
-  let engine = null as Engine | null;
+  // Casts, not annotations: closures below reassign them, and TS would
+  // otherwise narrow them to `null` for the rest of the function.
+  let engine      = null as Engine | null;
+  let persistence = null as SessionPersistence | null;
   let clock:  ReplayClock | null = null;
   let now = 0;
   let lastLineNo: number | null = null;
@@ -105,23 +104,8 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
   const emit = (event: EngineEvent): void => {
     events.push({event, at: Date.now(), lineNo: lastLineNo});
     monitor.onEngineEvent(event, lastLineNo);
-    if (event.type !== 'tracker_finished') return;
-    const t = event.tracker;
-    if (t.kind === 'session') {
-      sessions.push({endedAt: event.timestamp, elapsed: t.elapsed, drops: stringKeys(t.drops), dropsBySource: t.dropsBySource});
-      return;
-    }
-    rows.push({
-      kind:         t.kind,
-      seasonalType: t.seasonalType ?? null,
-      phase:        t.phase ?? null,
-      // Emit is synchronous, so this reads the registry mid-transition — the
-      // same moment SessionPersistence asks the same question.
-      overlap:      t.kind === 'seasonal' && engine !== null && engine.hasActiveMapTracker(),
-      startedAt:    event.timestamp - t.elapsed,
-      endedAt:      event.timestamp,
-      drops:        stringKeys(t.drops),
-    });
+    // Synchronous, as TrackingService persists: every event, units included.
+    persistence?.onEngineEvent(event);
   };
 
   const controls = [...(opts.controls ?? [])].sort((a, b) => a.at - b.at);
@@ -134,16 +118,31 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
     monitor.afterAdvance(now, lastLineNo);
   };
 
+  /** As TrackingService.stop: the session's finish reaches the run's own
+   *  persistence (final write + close), then both are dropped. */
+  const stopRun = (): void => {
+    try {
+      engine?.stop(); // emits the session tracker_finished → final write
+    } finally {
+      engine = null;
+      persistence = null;
+    }
+  };
+
   const apply = (op: ControlOp['op']): void => {
     if (op === 'start') {
-      // Production builds a fresh engine per start and stops the old one first.
-      engine?.stop();
+      // Production stops the old run first, then builds a fresh engine and persistence.
+      stopRun();
+      const id = idOf(sessionIds.length + 1);
+      sessionIds.push(id);
+      // Always named: the generated name is local time (TZ-dependent).
+      persistence = new SessionPersistence({sessionId: id, name: id, continued: false, nextMapIndex: 1}, opts.persistence);
       engine = createEngine(emit);
-      engine.start();
+      engine.start({sessionId: id, name: id});
       opts.configure?.(engine);
     } else if (op === 'pause')  engine?.pause();
     else if (op === 'resume')   engine?.resume();
-    else if (op === 'stop')   { engine?.stop(); engine = null; }
+    else if (op === 'stop')     stopRun();
   };
 
   const runControlsUpTo = (ts: number): void => {
@@ -162,10 +161,17 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
       linesDelivered++;
       for (const raw of dispatcher.dispatch(line.text)) {
         monitor.onRawEvent(raw, line.ts, line.lineNo);
-        engine?.onRawEvent(raw);
+        // As TrackingService._onWorkerEvent: prices go to the item table (none here), never to the engine.
+        if (raw.type !== 'price_update') engine?.onRawEvent(raw);
       }
     }
   };
+
+  const readSessions = (): ReplayedSession[] => sessionIds.map(id => ({
+    id,
+    session: opts.persistence.store.getSession(id),
+    rows:    opts.persistence.store.getRows(id),
+  }));
 
   try {
     let batch: LogLine[] = [];
@@ -190,7 +196,7 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
       batch.push(line);
     }
     if (clock === null) {
-      return {events, rows, sessions, anomalies: [], finalInventory: new Map(), linesDelivered: 0, firstTs, lastTs};
+      return {events, sessions: [], anomalies: [], finalInventory: new Map(), linesDelivered: 0, firstTs, lastTs};
     }
     if (batch.length > 0) deliver(batchAt, batch);
 
@@ -201,7 +207,7 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
     monitor.finish(now, lastLineNo);
     if (opts.stopAtEnd ?? true) apply('stop');
 
-    return {events, rows, sessions, anomalies: monitor.anomalies, finalInventory, linesDelivered, firstTs, lastTs};
+    return {events, sessions: readSessions(), anomalies: monitor.anomalies, finalInventory, linesDelivered, firstTs, lastTs};
   } finally {
     clock?.dispose();
   }
@@ -210,10 +216,4 @@ export async function replay(opts: ReplayOptions): Promise<ReplayResult> {
 /** The watcher's next poll at or after `ts`. A poll grid anchored at the first line. */
 function pollBoundary(origin: number, ts: number, pollMs: number): number {
   return origin + Math.ceil((ts - origin) / pollMs) * pollMs;
-}
-
-function stringKeys(drops: Record<number, number>): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const [k, v] of Object.entries(drops)) out[String(k)] = v;
-  return out;
 }

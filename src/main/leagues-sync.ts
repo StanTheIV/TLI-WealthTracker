@@ -1,9 +1,10 @@
 import {net} from 'electron';
 import {log} from './logger';
 import {leaguesGetAll, leaguesApply, priceBackfillOnce} from './db';
-import {broadcastLeaguesChanged} from './items-broadcast';
+import type {Broadcast} from './broadcast';
 import {REPO} from './updater';
 import {mergeLeagues, parseLeaguesJson} from '@/lib/leagues';
+import {describeError} from '@/shared/describe-error';
 import bundledLeagues from '../../resources/leagues.json';
 
 const REMOTE_URL = `https://raw.githubusercontent.com/${REPO}/main/resources/leagues.json`;
@@ -19,7 +20,7 @@ function applyOfficial(json: unknown, source: 'bundled' | 'remote'): boolean {
   return true;
 }
 
-async function syncRemote(): Promise<void> {
+async function syncRemote(broadcast: Broadcast): Promise<void> {
   try {
     const res = await net.fetch(REMOTE_URL, {
       headers: {'User-Agent': 'TLI-Tracker'},
@@ -29,24 +30,24 @@ async function syncRemote(): Promise<void> {
       log.warn('price', `Remote leagues.json returned ${res.status}`);
       return;
     }
-    if (applyOfficial(await res.json(), 'remote')) broadcastLeaguesChanged();
+    if (applyOfficial(await res.json(), 'remote')) broadcast('leagues:changed');
   } catch (err) {
-    log.warn('price', `Remote leagues sync failed: ${err}`);
+    log.warn('price', `Remote leagues sync failed: ${describeError(err)}`);
   }
 }
 
 /** Startup: bundled leagues, one-time price backfill, then a fire-and-forget remote refresh. */
-export function initLeaguesAndPriceHistory(): void {
+export function initLeaguesAndPriceHistory(broadcast: Broadcast): void {
   try {
     applyOfficial(bundledLeagues, 'bundled');
   } catch (err) {
-    log.error('price', `Bundled leagues merge failed: ${err}`);
+    log.error('price', `Bundled leagues merge failed: ${describeError(err)}`);
   }
   try {
     const r = priceBackfillOnce();
     if (!r.skipped) log.info('price', `Backfill complete: ${r.inserted} rows`);
   } catch (err) {
-    log.error('price', `Price backfill failed: ${err}`);
+    log.error('price', `Price backfill failed: ${describeError(err)}`);
   }
-  void syncRemote();
+  void syncRemote(broadcast);
 }

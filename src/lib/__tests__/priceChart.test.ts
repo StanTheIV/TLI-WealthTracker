@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import type {PriceBucket} from '@/main/prices/history';
+import type {PriceBucket} from '@/shared/contracts/db';
 import {leagueRanges} from '../leagues';
 import {buildChartRows, csvField, formatPrice, toCsv} from '../priceChart';
 

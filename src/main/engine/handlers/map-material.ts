@@ -2,12 +2,10 @@ import type {RawEvent} from '@/worker/processors/types';
 import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import {log} from '@/main/logger';
+import type {Settings} from '@/shared/settings';
+import type {EngineEvent} from '@/shared/contracts/engine';
 
-const TOWN_MARKER = 'YuJinZhiXiBiNanSuo';
-
-function isTownScene(scene: string): boolean {
-  return scene.includes(TOWN_MARKER);
-}
+type LowStockItem = Extract<EngineEvent, {type: 'map_material_warning'}>['items'][number];
 
 /**
  * MapMaterialHandler — detects map-creation material spends and warns when
@@ -20,12 +18,12 @@ function isTownScene(scene: string): boolean {
  * town→map transition, items still in `_pendingSpends` advance their
  * `_watch` streak; items in `_watch` not present drop off.
  *
- * IMPORTANT: this watchlist signal is independent of `m.spent`, which comes
- * from `ItemHandler.getLastPreMapFlush()` and reflects the net buffer at
- * map-entry time. The watchlist's order-asymmetric netting is more
+ * IMPORTANT: this watchlist signal is independent of the map's entry cost
+ * (`TrackerSnapshot.spent`), which ItemHandler charges from the net town
+ * buffer at map entry. The watchlist's order-asymmetric netting is more
  * forgiving (a pickup-then-spend still counts as a spend, so the player gets
- * warned about recurring map material consumption) — the chart's `m.spent`
- * is strictly net (so a buy-and-spend in the same window shows zero cost).
+ * warned about recurring map material consumption) — the entry cost is
+ * strictly net (so a buy-and-spend in the same window shows zero cost).
  *
  * AH listings, vault deposits, etc. WILL briefly appear in `_pendingSpends`
  * for the next map's promotion, reaching streak=1. The 2+ consecutive-map
@@ -41,8 +39,8 @@ function isTownScene(scene: string): boolean {
  *   - Map → map transitions are NOT map creation events and are ignored.
  *   - Dismissed items are suppressed until they recover to qty >= 2.
  *
- * MUST be registered AFTER ZoneHandler so `ctx.inMap` reflects the current
- * scene before this handler runs.
+ * MUST be registered AFTER ZoneHandler so `ctx.location` / `ctx.transition`
+ * reflect the current scene before this handler runs.
  */
 export class MapMaterialHandler implements EventHandler {
   readonly name    = 'map-material';
@@ -51,8 +49,9 @@ export class MapMaterialHandler implements EventHandler {
   private _pendingSpends: Map<number, number>           = new Map();
   private _watch:         Map<number, {streak: number}> = new Map();
   private _dismissed:     Set<number>                   = new Set();
-  /** Items currently emitted as low-stock — used to detect new low events for logging. */
-  private _activeLow:     Set<number>                   = new Set();
+  /** The last emitted warning list — what the renderer shows (bag changes
+   *  between emissions do not republish it). */
+  private _published:     LowStockItem[]                = [];
   /** Item qty <= _threshold triggers a warning. Default 0 (warn only at 0). */
   private _threshold:     number                        = 0;
 
@@ -60,7 +59,7 @@ export class MapMaterialHandler implements EventHandler {
     this._pendingSpends.clear();
     this._watch.clear();
     this._dismissed.clear();
-    this._activeLow.clear();
+    this._published = [];
   }
 
   handle(event: RawEvent, ctx: EngineContext, emit: EmitFn): void {
@@ -71,9 +70,16 @@ export class MapMaterialHandler implements EventHandler {
 
     if (event.type === 'bag_update' || event.type === 'bag_remove') {
       const deltas = ctx.bagDeltas;
+      // Only town-side spends are map-cost candidates — only normal maps have
+      // a cost; spending inside a seasonal scene or the hub is not one. Not
+      // `location === 'town'`: until the first transition the location is the
+      // initial 'other' although the player is normally in town, and spends
+      // there must count for the first map. (A real unrecognised scene can't
+      // leak: only a town → map entry promotes, and reaching town clears.)
+      const townSide = !ctx.isLootContext();
       let recovered = false;
       for (const d of deltas) {
-        if (d.change < 0 && !ctx.inMap) {
+        if (d.change < 0 && townSide) {
           // Town-side negative → accumulate as pending spend.
           this._pendingSpends.set(d.itemId, (this._pendingSpends.get(d.itemId) ?? 0) + d.change);
         } else if (d.change > 0) {
@@ -81,7 +87,7 @@ export class MapMaterialHandler implements EventHandler {
           // a previously-recorded spend if the player restocked it). Don't
           // pre-empt a future spend with an earlier pickup — only net if
           // there's already a pending negative for this item.
-          if (!ctx.inMap) {
+          if (townSide) {
             const current = this._pendingSpends.get(d.itemId);
             if (current !== undefined) {
               const next = current + d.change;
@@ -103,18 +109,17 @@ export class MapMaterialHandler implements EventHandler {
     }
 
     if (event.type === 'zone_transition') {
-      const fromTown = isTownScene(event.fromScene);
-      const toTown   = isTownScene(event.toScene);
-
-      if (ctx.inMap && fromTown) {
-        // Real map creation: town → map. Run promotion / decay / warning.
+      // ZoneHandler ran first, so ctx.transition describes THIS event.
+      if (ctx.prevLocation === 'town' && ctx.transition?.mapStarted) {
+        // Real map creation: town → a freshly started map. Run promotion /
+        // decay / warning. Seasonal scenes and the hub never start a map.
         this._onMapEntry(ctx, emit);
-      } else if (toTown) {
+      } else if (ctx.location === 'town') {
         // Returned to town. Drop any pending spends so post-map town
         // activity attributes to the next map's creation.
         this._pendingSpends.clear();
       }
-      // Else: map → map (seasonal entry, etc.) — leave watch state alone.
+      // Else: map → seasonal scene / hub and back, etc. — leave watch state alone.
     }
   }
 
@@ -137,7 +142,6 @@ export class MapMaterialHandler implements EventHandler {
         const wasTracked = (this._watch.get(itemId)?.streak ?? 0) >= 2;
         this._watch.delete(itemId);
         this._dismissed.delete(itemId);
-        this._activeLow.delete(itemId);
         if (wasTracked) {
           log.info('engine', `Map material removed from tracking: itemId=${itemId}`);
         }
@@ -148,24 +152,37 @@ export class MapMaterialHandler implements EventHandler {
     this._pendingSpends.clear();
   }
 
-  /** Build and emit the current warning list from _watch + bag state. */
-  private _emitWarnings(ctx: EngineContext, emit: EmitFn): void {
-    const warnings: Array<{itemId: number; quantity: number}> = [];
-    const nowLow    = new Set<number>();
+  /** The current warning list: tracked (streak ≥ 2), not dismissed, at or
+   *  under the threshold. Pure — reads _watch, _dismissed and the bag. */
+  private _warnings(ctx: EngineContext): LowStockItem[] {
+    const warnings: LowStockItem[] = [];
     for (const [itemId, {streak}] of this._watch) {
-      if (streak < 2) continue;
-      if (this._dismissed.has(itemId)) continue;
+      if (streak < 2 || this._dismissed.has(itemId)) continue;
       const qty = ctx.bag.getTotalForItem(itemId);
-      if (qty <= this._threshold) {
-        warnings.push({itemId, quantity: qty});
-        nowLow.add(itemId);
-        if (!this._activeLow.has(itemId)) {
-          log.info('engine', `Map material low-stock detected: itemId=${itemId} qty=${qty} threshold=${this._threshold}`);
-        }
+      if (qty <= this._threshold) warnings.push({itemId, quantity: qty});
+    }
+    return warnings;
+  }
+
+  /** Emit the current warning list, logging each item that just went low. */
+  private _emitWarnings(ctx: EngineContext, emit: EmitFn): void {
+    const warnings = this._warnings(ctx);
+    const wasLow   = new Set(this._published.map(w => w.itemId));
+    for (const {itemId, quantity} of warnings) {
+      if (!wasLow.has(itemId)) {
+        log.info('engine', `Map material low-stock detected: itemId=${itemId} qty=${quantity} threshold=${this._threshold}`);
       }
     }
-    this._activeLow = nowLow;
+    this._published = warnings;
     emit({type: 'map_material_warning', items: warnings, timestamp: Date.now()});
+  }
+
+  /** The published list minus what the user dismissed since (the renderer
+   *  hides those rows itself), when anything is left to show. */
+  replay(ctx: EngineContext): EngineEvent[] {
+    if (ctx.phase !== 'tracking') return [];
+    const items = this._published.filter(w => !this._dismissed.has(w.itemId)).map(w => ({...w}));
+    return items.length > 0 ? [{type: 'map_material_warning', items, timestamp: Date.now()}] : [];
   }
 
   /** Called via IPC when the user clicks dismiss on a warning row. */
@@ -173,9 +190,10 @@ export class MapMaterialHandler implements EventHandler {
     this._dismissed.add(itemId);
   }
 
-  /** Update the qty threshold at/under which warnings fire. Default is 0. */
-  setThreshold(n: number): void {
-    const next = Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+  /** `lowStockThreshold`: the qty at/under which warnings fire. Applies live
+   *  (watch state is kept). */
+  configure(settings: Settings): void {
+    const next = settings.lowStockThreshold;
     if (next === this._threshold) return;
     this._threshold = next;
     log.info('engine', `Low-stock threshold set: ${next}`);

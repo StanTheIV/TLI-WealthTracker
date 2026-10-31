@@ -17,11 +17,15 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      # --ignore-scripts skips the electron-rebuild postinstall: every
-      # better-sqlite3 reference in the test suite is type-only, so no native
-      # ABI build is needed to typecheck/lint/test.
+      # Tests run the DB layer on node:sqlite (src/test/sql/node-sqlite.ts),
+      # which needs a current Node.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - name: Install dependencies
-        run: bun install --ignore-scripts
+        run: bun install
 
       - name: Typecheck
         run: bunx tsc --noEmit
@@ -31,3 +35,6 @@ jobs:
 
       - name: Test
         run: bun run test
+
+      - name: SqlConn contract (bun:sqlite)
+        run: bun scripts/check-bun-sql.ts

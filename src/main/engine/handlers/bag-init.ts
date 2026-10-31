@@ -3,6 +3,7 @@ import type {EventHandler, EmitFn} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 import type {SlotSnapshotEntry} from '@/main/engine/bag-state';
 import {publishDrops} from '@/main/engine/drop-publisher';
+import {openSessionRun} from '@/main/engine/session-run';
 import {log} from '@/main/logger';
 
 const INIT_DEBOUNCE_MS   = 500;
@@ -56,11 +57,19 @@ export class BagInitHandler implements EventHandler {
     this._dump.push({pageId: event.pageId, slotId: event.slotId, itemId: event.itemId, quantity: event.quantity});
     this._clearTimer();
     const debounce = ctx.phase === 'initializing' ? INIT_DEBOUNCE_MS : RESORT_DEBOUNCE_MS;
-    this._timer = setTimeout(() => this._applyDump(ctx, emit), debounce);
+    this._timer = setTimeout(() => ctx.isolate({handler: this.name, hook: 'timer'}, () => this._applyDump(ctx, emit)), debounce);
   }
 
   /** Close the dump in progress and apply it. A boundary with nothing
-   *  collected (a Reset line no dump followed) is a no-op. */
+   *  collected (a Reset line no dump followed) is a no-op.
+   *
+   *  The dump is taken off before it is applied, so an apply that throws
+   *  (isolated by the Engine — from the debounce timer via ctx.isolate) drops
+   *  that dump only; nothing is rolled back. A throw in `bag.init`, before the
+   *  phase flip, leaves 'initializing' with an empty dump: the next dump is
+   *  the baseline again and opens the session. A throw after the flip leaves
+   *  'tracking' with what was done so far — without a session if it came
+   *  before openSessionRun created one — until the next stop/start. */
   private _applyDump(ctx: EngineContext, emit: EmitFn): void {
     this._clearTimer();
     const entries = this._dump;
@@ -75,10 +84,19 @@ export class BagInitHandler implements EventHandler {
   // Initializing — the first dump is the baseline
   // ---------------------------------------------------------------------
 
+  /**
+   * The session begins here, so nothing before it is the session's: a map
+   * the player left while initializing was no unit and is not counted, and
+   * one they are still inside is rebuilt as the session's first (next, on a
+   * continue) map — see openSessionRun. Nothing pre-init was announced
+   * (ZoneHandler and the seasonal handlers act and publish only while
+   * tracking), so the pre-init trackers are dropped silently. The handlers'
+   * STATE did follow the log, though: an interlude still in progress starts
+   * its run in openSessionRun's session-open hooks.
+   */
   private _initialize(entries: SlotSnapshotEntry[], ctx: EngineContext, emit: EmitFn): void {
     ctx.bag.init(entries);
-    ctx.phase   = 'tracking';
-    const session = ctx.registry.startSession();
+    ctx.phase = 'tracking';
 
     const now = Date.now();
     for (const itemId of ctx.bag.getInventory().keys()) {
@@ -89,28 +107,12 @@ export class BagInitHandler implements EventHandler {
       }
     }
 
-    if (ctx.loadedSession) {
-      const loaded = ctx.loadedSession;
-      ctx.activeSessionId    = loaded.id;
-      ctx.activeSessionName  = loaded.name;
-      ctx.mapCount           = loaded.mapCount;
-      ctx.accumulatedMapTime = loaded.mapTime * 1000;
-
-      for (const [idStr, qty] of Object.entries(loaded.drops)) {
-        session.addDrop(Number(idStr), qty);
-      }
-      session.addTimeOffset(loaded.totalTime * 1000);
-      ctx.loadedSession = null;
-    }
+    const carriedCost: ReadonlyMap<number, number> = new Map(ctx.registry.map?.entryCost ?? []);
+    ctx.registry.reset();
 
     log.info('engine', `Phase: initializing -> tracking (${ctx.bag.itemCount} items)`);
     emit({type: 'init_complete', itemCount: ctx.bag.itemCount});
-    emit({
-      type:        'tracker_started',
-      tracker:     session.snapshot(),
-      timestamp:   Date.now(),
-      sessionMeta: {mapTime: ctx.accumulatedMapTime, mapCount: ctx.mapCount},
-    });
+    openSessionRun(ctx, emit, now, carriedCost);
   }
 
   // ---------------------------------------------------------------------
@@ -126,7 +128,7 @@ export class BagInitHandler implements EventHandler {
     // crediting, so while paused we stop here and publish nothing.
     if (ctx.paused) return;
 
-    publishDrops(ctx, emit, changes.map(c => [c.itemId, c.change] as const), {lootContext: ctx.registry.isLootContext()});
+    publishDrops(ctx, emit, changes.map(c => [c.itemId, c.change] as const), {lootContext: ctx.isLootContext()});
   }
 
   // ---------------------------------------------------------------------

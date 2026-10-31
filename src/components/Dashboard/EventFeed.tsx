@@ -3,7 +3,7 @@ import {useTranslation} from 'react-i18next';
 import type {TFunction} from 'i18next';
 import {useEngineStore, type FeedEvent} from '@/state/engineStore';
 import {useItemsStore} from '@/state/itemsStore';
-import type {DbItem} from '@/types/electron';
+import type {DbItem} from '@/shared/contracts/db';
 
 // ---------------------------------------------------------------------------
 // Per-event rendering
@@ -42,6 +42,8 @@ function eventDescription(fe: FeedEvent, items: Record<string, DbItem>, t: TFunc
   switch (e.type) {
     case 'init_started':
       return t('feed.desc.initStarted');
+    case 'engine_stopped':
+      return t('feed.desc.engineStopped');
     case 'init_complete':
       return t('feed.desc.initComplete', {count: e.itemCount});
     case 'new_item': {
@@ -116,6 +118,9 @@ export default function EventFeed() {
                   {eventLabel(fe.event.type, t)}
                 </span>
                 <span className={`flex-1 truncate ${eventColor(fe.event.type)}`}>
+                  {fe.event.type === 'error' && fe.event.source && (
+                    <span className="text-text-secondary mr-2">{fe.event.source.handler} · {fe.event.source.hook}</span>
+                  )}
                   {eventDescription(fe, items, t)}
                 </span>
               </div>

@@ -1,6 +1,6 @@
-import {itemsGetAll, wealthInsert} from './db';
 import type {Engine} from './engine/engine';
-import {log} from './logger';
+import type {Logger} from './logger';
+import type {DbItem, DbWealthDatapoint, StoredWealthDatapoint} from '@/shared/contracts/db';
 
 interface BreakdownEntry {
   qty:   number;
@@ -8,40 +8,45 @@ interface BreakdownEntry {
   total: number;
 }
 
+export interface WealthRecorderDeps {
+  /** Every known item — its `price` values the snapshot (0 when unknown). */
+  items:  {getAll(): DbItem[]};
+  /** Persists one wealth_datapoints row; returns its id. */
+  insert: (point: Omit<DbWealthDatapoint, 'id'>) => number;
+  log:    Pick<Logger, 'debug'>;
+}
+
 /**
  * Snapshots the engine's current inventory into a wealth_datapoints row.
- * Called on init_complete (initial reading after bag init) and on map_ended
- * (post-map sort settled), so the wealth chart has a datapoint per map.
+ * Called on init_complete (initial reading after bag init), on map_ended
+ * (post-map sort settled), and on the tracker_finished that ends a standalone
+ * seasonal run (last seasonal done, no map alive — it emits no map_ended), so
+ * the wealth chart has a datapoint per map or per standalone run. The trigger
+ * rule lives in TrackingService._isWealthPoint.
  *
- * Filter is honoured: items hidden by the active 'wealth' scope rules are
- * excluded from both the breakdown and the totalValue.
+ * Records GROSS wealth: every bag item with a positive quantity, unfiltered
+ * and untaxed. Both are applied at display (`WealthSeries`), so changing
+ * either rescales the whole history instead of stepping it. The breakdown
+ * keeps each item's id, qty and price, which is all a display-time filter or
+ * tax needs to re-derive the value.
  */
 export class WealthRecorder {
-  private readonly _getEngine:    () => Engine | null;
-  private readonly _getSessionId: () => string | null;
+  private readonly _deps: WealthRecorderDeps;
 
-  constructor(deps: {
-    getEngine:    () => Engine | null;
-    getSessionId: () => string | null;
-  }) {
-    this._getEngine    = deps.getEngine;
-    this._getSessionId = deps.getSessionId;
+  constructor(deps: WealthRecorderDeps) {
+    this._deps = deps;
   }
 
-  snapshot(): void {
-    const engine = this._getEngine();
-    if (!engine) return;
-
+  /** Returns the inserted row. */
+  snapshot(engine: Pick<Engine, 'getInventory'>): StoredWealthDatapoint {
     const inventory = engine.getInventory();
-    const itemMap   = new Map(itemsGetAll().map(i => [i.id, i]));
-    const filter    = engine.getFilter();
+    const itemMap   = new Map(this._deps.items.getAll().map(i => [i.id, i]));
 
     const breakdown: Record<string, BreakdownEntry> = {};
     let totalValue = 0;
 
     for (const [itemId, qty] of inventory) {
       if (qty <= 0) continue;
-      if (filter && !filter.shouldInclude(itemId, 'wealth')) continue;
       const item  = itemMap.get(String(itemId));
       const price = item?.price ?? 0;
       const itemTotal = qty * price;
@@ -49,13 +54,14 @@ export class WealthRecorder {
       totalValue += itemTotal;
     }
 
-    wealthInsert({
+    const point = {
       timestamp: Date.now(),
       value:     totalValue,
-      sessionId: this._getSessionId(),
       breakdown: JSON.stringify(breakdown),
-    });
+    };
+    const id = this._deps.insert(point);
 
-    log.debug('wealth', `Wealth snapshot: value=${totalValue}, items=${Object.keys(breakdown).length}`);
+    this._deps.log.debug('wealth', `Wealth snapshot: value=${totalValue}, items=${Object.keys(breakdown).length}`);
+    return {id, ...point};
   }
 }

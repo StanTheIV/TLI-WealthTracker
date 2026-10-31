@@ -5,11 +5,16 @@
     "paused": "Paused",
     "initializing": "Initializing bag…"
   },
+  "mapLabel": "Map #{{count}} — {{zone}}",
+  "badges": {
+    "initializing": "Initializing"
+  },
   "buttons": {
     "start": "Start",
     "pause": "Pause",
     "resume": "Resume",
     "stop": "Stop",
-    "reset": "Reset trackers"
+    "reset": "Reset trackers",
+    "resetHint": "Hold to reset: permanently deletes the current session and starts a new one"
   }
 }

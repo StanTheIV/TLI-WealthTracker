@@ -2,8 +2,8 @@
  * Overrealm (S12) — entry / exit / loot collection timer.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
-import type {EngineEvent} from '@/main/engine/types';
-import {boot, createDispatcher, createEngine, ctx, feed, log, MAP, overrealm, TOWN} from './seasonal-fixtures';
+import type {EngineEvent} from '@/shared/contracts/engine';
+import {boot, createDispatcher, createEngine, ctx, feed, log, MAP, TOWN} from './seasonal-fixtures';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -48,7 +48,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.s12Entry);
     feed(d, e, log.s12Exit);
 
-    expect(overrealm(e).isLootCollecting()).toBe(true);
+    expect(ctx(e).registry.seasonal('overrealm')?.isLootCollecting()).toBe(true);
     expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
     expect(events.some(ev => ev.type === 'tracker_finished')).toBe(false);
   });
@@ -149,7 +149,7 @@ describe('Overrealm integration', () => {
     // existing tracker.
     feed(d, e, log.s12Entry);
 
-    expect(overrealm(e).isLootCollecting()).toBe(false);
+    expect(ctx(e).registry.seasonal('overrealm')?.isLootCollecting()).toBe(false);
     expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
 
     // Timer cancelled — advancing time should not finish the tracker
@@ -166,7 +166,7 @@ describe('Overrealm integration', () => {
     feed(d, e, log.zoneTransition(TOWN, MAP));
     feed(d, e, log.s12Entry);
     // No s12_exit — player died or abandoned. Tracker stays alive.
-    expect(overrealm(e).isLootCollecting()).toBe(false);
+    expect(ctx(e).registry.seasonal('overrealm')?.isLootCollecting()).toBe(false);
     expect(ctx(e).registry.seasonal('overrealm')).toBeDefined();
 
     // Town entry finishes the tracker through ZoneHandler's centralised path.

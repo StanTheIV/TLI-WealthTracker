@@ -1,0 +1,331 @@
+{
+  "anomalies": [],
+  "events": {
+    "counts": {
+      "drop": 7,
+      "engine_stopped": 1,
+      "init_complete": 1,
+      "init_started": 1,
+      "loot_window_ended": 2,
+      "loot_window_started": 9,
+      "map_ended": 1,
+      "map_material_warning": 1,
+      "map_started": 1,
+      "tracker_finished": 3,
+      "tracker_started": 3,
+      "tracker_update": 22,
+      "zone_change": 2
+    },
+    "lines": [
+      "-0.001s init_started",
+      "+0.750s init_complete items=6",
+      "+0.750s tracker_started session active=true",
+      "+21.000s zone_change map XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200 -> JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000",
+      "+21.000s map_started count=1",
+      "+21.000s tracker_started map active=true",
+      "+21.000s map_material_warning items=[]",
+      "+40.000s tracker_started seasonal carjack active=true owner",
+      "+40.000s loot_window_started carjack for=5.000s",
+      "+41.000s loot_window_started carjack for=5.000s",
+      "+42.500s loot_window_started carjack for=5.000s",
+      "+44.000s loot_window_started carjack for=5.000s",
+      "+46.000s loot_window_started carjack for=5.000s",
+      "+48.000s loot_window_started carjack for=5.000s",
+      "+50.000s loot_window_started carjack for=5.000s",
+      "+55.000s loot_window_ended carjack",
+      "+55.000s tracker_update seasonal carjack active=false",
+      "+68.000s tracker_update seasonal carjack active=true owner",
+      "+68.000s loot_window_started carjack for=5.000s",
+      "+70.000s loot_window_started carjack for=4.000s",
+      "+74.000s loot_window_ended carjack",
+      "+74.000s tracker_finished seasonal carjack elapsed=21.000s items=3",
+      "+110.000s zone_change town JH_ShengDeLanXiuDaoYuan000.JH_ShengDeLanXiuDaoYuan000 -> XZ_YuJinZhiXiBiNanSuo200.XZ_YuJinZhiXiBiNanSuo200",
+      "+110.000s tracker_finished map elapsed=89.000s items=5",
+      "+110.000s map_ended elapsed=89.000s",
+      "+170.000s tracker_finished session elapsed=169.250s items=5",
+      "+170.000s engine_stopped"
+    ]
+  },
+  "linesDelivered": 30,
+  "sessions": [
+    {
+      "analytics": {
+        "mechanics": [
+          {
+            "avgPerRun": {
+              "live": 16.547343,
+              "snapshot": 16.547343
+            },
+            "avgSeconds": 68,
+            "cost": {
+              "live": 3.558441,
+              "snapshot": 3.558441
+            },
+            "fePerHour": {
+              "live": 876.035806,
+              "snapshot": 876.035806
+            },
+            "income": {
+              "live": 20.105784,
+              "snapshot": 20.105784
+            },
+            "key": "map",
+            "nestedInMap": false,
+            "net": {
+              "live": 16.547343,
+              "snapshot": 16.547343
+            },
+            "runs": 1,
+            "seconds": 68,
+            "timePct": 40.177253,
+            "valuePct": {
+              "live": 36.00706,
+              "snapshot": 36.00706
+            }
+          },
+          {
+            "avgPerRun": {
+              "live": 35.732666,
+              "snapshot": 35.732666
+            },
+            "avgSeconds": 21,
+            "cost": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "fePerHour": {
+              "live": 6125.599886,
+              "snapshot": 6125.599886
+            },
+            "income": {
+              "live": 35.732666,
+              "snapshot": 35.732666
+            },
+            "key": "carjack",
+            "nestedInMap": true,
+            "net": {
+              "live": 35.732666,
+              "snapshot": 35.732666
+            },
+            "runs": 1,
+            "seconds": 21,
+            "timePct": 12.407681,
+            "valuePct": {
+              "live": 63.99294,
+              "snapshot": 63.99294
+            }
+          },
+          {
+            "avgPerRun": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "avgSeconds": 0,
+            "cost": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "fePerHour": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "income": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "key": "town",
+            "nestedInMap": false,
+            "net": {
+              "live": 0,
+              "snapshot": 0
+            },
+            "runs": 0,
+            "seconds": 80.25,
+            "timePct": 47.415066,
+            "valuePct": {
+              "live": 0,
+              "snapshot": 0
+            }
+          }
+        ],
+        "perMap": [
+          {
+            "bySeasonal": {
+              "carjack": {
+                "live": 35.732666,
+                "snapshot": 35.732666
+              }
+            },
+            "cost": {
+              "live": 3.558441,
+              "snapshot": 3.558441
+            },
+            "cumulative": {
+              "live": 52.280009,
+              "snapshot": 52.280009
+            },
+            "mapIncome": {
+              "live": 20.105784,
+              "snapshot": 20.105784
+            },
+            "mapIndex": 1,
+            "mechanic": "map",
+            "net": {
+              "live": 52.280009,
+              "snapshot": 52.280009
+            },
+            "seasonalIncome": {
+              "live": 35.732666,
+              "snapshot": 35.732666
+            },
+            "seconds": 89
+          }
+        ],
+        "totals": {
+          "breakEvenYield": {
+            "live": 3.558441,
+            "snapshot": 3.558441
+          },
+          "cost": {
+            "live": 3.558441,
+            "snapshot": 3.558441
+          },
+          "costPerMap": {
+            "live": 3.558441,
+            "snapshot": 3.558441
+          },
+          "driftPct": 0,
+          "efficiencyPct": 52.584934,
+          "exclusiveSeasonalSeconds": 0,
+          "income": {
+            "live": 55.83845,
+            "snapshot": 55.83845
+          },
+          "incomePerHour": {
+            "live": 1187.701152,
+            "snapshot": 1187.701152
+          },
+          "mapCount": 1,
+          "mapSeconds": 89,
+          "mapsUnprofitable": 0,
+          "net": {
+            "live": 52.280009,
+            "snapshot": 52.280009
+          },
+          "netPerHour": {
+            "live": 1112.012008,
+            "snapshot": 1112.012008
+          },
+          "plainMapSeconds": 68,
+          "roiMultiple": {
+            "live": 15.69183,
+            "snapshot": 15.69183
+          },
+          "totalQty": 57,
+          "totalSeconds": 169.25,
+          "townSeconds": 80.25,
+          "uniqueItems": 5
+        },
+        "warnings": []
+      },
+      "id": "replay-1",
+      "invariants": {
+        "dropsBySourceSumsToDrops": {
+          "ok": true
+        },
+        "liveMatchesAnalytics": {
+          "ok": true
+        },
+        "mechanicsNetReconciles": {
+          "ok": true
+        },
+        "netReconciles": {
+          "ok": true
+        },
+        "overlapHasParent": {
+          "ok": true
+        },
+        "primaryMapIndexUnique": {
+          "ok": true
+        }
+      },
+      "rows": [
+        {
+          "drops": {
+            "5028": 4,
+            "5210": 3,
+            "6004": 2,
+            "6153": 1,
+            "100300": 47
+          },
+          "duration": 89000,
+          "endedAtMs": 110000,
+          "mapIndex": 1,
+          "parentMapIndex": null,
+          "phase": null,
+          "seasonalType": null,
+          "spent": {
+            "10240": 1,
+            "400015": 1
+          },
+          "startedAtMs": 21000
+        },
+        {
+          "drops": {
+            "5210": 3,
+            "6004": 2,
+            "100300": 35
+          },
+          "duration": 21000,
+          "endedAtMs": 74000,
+          "mapIndex": 1,
+          "parentMapIndex": 1,
+          "phase": null,
+          "seasonalType": "carjack",
+          "spent": {},
+          "startedAtMs": 40000
+        }
+      ],
+      "saved": true,
+      "totals": {
+        "attribution": "drop-through",
+        "drops": {
+          "5028": 4,
+          "5210": 3,
+          "6004": 2,
+          "6153": 1,
+          "100300": 47
+        },
+        "dropsBySource": {
+          "carjack": {
+            "5210": 3,
+            "6004": 2,
+            "100300": 35
+          },
+          "map": {
+            "5028": 4,
+            "6153": 1,
+            "100300": 12
+          }
+        },
+        "mapCount": 1,
+        "mapTime": 89,
+        "priceSnapshot": {
+          "5028": 0.13,
+          "5210": 0.022,
+          "6004": 0.333333,
+          "6153": 7.585784,
+          "10240": 1.563492,
+          "100300": 1,
+          "400015": 1.994949
+        },
+        "spent": {
+          "10240": 1,
+          "400015": 1
+        },
+        "totalTime": 169.25
+      }
+    }
+  ],
+  "spanMs": 110000
+}

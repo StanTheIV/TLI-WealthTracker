@@ -13,8 +13,8 @@ import type {Dispatcher} from '@/worker/dispatcher';
 import {createDispatcher as createProductionDispatcher} from '@/worker/create-dispatcher';
 import type {Engine} from '@/main/engine/engine';
 import {createEngine as createProductionEngine} from '@/main/engine/create-engine';
-import type {OverrealmHandler} from '@/main/engine/handlers/overrealm-handler';
-import type {EngineEvent, EmitFn}  from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
+import type {EmitFn, EngineSink} from '@/main/engine/types';
 import type {EngineContext} from '@/main/engine/context';
 
 // ---------------------------------------------------------------------------
@@ -137,6 +137,9 @@ export const SANDLORD_SUB_MAP = '/Game/Art/Maps/06SQ/SQ_NvShenQunBai100/SQ_NvShe
 export const ARCANA_FIGHT      = '/Game/Art/Season/S9/Maps/SuMingTaLuo/SuMingTaLuo000.SuMingTaLuo000';
 export const TARTARUS_FIGHT    = '/Game/Art/Season/S16/Maps/ZhongZuiDiYu/ZhongZuiDiYu.ZhongZuiDiYu';
 
+/** The session identity engine tests hand to `Engine.start` / `Engine.reset`. */
+export const TEST_IDENTITY = {sessionId: 'test-session', name: 'Test session'};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -152,11 +155,17 @@ export function createEngine(events: EngineEvent[]): Engine {
   return createProductionEngine((e) => events.push(e));
 }
 
-/** Variant of createEngine that takes a custom emit function — used by the
- *  Sandlord hasActiveMapTracker discriminator tests where the captor needs
- *  closure access to the Engine instance to call hasActiveMapTracker(). */
-export function createEngineWithEmit(emit: EmitFn): Engine {
+/** Variant of createEngine that takes a custom emit function — for captors
+ *  that need more than an array (e.g. an OwnerWatcher fed every event). */
+export function createEngineWithEmit(emit: EngineSink): Engine {
   return createProductionEngine(emit);
+}
+
+/** The emitter for rigs that drive the registry, a tracker or a handler
+ *  directly, past the Engine. A unit leaves those unstamped (only the Engine
+ *  adds its checkpoint), so units are left out; every other event reaches `sink`. */
+export function internalEmit(sink: EngineSink): EmitFn {
+  return (ev) => { if (ev.type !== 'unit_finished') sink(ev); };
 }
 
 /** Feed a log line through the full dispatcher → engine pipeline. */
@@ -171,18 +180,13 @@ export function ctx(engine: Engine): EngineContext {
   return (engine as unknown as {_ctx: EngineContext})._ctx;
 }
 
-/** Test-only handler accessor for asserting handler-local state. */
-export function overrealm(engine: Engine): OverrealmHandler {
-  return engine.getHandler('overrealm') as OverrealmHandler;
-}
-
 /** Boot engine and complete bag init with a given inventory. */
 export function boot(
   dispatcher: Dispatcher,
   engine: Engine,
   inventory: Array<{slotId: number; itemId: number; quantity: number}>,
 ): void {
-  engine.start();
+  engine.start(TEST_IDENTITY);
   for (const {slotId, itemId, quantity} of inventory) {
     feed(dispatcher, engine, log.bagInit(slotId, itemId, quantity));
   }

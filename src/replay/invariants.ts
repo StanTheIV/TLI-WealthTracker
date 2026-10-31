@@ -1,6 +1,6 @@
 import type {Engine} from '@/main/engine/engine';
 import {slotKey} from '@/main/engine/bag-state';
-import type {EngineEvent} from '@/main/engine/types';
+import type {EngineEvent} from '@/shared/contracts/engine';
 import type {RawEvent} from '@/worker/processors/types';
 
 export type AnomalyKind =

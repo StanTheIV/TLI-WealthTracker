@@ -19,7 +19,7 @@ export default function SessionsScreen({onNavChange}: Props) {
   const selectedId   = useSessionsStore(s => s.selectedId);
   const select       = useSessionsStore(s => s.select);
   const refresh      = useSessionsStore(s => s.refresh);
-  const lastSavedId  = useEngineStore(s => s.lastSavedSessionId);
+  const sessionsVersion = useEngineStore(s => s.sessionsVersion);
   const items        = useItemsStore(s => s.items);
   const tax          = useTaxConfig();
 
@@ -28,10 +28,11 @@ export default function SessionsScreen({onNavChange}: Props) {
     if (!isLoaded) useSessionsStore.getState().load();
   }, [isLoaded]);
 
-  // Refresh whenever the engine saves a new session
+  // Refresh after every session write (each unit of the live session, its
+  // close, a delete) — the live session is in the list and keeps changing.
   useEffect(() => {
-    if (lastSavedId) refresh();
-  }, [lastSavedId, refresh]);
+    if (sessionsVersion > 0) refresh();
+  }, [sessionsVersion, refresh]);
 
   // Detail view — full-screen swap with back button.
   if (selectedId) {
